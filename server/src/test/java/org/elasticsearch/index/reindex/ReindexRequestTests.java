@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -36,11 +25,12 @@ import org.elasticsearch.search.slice.SliceBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
@@ -319,5 +309,44 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         source.put("remote", remote);
 
         return ReindexRequest.buildRemoteInfo(source);
+    }
+
+    public void testCommaSeparatedSourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("a,b");
+        assertArrayEquals(new String[]{"a", "b"}, r.getSearchRequest().indices());
+    }
+
+    public void testArraySourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices(new String[]{"a", "b"});
+        assertArrayEquals(new String[]{"a", "b"}, r.getSearchRequest().indices());
+    }
+
+    public void testEmptyStringSourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("");
+        assertArrayEquals(new String[0], r.getSearchRequest().indices());
+        ActionRequestValidationException validationException = r.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
+    }
+
+    private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject(); {
+                b.startObject("source"); {
+                    b.field("index", sourceIndices);
+                }
+                b.endObject();
+                b.startObject("dest"); {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            return ReindexRequest.fromXContent(p);
+        }
     }
 }

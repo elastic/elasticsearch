@@ -5,6 +5,11 @@
       "description":"Creates an index with optional settings and mappings."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -22,10 +27,6 @@
       ]
     },
     "params":{
-      "include_type_name":{
-        "type":"boolean",
-        "description":"Whether a type should be expected in the body of the mappings."
-      },
       "wait_for_active_shards":{
         "type":"string",
         "description":"Set the number of active shards to wait for before the operation returns."

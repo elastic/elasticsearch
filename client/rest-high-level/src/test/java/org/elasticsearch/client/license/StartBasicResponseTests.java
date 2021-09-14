@@ -1,68 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.license;
 
-import org.elasticsearch.client.AbstractHlrcWriteableXContentTestCase;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.PostStartBasicResponse;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
 
-public class StartBasicResponseTests extends AbstractHlrcWriteableXContentTestCase<
+import static org.hamcrest.Matchers.equalTo;
+
+public class StartBasicResponseTests extends AbstractResponseTestCase<
     PostStartBasicResponse, StartBasicResponse> {
 
     @Override
-    public org.elasticsearch.client.license.StartBasicResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.client.license.StartBasicResponse.fromXContent(parser);
-    }
-
-    @Override
-    public PostStartBasicResponse convertHlrcToInternal(org.elasticsearch.client.license.StartBasicResponse instance) {
-        return new PostStartBasicResponse(PostStartBasicResponse.Status.valueOf(instance.getStatus().name()),
-            instance.getAcknowledgeMessages(), instance.getAcknowledgeMessage());
-    }
-
-    @Override
-    protected Writeable.Reader<PostStartBasicResponse> instanceReader() {
-        return PostStartBasicResponse::new;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // The structure of the response is such that unknown fields inside acknowledge cannot be supported since they
-        // are treated as messages from new services
-        return p -> p.startsWith("acknowledge");
-    }
-
-    @Override
-    protected PostStartBasicResponse createTestInstance() {
+    protected PostStartBasicResponse createServerTestInstance(XContentType xContentType) {
         PostStartBasicResponse.Status status = randomFrom(PostStartBasicResponse.Status.values());
         String acknowledgeMessage = null;
         Map<String, String[]> ackMessages = Collections.emptyMap();
@@ -71,7 +33,6 @@ public class StartBasicResponseTests extends AbstractHlrcWriteableXContentTestCa
             ackMessages = randomAckMessages();
         }
         final PostStartBasicResponse postStartBasicResponse = new PostStartBasicResponse(status, ackMessages, acknowledgeMessage);
-        logger.info("{}", Strings.toString(postStartBasicResponse));
         return postStartBasicResponse;
     }
 
@@ -91,5 +52,23 @@ public class StartBasicResponseTests extends AbstractHlrcWriteableXContentTestCa
         }
 
         return ackMessages;
+    }
+
+    @Override
+    protected StartBasicResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return StartBasicResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected void assertInstances(PostStartBasicResponse serverTestInstance, StartBasicResponse clientInstance) {
+        assertThat(serverTestInstance.getStatus().name(), equalTo(clientInstance.getStatus().name()));
+        assertThat(serverTestInstance.getStatus().isBasicStarted(), equalTo(clientInstance.isBasicStarted()));
+        assertThat(serverTestInstance.isAcknowledged(), equalTo(clientInstance.isAcknowledged()));
+        assertThat(serverTestInstance.getStatus().getErrorMessage(), equalTo(clientInstance.getErrorMessage()));
+        assertThat(serverTestInstance.getAcknowledgeMessage(), equalTo(clientInstance.getAcknowledgeMessage()));
+        assertThat(serverTestInstance.getAcknowledgeMessages().keySet(), equalTo(clientInstance.getAcknowledgeMessages().keySet()));
+        for(Map.Entry<String, String[]> entry: serverTestInstance.getAcknowledgeMessages().entrySet()) {
+            assertTrue(Arrays.equals(entry.getValue(), clientInstance.getAcknowledgeMessages().get(entry.getKey())));
+        }
     }
 }

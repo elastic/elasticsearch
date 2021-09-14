@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations;
@@ -23,18 +12,22 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
-public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation,
-            B extends InternalMultiBucketAggregation.InternalBucket>
-        extends InternalAggregation implements MultiBucketsAggregation {
+@SuppressWarnings("rawtypes")
+public abstract class InternalMultiBucketAggregation<
+    A extends InternalMultiBucketAggregation,
+    B extends InternalMultiBucketAggregation.InternalBucket> extends InternalAggregation implements MultiBucketsAggregation {
 
-    public InternalMultiBucketAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalMultiBucketAggregation(String name, Map<String, Object> metadata) {
+        super(name, metadata);
     }
 
     /**
@@ -73,7 +66,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     protected abstract B reduceBucket(List<B> buckets, ReduceContext context);
 
     @Override
-    public abstract List<? extends InternalBucket> getBuckets();
+    public abstract List<B> getBuckets();
 
     @Override
     public Object getProperty(List<String> path) {
@@ -127,7 +120,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
         if (agg instanceof MultiBucketsAggregation) {
             MultiBucketsAggregation multi = (MultiBucketsAggregation) agg;
             for (MultiBucketsAggregation.Bucket bucket : multi.getBuckets()) {
-                ++ size;
+                ++size;
                 for (Aggregation bucketAgg : bucket.getAggregations().asList()) {
                     size += countInnerBucket(bucketAgg);
                 }
@@ -139,6 +132,67 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
         }
         return size;
+    }
+
+    /**
+     * A multi-bucket agg needs to first reduce the buckets and *their* pipelines
+     * before allowing sibling pipelines to materialize.
+     */
+    @Override
+    public final InternalAggregation reducePipelines(
+        InternalAggregation reducedAggs,
+        ReduceContext reduceContext,
+        PipelineTree pipelineTree
+    ) {
+        assert reduceContext.isFinalReduce();
+        InternalAggregation reduced = this;
+        if (pipelineTree.hasSubTrees()) {
+            List<B> materializedBuckets = reducePipelineBuckets(reduceContext, pipelineTree);
+            reduced = create(materializedBuckets);
+        }
+        return super.reducePipelines(reduced, reduceContext, pipelineTree);
+    }
+
+    @Override
+    public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
+        boolean modified = false;
+        List<B> newBuckets = new ArrayList<>();
+        for (B bucket : getBuckets()) {
+            InternalAggregations rewritten = rewriter.apply((InternalAggregations) bucket.getAggregations());
+            if (rewritten == null) {
+                newBuckets.add(bucket);
+                continue;
+            }
+            modified = true;
+            B newBucket = createBucket(rewritten, bucket);
+            newBuckets.add(newBucket);
+        }
+        return modified ? create(newBuckets) : this;
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
+    }
+
+    @Override
+    public void forEachBucket(Consumer<InternalAggregations> consumer) {
+        for (B bucket : getBuckets()) {
+            consumer.accept((InternalAggregations) bucket.getAggregations());
+        }
+    }
+
+    private List<B> reducePipelineBuckets(ReduceContext reduceContext, PipelineTree pipelineTree) {
+        List<B> reducedBuckets = new ArrayList<>();
+        for (B bucket : getBuckets()) {
+            List<InternalAggregation> aggs = new ArrayList<>();
+            for (Aggregation agg : bucket.getAggregations()) {
+                PipelineTree subTree = pipelineTree.subTree(agg.getName());
+                aggs.add(((InternalAggregation) agg).reducePipelines((InternalAggregation) agg, reduceContext, subTree));
+            }
+            reducedBuckets.add(createBucket(InternalAggregations.from(aggs), bucket));
+        }
+        return reducedBuckets;
     }
 
     public abstract static class InternalBucket implements Bucket, Writeable {
@@ -162,8 +216,9 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
             InternalAggregation aggregation = aggregations.get(aggName);
             if (aggregation == null) {
-                throw new InvalidAggregationPathException("Cannot find an aggregation named [" + aggName + "] in [" + containingAggName
-                        + "]");
+                throw new InvalidAggregationPathException(
+                    "Cannot find an aggregation named [" + aggName + "] in [" + containingAggName + "]"
+                );
             }
             return aggregation.getProperty(path.subList(1, path.size()));
         }

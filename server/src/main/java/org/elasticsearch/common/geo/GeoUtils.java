@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo;
@@ -92,6 +81,7 @@ public class GeoUtils {
         }
         return true;
     }
+
 
     /**
      * Calculate the width (in meters) of geohash cells at a specific level
@@ -308,7 +298,7 @@ public class GeoUtils {
         assert lonLat != null && lonLat.length == 2;
 
         normLat = normLat && (lonLat[1] > 90 || lonLat[1] < -90);
-        normLon = normLon && (lonLat[0] > 180 || lonLat[0] < -180);
+        normLon = normLon && (lonLat[0] > 180 || lonLat[0] < -180 || normLat);
 
         if (normLat) {
             lonLat[1] = centeredModulus(lonLat[1], 360);
@@ -372,12 +362,25 @@ public class GeoUtils {
      * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
      */
     public static GeoPoint parseGeoPoint(Object value, final boolean ignoreZValue) throws ElasticsearchParseException {
+        return parseGeoPoint(value, new GeoPoint(), ignoreZValue);
+    }
+
+    /**
+     * Parses the value as a geopoint. The following types of values are supported:
+     * <p>
+     * Object: has to contain either lat and lon or geohash fields
+     * <p>
+     * String: expected to be in "latitude, longitude" format or a geohash
+     * <p>
+     * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
+     */
+    public static GeoPoint parseGeoPoint(Object value, GeoPoint point, final boolean ignoreZValue) throws ElasticsearchParseException {
         try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                Collections.singletonMap("null_value", value), null)) {
+            Collections.singletonMap("null_value", value), null)) {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value
-            return parseGeoPoint(parser, new GeoPoint(), ignoreZValue);
+            return parseGeoPoint(parser, point, ignoreZValue);
         } catch (IOException ex) {
             throw new ElasticsearchParseException("error parsing geopoint", ex);
         }
@@ -471,7 +474,7 @@ public class GeoUtils {
                 }
             }
             if (geohash != null) {
-                if(!Double.isNaN(lat) || !Double.isNaN(lon)) {
+                if(Double.isNaN(lat) == false || Double.isNaN(lon) == false) {
                     throw new ElasticsearchParseException("field must be either lat/lon or geohash");
                 } else {
                     return point.parseGeoHash(geohash, effectivePoint);

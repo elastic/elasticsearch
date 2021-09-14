@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,15 +16,15 @@ import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -34,16 +34,14 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestPutWatchAction extends BaseRestHandler implements RestRequestFilter {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutWatchAction.class));
-
-    public RestPutWatchAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}", this,
-            POST, "/_xpack/watcher/watch/{id}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}", this,
-            PUT, "/_xpack/watcher/watch/{id}", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(POST, "/_watcher/watch/{id}")
+                .replaces(POST, "/_xpack/watcher/watch/{id}", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/{id}")
+                .replaces(PUT, "/_xpack/watcher/watch/{id}", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

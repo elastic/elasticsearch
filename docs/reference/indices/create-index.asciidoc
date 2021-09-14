@@ -8,7 +8,7 @@ Creates a new index.
 
 [source,console]
 --------------------------------------------------
-PUT /twitter
+PUT /my-index-000001
 --------------------------------------------------
 
 
@@ -17,9 +17,17 @@ PUT /twitter
 
 `PUT /<index>`
 
+[[indices-create-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `create_index`
+or `manage` <<privileges-list-indices,index privilege>> for the target index. To
+add the index to an alias, you must have the `manage` index privilege for the
+alias.
+
 [[indices-create-api-desc]]
 ==== {api-description-title}
-You can use the create index API to add a new index to an {es} cluster. When 
+You can use the create index API to add a new index to an {es} cluster. When
 creating an index, you can specify the following:
 
 * Settings for the index
@@ -33,7 +41,7 @@ creating an index, you can specify the following:
 `<index>`::
 +
 --
-(Optional, string) Name of the index you wish to create.
+(Required, string) Name of the index you wish to create.
 
 // tag::index-name-reqs[]
 Index names must meet the following criteria:
@@ -44,6 +52,7 @@ Index names must meet the following criteria:
 - Cannot start with `-`, `_`, `+`
 - Cannot be `.` or `..`
 - Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters will count towards the 255 limit faster)
+- Names starting with `.` are deprecated, except for <<index-hidden,hidden indices>> and internal indices managed by plugins
 // end::index-name-reqs[]
 --
 
@@ -51,23 +60,62 @@ Index names must meet the following criteria:
 [[indices-create-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
-
-
+[role="child_attributes"]
 [[indices-create-api-request-body]]
 ==== {api-request-body-title}
 
 `aliases`::
-(Optional, <<indices-aliases,alias object>>) Index aliases which include the
-index. See <<indices-aliases>>.
+(Optional, object of objects) Aliases for the index.
++
+--
+// tag::aliases-props[]
+[%collapsible%open]
+.Properties of `aliases` objects
+=======
+`<alias>`::
+(Required, object) The key is the alias name. Index alias names support
+<<date-math-index-names,date math>>.
++
+The object body contains options for the alias. Supports an empty object.
++
+.Properties of `<alias>`
+[%collapsible%open]
+======
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>) Query used to limit documents the
+alias can access.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
+`index_routing`::
+(Optional, string) Value used to route indexing operations to a specific shard.
+If specified, this overwrites the `routing` value for indexing operations.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
+`is_hidden`::
+(Optional, Boolean) If `true`, the alias is <<hidden,hidden>>. Defaults to
+`false`. All indices for the alias must have the same `is_hidden` value.
+
+`is_write_index`::
+(Optional, Boolean) If `true`, the index is the <<write-index,write index>> for
+the alias. Defaults to `false`.
+
+`routing`::
+(Optional, string) Value used to route indexing and search operations to a
+specific shard.
+
+`search_routing`::
+(Optional, string) Value used to route search operations to a specific shard. If
+specified, this overwrites the `routing` value for search operations.
+======
+=======
+// end::aliases-props[]
+--
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 [[indices-create-api-example]]
 ==== {api-examples-title}
@@ -80,14 +128,14 @@ associated with it, defined in the body:
 
 [source,console]
 --------------------------------------------------
-PUT /twitter
+PUT /my-index-000001
 {
-    "settings" : {
-        "index" : {
-            "number_of_shards" : 3, <1>
-            "number_of_replicas" : 2 <2>
-        }
+  "settings": {
+    "index": {
+      "number_of_shards": 3,  <1>
+      "number_of_replicas": 2 <2>
     }
+  }
 }
 --------------------------------------------------
 
@@ -98,12 +146,12 @@ or more simplified
 
 [source,console]
 --------------------------------------------------
-PUT /twitter
+PUT /my-index-000001
 {
-    "settings" : {
-        "number_of_shards" : 3,
-        "number_of_replicas" : 2
-    }
+  "settings": {
+    "number_of_shards": 3,
+    "number_of_replicas": 2
+  }
 }
 --------------------------------------------------
 
@@ -124,44 +172,52 @@ The create index API allows for providing a mapping definition:
 --------------------------------------------------
 PUT /test
 {
-    "settings" : {
-        "number_of_shards" : 1
-    },
-    "mappings" : {
-        "properties" : {
-            "field1" : { "type" : "text" }
-        }
+  "settings": {
+    "number_of_shards": 1
+  },
+  "mappings": {
+    "properties": {
+      "field1": { "type": "text" }
     }
+  }
 }
 --------------------------------------------------
-
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
-types in requests is now deprecated, a type can still be provided if the request parameter
-include_type_name is set. For more details, please see <<removal-of-types>>.
 
 [[create-index-aliases]]
 ===== Aliases
 
-The create index API allows also to provide a set of <<indices-aliases,aliases>>:
+The create index API allows also to provide a set of <<aliases,aliases>>:
 
 [source,console]
 --------------------------------------------------
 PUT /test
 {
-    "aliases" : {
-        "alias_1" : {},
-        "alias_2" : {
-            "filter" : {
-                "term" : {"user" : "kimchy" }
-            },
-            "routing" : "kimchy"
-        }
+  "aliases": {
+    "alias_1": {},
+    "alias_2": {
+      "filter": {
+        "term": { "user.id": "kimchy" }
+      },
+      "routing": "shard-1"
     }
+  }
 }
 --------------------------------------------------
 
+Index alias names also support <<date-math-index-names,date math>>.
+
+[source,console]
+----
+PUT /logs
+{
+  "aliases": {
+    "<logs_{now/M}>": {}
+  }
+}
+----
+
 [[create-index-wait-for-active-shards]]
-===== Wait For active shards
+===== Wait for active shards
 
 By default, index creation will only return a response to the client when the primary copies of
 each shard have been started, or the request times out. The index creation response will indicate
@@ -170,9 +226,9 @@ what happened:
 [source,console-result]
 --------------------------------------------------
 {
-    "acknowledged": true,
-    "shards_acknowledged": true,
-    "index": "test"
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "index": "logs"
 }
 --------------------------------------------------
 
@@ -195,9 +251,9 @@ the `wait_for_active_shards` value on all subsequent write operations):
 --------------------------------------------------
 PUT /test
 {
-    "settings": {
-        "index.write.wait_for_active_shards": "2"
-    }
+  "settings": {
+    "index.write.wait_for_active_shards": "2"
+  }
 }
 --------------------------------------------------
 // TEST[skip:requires two nodes]

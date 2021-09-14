@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
@@ -17,11 +18,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -30,11 +34,44 @@ import java.util.stream.Collectors;
  */
 public final class ClientHelper {
 
+    private static Pattern authorizationHeaderPattern = Pattern.compile("\\s*" + Pattern.quote("Authorization") + "\\s*",
+            Pattern.CASE_INSENSITIVE);
+
+    public static void assertNoAuthorizationHeader(Map<String, String> headers) {
+        if (org.elasticsearch.Assertions.ENABLED) {
+            for (String header : headers.keySet()) {
+                if (authorizationHeaderPattern.matcher(header).find()) {
+                    assert false : "headers contain \"Authorization\"";
+                }
+            }
+        }
+    }
+
     /**
      * List of headers that are related to security
      */
-    public static final Set<String> SECURITY_HEADER_FILTERS = Sets.newHashSet(AuthenticationServiceField.RUN_AS_USER_HEADER,
-            AuthenticationField.AUTHENTICATION_KEY);
+    public static final Set<String> SECURITY_HEADER_FILTERS =
+        Sets.newHashSet(
+            AuthenticationServiceField.RUN_AS_USER_HEADER,
+            AuthenticationField.AUTHENTICATION_KEY,
+            SecondaryAuthentication.THREAD_CTX_KEY);
+
+    /**
+     * Leaves only headers that are related to security and filters out the rest.
+     *
+     * @param headers Headers to be filtered
+     * @return A portion of entries that are related to security
+     */
+    public static Map<String, String> filterSecurityHeaders(Map<String, String> headers) {
+        if (SECURITY_HEADER_FILTERS.containsAll(headers.keySet())) {
+            // fast-track to skip the artifice below
+            return headers;
+        } else {
+            return Objects.requireNonNull(headers).entrySet().stream()
+                    .filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
+    }
 
     /**
      * .
@@ -48,10 +85,15 @@ public final class ClientHelper {
     public static final String INDEX_LIFECYCLE_ORIGIN = "index_lifecycle";
     public static final String MONITORING_ORIGIN = "monitoring";
     public static final String DEPRECATION_ORIGIN = "deprecation";
-    public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
     public static final String ROLLUP_ORIGIN = "rollup";
     public static final String ENRICH_ORIGIN = "enrich";
     public static final String TRANSFORM_ORIGIN = "transform";
+    public static final String ASYNC_SEARCH_ORIGIN = "async_search";
+    public static final String IDP_ORIGIN = "idp";
+    public static final String STACK_ORIGIN = "stack";
+    public static final String SEARCHABLE_SNAPSHOTS_ORIGIN = "searchable_snapshots";
+    public static final String LOGSTASH_MANAGEMENT_ORIGIN = "logstash_management";
+    public static final String FLEET_ORIGIN = "fleet";
 
     private ClientHelper() {}
 
@@ -107,8 +149,7 @@ public final class ClientHelper {
      */
     public static <T extends ActionResponse> T executeWithHeaders(Map<String, String> headers, String origin, Client client,
             Supplier<T> supplier) {
-        Map<String, String> filteredHeaders = headers.entrySet().stream().filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
 
         // no security headers, we will have to use the xpack internal user for
         // our execution by specifying the origin
@@ -142,12 +183,8 @@ public final class ClientHelper {
     public static <Request extends ActionRequest, Response extends ActionResponse>
     void executeWithHeadersAsync(Map<String, String> headers, String origin, Client client, ActionType<Response> action, Request request,
                                  ActionListener<Response> listener) {
-
-        Map<String, String> filteredHeaders = headers.entrySet().stream().filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
+        final Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-
         // No headers (e.g. security not installed/in use) so execute as origin
         if (filteredHeaders.isEmpty()) {
             ClientHelper.executeAsyncWithOrigin(client, origin, action, request, listener);
@@ -162,6 +199,7 @@ public final class ClientHelper {
 
     private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {
         final ThreadContext.StoredContext storedContext = threadContext.stashContext();
+        assertNoAuthorizationHeader(headers);
         threadContext.copyHeaders(headers.entrySet());
         return storedContext;
     }

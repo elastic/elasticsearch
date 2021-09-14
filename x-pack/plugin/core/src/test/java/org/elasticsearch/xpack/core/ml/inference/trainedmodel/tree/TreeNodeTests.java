@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
@@ -12,11 +13,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
 
@@ -54,7 +51,8 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
     public static TreeNode createRandomLeafNode(double internalValue) {
         return TreeNode.builder(randomInt(100))
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())
-            .setLeafValue(internalValue)
+            .setNumberSamples(randomNonNegativeLong())
+            .setLeafValue(Collections.singletonList(internalValue))
             .build();
     }
 
@@ -65,10 +63,11 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
                                                 Integer featureIndex,
                                                 Operator operator) {
         return TreeNode.builder(nodeId)
-            .setLeafValue(left == null ? randomDouble() : null)
+            .setLeafValue(left == null ? Collections.singletonList(randomDouble()) : null)
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())
             .setLeftChild(left)
             .setRightChild(right)
+            .setNumberSamples(randomNonNegativeLong())
             .setThreshold(threshold)
             .setOperator(operator)
             .setSplitFeature(randomBoolean() ? null : randomInt())
@@ -79,22 +78,5 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
     @Override
     protected Writeable.Reader<TreeNode> instanceReader() {
         return TreeNode::new;
-    }
-
-    public void testCompare() {
-        expectThrows(IllegalArgumentException.class,
-            () -> createRandomLeafNode(randomDouble()).compare(Collections.singletonList(randomDouble())));
-
-        List<Double> featureValues = Arrays.asList(0.1, null);
-        assertThat(createRandom(0, 2, 3, 0.0, 0, null).build().compare(featureValues),
-            equalTo(3));
-        assertThat(createRandom(0, 2, 3, 0.0, 0, Operator.GT).build().compare(featureValues),
-            equalTo(2));
-        assertThat(createRandom(0, 2, 3, 0.2, 0, null).build().compare(featureValues),
-            equalTo(2));
-        assertThat(createRandom(0, 2, 3, 0.0, 1, null).setDefaultLeft(true).build().compare(featureValues),
-            equalTo(2));
-        assertThat(createRandom(0, 2, 3, 0.0, 1, null).setDefaultLeft(false).build().compare(featureValues),
-            equalTo(3));
     }
 }

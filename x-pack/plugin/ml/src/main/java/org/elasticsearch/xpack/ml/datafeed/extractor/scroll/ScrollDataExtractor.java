@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
@@ -16,15 +17,16 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -87,11 +89,11 @@ class ScrollDataExtractor implements DataExtractor {
 
     @Override
     public Optional<InputStream> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
         Optional<InputStream> stream = tryNextStream();
-        if (!stream.isPresent()) {
+        if (stream.isPresent() == false) {
             hasNext = false;
         }
         return stream;
@@ -102,9 +104,13 @@ class ScrollDataExtractor implements DataExtractor {
             return scrollId == null ?
                 Optional.ofNullable(initScroll(context.start)) : Optional.ofNullable(continueScroll());
         } catch (Exception e) {
-            // In case of error make sure we clear the scroll context
-            clearScroll();
-            throw e;
+            scrollId = null;
+            if (searchHasShardFailure) {
+                throw e;
+            }
+            LOGGER.debug("[{}] Resetting scroll search after shard failure", context.jobId);
+            markScrollAsErrored();
+            return Optional.ofNullable(initScroll(lastTimestamp == null ? context.start : lastTimestamp));
         }
     }
 
@@ -121,16 +127,22 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private SearchRequestBuilder buildSearchRequest(long start) {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
+            .size(context.scrollSize)
+            .sort(context.extractedFields.timeField(), SortOrder.ASC)
+            .query(ExtractorUtils.wrapInTimeRangeQuery(
+                context.query, context.extractedFields.timeField(), start, context.end))
+            .runtimeMappings(context.runtimeMappings);
+
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setScroll(SCROLL_TIMEOUT)
-                .addSort(context.extractedFields.timeField(), SortOrder.ASC)
                 .setIndices(context.indices)
-                .setSize(context.scrollSize)
-                .setQuery(ExtractorUtils.wrapInTimeRangeQuery(
-                        context.query, context.extractedFields.timeField(), start, context.end));
+                .setIndicesOptions(context.indicesOptions)
+                .setAllowPartialSearchResults(false)
+                .setSource(searchSourceBuilder);
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
-            searchRequestBuilder.addDocValueField(docValueField.getName(), docValueField.getDocValueFormat());
+            searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
         }
         String[] sourceFields = context.extractedFields.getSourceFields();
         if (sourceFields.length == 0) {
@@ -146,14 +158,6 @@ class ScrollDataExtractor implements DataExtractor {
     private InputStream processSearchResponse(SearchResponse searchResponse) throws IOException {
 
         scrollId = searchResponse.getScrollId();
-
-        if (searchResponse.getFailedShards() > 0 && searchHasShardFailure == false) {
-            LOGGER.debug("[{}] Resetting scroll search after shard failure", context.jobId);
-            markScrollAsErrored();
-            return initScroll(lastTimestamp == null ? context.start : lastTimestamp);
-        }
-
-        ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
         if (searchResponse.getHits().getHits().length == 0) {
             hasNext = false;
             clearScroll();
@@ -189,24 +193,23 @@ class ScrollDataExtractor implements DataExtractor {
         try {
              searchResponse = executeSearchScrollRequest(scrollId);
         } catch (SearchPhaseExecutionException searchExecutionException) {
-            if (searchHasShardFailure == false) {
-                LOGGER.debug("[{}] Reinitializing scroll due to SearchPhaseExecutionException", context.jobId);
-                markScrollAsErrored();
-                searchResponse =
-                    executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
-            } else {
+            if (searchHasShardFailure) {
                 throw searchExecutionException;
             }
+            LOGGER.debug("[{}] search failed due to SearchPhaseExecutionException. Will attempt again with new scroll",
+                context.jobId);
+            markScrollAsErrored();
+            searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
         }
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         return processSearchResponse(searchResponse);
     }
 
-    private void markScrollAsErrored() {
+    void markScrollAsErrored() {
         // This could be a transient error with the scroll Id.
         // Reinitialise the scroll and try again but only once.
-        clearScroll();
+        scrollId = null;
         if (lastTimestamp != null) {
             lastTimestamp++;
         }

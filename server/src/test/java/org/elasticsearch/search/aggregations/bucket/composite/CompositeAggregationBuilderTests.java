@@ -1,26 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.common.geo.GeoBoundingBoxTests;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -36,11 +27,17 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             histo.script(new Script(randomAlphaOfLengthBetween(10, 20)));
         }
         if (randomBoolean()) {
-            histo.calendarInterval(randomFrom(DateHistogramInterval.days(1),
-                DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1)));
+            histo.calendarInterval(
+                randomFrom(DateHistogramInterval.days(1), DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1))
+            );
         } else {
-            histo.fixedInterval(randomFrom(new DateHistogramInterval(randomNonNegativeLong() + "ms"),
-                DateHistogramInterval.days(10), DateHistogramInterval.hours(10)));
+            histo.fixedInterval(
+                randomFrom(
+                    new DateHistogramInterval(randomNonNegativeLong() + "ms"),
+                    DateHistogramInterval.days(10),
+                    DateHistogramInterval.hours(10)
+                )
+            );
         }
         if (randomBoolean()) {
             histo.timeZone(randomZone());
@@ -48,13 +45,17 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         if (randomBoolean()) {
             histo.missingBucket(true);
         }
+        histo.missingOrder(randomFrom(MissingOrder.values()));
         return histo;
     }
 
     private GeoTileGridValuesSourceBuilder randomGeoTileGridValuesSourceBuilder() {
         GeoTileGridValuesSourceBuilder geoTile = new GeoTileGridValuesSourceBuilder(randomAlphaOfLengthBetween(5, 10));
         if (randomBoolean()) {
-            geoTile.precision(randomIntBetween(1, 12));
+            geoTile.precision(randomIntBetween(0, GeoTileUtils.MAX_ZOOM));
+        }
+        if (randomBoolean()) {
+            geoTile.geoBoundingBox(GeoBoundingBoxTests.randomBBox());
         }
         return geoTile;
     }
@@ -70,6 +71,7 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         if (randomBoolean()) {
             terms.missingBucket(true);
         }
+        terms.missingOrder(randomFrom(MissingOrder.values()));
         return terms;
     }
 
@@ -83,6 +85,7 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         if (randomBoolean()) {
             histo.missingBucket(true);
         }
+        histo.missingOrder(randomFrom(MissingOrder.values()));
         histo.interval(randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false));
         return histo;
     }
@@ -90,9 +93,11 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
     @Override
     protected CompositeAggregationBuilder createTestAggregatorBuilder() {
         int numSources = randomIntBetween(1, 10);
+        numSources = 1;
         List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
         for (int i = 0; i < numSources; i++) {
             int type = randomIntBetween(0, 3);
+            type = 3;
             switch (type) {
                 case 0:
                     sources.add(randomTermsSourceBuilder());

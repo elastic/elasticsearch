@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -27,11 +16,9 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -138,11 +125,11 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     public static class NodesResponse extends BaseNodesResponse<NodeResponse> implements ToXContentFragment {
 
-        public NodesResponse(StreamInput in) throws IOException {
+        NodesResponse(StreamInput in) throws IOException {
             super(in);
         }
 
-        public NodesResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+        NodesResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
@@ -167,9 +154,9 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
     }
 
-    public static class NodeRequest extends BaseNodeRequest {
-        protected String requestName;
-        protected boolean shouldBlock;
+    public static class NodeRequest extends TransportRequest {
+        protected final String requestName;
+        protected final boolean shouldBlock;
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
@@ -214,7 +201,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             shouldFail = in.readBoolean();
         }
 
-        public NodesRequest(String requestName, String... nodesIds) {
+        NodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
         }
@@ -260,12 +247,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
-                @Override
-                public boolean shouldCancelChildrenOnCancellation() {
-                    return true;
-                }
-            };
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
     }
 
@@ -330,37 +312,13 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
     }
 
-    public static class NodesRequestBuilder extends NodesOperationRequestBuilder<NodesRequest, NodesResponse, NodesRequestBuilder> {
-
-        protected NodesRequestBuilder(ElasticsearchClient client, ActionType<NodesResponse> action) {
-            super(client, action, new NodesRequest("test"));
-        }
-
-
-        public NodesRequestBuilder setShouldStoreResult(boolean shouldStoreResult) {
-            request().setShouldStoreResult(shouldStoreResult);
-            return this;
-        }
-
-        public NodesRequestBuilder setShouldBlock(boolean shouldBlock) {
-            request().setShouldBlock(shouldBlock);
-            return this;
-        }
-
-        public NodesRequestBuilder setShouldFail(boolean shouldFail) {
-            request().setShouldFail(shouldFail);
-            return this;
-        }
-    }
-
-
     public static class UnblockTestTaskResponse implements Writeable {
 
-        public UnblockTestTaskResponse() {
+        UnblockTestTaskResponse() {
 
         }
 
-        public UnblockTestTaskResponse(StreamInput in) {
+        UnblockTestTaskResponse(StreamInput in) {
         }
 
         @Override
@@ -387,13 +345,13 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         private List<UnblockTestTaskResponse> tasks;
 
-        public UnblockTestTasksResponse(List<UnblockTestTaskResponse> tasks, List<TaskOperationFailure> taskFailures, List<? extends
+        UnblockTestTasksResponse(List<UnblockTestTaskResponse> tasks, List<TaskOperationFailure> taskFailures, List<? extends
             FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
             this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
         }
 
-        public UnblockTestTasksResponse(StreamInput in) throws IOException {
+        UnblockTestTasksResponse(StreamInput in) throws IOException {
             super(in);
             int taskCount = in.readVInt();
             List<UnblockTestTaskResponse> builder = new ArrayList<>();

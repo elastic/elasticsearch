@@ -17,13 +17,13 @@ PUT /library/_bulk?refresh
 {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
 --------------------------------------------------
 
-And now you can execute SQL using the <<sql-rest>> right away:
+And now you can execute SQL using the <<sql-search-api,SQL search API>>:
 
 [source,console]
 --------------------------------------------------
 POST /_sql?format=txt
 {
-    "query": "SELECT * FROM library WHERE release_date < '2000-01-01'"
+  "query": "SELECT * FROM library WHERE release_date < '2000-01-01'"
 }
 --------------------------------------------------
 // TEST[continued]

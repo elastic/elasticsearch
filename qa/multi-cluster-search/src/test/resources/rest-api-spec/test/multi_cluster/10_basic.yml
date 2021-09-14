@@ -15,15 +15,15 @@
         refresh: true
         body:
             - '{"index": {"_index": "test_index"}}'
-            - '{"f1": "local_cluster", "filter_field": 0}'
+            - '{"f1": "local_cluster", "animal": "dog", "filter_field": 0}'
             - '{"index": {"_index": "test_index"}}'
-            - '{"f1": "local_cluster", "filter_field": 1}'
+            - '{"f1": "local_cluster", "animal": "dog", "filter_field": 1}'
             - '{"index": {"_index": "test_index"}}'
-            - '{"f1": "local_cluster", "filter_field": 0}'
+            - '{"f1": "local_cluster", "animal": "dog", "filter_field": 0}'
             - '{"index": {"_index": "test_index"}}'
-            - '{"f1": "local_cluster", "filter_field": 1}'
+            - '{"f1": "local_cluster", "animal": "dog", "filter_field": 1}'
             - '{"index": {"_index": "test_index"}}'
-            - '{"f1": "local_cluster", "filter_field": 0}'
+            - '{"f1": "local_cluster", "animal": "pig", "filter_field": 0}'
 
   - do:
       search:
@@ -115,6 +115,125 @@
   - match: { aggregations.cluster.buckets.0.key: "local_cluster" }
   - match: { aggregations.cluster.buckets.0.doc_count: 5 }
 
+  # once more, this time with a top level pipeline agg
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index,my_remote_cluster:test_index
+        body:
+          seq_no_primary_term: true
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+              aggs:
+                s:
+                  sum:
+                    field: filter_field
+            average_sum:
+              avg_bucket:
+                buckets_path: cluster.s
+
+  - match: { num_reduce_phases: 3 }
+  - match: {_clusters.total: 2}
+  - match: {_clusters.successful: 2}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 5 }
+  - match: { hits.total: 11 }
+  - length: { aggregations.cluster.buckets: 2 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+  - match: { aggregations.cluster.buckets.0.s.value: 2 }
+  - match: { aggregations.cluster.buckets.1.key: "local_cluster" }
+  - match: { aggregations.cluster.buckets.1.s.value: 2 }
+  - match: { aggregations.average_sum.value: 2 }
+
+  # and now a non-top-level pipeline agg!
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index,my_remote_cluster:test_index
+        body:
+          seq_no_primary_term: true
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+              aggs:
+                animal:
+                  terms:
+                    field: animal.keyword
+                  aggs:
+                    s:
+                      sum:
+                        field: filter_field
+                average_sum:
+                  avg_bucket:
+                    buckets_path: animal.s
+
+  - match: { num_reduce_phases: 3 }
+  - match: {_clusters.total: 2}
+  - match: {_clusters.successful: 2}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 5 }
+  - match: { hits.total: 11 }
+  - length: { aggregations.cluster.buckets: 2 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+  - match: { aggregations.cluster.buckets.0.animal.buckets.0.key: "chicken" }
+  - match: { aggregations.cluster.buckets.0.animal.buckets.0.doc_count: 4 }
+  - match: { aggregations.cluster.buckets.0.animal.buckets.0.s.value: 1 }
+  - match: { aggregations.cluster.buckets.0.animal.buckets.1.key: "pig" }
+  - match: { aggregations.cluster.buckets.0.animal.buckets.1.doc_count: 2 }
+  - match: { aggregations.cluster.buckets.0.animal.buckets.1.s.value: 1 }
+  - match: { aggregations.cluster.buckets.0.average_sum.value: 1 }
+  - match: { aggregations.cluster.buckets.1.key: "local_cluster" }
+  - match: { aggregations.cluster.buckets.1.animal.buckets.0.key: "dog" }
+  - match: { aggregations.cluster.buckets.1.animal.buckets.0.doc_count: 4 }
+  - match: { aggregations.cluster.buckets.1.animal.buckets.0.s.value: 2 }
+  - match: { aggregations.cluster.buckets.1.animal.buckets.1.key: "pig" }
+  - match: { aggregations.cluster.buckets.1.animal.buckets.1.doc_count: 1 }
+  - match: { aggregations.cluster.buckets.1.animal.buckets.1.s.value: 0 }
+  - match: { aggregations.cluster.buckets.1.average_sum.value: 1 }
+
+  # scripted_metric
+  - do:
+      search:
+        index: test_index,my_remote_cluster:test_index
+        body:
+          seq_no_primary_term: true
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+              aggs:
+                animal_length:
+                  scripted_metric:
+                    init_script: |
+                      state.sum = 0
+                    map_script: |
+                      state.sum += doc['animal.keyword'].value.length()
+                    combine_script: |
+                      state.sum
+                    reduce_script: |
+                      long sum = 0;
+                      for (s in states) {
+                        sum += s;
+                      }
+                      return sum
+  - match: { num_reduce_phases: 3 }
+  - match: {_clusters.total: 2}
+  - match: {_clusters.successful: 2}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 5 }
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.cluster.buckets: 2 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+  - match: { aggregations.cluster.buckets.0.animal_length.value: 34 }
+  - match: { aggregations.cluster.buckets.1.key: "local_cluster" }
+  - match: { aggregations.cluster.buckets.1.animal_length.value: 15 }
+
 ---
 "Add transient remote cluster based on the preset cluster":
   - do:
@@ -175,7 +294,7 @@
   - match: { hits.total: 12 }
 
 ---
-"Search an filtered alias on the remote cluster":
+"Search a filtered alias on the remote cluster":
 
   - do:
       search:
@@ -192,12 +311,12 @@
   - match: { hits.hits.0._index: "my_remote_cluster:test_index" }
 
 ---
-"Search an filtered alias and empty index on the remote cluster":
+"Search a filtered alias and empty index on the remote cluster":
 
   - do:
       search:
         rest_total_hits_as_int: true
-        index: my_remote_cluster:aliased_test_index,my_remote_cluster:field_caps_index_1
+        index: my_remote_cluster:aliased_test_index,my_remote_cluster:field_caps_empty_index
 
   - is_false: num_reduce_phases
   - match: {_clusters.total: 1}

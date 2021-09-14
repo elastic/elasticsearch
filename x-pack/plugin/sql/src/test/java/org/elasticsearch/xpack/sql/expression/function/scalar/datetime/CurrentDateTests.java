@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.TestUtils;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -18,7 +19,7 @@ import java.util.Objects;
 public class CurrentDateTests extends AbstractNodeTestCase<CurrentDate, Expression> {
 
     public static CurrentDate randomCurrentDate() {
-        return new CurrentDate(Source.EMPTY, TestUtils.randomConfiguration());
+        return new CurrentDate(Source.EMPTY, SqlTestUtils.randomConfiguration());
     }
 
     @Override
@@ -36,7 +37,7 @@ public class CurrentDateTests extends AbstractNodeTestCase<CurrentDate, Expressi
         ZonedDateTime now = instance.configuration().now();
         ZoneId mutatedZoneId = randomValueOtherThanMany(o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
                 () -> randomZone());
-        return new CurrentDate(instance.source(), TestUtils.randomConfiguration(mutatedZoneId));
+        return new CurrentDate(instance.source(), SqlTestUtils.randomConfiguration(mutatedZoneId));
     }
 
     @Override

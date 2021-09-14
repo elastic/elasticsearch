@@ -1,0 +1,17 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
+
+esplugin {
+  name 'custom-significance-heuristic'
+  description 'An example plugin showing how to write and register a custom significance heuristic'
+  classname 'org.elasticsearch.example.customsigheuristic.CustomSignificanceHeuristicPlugin'
+  licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
+  noticeFile rootProject.file('NOTICE.txt')
+}

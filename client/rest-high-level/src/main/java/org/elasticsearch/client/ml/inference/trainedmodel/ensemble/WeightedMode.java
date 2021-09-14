@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.ensemble;
 
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,13 +23,15 @@ public class WeightedMode implements OutputAggregator {
 
     public static final String NAME = "weighted_mode";
     public static final ParseField WEIGHTS = new ParseField("weights");
+    public static final ParseField NUM_CLASSES = new ParseField("num_classes");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<WeightedMode, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new WeightedMode((List<Double>)a[0]));
+        a -> new WeightedMode((Integer)a[0], (List<Double>)a[1]));
     static {
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUM_CLASSES);
         PARSER.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
     }
 
@@ -49,9 +40,11 @@ public class WeightedMode implements OutputAggregator {
     }
 
     private final List<Double> weights;
+    private final int numClasses;
 
-    public WeightedMode(List<Double> weights) {
+    public WeightedMode(int numClasses, List<Double> weights) {
         this.weights = weights;
+        this.numClasses = numClasses;
     }
 
     @Override
@@ -65,6 +58,7 @@ public class WeightedMode implements OutputAggregator {
         if (weights != null) {
             builder.field(WEIGHTS.getPreferredName(), weights);
         }
+        builder.field(NUM_CLASSES.getPreferredName(), numClasses);
         builder.endObject();
         return builder;
     }
@@ -74,11 +68,11 @@ public class WeightedMode implements OutputAggregator {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         WeightedMode that = (WeightedMode) o;
-        return Objects.equals(weights, that.weights);
+        return Objects.equals(weights, that.weights) && numClasses == that.numClasses;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(weights);
+        return Objects.hash(weights, numClasses);
     }
 }

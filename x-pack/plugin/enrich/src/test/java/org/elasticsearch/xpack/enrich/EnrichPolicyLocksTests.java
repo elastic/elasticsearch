@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
@@ -22,17 +23,19 @@ public class EnrichPolicyLocksTests extends ESTestCase {
         policyLocks.lockPolicy(policy1);
 
         // Ensure that locked policies are rejected
-        EsRejectedExecutionException exception1 = expectThrows(EsRejectedExecutionException.class,
-            () -> policyLocks.lockPolicy(policy1));
-        assertThat(exception1.getMessage(), is(equalTo("Could not obtain lock because policy execution for [policy1]" +
-            " is already in progress.")));
+        EsRejectedExecutionException exception1 = expectThrows(EsRejectedExecutionException.class, () -> policyLocks.lockPolicy(policy1));
+        assertThat(
+            exception1.getMessage(),
+            is(equalTo("Could not obtain lock because policy execution for [policy1]" + " is already in progress."))
+        );
 
         policyLocks.lockPolicy(policy2);
-        EsRejectedExecutionException exception2 = expectThrows(EsRejectedExecutionException.class,
-            () -> policyLocks.lockPolicy(policy2));
+        EsRejectedExecutionException exception2 = expectThrows(EsRejectedExecutionException.class, () -> policyLocks.lockPolicy(policy2));
 
-        assertThat(exception2.getMessage(), is(equalTo("Could not obtain lock because policy execution for [policy2]" +
-            " is already in progress.")));
+        assertThat(
+            exception2.getMessage(),
+            is(equalTo("Could not obtain lock because policy execution for [policy2]" + " is already in progress."))
+        );
     }
 
     public void testSafePoint() {

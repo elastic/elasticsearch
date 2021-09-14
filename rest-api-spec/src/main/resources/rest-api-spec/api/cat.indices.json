@@ -5,6 +5,10 @@
       "description":"Returns information about indices: number of primaries and replicas, document counts, disk size, ..."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -38,13 +42,16 @@
         "options":[
           "b",
           "k",
+          "kb",
           "m",
-          "g"
+          "mb",
+          "g",
+          "gb",
+          "t",
+          "tb",
+          "p",
+          "pb"
         ]
-      },
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
       },
       "master_timeout":{
         "type":"time",
@@ -61,7 +68,6 @@
           "yellow",
           "red"
         ],
-        "default":null,
         "description":"A health status (\"green\", \"yellow\", or \"red\" to filter only indices matching the specified health status"
       },
       "help":{
@@ -82,13 +88,13 @@
         "type":"enum",
         "description":"The unit in which to display time values",
         "options":[
-          "d (Days)",
-          "h (Hours)",
-          "m (Minutes)",
-          "s (Seconds)",
-          "ms (Milliseconds)",
-          "micros (Microseconds)",
-          "nanos (Nanoseconds)"
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
         ]
       },
       "v":{
@@ -100,6 +106,18 @@
         "type":"boolean",
         "description":"If set to true segment stats will include stats for segments that are not currently loaded into memory",
         "default":false
+      },
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "all",
+        "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
       }
     }
   }

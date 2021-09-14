@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.indices.rollover;
@@ -22,14 +11,12 @@ package org.elasticsearch.client.indices.rollover;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.Collections;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
@@ -47,8 +33,9 @@ public class RolloverResponseTests extends ESTestCase {
     private static final List<Supplier<Condition<?>>> conditionSuppliers = new ArrayList<>();
     static {
         conditionSuppliers.add(() -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
-        conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
+        conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
     }
 
     public void testFromXContent() throws IOException {
@@ -83,8 +70,6 @@ public class RolloverResponseTests extends ESTestCase {
     }
 
     private static void toXContent(RolloverResponse response, XContentBuilder builder) throws IOException {
-        Params params = new ToXContent.MapParams(
-            Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
         org.elasticsearch.action.admin.indices.rollover.RolloverResponse serverResponse =
             new org.elasticsearch.action.admin.indices.rollover.RolloverResponse(
                 response.getOldIndex(),
@@ -95,6 +80,6 @@ public class RolloverResponseTests extends ESTestCase {
                 response.isAcknowledged(),
                 response.isShardsAcknowledged()
             );
-        serverResponse.toXContent(builder, params);
+        serverResponse.toXContent(builder, null);
     }
 }

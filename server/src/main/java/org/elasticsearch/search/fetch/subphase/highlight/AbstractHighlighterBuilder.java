@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -74,6 +64,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField OPTIONS_FIELD = new ParseField("options");
     public static final ParseField HIGHLIGHT_QUERY_FIELD = new ParseField("highlight_query");
     public static final ParseField MATCHED_FIELDS_FIELD = new ParseField("matched_fields");
+    public static final ParseField MAX_ANALYZED_OFFSET_FIELD = new ParseField("max_analyzed_offset");
 
     protected String[] preTags;
 
@@ -111,6 +102,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected Boolean requireFieldMatch;
 
+    protected Integer maxAnalyzedOffset;
+
     public AbstractHighlighterBuilder() {
     }
 
@@ -133,6 +126,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         phraseLimit = template.phraseLimit;
         options = template.options;
         requireFieldMatch = template.requireFieldMatch;
+        this.maxAnalyzedOffset = template.maxAnalyzedOffset;
     }
 
     /**
@@ -165,6 +159,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             options(in.readMap());
         }
         requireFieldMatch(in.readOptionalBoolean());
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+            maxAnalyzedOffset(in.readOptionalInt());
+        }
     }
 
     /**
@@ -206,6 +203,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             out.writeMap(options);
         }
         out.writeOptionalBoolean(requireFieldMatch);
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+            out.writeOptionalInt(maxAnalyzedOffset);
+        }
         doWriteTo(out);
     }
 
@@ -277,7 +277,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     /**
      * Set type of highlighter to use. Out of the box supported types
-     * are {@code unified}, {@code plain} and {@code fvj}.
+     * are {@code unified}, {@code plain} and {@code fvh}.
      * Defaults to {@code unified}.
      * Details of the different highlighter types are covered in the reference guide.
      */
@@ -541,6 +541,26 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         return this.forceSource;
     }
 
+    /**
+     * Set to a non-negative value which represents the max offset used to analyze
+     * the field thus avoiding exceptions if the field exceeds this limit.
+     */
+    @SuppressWarnings("unchecked")
+    public HB maxAnalyzedOffset(Integer maxAnalyzedOffset) {
+        if (maxAnalyzedOffset != null && maxAnalyzedOffset <= 0) {
+            throw new IllegalArgumentException("[" + MAX_ANALYZED_OFFSET_FIELD.toString() + "] must be a positive integer");
+        }
+        this.maxAnalyzedOffset = maxAnalyzedOffset;
+        return (HB) this;
+    }
+
+    /**
+     * @return the value set by {@link #maxAnalyzedOffset(Integer)}
+     */
+    public Integer maxAnalyzedOffset() {
+        return this.maxAnalyzedOffset;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -606,6 +626,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (phraseLimit != null) {
             builder.field(PHRASE_LIMIT_FIELD.getPreferredName(), phraseLimit);
         }
+        if (maxAnalyzedOffset != null) {
+            builder.field(MAX_ANALYZED_OFFSET_FIELD.getPreferredName(), maxAnalyzedOffset);
+        }
     }
 
     static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<XContentParser, HB, HB> setupParser(
@@ -626,6 +649,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
         parser.declareBoolean(HB::forceSource, FORCE_SOURCE_FIELD);
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
+        parser.declareInt(HB::maxAnalyzedOffset, MAX_ANALYZED_OFFSET_FIELD);
         parser.declareObject(HB::options, (XContentParser p, Void c) -> {
             try {
                 return p.map();
@@ -659,7 +683,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         return Objects.hash(getClass(), Arrays.hashCode(preTags), Arrays.hashCode(postTags), fragmentSize,
                 numOfFragments, highlighterType, fragmenter, highlightQuery, order, highlightFilter,
                 forceSource, boundaryScannerType, boundaryMaxScan, Arrays.hashCode(boundaryChars), boundaryScannerLocale,
-                noMatchSize, phraseLimit, options, requireFieldMatch, doHashCode());
+                noMatchSize, phraseLimit, options, requireFieldMatch, maxAnalyzedOffset, doHashCode());
     }
 
     /**
@@ -695,6 +719,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
                Objects.equals(phraseLimit, other.phraseLimit) &&
                Objects.equals(options, other.options) &&
                Objects.equals(requireFieldMatch, other.requireFieldMatch) &&
+               Objects.equals(maxAnalyzedOffset, other.maxAnalyzedOffset) &&
                doEquals(other);
     }
 

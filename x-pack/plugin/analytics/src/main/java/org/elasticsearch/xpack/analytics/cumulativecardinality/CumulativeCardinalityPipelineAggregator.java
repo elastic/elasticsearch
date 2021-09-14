@@ -1,12 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -16,13 +15,13 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
+import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLogPlusPlus;
 import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,29 +36,9 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         this.formatter = formatter;
     }
 
-    /**
-     * Read from a stream.
-     */
-    public CumulativeCardinalityPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(formatter);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return CumulativeCardinalityPipelineAggregationBuilder.NAME;
-    }
-
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
-            histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
-            InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<?, ?> histo = (InternalMultiBucketAggregation<?, ?>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
         List<Bucket> newBuckets = new ArrayList<>(buckets.size());
@@ -68,7 +47,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         try {
             long cardinality = 0;
             for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
-                HyperLogLogPlusPlus bucketHll = resolveBucketValue(histo, bucket, bucketsPaths()[0]);
+                AbstractHyperLogLogPlusPlus bucketHll = resolveBucketValue(histo, bucket, bucketsPaths()[0]);
                 if (hll == null && bucketHll != null) {
                     // We have to create a new HLL because otherwise it will alter the
                     // existing cardinality sketch and bucket value
@@ -82,8 +61,8 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
                 List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                     .map((p) -> (InternalAggregation) p)
                     .collect(Collectors.toList());
-                aggs.add(new InternalSimpleLongValue(name(), cardinality, formatter, new ArrayList<>(), metaData()));
-                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
+                aggs.add(new InternalSimpleLongValue(name(), cardinality, formatter, metadata()));
+                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
                 newBuckets.add(newBucket);
             }
             return factory.createAggregation(newBuckets);
@@ -94,14 +73,17 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         }
     }
 
-    private HyperLogLogPlusPlus resolveBucketValue(MultiBucketsAggregation agg,
-                                                   InternalMultiBucketAggregation.InternalBucket bucket,
-                                                   String aggPath) {
+    private AbstractHyperLogLogPlusPlus resolveBucketValue(
+        MultiBucketsAggregation agg,
+        InternalMultiBucketAggregation.InternalBucket bucket,
+        String aggPath
+    ) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
         if (propertyValue == null) {
-            throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference a cardinality aggregation");
+            throw new AggregationExecutionException(
+                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName() + " must reference a cardinality aggregation"
+            );
         }
 
         if (propertyValue instanceof InternalCardinality) {
@@ -115,9 +97,14 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
             currentAggName = aggPathsList.get(0);
         }
 
-        throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-            + " must reference a cardinality aggregation, got: ["
-            + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
+        throw new AggregationExecutionException(
+            AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                + " must reference a cardinality aggregation, got: ["
+                + propertyValue.getClass().getSimpleName()
+                + "] at aggregation ["
+                + currentAggName
+                + "]"
+        );
     }
 
 }

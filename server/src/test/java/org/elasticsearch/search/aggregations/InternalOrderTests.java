@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
@@ -44,10 +33,13 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
     }
 
     private BucketOrder getRandomOrder() {
-        switch(randomInt(2)) {
-            case 0: return BucketOrder.key(randomBoolean());
-            case 1: return BucketOrder.count(randomBoolean());
-            default: return BucketOrder.aggregation(randomAlphaOfLength(10), randomBoolean());
+        switch (randomInt(2)) {
+            case 0:
+                return BucketOrder.key(randomBoolean());
+            case 1:
+                return BucketOrder.count(randomBoolean());
+            default:
+                return BucketOrder.aggregation(randomAlphaOfLength(10), randomBoolean());
         }
     }
 
@@ -78,7 +70,7 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
         // compound and aggregation order because _key and _count orders are static instances.
         assertEquals(expectedInstance, newInstance);
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
-        if(expectedInstance instanceof CompoundOrder || expectedInstance instanceof InternalOrder.Aggregation) {
+        if (expectedInstance instanceof CompoundOrder || expectedInstance instanceof InternalOrder.Aggregation) {
             assertNotSame(newInstance, expectedInstance);
         }
     }
@@ -88,7 +80,7 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
         boolean asc = randomBoolean();
         BucketOrder o1 = BucketOrder.aggregation(path, asc);
         BucketOrder o2 = BucketOrder.aggregation(path + "test", asc);
-        BucketOrder o3 = BucketOrder.aggregation(path, !asc);
+        BucketOrder o3 = BucketOrder.aggregation(path, asc == false);
         BucketOrder o4 = BucketOrder.aggregation(path, asc);
         assertNotEquals(o1, o2);
         assertNotEquals(o1.hashCode(), o2.hashCode());

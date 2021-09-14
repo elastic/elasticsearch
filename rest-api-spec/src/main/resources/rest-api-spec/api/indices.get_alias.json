@@ -5,6 +5,10 @@
       "description":"Returns an alias."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -69,10 +73,11 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],
-        "default":"all",
+        "default": "all",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
       "local":{

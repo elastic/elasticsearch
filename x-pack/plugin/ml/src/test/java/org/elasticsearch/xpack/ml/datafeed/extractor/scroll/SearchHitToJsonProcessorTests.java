@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.DocValueField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.TimeField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
 import java.io.ByteArrayOutputStream;
@@ -23,14 +25,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchHitToJsonProcessorTests extends ESTestCase {
 
     public void testProcessGivenSingleHit() throws IOException {
-        ExtractedField timeField = ExtractedField.newField("time", Collections.singleton("date"),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField missingField = ExtractedField.newField("missing", Collections.singleton("float"),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField singleField = ExtractedField.newField("single", Collections.singleton("keyword"),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField arrayField = ExtractedField.newField("array", Collections.singleton("keyword"),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField timeField = new TimeField("time", ExtractedField.Method.DOC_VALUE);
+        ExtractedField missingField = new DocValueField("missing", Collections.singleton("float"));
+        ExtractedField singleField = new DocValueField("single", Collections.singleton("keyword"));
+        ExtractedField arrayField = new DocValueField("array", Collections.singleton("keyword"));
         TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField,
                 Arrays.asList(timeField, missingField, singleField, arrayField));
 
@@ -46,14 +44,10 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
     }
 
     public void testProcessGivenMultipleHits() throws IOException {
-        ExtractedField timeField = ExtractedField.newField("time", Collections.singleton("date"),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField missingField = ExtractedField.newField("missing", Collections.singleton("float"),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField singleField = ExtractedField.newField("single", Collections.singleton("keyword"),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField arrayField = ExtractedField.newField("array", Collections.singleton("keyword"),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField timeField = new TimeField("time", ExtractedField.Method.DOC_VALUE);
+        ExtractedField missingField = new DocValueField("missing", Collections.singleton("float"));
+        ExtractedField singleField = new DocValueField("single", Collections.singleton("keyword"));
+        ExtractedField arrayField = new DocValueField("array", Collections.singleton("keyword"));
         TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField,
                 Arrays.asList(timeField, missingField, singleField, arrayField));
 

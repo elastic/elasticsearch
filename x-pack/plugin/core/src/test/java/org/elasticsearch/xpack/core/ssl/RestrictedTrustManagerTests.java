@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
@@ -12,7 +13,6 @@ import org.junit.Assert;
 import org.junit.Before;
 
 import javax.net.ssl.X509ExtendedTrustManager;
-
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.GeneralSecurityException;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -33,6 +32,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+
 public class RestrictedTrustManagerTests extends ESTestCase {
 
     private X509ExtendedTrustManager baseTrustManager;
@@ -43,10 +43,9 @@ public class RestrictedTrustManagerTests extends ESTestCase {
     @Before
     public void readCertificates() throws GeneralSecurityException, IOException {
 
-        Certificate[] caCert
-                = CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt")));
-        baseTrustManager = CertParsingUtils.trustManager(caCert);
+        final Path caPath = getDataPath
+            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt");
+        baseTrustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(caPath));
         certificates = new HashMap<>();
         Files.walkFileTree(getDataPath
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/self-signed"), new SimpleFileVisitor<Path>() {
@@ -132,7 +131,8 @@ public class RestrictedTrustManagerTests extends ESTestCase {
             if (cert.endsWith("/ca")) {
                 assertTrusted(trustManager, cert);
             } else {
-                assertNotValid(trustManager, cert, "PKIX path building failed.*");
+                assertNotValid(trustManager, cert, inFipsJvm() ? "unable to process certificates: Unable to find certificate chain.":
+                    "PKIX path building failed.*");
             }
         }
     }

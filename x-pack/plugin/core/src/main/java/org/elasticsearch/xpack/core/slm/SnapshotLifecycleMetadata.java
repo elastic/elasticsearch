@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm;
@@ -11,15 +12,14 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * Custom cluster state metadata that stores all the snapshot lifecycle
  * policies and their associated metadata
  */
-public class SnapshotLifecycleMetadata implements MetaData.Custom {
+public class SnapshotLifecycleMetadata implements Metadata.Custom {
 
     public static final String TYPE = "snapshot_lifecycle";
 
@@ -61,7 +61,7 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
                 throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported");
             }, POLICIES_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), OPERATION_MODE_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (v, o) -> SnapshotLifecycleStats.parse(v), STATS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (v, o) -> SnapshotLifecycleStats.parse(v), STATS_FIELD);
     }
 
     private final Map<String, SnapshotLifecyclePolicyMetadata> snapshotConfigurations;
@@ -73,17 +73,13 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
                                      SnapshotLifecycleStats slmStats) {
         this.snapshotConfigurations = new HashMap<>(snapshotConfigurations);
         this.operationMode = operationMode;
-        this.slmStats = slmStats;
+        this.slmStats = slmStats != null ? slmStats : new SnapshotLifecycleStats();
     }
 
     public SnapshotLifecycleMetadata(StreamInput in) throws IOException {
         this.snapshotConfigurations = in.readMap(StreamInput::readString, SnapshotLifecyclePolicyMetadata::new);
         this.operationMode = in.readEnum(OperationMode.class);
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.slmStats = new SnapshotLifecycleStats(in);
-        } else {
-            this.slmStats = new SnapshotLifecycleStats();
-        }
+        this.slmStats = new SnapshotLifecycleStats(in);
     }
 
     public Map<String, SnapshotLifecyclePolicyMetadata> getSnapshotConfigurations() {
@@ -99,12 +95,12 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.ALL_CONTEXTS;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.ALL_CONTEXTS;
     }
 
     @Override
-    public Diff<MetaData.Custom> diff(MetaData.Custom previousState) {
+    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
         return new SnapshotLifecycleMetadataDiff((SnapshotLifecycleMetadata) previousState, this);
     }
 
@@ -122,9 +118,7 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(this.snapshotConfigurations, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         out.writeEnum(this.operationMode);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.slmStats.writeTo(out);
-        }
+        this.slmStats.writeTo(out);
     }
 
     @Override
@@ -159,7 +153,7 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
             this.slmStats.equals(other.slmStats);
     }
 
-    public static class SnapshotLifecycleMetadataDiff implements NamedDiff<MetaData.Custom> {
+    public static class SnapshotLifecycleMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, SnapshotLifecyclePolicyMetadata>> lifecycles;
         final OperationMode operationMode;
@@ -177,15 +171,11 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
                 SnapshotLifecyclePolicyMetadata::new,
                 SnapshotLifecycleMetadataDiff::readLifecyclePolicyDiffFrom);
             this.operationMode = in.readEnum(OperationMode.class);
-            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-                this.slmStats = new SnapshotLifecycleStats(in);
-            } else {
-                this.slmStats = new SnapshotLifecycleStats();
-            }
+            this.slmStats = new SnapshotLifecycleStats(in);
         }
 
         @Override
-        public MetaData.Custom apply(MetaData.Custom part) {
+        public Metadata.Custom apply(Metadata.Custom part) {
             TreeMap<String, SnapshotLifecyclePolicyMetadata> newLifecycles = new TreeMap<>(
                 lifecycles.apply(((SnapshotLifecycleMetadata) part).snapshotConfigurations));
             return new SnapshotLifecycleMetadata(newLifecycles, this.operationMode, this.slmStats);
@@ -200,9 +190,7 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
         public void writeTo(StreamOutput out) throws IOException {
             lifecycles.writeTo(out);
             out.writeEnum(this.operationMode);
-            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-                this.slmStats.writeTo(out);
-            }
+            slmStats.writeTo(out);
         }
 
         static Diff<SnapshotLifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {

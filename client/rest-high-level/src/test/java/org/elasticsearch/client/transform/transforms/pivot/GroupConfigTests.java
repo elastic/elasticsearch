@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.transform.transforms.pivot;
@@ -45,7 +34,7 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
         for (int i = 0; i < randomIntBetween(1, 4); ++i) {
             String targetFieldName = randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
-                SingleGroupSource groupBy;
+                SingleGroupSource groupBy = null;
                 SingleGroupSource.Type type = randomFrom(SingleGroupSource.Type.values());
                 switch (type) {
                     case TERMS:
@@ -55,8 +44,13 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
                         groupBy = HistogramGroupSourceTests.randomHistogramGroupSource();
                         break;
                     case DATE_HISTOGRAM:
-                    default:
                         groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
+                        break;
+                    case GEOTILE_GRID:
+                        groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
+                        break;
+                    default:
+                        fail("unknown group source type, please implement tests and add support here");
                 }
                 groups.put(targetFieldName, groupBy);
             }
@@ -82,28 +76,35 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     public void testLenientParsing() throws IOException {
         BytesArray json = new BytesArray(
-                "{ " +
-                        "\"unknown-field\":\"foo\", " +
-                        "\"destination-field\": {" +
-                            "\"terms\": {" +
-                                "\"field\": \"term-field\"" +
-                            "}" +
-                        "}," +
-                        "\"unknown-field-2\":\"bar\"," +
-                        "\"destination-field2\": {" +
-                            "\"terms\": {" +
-                                "\"field\": \"term-field2\"" +
-                            "}" +
-                        "}," +
-                        "\"array-field\" : [1.0, 2.0]" +
-                "}");
-        XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
+            "{"
+                + "  \"unknown-field\": \"foo\","
+                + "  \"destination-field\": {"
+                + "    \"terms\": {"
+                + "      \"field\": \"term-field\""
+                + "    }"
+                + "  },"
+                + "  \"unknown-field-2\": \"bar\","
+                + "  \"destination-field2\": {"
+                + "    \"terms\": {"
+                + "      \"field\": \"term-field2\""
+                + "    }"
+                + "  },"
+                + "  \"array-field\": ["
+                + "    1,"
+                + "    2"
+                + "  ]"
+                + "}"
+        );
+        XContentParser parser = JsonXContent.jsonXContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            json.streamInput()
+        );
 
         GroupConfig gc = GroupConfig.fromXContent(parser);
 
@@ -116,22 +117,26 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
 
     public void testLenientParsingUnknowGroupType() throws IOException {
         BytesArray json = new BytesArray(
-                "{ " +
-                    "\"destination-field1\": {" +
-                        "\"newgroup\": {" +
-                            "\"field1\": \"bar\"," +
-                            "\"field2\": \"foo\"" +
-                        "}" +
-                    "}," +
-                    "\"unknown-field\":\"bar\"," +
-                    "\"destination-field2\": {" +
-                        "\"terms\": {" +
-                            "\"field\": \"term-field\"" +
-                        "}" +
-                    "}" +
-                "}");
-        XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
+            "{"
+                + "  \"destination-field1\": {"
+                + "    \"newgroup\": {"
+                + "      \"field1\": \"bar\","
+                + "      \"field2\": \"foo\""
+                + "    }"
+                + "  },"
+                + "  \"unknown-field\": \"bar\","
+                + "  \"destination-field2\": {"
+                + "    \"terms\": {"
+                + "      \"field\": \"term-field\""
+                + "    }"
+                + "  }"
+                + "}"
+        );
+        XContentParser parser = JsonXContent.jsonXContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            json.streamInput()
+        );
 
         GroupConfig gc = GroupConfig.fromXContent(parser);
 

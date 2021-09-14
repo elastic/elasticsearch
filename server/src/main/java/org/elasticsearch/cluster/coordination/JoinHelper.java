@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -29,29 +18,33 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,6 +60,8 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
+
 public class JoinHelper {
 
     private static final Logger logger = LogManager.getLogger(JoinHelper.class);
@@ -75,44 +70,47 @@ public class JoinHelper {
     public static final String VALIDATE_JOIN_ACTION_NAME = "internal:cluster/coordination/join/validate";
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
 
-    // the timeout for each join attempt
-    public static final Setting<TimeValue> JOIN_TIMEOUT_SETTING =
-        Setting.timeSetting("cluster.join.timeout",
-            TimeValue.timeValueMillis(60000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
-
     private final MasterService masterService;
     private final TransportService transportService;
-    private final JoinTaskExecutor joinTaskExecutor;
-    private final TimeValue joinTimeout;
+    private volatile JoinTaskExecutor joinTaskExecutor;
+    private final NodeHealthService nodeHealthService;
 
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
+    private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
+    private final Map<DiscoveryNode, Releasable> joinConnections = new HashMap<>(); // synchronized on itself
 
-    private AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
+    private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
 
-    JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
-               TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
+    JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService, TransportService transportService,
+               LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
                BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
-               Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, RerouteService rerouteService) {
+               Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, RerouteService rerouteService,
+               NodeHealthService nodeHealthService) {
         this.masterService = masterService;
         this.transportService = transportService;
-        this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
-        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, rerouteService) {
+        this.nodeHealthService = nodeHealthService;
+        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(allocationService, logger, rerouteService) {
+
+            private final long term = currentTermSupplier.getAsLong();
 
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
                 throws Exception {
-                // This is called when preparing the next cluster state for publication. There is no guarantee that the term we see here is
-                // the term under which this state will eventually be published: the current term may be increased after this check due to
-                // some other activity. That the term is correct is, however, checked properly during publication, so it is sufficient to
-                // check it here on a best-effort basis. This is fine because a concurrent change indicates the existence of another leader
-                // in a higher term which will cause this node to stand down.
-
-                final long currentTerm = currentTermSupplier.getAsLong();
-                if (currentState.term() != currentTerm) {
-                    final CoordinationMetaData coordinationMetaData =
-                            CoordinationMetaData.builder(currentState.coordinationMetaData()).term(currentTerm).build();
-                    final MetaData metaData = MetaData.builder(currentState.metaData()).coordinationMetaData(coordinationMetaData).build();
-                    currentState = ClusterState.builder(currentState).metaData(metaData).build();
+                // The current state that MasterService uses might have been updated by a (different) master in a higher term already
+                // Stop processing the current cluster state update, as there's no point in continuing to compute it as
+                // it will later be rejected by Coordinator.publish(...) anyhow
+                if (currentState.term() > term) {
+                    logger.trace("encountered higher term {} than current {}, there is a newer master", currentState.term(), term);
+                    throw new NotMasterException("Higher term encountered (current: " + currentState.term() + " > used: " +
+                        term + "), there is a newer master");
+                } else if (currentState.nodes().getMasterNodeId() == null && joiningTasks.stream().anyMatch(Task::isBecomeMasterTask)) {
+                    assert currentState.term() < term : "there should be at most one become master task per election (= by term)";
+                    final CoordinationMetadata coordinationMetadata =
+                            CoordinationMetadata.builder(currentState.coordinationMetadata()).term(term).build();
+                    final Metadata metadata = Metadata.builder(currentState.metadata()).coordinationMetadata(coordinationMetadata).build();
+                    currentState = ClusterState.builder(currentState).metadata(metadata).build();
+                } else if (currentState.nodes().isLocalNodeElectedMaster()) {
+                    assert currentState.term() == term : "term should be stable for the same master";
                 }
                 return super.execute(currentState, joiningTasks);
             }
@@ -126,19 +124,23 @@ public class JoinHelper {
             StartJoinRequest::new,
             (request, channel, task) -> {
                 final DiscoveryNode destination = request.getSourceNode();
-                sendJoinRequest(destination, Optional.of(joinLeaderInTerm.apply(request)));
+                sendJoinRequest(destination, currentTermSupplier.getAsLong(), Optional.of(joinLeaderInTerm.apply(request)));
                 channel.sendResponse(Empty.INSTANCE);
             });
 
+        final String dataPath = Environment.PATH_DATA_SETTING.get(settings);
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
             ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
-                if (localState.metaData().clusterUUIDCommitted() &&
-                    localState.metaData().clusterUUID().equals(request.getState().metaData().clusterUUID()) == false) {
-                    throw new CoordinationStateRejectedException("join validation on cluster state" +
-                        " with a different cluster uuid " + request.getState().metaData().clusterUUID() +
-                        " than local cluster uuid " + localState.metaData().clusterUUID() + ", rejecting");
+                if (localState.metadata().clusterUUIDCommitted() &&
+                        localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
+                    throw new CoordinationStateRejectedException("This node previously joined a cluster with UUID [" +
+                            localState.metadata().clusterUUID() + "] and is now trying to join a different cluster with UUID [" +
+                            request.getState().metadata().clusterUUID() + "]. This is forbidden and usually indicates an incorrect " +
+                            "discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and " +
+                            "can only be changed by deleting the contents of the node's data path [" + dataPath +
+                            "] which will also remove any data held by this node.");
                 }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
@@ -178,6 +180,37 @@ public class JoinHelper {
         return pendingOutgoingJoins.isEmpty() == false;
     }
 
+    public void onClusterStateApplied() {
+        // we applied a cluster state as LEADER or FOLLOWER which means the NodeConnectionsService has taken ownership of any connections to
+        // nodes in the cluster and therefore we can release the connection(s) that we were using for joining
+        final List<Releasable> releasables;
+        synchronized (joinConnections) {
+            if (joinConnections.isEmpty()) {
+                return;
+            }
+            releasables = new ArrayList<>(joinConnections.values());
+            joinConnections.clear();
+        }
+
+        logger.debug("releasing [{}] connections on successful cluster state application", releasables.size());
+        releasables.forEach(Releasables::close);
+    }
+
+    private void registerConnection(DiscoveryNode destination, Releasable connectionReference) {
+        final Releasable previousConnection;
+        synchronized (joinConnections) {
+            previousConnection = joinConnections.put(destination, connectionReference);
+        }
+        Releasables.close(previousConnection);
+    }
+
+    private void unregisterAndReleaseConnection(DiscoveryNode destination, Releasable connectionReference) {
+        synchronized (joinConnections) {
+            joinConnections.remove(destination, connectionReference);
+        }
+        Releasables.close(connectionReference);
+    }
+
     // package-private for testing
     static class FailedJoinAttempt {
         private final DiscoveryNode destination;
@@ -209,7 +242,7 @@ public class JoinHelper {
         }
 
         void logWarnWithTimestamp() {
-            logger.info(() -> new ParameterizedMessage("last failed join attempt was {} ago, failed to join {} with {}",
+            logger.warn(() -> new ParameterizedMessage("last failed join attempt was {} ago, failed to join {} with {}",
                             TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
                             destination,
                             joinRequest),
@@ -226,40 +259,60 @@ public class JoinHelper {
         }
     }
 
-    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
+    public void sendJoinRequest(DiscoveryNode destination, long term, Optional<Join> optionalJoin) {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
-        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), optionalJoin);
+        final StatusInfo statusInfo = nodeHealthService.getHealth();
+        if (statusInfo.getStatus() == UNHEALTHY) {
+            logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
+            return;
+        }
+        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), term, optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         if (pendingOutgoingJoins.add(dedupKey)) {
             logger.debug("attempting to join {} with {}", destination, joinRequest);
-            transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest,
-                TransportRequestOptions.builder().withTimeout(joinTimeout).build(),
-                new TransportResponseHandler<Empty>() {
-                    @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
 
-                    @Override
-                    public void handleResponse(Empty response) {
-                        pendingOutgoingJoins.remove(dedupKey);
-                        logger.debug("successfully joined {} with {}", destination, joinRequest);
-                        lastFailedJoinAttempt.set(null);
-                    }
+            // Typically we're already connected to the destination at this point, the PeerFinder holds a reference to this connection to
+            // keep it open, but we need to acquire our own reference to keep the connection alive through the joining process.
+            transportService.connectToNode(destination, new ActionListener<Releasable>() {
+                @Override
+                public void onResponse(Releasable connectionReference) {
+                    logger.trace("acquired connection for joining join {} with {}", destination, joinRequest);
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        pendingOutgoingJoins.remove(dedupKey);
-                        FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
-                        attempt.logNow();
-                        lastFailedJoinAttempt.set(attempt);
-                    }
+                    // Register the connection in joinConnections so it can be released once we successfully apply the cluster state, at
+                    // which point the NodeConnectionsService will have taken ownership of it.
+                    registerConnection(destination, connectionReference);
 
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
-                    }
-                });
+                    transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest, new TransportResponseHandler.Empty() {
+                        @Override
+                        public void handleResponse(TransportResponse.Empty response) {
+                            pendingOutgoingJoins.remove(dedupKey);
+                            logger.debug("successfully joined {} with {}", destination, joinRequest);
+                            lastFailedJoinAttempt.set(null);
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            pendingOutgoingJoins.remove(dedupKey);
+                            FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
+                            attempt.logNow();
+                            lastFailedJoinAttempt.set(attempt);
+                            unregisterAndReleaseConnection(destination, connectionReference);
+                        }
+                    });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    pendingOutgoingJoins.remove(dedupKey);
+                    FailedJoinAttempt attempt = new FailedJoinAttempt(
+                        destination,
+                        joinRequest,
+                        new ConnectTransportException(destination, "failed to acquire connection", e));
+                    attempt.logNow();
+                    lastFailedJoinAttempt.set(attempt);
+                }
+            });
+
         } else {
             logger.debug("already attempting to join {} with request {}, not sending request", destination, joinRequest);
         }
@@ -268,15 +321,9 @@ public class JoinHelper {
     void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
         assert startJoinRequest.getSourceNode().isMasterNode()
             : "sending start-join request for master-ineligible " + startJoinRequest.getSourceNode();
-        transportService.sendRequest(destination, START_JOIN_ACTION_NAME,
-            startJoinRequest, new TransportResponseHandler<Empty>() {
+        transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler.Empty() {
                 @Override
-                public Empty read(StreamInput in) {
-                    return Empty.INSTANCE;
-                }
-
-                @Override
-                public void handleResponse(Empty response) {
+                public void handleResponse(TransportResponse.Empty response) {
                     logger.debug("successful response to {} from {}", startJoinRequest, destination);
                 }
 
@@ -284,19 +331,12 @@ public class JoinHelper {
                 public void handleException(TransportException exp) {
                     logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
                 }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
             });
     }
 
     void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
-        transportService.sendRequest(node, VALIDATE_JOIN_ACTION_NAME,
-            new ValidateJoinRequest(state),
-            TransportRequestOptions.builder().withTimeout(joinTimeout).build(),
-            new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC));
+        transportService.sendRequest(node, VALIDATE_JOIN_ACTION_NAME, new ValidateJoinRequest(state),
+                new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     public interface JoinCallback {
@@ -341,6 +381,7 @@ public class JoinHelper {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
             final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, "join existing leader");
+            assert joinTaskExecutor != null;
             masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(task, joinCallback));
         }
@@ -407,10 +448,12 @@ public class JoinHelper {
                 });
                 pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (source, e) -> {
                 });
+                joinTaskExecutor = joinTaskExecutorGenerator.get();
                 masterService.submitStateUpdateTasks(stateUpdateSource, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT),
                     joinTaskExecutor);
             } else {
                 assert newMode == Mode.FOLLOWER : newMode;
+                joinTaskExecutor = null;
                 joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.onFailure(
                     new CoordinationStateRejectedException("became follower")));
             }

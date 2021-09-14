@@ -1,38 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.junit.Before;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettingsStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
 
     @Override
     public UpdateSettingsStep createRandomInstance() {
@@ -71,49 +58,27 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
         return new UpdateSettingsStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getSettings());
     }
 
-    public void testPerformAction() throws Exception {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+    private static IndexMetadata getIndexMetadata() {
+        return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+    }
+
+    public void testPerformAction() {
+        IndexMetadata indexMetadata = getIndexMetadata();
 
         UpdateSettingsStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-                assertThat(request.settings(), equalTo(step.getSettings()));
-                assertThat(request.indices(), equalTo(new String[] {indexMetaData.getIndex().getName()}));
-                listener.onResponse(new AcknowledgedResponse(true));
-                return null;
-            }
-
+        Mockito.doAnswer(invocation -> {
+            UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            assertThat(request.settings(), equalTo(step.getSettings()));
+            assertThat(request.indices(), equalTo(new String[] {indexMetadata.getIndex().getName()}));
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-
-        step.performAction(indexMetaData, null, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(true, actionCompleted.get());
+        assertNull(PlainActionFuture.<Void, RuntimeException>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -121,47 +86,22 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
     }
 
     public void testPerformActionFailure() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetadata indexMetadata = getIndexMetadata();
         Exception exception = new RuntimeException();
         UpdateSettingsStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-                assertThat(request.settings(), equalTo(step.getSettings()));
-                assertThat(request.indices(), equalTo(new String[] {indexMetaData.getIndex().getName()}));
-                listener.onFailure(exception);
-                return null;
-            }
-
+        Mockito.doAnswer(invocation -> {
+            UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            assertThat(request.settings(), equalTo(step.getSettings()));
+            assertThat(request.indices(), equalTo(new String[] {indexMetadata.getIndex().getName()}));
+            listener.onFailure(exception);
+            return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertSame(exception, e);
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertEquals(true, exceptionThrown.get());
+        assertSame(exception, expectThrows(Exception.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

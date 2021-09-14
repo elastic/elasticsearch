@@ -1,0 +1,92 @@
+[role="xpack"]
+[testenv="basic"]
+[[slm-retention]]
+=== Snapshot retention
+
+You can include a retention policy in an {slm-init} policy to automatically delete old snapshots. 
+Retention runs as a cluster-level task and is not associated with a particular policy's schedule.
+The retention criteria are evaluated as part of the retention task, not when the policy executes.
+For the retention task to automatically delete snapshots, 
+you need to include a <<slm-api-put-retention,`retention`>> object in your {slm-init} policy.
+
+To control when the retention task runs, configure 
+<<slm-retention-schedule,`slm.retention_schedule`>> in the cluster settings.
+You can define the schedule as a periodic or absolute <<schedule-cron, cron schedule>>.
+The <<slm-retention-duration,`slm.retention_duration`>> setting limits how long 
+{slm-init} should spend deleting old snapshots.
+
+You can update the schedule and duration dynamically with the 
+<<cluster-update-settings, update settings>> API.
+You can run the retention task manually with the 
+<<slm-api-execute-retention, execute retention >> API. 
+
+The retention task only considers snapshots initiated through {slm-init} policies,  
+either according to the policy schedule or through the 
+<<slm-api-execute-lifecycle, execute lifecycle>> API. 
+Manual snapshots are ignored and don't count toward the retention limits.
+
+To retrieve information about the snapshot retention task history, 
+use the  <<slm-api-get-stats, get stats>> API:
+
+////
+[source,console]
+--------------------------------------------------
+PUT /_slm/policy/daily-snapshots
+{
+  "schedule": "0 30 1 * * ?",
+  "name": "<daily-snap-{now/d}>",
+  "repository": "my_repository",
+  "retention": { <1>
+    "expire_after": "30d", <2>
+    "min_count": 5, <3>
+    "max_count": 50 <4>
+  }
+}
+--------------------------------------------------
+// TEST[setup:setup-repository]
+<1> Optional retention configuration
+<2> Keep snapshots for 30 days
+<3> Always keep at least 5 successful snapshots
+<4> Keep no more than 50 successful snapshots
+////
+
+[source,console]
+--------------------------------------------------
+GET /_slm/stats
+--------------------------------------------------
+// TEST[continued]
+
+The response includes the following statistics:
+
+[source,js]
+--------------------------------------------------
+{
+  "retention_runs": 13, <1>
+  "retention_failed": 0, <2>
+  "retention_timed_out": 0, <3>
+  "retention_deletion_time": "1.4s", <4>
+  "retention_deletion_time_millis": 1404,
+  "policy_stats": [
+    {
+      "policy": "daily-snapshots",
+      "snapshots_taken": 1,
+      "snapshots_failed": 1,
+      "snapshots_deleted": 0, <5>
+      "snapshot_deletion_failures": 0 <6>
+    }
+  ],
+  "total_snapshots_taken": 1,
+  "total_snapshots_failed": 1,
+  "total_snapshots_deleted": 0, <7>
+  "total_snapshot_deletion_failures": 0 <8>
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:this is not actually running retention]
+<1> Number of times retention has been run
+<2> Number of times retention failed while running
+<3> Number of times retention hit the `slm.retention_duration` time limit and had to stop before deleting all eligible snapshots
+<4> Total time spent deleting snapshots by the retention process
+<5> Number of snapshots created by the "daily-snapshots" policy that have been deleted
+<6> Number of snapshots that failed to be deleted
+<7> Total number of snapshots deleted across all policies
+<8> Total number of snapshot deletion failures across all policies

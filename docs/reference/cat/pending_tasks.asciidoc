@@ -12,24 +12,30 @@ Returns cluster-level changes that have not yet been executed, similar to the
 
 `GET /_cat/pending_tasks`
 
+[[cat-pending-tasks-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[cat-pending-tasks-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-pending-tasks-api-example]]
@@ -37,7 +43,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/pending_tasks?v
+GET /_cat/pending_tasks?v=true
 --------------------------------------------------
 
 The API returns the following response:

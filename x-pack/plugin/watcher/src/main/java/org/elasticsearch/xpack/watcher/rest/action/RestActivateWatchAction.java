@@ -1,18 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -23,6 +22,8 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
+import java.util.List;
+
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -31,24 +32,14 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestActivateWatchAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestActivateWatchAction.class));
-
-    public RestActivateWatchAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_activate", this,
-            POST, "/_xpack/watcher/watch/{id}/_activate", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_activate", this,
-            PUT, "/_xpack/watcher/watch/{id}/_activate", deprecationLogger);
-
-        final DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler();
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler,
-            POST, "/_xpack/watcher/watch/{id}/_deactivate", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler,
-            PUT, "/_xpack/watcher/watch/{id}/_deactivate", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(POST, "/_watcher/watch/{id}/_activate")
+                .replaces(POST, "/_xpack/watcher/watch/{id}/_activate", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/{id}/_activate")
+                .replaces(PUT, "/_xpack/watcher/watch/{id}/_activate", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -71,9 +62,16 @@ public class RestActivateWatchAction extends BaseRestHandler {
                     });
     }
 
-    private static class DeactivateRestHandler extends BaseRestHandler {
+    public static class DeactivateRestHandler extends BaseRestHandler {
 
-        DeactivateRestHandler() {
+        @Override
+        public List<Route> routes() {
+            return List.of(
+                Route.builder(POST, "/_watcher/watch/{id}/_deactivate")
+                    .replaces(POST, "/_xpack/watcher/watch/{id}/_deactivate", RestApiVersion.V_7).build(),
+                Route.builder(PUT, "/_watcher/watch/{id}/_deactivate")
+                    .replaces(PUT, "/_xpack/watcher/watch/{id}/_deactivate", RestApiVersion.V_7).build()
+            );
         }
 
         @Override

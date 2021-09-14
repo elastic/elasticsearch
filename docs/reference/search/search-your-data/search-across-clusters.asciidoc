@@ -1,0 +1,434 @@
+[[modules-cross-cluster-search]]
+== Search across clusters
+
+*{ccs-cap}* lets you run a single search request against one or more
+<<modules-remote-clusters,remote clusters>>. For example, you can use a {ccs} to
+filter and analyze log data stored on clusters in different data centers.
+
+IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
+
+[discrete]
+[[ccs-supported-apis]]
+=== Supported APIs
+
+The following APIs support {ccs}:
+
+* <<search-search,Search>>
+* <<async-search,Async search>>
+* <<search-multi-search,Multi search>>
+* <<search-template,Search template>>
+* <<multi-search-template,Multi search template>>
+* <<search-field-caps,Field capabilities>>
+* experimental:[] <<eql-search-api,EQL search>>
+
+[discrete]
+[[ccs-example]]
+=== {ccs-cap} examples
+
+[discrete]
+[[ccs-remote-cluster-setup]]
+==== Remote cluster setup
+
+To perform a {ccs}, you must have at least one remote cluster configured.
+
+TIP: If you want to search across clusters in the cloud, you can
+link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
+can search across clusters and <<ccr-getting-started,set up {ccr}>>.
+
+The following <<cluster-update-settings,cluster update settings>> API request
+adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`.
+
+[source,console]
+--------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "cluster_one": {
+          "seeds": [
+            "127.0.0.1:9300"
+          ]
+        },
+        "cluster_two": {
+          "seeds": [
+            "127.0.0.1:9301"
+          ]
+        },
+        "cluster_three": {
+          "seeds": [
+            "127.0.0.1:9302"
+          ]
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// TEST[setup:host]
+// TEST[s/127.0.0.1:930\d+/\${transport_host}/]
+
+[discrete]
+[[ccs-search-remote-cluster]]
+==== Search a single remote cluster
+
+The following <<search-search,search>> API request searches the
+`my-index-000001` index on a single remote cluster, `cluster_one`.
+
+[source,console]
+--------------------------------------------------
+GET /cluster_one:my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  },
+  "_source": ["user.id", "message", "http.response.status_code"]
+}
+--------------------------------------------------
+// TEST[continued]
+// TEST[setup:my_index]
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "took": 150,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "_clusters": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0
+  },
+  "hits": {
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": "cluster_one:my-index-000001", <1>
+        "_id": "0",
+        "_score": 1,
+        "_source": {
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
+// TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
+// TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
+
+<1> The search response body includes the name of the remote cluster in the
+`_index` parameter.
+
+[discrete]
+[[ccs-search-multi-remote-cluster]]
+==== Search multiple remote clusters
+
+The following <<search,search>> API request searches the `my-index-000001` index on
+three clusters:
+
+* Your local cluster
+* Two remote clusters, `cluster_one` and `cluster_two`
+
+[source,console]
+--------------------------------------------------
+GET /my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  },
+  "_source": ["user.id", "message", "http.response.status_code"]
+}
+--------------------------------------------------
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "took": 150,
+  "timed_out": false,
+  "num_reduce_phases": 4,
+  "_shards": {
+    "total": 3,
+    "successful": 3,
+    "failed": 0,
+    "skipped": 0
+  },
+  "_clusters": {
+    "total": 3,
+    "successful": 3,
+    "skipped": 0
+  },
+  "hits": {
+    "total" : {
+        "value": 3,
+        "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": "my-index-000001", <1>
+        "_id": "0",
+        "_score": 2,
+        "_source": {
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
+        }
+      },
+      {
+        "_index": "cluster_one:my-index-000001", <2>
+        "_id": "0",
+        "_score": 1,
+        "_source": {
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
+        }
+      },
+      {
+        "_index": "cluster_two:my-index-000001", <3>
+        "_id": "0",
+        "_score": 1,
+        "_source": {
+          "user": {
+            "id": "kimchy"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "http": {
+            "response":
+              {
+                "status_code": 200
+              }
+          }
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
+// TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
+// TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
+// TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
+
+<1> This document's `_index` parameter doesn't include a cluster name. This
+means the document came from the local cluster.
+<2> This document came from `cluster_one`.
+<3> This document came from `cluster_two`.
+
+[discrete]
+[[skip-unavailable-clusters]]
+=== Skip unavailable clusters
+
+By default, a {ccs} returns an error if *any* cluster in the request is
+unavailable.
+
+To skip an unavailable cluster during a {ccs}, set the
+<<skip-unavailable,`skip_unavailable`>> cluster setting to `true`.
+
+The following <<cluster-update-settings,cluster update settings>> API request
+changes `cluster_two`'s `skip_unavailable` setting to `true`.
+
+[source,console]
+--------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster.remote.cluster_two.skip_unavailable": true
+  }
+}
+--------------------------------
+// TEST[continued]
+
+If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
+include matching documents from that cluster in the final results.
+
+[discrete]
+[[ccs-gateway-seed-nodes]]
+=== Selecting gateway and seed nodes in sniff mode
+
+For remote clusters using the <<sniff-mode,sniff connection>> mode, gateway and
+seed nodes need to be accessible from the local cluster via your network.
+
+By default, any non-<<master-node,master-eligible>> node can act as a
+gateway node. If wanted, you can define the gateway nodes for a cluster by
+setting `cluster.remote.node.attr.gateway` to `true`.
+
+For {ccs}, we recommend you use gateway nodes that are capable of serving as
+<<coordinating-node,coordinating nodes>> for search requests. If
+wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
+
+[discrete]
+[[ccs-proxy-mode]]
+=== {ccs-cap} in proxy mode
+
+<<proxy-mode,Proxy mode>> remote cluster connections support {ccs}. All remote
+connections connect to the configured `proxy_address`. Any desired connection
+routing to gateway or <<coordinating-node,coordinating nodes>> must
+be implemented by the intermediate proxy at this configured address.
+
+[discrete]
+[[ccs-network-delays]]
+=== How {ccs} handles network delays
+
+Because {ccs} involves sending requests to remote clusters, any network delays
+can impact search speed. To avoid slow searches, {ccs} offers two options for
+handling network delays:
+
+<<ccs-min-roundtrips,Minimize network roundtrips>>::
+By default, {es} reduces the number of network roundtrips between remote
+clusters. This reduces the impact of network delays on search speed. However,
+{es} can't reduce network roundtrips for large search requests, such as those
+including a <<scroll-search-results, scroll>> or
+<<inner-hits,inner hits>>.
++
+See <<ccs-min-roundtrips>> to learn how this option works.
+
+<<ccs-unmin-roundtrips, Don't minimize network roundtrips>>:: For search
+requests that include a scroll or inner hits, {es} sends multiple outgoing and
+ingoing requests to each remote cluster. You can also choose this option by
+setting the <<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> parameter to
+`false`. While typically slower, this approach may work well for networks with
+low latency.
++
+See <<ccs-unmin-roundtrips>> to learn how this option works.
+
+[discrete]
+[[ccs-min-roundtrips]]
+==== Minimize network roundtrips
+
+Here's how {ccs} works when you minimize network roundtrips.
+
+. You send a {ccs} request to your local cluster. A coordinating node in that
+cluster receives and parses the request.
++
+image:images/ccs/ccs-min-roundtrip-client-request.svg[]
+
+. The coordinating node sends a single search request to each cluster, including
+the local cluster. Each cluster performs the search request independently,
+applying its own cluster-level settings to the request.
++
+image:images/ccs/ccs-min-roundtrip-cluster-search.svg[]
+
+. Each remote cluster sends its search results back to the coordinating node.
++
+image:images/ccs/ccs-min-roundtrip-cluster-results.svg[]
+
+. After collecting results from each cluster, the coordinating node returns the
+final results in the {ccs} response.
++
+image:images/ccs/ccs-min-roundtrip-client-response.svg[]
+
+[discrete]
+[[ccs-unmin-roundtrips]]
+==== Don't minimize network roundtrips
+
+Here's how {ccs} works when you don't minimize network roundtrips.
+
+. You send a {ccs} request to your local cluster. A coordinating node in that
+cluster receives and parses the request.
++
+image:images/ccs/ccs-min-roundtrip-client-request.svg[]
+
+. The coordinating node sends a <<search-shards,search shards>> API request to
+each remote cluster.
++
+image:images/ccs/ccs-min-roundtrip-cluster-search.svg[]
+
+. Each remote cluster sends its response back to the coordinating node.
+This response contains information about the indices and shards the {ccs}
+request will be executed on.
++
+image:images/ccs/ccs-min-roundtrip-cluster-results.svg[]
+
+. The coordinating node sends a search request to each shard, including those in
+its own cluster. Each shard performs the search request independently.
++
+[WARNING]
+====
+When network roundtrips aren't minimized, the search is executed as if all data
+were in the coordinating node's cluster. We recommend updating cluster-level
+settings that limit searches, such as `action.search.shard_count.limit`,
+`pre_filter_shard_size`, and `max_concurrent_shard_requests`, to account for
+this. If these limits are too low, the search may be rejected.
+====
++
+image:images/ccs/ccs-dont-min-roundtrip-shard-search.svg[]
+
+. Each shard sends its search results back to the coordinating node.
++
+image:images/ccs/ccs-dont-min-roundtrip-shard-results.svg[]
+
+. After collecting results from each cluster, the coordinating node returns the
+final results in the {ccs} response.
++
+image:images/ccs/ccs-min-roundtrip-client-response.svg[]
+
+[discrete]
+[[ccs-supported-configurations]]
+=== Supported configurations
+
+Generally, <<gateway-nodes-selection,cross-cluster search>> can search remote
+clusters that are one major version ahead or behind the coordinating node's
+version.
+
+IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
+clusters must use the same {es} version.
+
+Cross-cluster search can also search remote clusters that are being
+<<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
+"upgrade to" version are compatible with the gateway node.
+
+For example, a coordinating node running {es} 5.6 can search a remote cluster
+running {es} 6.8, but that cluster can not be upgraded to 7.1. In this case
+you should first upgrade the coordinating node to 7.1 and then upgrade remote
+cluster.
+
+WARNING: Running multiple versions of {es} in the same cluster beyond the
+duration of an upgrade is not supported.
+
+Only features that exist across all searched clusters are supported. Using
+a recent feature with a remote cluster where the feature is not supported
+will result in undefined behavior.

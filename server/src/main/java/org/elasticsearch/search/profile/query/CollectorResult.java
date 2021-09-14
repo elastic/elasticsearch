@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile.query;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -49,8 +40,6 @@ public class CollectorResult implements ToXContentObject, Writeable {
     public static final String REASON_SEARCH_POST_FILTER = "search_post_filter";
     public static final String REASON_SEARCH_MIN_SCORE = "search_min_score";
     public static final String REASON_SEARCH_MULTI = "search_multi";
-    public static final String REASON_SEARCH_TIMEOUT = "search_timeout";
-    public static final String REASON_SEARCH_CANCELLED = "search_cancelled";
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 
@@ -73,14 +62,14 @@ public class CollectorResult implements ToXContentObject, Writeable {
     /**
      * The total elapsed time for this Collector
      */
-    private final Long time;
+    private final long time;
 
     /**
      * A list of children collectors "embedded" inside this collector
      */
     private List<CollectorResult> children;
 
-    public CollectorResult(String collectorName, String reason, Long time, List<CollectorResult> children) {
+    public CollectorResult(String collectorName, String reason, long time, List<CollectorResult> children) {
         this.collectorName = collectorName;
         this.reason = reason;
         this.time = time;
@@ -142,6 +131,28 @@ public class CollectorResult implements ToXContentObject, Writeable {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        CollectorResult other = (CollectorResult) obj;
+        return collectorName.equals(other.collectorName)
+            && reason.equals(other.reason)
+            && time == other.time
+            && children.equals(other.children);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(collectorName, reason, time, children);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder = builder.startObject();
         builder.field(NAME.getPreferredName(), getName());
@@ -151,7 +162,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
         }
         builder.field(TIME_NANOS.getPreferredName(), getTime());
 
-        if (!children.isEmpty()) {
+        if (children.isEmpty() == false) {
             builder = builder.startArray(CHILDREN.getPreferredName());
             for (CollectorResult child : children) {
                 builder = child.toXContent(builder, params);
@@ -164,7 +175,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
 
     public static CollectorResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         String currentFieldName = null;
         String name = null, reason = null;
         long time = -1;

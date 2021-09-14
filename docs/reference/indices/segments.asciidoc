@@ -5,43 +5,54 @@
 ++++
 
 Returns low-level information about the https://lucene.apache.org/core/[Lucene]
-segments in index shards.
+segments in index shards. For data streams, the API returns information about
+the stream's backing indices.
 
 [source,console]
 ----
-GET /twitter/_segments
+GET /my-index-000001/_segments
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-segments-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_segments`
+`GET /<target>/_segments`
 
 `GET /_segments`
 
+[[index-segments-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-indices,index privilege>> for the target data stream,
+index, or alias.
 
 [[index-segments-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
-
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[index-segments-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `verbose`::
 experimental:[]
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the response includes detailed information
 about Lucene's memory usage.
 Defaults to `false`.
@@ -51,40 +62,40 @@ Defaults to `false`.
 ==== {api-response-body-title}
 
 `<segment>`::
-(String)       
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment]
+(String)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment]
 
 `generation`::
 (Integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=generation]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=generation]
 
 `num_docs`::
 (Integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
 
 `deleted_docs`::
 (Integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 
 `size_in_bytes`::
 (Integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-size]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
 
 `memory_in_bytes`::
 (Integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=memory]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=memory]
 
-`committed`:: 
+`committed`::
 (Boolean)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=committed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=committed]
 
 `search`::
 (Boolean)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-search]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-search]
 
 `version`::
 (String)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-version]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-version]
 
 `compound`::
 (Boolean)
@@ -100,7 +111,7 @@ Contains information about whether high compression was enabled.
 ==== {api-examples-title}
 
 
-===== Get segment information for a specific index
+===== Get segment information for a specific data stream or index
 
 [source,console]
 --------------------------------------------------
@@ -109,7 +120,7 @@ GET /test/_segments
 // TEST[s/^/PUT test\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST test\/_doc\?refresh\n{"test": "test"}\n/]
 
 
-===== Get segment information for several indices
+===== Get segment information for several data streams and indices
 
 [source,console]
 --------------------------------------------------
@@ -118,7 +129,7 @@ GET /test1,test2/_segments
 // TEST[s/^/PUT test1\nPUT test2\n/]
 
 
-===== Get segment information for all indices
+===== Get segment information for all data streams and indices in a cluster
 
 [source,console]
 --------------------------------------------------
@@ -150,7 +161,7 @@ The API returns the following response:
                 "num_docs": 1,
                 "deleted_docs": 0,
                 "size_in_bytes": 3800,
-                "memory_in_bytes": 1410,
+                "memory_in_bytes": 0,
                 "committed": false,
                 "search": true,
                 "version": "7.0.0",
@@ -191,27 +202,27 @@ The API returns the following response:
 [source,console-response]
 --------------------------------------------------
 {
-    ...
-        "_0": {
+  ...
+    "_0": {
+      ...
+      "ram_tree": [
+        {
+          "description": "postings [PerFieldPostings(format=1)]",
+          "size_in_bytes": 2696,
+          "children": [
+            {
+              "description": "format 'Lucene50_0' ...",
+              "size_in_bytes": 2608,
+              "children" :[ ... ]
+            },
             ...
-            "ram_tree": [
-                {
-                    "description": "postings [PerFieldPostings(format=1)]",
-                    "size_in_bytes": 2696,
-                    "children": [
-                        {
-                            "description": "format 'Lucene50_0' ...",
-                            "size_in_bytes": 2608,
-                            "children" :[ ... ]
-                        },
-                        ...
-                    ]
-                },
-                ...
-                ]
+          ]
+        },
+        ...
+      ]
 
-        }
-    ...
+    }
+  ...
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:Response is too verbose to be fully shown in documentation, so we just show the relevant bit and don't test the response.]

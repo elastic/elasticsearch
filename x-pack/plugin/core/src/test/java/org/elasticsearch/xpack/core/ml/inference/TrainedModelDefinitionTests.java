@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
@@ -18,10 +19,11 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncodingTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.EnsembleTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,33 +34,32 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 
 public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<TrainedModelDefinition> {
 
-    private boolean lenient;
-
-    @Before
-    public void chooseStrictOrLenient() {
-        lenient = randomBoolean();
-    }
-
     @Override
     protected TrainedModelDefinition doParseInstance(XContentParser parser) throws IOException {
-        return TrainedModelDefinition.fromXContent(parser, lenient).build();
+        return TrainedModelDefinition.fromXContent(parser, true).build();
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return lenient;
+        return true;
     }
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
-    public static TrainedModelDefinition.Builder createRandomBuilder() {
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }
+
+    public static TrainedModelDefinition.Builder createRandomBuilder(TargetType targetType) {
         int numberOfProcessors = randomIntBetween(1, 10);
         return new TrainedModelDefinition.Builder()
             .setPreProcessors(
@@ -68,22 +69,15 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
                         TargetMeanEncodingTests.createRandom()))
                         .limit(numberOfProcessors)
                         .collect(Collectors.toList()))
-            .setInput(new TrainedModelDefinition.Input(Stream.generate(() -> randomAlphaOfLength(10))
-                .limit(randomLongBetween(1, 10))
-                .collect(Collectors.toList())))
-            .setTrainedModel(randomFrom(TreeTests.createRandom()));
+            .setTrainedModel(randomFrom(TreeTests.createRandom(targetType), EnsembleTests.createRandom(targetType)));
     }
 
-    private static final String ENSEMBLE_MODEL = "" +
+    public static TrainedModelDefinition.Builder createRandomBuilder() {
+        return createRandomBuilder(randomFrom(TargetType.values()));
+    }
+
+    public static final String ENSEMBLE_MODEL = "" +
         "{\n" +
-        "  \"input\": {\n" +
-        "    \"field_names\": [\n" +
-        "      \"col1\",\n" +
-        "      \"col2\",\n" +
-        "      \"col3\",\n" +
-        "      \"col4\"\n" +
-        "    ]\n" +
-        "  },\n" +
         "  \"preprocessors\": [\n" +
         "    {\n" +
         "      \"one_hot_encoding\": {\n" +
@@ -201,16 +195,9 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         "    }\n" +
         "  }\n" +
         "}";
-    private static final String TREE_MODEL = "" +
+
+    public static final String TREE_MODEL = "" +
         "{\n" +
-        "  \"input\": {\n" +
-        "    \"field_names\": [\n" +
-        "      \"col1\",\n" +
-        "      \"col2\",\n" +
-        "      \"col3\",\n" +
-        "      \"col4\"\n" +
-        "    ]\n" +
-        "  },\n" +
         "  \"preprocessors\": [\n" +
         "    {\n" +
         "      \"one_hot_encoding\": {\n" +
@@ -316,4 +303,8 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         return new NamedWriteableRegistry(entries);
     }
 
+    public void testRamUsageEstimation() {
+        TrainedModelDefinition test = createTestInstance();
+        assertThat(test.ramBytesUsed(), greaterThan(0L));
+    }
 }

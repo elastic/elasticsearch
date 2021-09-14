@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[api-java-delete-watch]]
 === Delete watch API
 

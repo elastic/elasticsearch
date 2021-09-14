@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -47,26 +48,31 @@ public class LicenseOperationModeTests extends ESTestCase {
         assertResolve(OperationMode.PLATINUM, "PlAtINum", "platinum");
     }
 
+    public void testResolveEnterprise() {
+        assertResolve(OperationMode.ENTERPRISE, License.LicenseType.ENTERPRISE.getTypeName());
+        assertResolve(OperationMode.ENTERPRISE, License.LicenseType.ENTERPRISE.name());
+    }
+
     public void testResolveUnknown() {
-        // 'enterprise' is a type that exists in cloud but should be rejected under normal operation
-        // See https://github.com/elastic/x-plugins/issues/3371
-        String[] types = { "unknown", "fake", "enterprise" };
+        String[] types = { "unknown", "fake", "commercial" };
 
         for (String type : types) {
             try {
-                OperationMode.resolve(type);
+                final License.LicenseType licenseType = License.LicenseType.resolve(type);
+                OperationMode.resolve(licenseType);
 
                 fail(String.format(Locale.ROOT, "[%s] should not be recognized as an operation mode", type));
             }
             catch (IllegalArgumentException e) {
-                assertThat(e.getMessage(), equalTo("unknown type [" + type + "]"));
+                assertThat(e.getMessage(), equalTo("unknown license type [" + type + "]"));
             }
         }
     }
 
     private static void assertResolve(OperationMode expected, String... types) {
         for (String type : types) {
-            assertThat(OperationMode.resolve(type), equalTo(expected));
+            License.LicenseType licenseType = License.LicenseType.resolve(type);
+            assertThat(OperationMode.resolve(licenseType), equalTo(expected));
         }
     }
 }

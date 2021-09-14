@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -10,6 +11,8 @@ import com.unboundid.ldap.sdk.ResultCode;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.Environment;
@@ -20,11 +23,12 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
@@ -33,14 +37,18 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryTestCase {
 
@@ -48,6 +56,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("active_directory", REALM_NAME);
     private final SecureString SECURED_PASSWORD = new SecureString(PASSWORD);
     private ThreadPool threadPool;
+    private static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
 
     @Before
     public void init() throws Exception {
@@ -87,14 +96,15 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     private RealmConfig configureRealm(String name, String type, Settings settings) {
-        final Environment env = TestEnvironment.newEnvironment(globalSettings);
+        final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(type, name);
         final Settings mergedSettings = Settings.builder()
             .put(settings)
             .normalizePrefix("xpack.security.authc.realms." + type + "." + name + ".")
             .put(globalSettings)
+            .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
             .build();
-        this.sslService = new SSLService(mergedSettings, env);
-        final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(type, name);
+        final Environment env = TestEnvironment.newEnvironment(mergedSettings);
+        this.sslService = new SSLService(env);
         return new RealmConfig(identifier, mergedSettings, env, new ThreadContext(globalSettings));
     }
 
@@ -366,6 +376,35 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testResolveTokenGroupsSID() throws Exception {
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(RealmSettings.getFullSettingKey(REALM_ID, RealmSettings.ORDER_SETTING), 0)
+            .put(buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
+                LdapSearchScope.SUB_TREE, false))
+            .put(ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_BASEDN_SETTING, "DC=ad,DC=test,DC=elasticsearch,DC=com")
+            .put(ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_SCOPE_SETTING, LdapSearchScope.SUB_TREE)
+            .put(getFullSettingKey(REALM_ID, LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), "tokenGroups")
+            .build();
+        RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, settings);
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
+        try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
+            String userName = "hulk";
+            try (LdapSession ldap = session(sessionFactory, userName, SECURED_PASSWORD)) {
+                assertConnectionCanReconnect(ldap.getConnection());
+                resolver.resolve(ldap.getConnection(), BRUCE_BANNER_DN, TimeValue.timeValueSeconds(1), logger, null, future);
+                Map<String, Object> metadataGroupSIDs = future.get();
+                assertThat(metadataGroupSIDs.size(), equalTo(1));
+                assertNotNull(metadataGroupSIDs.get("tokenGroups"));
+                List<String> SIDs = ((List<String>) metadataGroupSIDs.get("tokenGroups"));
+                assertThat(SIDs.size(), equalTo(7));
+                assertThat(SIDs, everyItem(matchesPattern("S-1-5-(?:21|32)-\\d+(?:-\\d+\\-\\d+\\-\\d+)?")));
+            }
+        }
+    }
+
     private Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification) {
         return buildAdSettings(ldapUrl, adDomainName, hostnameVerification, randomBoolean());
     }
@@ -373,7 +412,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     private Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification, boolean useBindUser) {
         Settings.Builder builder = Settings.builder()
                 .put(getFullSettingKey(REALM_ID, SessionFactorySettings.URLS_SETTING), ldapUrl)
-                .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
+                .put(getFullSettingKey(REALM_ID, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
                 .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
                 .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
                 .put(getFullSettingKey(REALM_NAME, ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
@@ -381,7 +420,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
                 .put(getFullSettingKey(REALM_ID, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS);
         if (randomBoolean()) {
             builder.put(getFullSettingKey(REALM_ID, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
-                    hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
+                    hostnameVerification ? SslVerificationMode.FULL : SslVerificationMode.CERTIFICATE);
         } else {
             builder.put(getFullSettingKey(REALM_ID, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
         }

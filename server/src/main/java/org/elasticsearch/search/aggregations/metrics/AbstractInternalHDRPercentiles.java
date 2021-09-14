@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -25,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -33,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
@@ -41,10 +30,15 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected final DoubleHistogram state;
     protected final boolean keyed;
 
-    AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    AbstractInternalHDRPercentiles(
+        String name,
+        double[] keys,
+        DoubleHistogram state,
+        boolean keyed,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
+        super(name, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
@@ -88,7 +82,12 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         return value(Double.parseDouble(name));
     }
 
-    DocValueFormat formatter() {
+    @Override
+    public Iterable<String> valueNames() {
+        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+    }
+
+    public DocValueFormat formatter() {
         return format;
     }
 
@@ -98,12 +97,29 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         return state.getEstimatedFootprintInBytes();
     }
 
-    DoubleHistogram getState() {
+    /**
+     * Return the internal {@link DoubleHistogram} sketch for this metric.
+     */
+    public DoubleHistogram getState() {
         return state;
     }
 
+    /**
+     * Return the keys (percentiles) requested.
+     */
+    public double[] getKeys() {
+        return keys;
+    }
+
+    /**
+     * Should the output be keyed.
+     */
+    public boolean keyed() {
+        return keyed;
+    }
+
     @Override
-    public AbstractInternalHDRPercentiles doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public AbstractInternalHDRPercentiles reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         DoubleHistogram merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final AbstractInternalHDRPercentiles percentiles = (AbstractInternalHDRPercentiles) aggregation;
@@ -113,22 +129,27 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             }
             merged.add(percentiles.state);
         }
-        return createReduced(getName(), keys, merged, keyed, pipelineAggregators(), getMetaData());
+        return createReduced(getName(), keys, merged, keyed, getMetadata());
     }
 
-    protected abstract AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+    protected abstract AbstractInternalHDRPercentiles createReduced(
+        String name,
+        double[] keys,
+        DoubleHistogram merged,
+        boolean keyed,
+        Map<String, Object> metadata
+    );
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
-            for(int i = 0; i < keys.length; ++i) {
+            for (int i = 0; i < keys.length; ++i) {
                 String key = String.valueOf(keys[i]);
                 double value = value(keys[i]);
                 builder.field(key, state.getTotalCount() == 0 ? null : value);
                 if (format != DocValueFormat.RAW && state.getTotalCount() > 0) {
-                    builder.field(key + "_as_string",  format.format(value).toString());
+                    builder.field(key + "_as_string", format.format(value).toString());
                 }
             }
             builder.endObject();
@@ -156,9 +177,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         if (super.equals(obj) == false) return false;
 
         AbstractInternalHDRPercentiles that = (AbstractInternalHDRPercentiles) obj;
-        return keyed == that.keyed
-                && Arrays.equals(keys, that.keys)
-                && Objects.equals(state, that.state);
+        return keyed == that.keyed && Arrays.equals(keys, that.keys) && Objects.equals(state, that.state);
     }
 
     @Override
@@ -166,10 +185,12 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         // we cannot use state.hashCode at the moment because of:
         // https://github.com/HdrHistogram/HdrHistogram/issues/81
         // TODO: upgrade the HDRHistogram library
-        return Objects.hash(super.hashCode(),
+        return Objects.hash(
+            super.hashCode(),
             keyed,
             Arrays.hashCode(keys),
             state.getIntegerToDoubleValueConversionRatio(),
-            state.getTotalCount());
+            state.getTotalCount()
+        );
     }
 }

@@ -1,0 +1,88 @@
+setup:
+  - do:
+      indices.create:
+        index: testing
+        body:
+          settings:
+            number_of_replicas: 0
+          aliases:
+            alias_1:
+              "filter" : { "match_all" : {} }
+
+
+---
+"Validate query api":
+  - skip:
+      version: ' - 7.6.99'
+      reason: message changed in 7.7.0
+
+  - do:
+      indices.validate_query:
+        q: query string
+        index: testing
+
+  - is_true: valid
+
+  - do:
+      indices.validate_query:
+        q: query string
+        index: alias_1
+
+  - is_true: valid
+
+  - do:
+      indices.validate_query:
+        body:
+          query:
+            invalid_query: {}
+
+  - is_false: valid
+  - is_false: error
+
+  - do:
+      indices.validate_query:
+        explain: true
+        body:
+          query:
+            invalid_query: {}
+
+  - is_false: valid
+  - match: {error: '/.+unknown\squery\s\[invalid_query\].+/' }
+
+  - do:
+      indices.validate_query:
+        explain: true
+        body:
+          query:
+            boool: {}
+
+  - is_false: valid
+  - match: {error: '/.+unknown\squery\s\[boool\]\sdid\syou\smean\s\[bool\]\?.+/' }
+
+  - do:
+      indices.validate_query:
+        explain: true
+
+  - is_true: valid
+  - match: {_shards.failed: 0}
+  - match: {explanations.0.index: 'testing'}
+  - match: {explanations.0.explanation: '*:*'}
+
+---
+"Validate body without query element":
+  - do:
+      indices.validate_query:
+        body:
+          match_all: {}
+
+  - is_false: valid
+  - is_false: error
+
+  - do:
+      indices.validate_query:
+        explain: true
+        body:
+          match_all: {}
+
+  - is_false: valid
+  - match: {error: 'org.elasticsearch.common.ParsingException: request does not support [match_all]'}

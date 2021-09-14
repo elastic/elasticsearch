@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -12,11 +14,11 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -31,6 +33,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class StopTransformAction extends ActionType<StopTransformAction.Response> {
 
@@ -48,9 +52,15 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         private final boolean waitForCompletion;
         private final boolean force;
         private final boolean allowNoMatch;
+        private final boolean waitForCheckpoint;
         private Set<String> expandedIds;
 
-        public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout, boolean allowNoMatch) {
+        public Request(String id,
+                       boolean waitForCompletion,
+                       boolean force,
+                       @Nullable TimeValue timeout,
+                       boolean allowNoMatch,
+                       boolean waitForCheckpoint) {
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.waitForCompletion = waitForCompletion;
             this.force = force;
@@ -58,6 +68,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             // use the timeout value already present in BaseTasksRequest
             this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
             this.allowNoMatch = allowNoMatch;
+            this.waitForCheckpoint = waitForCheckpoint;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -72,6 +83,11 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
                 this.allowNoMatch = in.readBoolean();
             } else {
                 this.allowNoMatch = true;
+            }
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+                this.waitForCheckpoint = in.readBoolean();
+            } else {
+                this.waitForCheckpoint = false;
             }
         }
 
@@ -99,6 +115,10 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             return allowNoMatch;
         }
 
+        public boolean isWaitForCheckpoint() {
+            return waitForCheckpoint;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -113,17 +133,27 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 out.writeBoolean(allowNoMatch);
             }
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+                out.writeBoolean(waitForCheckpoint);
+            }
         }
 
         @Override
         public ActionRequestValidationException validate() {
+            if (force && waitForCheckpoint) {
+                return addValidationError(new ParameterizedMessage(
+                    "cannot set both [{}] and [{}] to true",
+                        TransformField.FORCE,
+                        TransformField.WAIT_FOR_CHECKPOINT).getFormattedMessage(),
+                    null);
+            }
             return null;
         }
 
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout(), allowNoMatch);
+            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout(), allowNoMatch, waitForCheckpoint);
         }
 
         @Override
@@ -146,6 +176,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
                     Objects.equals(waitForCompletion, other.waitForCompletion) &&
                     Objects.equals(force, other.force) &&
                     Objects.equals(expandedIds, other.expandedIds) &&
+                    Objects.equals(waitForCheckpoint, other.waitForCheckpoint) &&
                     allowNoMatch == other.allowNoMatch;
         }
 

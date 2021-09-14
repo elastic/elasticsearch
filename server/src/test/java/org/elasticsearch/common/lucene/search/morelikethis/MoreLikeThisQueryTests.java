@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.lucene.search.morelikethis;
@@ -27,17 +16,18 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MoreLikeThisQueryTests extends ESTestCase {
     public void testSimple() throws Exception {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         indexWriter.commit();
 
@@ -64,4 +54,15 @@ public class MoreLikeThisQueryTests extends ESTestCase {
         reader.close();
         indexWriter.close();
     }
+
+    public void testValidateMaxQueryTerms() {
+        IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class,
+            () ->  new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER).setMaxQueryTerms(0));
+        assertThat(e1.getMessage(), containsString("requires 'maxQueryTerms' to be greater than 0"));
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
+            () -> new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER).setMaxQueryTerms(-3));
+        assertThat(e2.getMessage(), containsString("requires 'maxQueryTerms' to be greater than 0"));
+    }
+
 }

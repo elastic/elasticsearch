@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -63,13 +52,23 @@ public final class QueryBuilders {
     }
 
     /**
-     * Creates a match query with type "BOOLEAN" for the provided field name and text.
+     * Creates a match query with type "BOOLEAN" for the provided field names and text.
      *
-     * @param fieldNames The field names.
      * @param text       The query text (to be analyzed).
+     * @param fieldNames The field names.
      */
     public static MultiMatchQueryBuilder multiMatchQuery(Object text, String... fieldNames) {
         return new MultiMatchQueryBuilder(text, fieldNames); // BOOLEAN is the default
+    }
+
+    /**
+     * Creates a text query with type "BOOL_PREFIX" for the provided field name and text.
+     *
+     * @param name The field name.
+     * @param text The query text (to be analyzed).
+     */
+    public static MatchBoolPrefixQueryBuilder matchBoolPrefixQuery(String name, Object text) {
+        return new MatchBoolPrefixQueryBuilder(name, text);
     }
 
     /**
@@ -99,6 +98,16 @@ public final class QueryBuilders {
      */
     public static DisMaxQueryBuilder disMaxQuery() {
         return new DisMaxQueryBuilder();
+    }
+
+    /**
+     * Creates a combined fields query for the provided field names and text.
+     *
+     * @param text       The query text (to be analyzed).
+     * @param fieldNames The field names.
+     */
+    public static CombinedFieldsQueryBuilder combinedFieldsQuery(Object text, String... fieldNames) {
+        return new CombinedFieldsQueryBuilder(text, fieldNames);
     }
 
     /**
@@ -239,7 +248,7 @@ public final class QueryBuilders {
      * which matches any single character. Note this query can be slow, as it
      * needs to iterate over many terms. In order to prevent extremely slow WildcardQueries,
      * a Wildcard term should not start with one of the wildcards {@code *} or
-     * {@code ?}.
+     * {@code ?}. (The wildcard field type however, is optimised for leading wildcards)
      *
      * @param name  The field name
      * @param query The wildcard query string
@@ -614,7 +623,9 @@ public final class QueryBuilders {
      * A filter to filter based on a polygon defined by a set of locations  / points.
      *
      * @param name The location field name.
+     * @deprecated use {@link #geoIntersectionQuery(String, Geometry)} instead
      */
+    @Deprecated
     public static GeoPolygonQueryBuilder geoPolygonQuery(String name, List<GeoPoint> points) {
         return new GeoPolygonQueryBuilder(name, points);
     }
@@ -633,8 +644,8 @@ public final class QueryBuilders {
      * @deprecated use {@link #geoShapeQuery(String, Geometry)} instead
      */
     @Deprecated
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) throws IOException {
-        return new GeoShapeQueryBuilder(name, shape);
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
+        return new GeoShapeQueryBuilder(name, shape.buildGeometry());
     }
 
     public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId) {
@@ -657,7 +668,7 @@ public final class QueryBuilders {
      * @deprecated use {@link #geoIntersectionQuery(String, Geometry)} instead
      */
     @Deprecated
-    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder shape) throws IOException {
+    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.INTERSECTS);
         return builder;
@@ -685,7 +696,7 @@ public final class QueryBuilders {
      * @deprecated use {@link #geoWithinQuery(String, Geometry)} instead
      */
     @Deprecated
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder shape) throws IOException {
+    public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.WITHIN);
         return builder;
@@ -713,7 +724,7 @@ public final class QueryBuilders {
      * @deprecated use {@link #geoDisjointQuery(String, Geometry)} instead
      */
     @Deprecated
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder shape) throws IOException {
+    public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.DISJOINT);
         return builder;

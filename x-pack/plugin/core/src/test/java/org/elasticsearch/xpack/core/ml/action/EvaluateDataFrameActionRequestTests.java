@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -16,8 +17,9 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction.Request;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.ClassificationTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RegressionTests;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.BinarySoftClassificationTests;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
@@ -31,7 +33,7 @@ public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTest
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-        namedWriteables.addAll(new MlEvaluationNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(MlEvaluationNamedXContentProvider.getNamedWriteables());
         namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
         return new NamedWriteableRegistry(namedWriteables);
     }
@@ -46,13 +48,11 @@ public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTest
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request();
         int indicesCount = randomIntBetween(1, 5);
         List<String> indices = new ArrayList<>(indicesCount);
         for (int i = 0; i < indicesCount; i++) {
             indices.add(randomAlphaOfLength(10));
         }
-        request.setIndices(indices);
         QueryProvider queryProvider = null;
         if (randomBoolean()) {
             try {
@@ -62,10 +62,12 @@ public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTest
                 throw new UncheckedIOException(e);
             }
         }
-        request.setQueryProvider(queryProvider);
-        Evaluation evaluation = randomBoolean() ? BinarySoftClassificationTests.createRandom() : RegressionTests.createRandom();
-        request.setEvaluation(evaluation);
-        return request;
+        Evaluation evaluation =
+            randomFrom(OutlierDetectionTests.createRandom(), ClassificationTests.createRandom(), RegressionTests.createRandom());
+        return new Request()
+            .setIndices(indices)
+            .setQueryProvider(queryProvider)
+            .setEvaluation(evaluation);
     }
 
     @Override

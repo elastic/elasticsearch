@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -25,9 +14,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderTests.DevNullClusterInfo;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -42,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderTests.DevNullClusterInfo;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -54,6 +43,7 @@ import java.util.HashSet;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Unit tests for the DiskThresholdDecider
@@ -64,25 +54,25 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
-        final Index index = metaData.index("test").getIndex();
+        final Index index = metadata.index("test").getIndex();
 
         ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), true, EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         DiscoveryNode node_0 = new DiscoveryNode("node_0", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
+                new HashSet<>(DiscoveryNodeRole.roles()), Version.CURRENT);
         DiscoveryNode node_1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
+                new HashSet<>(DiscoveryNodeRole.roles()), Version.CURRENT);
 
         RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData).routingTable(routingTable).build();
+            .metadata(metadata).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                         .add(node_0)
@@ -103,9 +93,9 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
         final ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages.build(),
-            mostAvailableUsage.build(), shardSizes.build(), ImmutableOpenMap.of());
+            mostAvailableUsage.build(), shardSizes.build(), null, ImmutableOpenMap.of(),  ImmutableOpenMap.of());
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
-            clusterState.getRoutingNodes(), clusterState, clusterInfo, System.nanoTime());
+            clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
         allocation.debugDecision(true);
         Decision decision = decider.canAllocate(test_0, new RoutingNode("node_0", node_0), allocation);
         assertEquals(mostAvailableUsage.toString(), Decision.Type.YES, decision.type());
@@ -120,25 +110,25 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
 
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        final Index index = metaData.index("test").getIndex();
+        final Index index = metadata.index("test").getIndex();
 
         ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), true, EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         DiscoveryNode node_0 = new DiscoveryNode("node_0", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
+            new HashSet<>(DiscoveryNodeRole.roles()), Version.CURRENT);
         DiscoveryNode node_1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
+            new HashSet<>(DiscoveryNodeRole.roles()), Version.CURRENT);
 
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsNew(metaData.index("test"))
+            .addAsNew(metadata.index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData).routingTable(routingTable).build();
+            .metadata(metadata).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
             .add(node_0)
@@ -158,9 +148,9 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         final long shardSize = randomIntBetween(110, 1000);
         shardSizes.put("[test][0][p]", shardSize);
         ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages.build(), mostAvailableUsage.build(),
-            shardSizes.build(), ImmutableOpenMap.of());
+            shardSizes.build(), null, ImmutableOpenMap.of(),  ImmutableOpenMap.of());
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
-            clusterState.getRoutingNodes(), clusterState, clusterInfo, System.nanoTime());
+            clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
         allocation.debugDecision(true);
         Decision decision = decider.canAllocate(test_0, new RoutingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.NO, decision.type());
@@ -178,45 +168,45 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ImmutableOpenMap.Builder<ShardRouting, String> shardRoutingMap = ImmutableOpenMap.builder();
 
         DiscoveryNode node_0 = new DiscoveryNode("node_0", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
+                new HashSet<>(DiscoveryNodeRole.roles()), Version.CURRENT);
         DiscoveryNode node_1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
+                new HashSet<>(DiscoveryNodeRole.roles()), Version.CURRENT);
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
-        final IndexMetaData indexMetaData = metaData.index("test");
+        final IndexMetadata indexMetadata = metadata.index("test");
 
-        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 0), true,
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(indexMetadata.getIndex(), 0), true,
             EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_0 = ShardRoutingHelper.initialize(test_0, node_0.getId());
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
         shardRoutingMap.put(test_0, "/node0/least");
 
-        ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 1), true,
+        ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(indexMetadata.getIndex(), 1), true,
             EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_1 = ShardRoutingHelper.initialize(test_1, node_1.getId());
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
         shardRoutingMap.put(test_1, "/node1/least");
 
-        ShardRouting test_2 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 2), true,
+        ShardRouting test_2 = ShardRouting.newUnassigned(new ShardId(indexMetadata.getIndex(), 2), true,
             EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_2 = ShardRoutingHelper.initialize(test_2, node_1.getId());
         test_2 = ShardRoutingHelper.moveToStarted(test_2);
         shardRoutingMap.put(test_2, "/node1/most");
 
-        ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 3), true,
+        ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(indexMetadata.getIndex(), 3), true,
             EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_3 = ShardRoutingHelper.initialize(test_3, node_1.getId());
         test_3 = ShardRoutingHelper.moveToStarted(test_3);
         // Intentionally not in the shardRoutingMap. We want to test what happens when we don't know where it is.
 
         RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(indexMetaData)
+                .addAsNew(indexMetadata)
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -239,9 +229,9 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         shardSizes.put("[test][2][p]", 10L);
 
         final ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages.build(), mostAvailableUsage.build(),
-            shardSizes.build(), shardRoutingMap.build());
+            shardSizes.build(), null, shardRoutingMap.build(), ImmutableOpenMap.of());
         RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
-            clusterState.getRoutingNodes(), clusterState, clusterInfo, System.nanoTime());
+            clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
         allocation.debugDecision(true);
         Decision decision = decider.canRemain(test_0, new RoutingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.YES, decision.type());
@@ -249,9 +239,14 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             "there is enough disk on this node for the shard to remain, free: [10b]"));
         decision = decider.canRemain(test_1, new RoutingNode("node_1", node_1), allocation);
         assertEquals(Decision.Type.NO, decision.type());
-        assertThat(((Decision.Single) decision).getExplanation(), containsString("the shard cannot remain on this node because it is " +
-            "above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=90%] and there is less than " +
-            "the required [10.0%] free disk on node, actual free: [9.0%]"));
+        assertThat(
+            ((Decision.Single) decision).getExplanation(),
+            containsString(
+                "the shard cannot remain on this node because it is above the high watermark cluster setting "
+                    + "[cluster.routing.allocation.disk.watermark.high=90%] and there is less than the required [10.0%] "
+                    + "free disk on node, actual free: [9.0%]"
+            )
+        );
         try {
             decider.canRemain(test_0, new RoutingNode("node_1", node_1), allocation);
             fail("not allocated on this node");
@@ -284,18 +279,18 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         shardSizes.put("[test][2][r]", 1000L);
         shardSizes.put("[other][0][p]", 10000L);
         ClusterInfo info = new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
-        MetaData.Builder metaBuilder = MetaData.builder();
-        metaBuilder.put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
+        Metadata.Builder metaBuilder = Metadata.builder();
+        metaBuilder.put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)
             .put("index.uuid", "1234")).numberOfShards(3).numberOfReplicas(1));
-        metaBuilder.put(IndexMetaData.builder("other").settings(settings(Version.CURRENT)
+        metaBuilder.put(IndexMetadata.builder("other").settings(settings(Version.CURRENT)
             .put("index.uuid", "5678")).numberOfShards(1).numberOfReplicas(1));
-        MetaData metaData = metaBuilder.build();
+        Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        routingTableBuilder.addAsNew(metaData.index("test"));
-        routingTableBuilder.addAsNew(metaData.index("other"));
+        routingTableBuilder.addAsNew(metadata.index("test"));
+        routingTableBuilder.addAsNew(metadata.index("other"));
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTableBuilder.build()).build();
-        RoutingAllocation allocation = new RoutingAllocation(null, null, clusterState, info, 0);
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTableBuilder.build()).build();
+        RoutingAllocation allocation = new RoutingAllocation(null, null, clusterState, info, null, 0);
 
         final Index index = new Index("test", "1234");
         ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), false, PeerRecoverySource.INSTANCE,
@@ -352,7 +347,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
     public long sizeOfRelocatingShards(RoutingAllocation allocation, RoutingNode node, boolean subtractShardsMovingAway, String dataPath) {
         return DiskThresholdDecider.sizeOfRelocatingShards(node, subtractShardsMovingAway, dataPath,
-            allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
+            allocation.clusterInfo(), allocation.metadata(), allocation.routingTable());
     }
 
     public void testSizeShrinkIndex() {
@@ -363,23 +358,23 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         shardSizes.put("[test][3][p]", 500L);
 
         ClusterInfo info = new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
-        MetaData.Builder metaBuilder = MetaData.builder();
-        metaBuilder.put(IndexMetaData.builder("test").settings(settings(Version.CURRENT).put("index.uuid", "1234"))
+        Metadata.Builder metaBuilder = Metadata.builder();
+        metaBuilder.put(IndexMetadata.builder("test").settings(settings(Version.CURRENT).put("index.uuid", "1234"))
             .numberOfShards(4).numberOfReplicas(0));
-        metaBuilder.put(IndexMetaData.builder("target").settings(settings(Version.CURRENT).put("index.uuid", "5678")
-            .put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY, "test").put(IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY, "1234"))
+        metaBuilder.put(IndexMetadata.builder("target").settings(settings(Version.CURRENT).put("index.uuid", "5678")
+            .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, "test").put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, "1234"))
             .numberOfShards(1)
             .numberOfReplicas(0));
-        metaBuilder.put(IndexMetaData.builder("target2").settings(settings(Version.CURRENT).put("index.uuid", "9101112")
-            .put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY, "test").put(IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY, "1234"))
+        metaBuilder.put(IndexMetadata.builder("target2").settings(settings(Version.CURRENT).put("index.uuid", "9101112")
+            .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, "test").put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, "1234"))
             .numberOfShards(2).numberOfReplicas(0));
-        MetaData metaData = metaBuilder.build();
+        Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        routingTableBuilder.addAsNew(metaData.index("test"));
-        routingTableBuilder.addAsNew(metaData.index("target"));
-        routingTableBuilder.addAsNew(metaData.index("target2"));
+        routingTableBuilder.addAsNew(metadata.index("test"));
+        routingTableBuilder.addAsNew(metadata.index("target"));
+        routingTableBuilder.addAsNew(metadata.index("target2"));
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTableBuilder.build()).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTableBuilder.build()).build();
 
         AllocationService allocationService = createAllocationService();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")))
@@ -389,7 +384,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         clusterState = startShardsAndReroute(allocationService, clusterState,
             clusterState.getRoutingTable().index("test").shardsWithState(ShardRoutingState.UNASSIGNED));
 
-        RoutingAllocation allocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, info, 0);
+        RoutingAllocation allocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, info, null,0);
 
         final Index index = new Index("test", "1234");
         ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), true,
@@ -428,20 +423,105 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         // check that the DiskThresholdDecider still works even if the source index has been deleted
         ClusterState clusterStateWithMissingSourceIndex = ClusterState.builder(clusterState)
-            .metaData(MetaData.builder(metaData).remove("test"))
+            .metadata(Metadata.builder(metadata).remove("test"))
             .routingTable(RoutingTable.builder(clusterState.routingTable()).remove("test").build())
             .build();
 
         allocationService.reroute(clusterState, "foo");
         RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(null,
-            clusterStateWithMissingSourceIndex.getRoutingNodes(), clusterStateWithMissingSourceIndex, info, 0);
+            clusterStateWithMissingSourceIndex.getRoutingNodes(), clusterStateWithMissingSourceIndex, info, null,0);
         assertEquals(42L, getExpectedShardSize(target, 42L, allocationWithMissingSourceIndex));
         assertEquals(42L, getExpectedShardSize(target2, 42L, allocationWithMissingSourceIndex));
     }
 
     private static long getExpectedShardSize(ShardRouting shardRouting, long defaultSize, RoutingAllocation allocation) {
         return DiskThresholdDecider.getExpectedShardSize(shardRouting, defaultSize,
-            allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
+            allocation.clusterInfo(), allocation.snapshotShardSizeInfo(), allocation.metadata(), allocation.routingTable());
+    }
+
+    public void testDiskUsageWithRelocations() {
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 0).getFreeBytes(),
+            equalTo(1000L));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 9).getFreeBytes(),
+            equalTo(991L));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), -9).getFreeBytes(),
+            equalTo(1009L));
+
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 0)
+            .getFreeDiskAsPercentage(), equalTo(100.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 0)
+            .getFreeDiskAsPercentage(), equalTo(50.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 100)
+            .getFreeDiskAsPercentage(), equalTo(40.0));
+
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 1000L), 0)
+            .getUsedDiskAsPercentage(), equalTo(0.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 0)
+            .getUsedDiskAsPercentage(), equalTo(50.0));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("n", "n", "/dev/null", 1000L, 500L), 100)
+            .getUsedDiskAsPercentage(), equalTo(60.0));
+
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(
+            new DiskUsage("n", "n", "/dev/null", Long.MAX_VALUE, Long.MAX_VALUE), 0).getFreeBytes(), equalTo(Long.MAX_VALUE));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(
+            new DiskUsage("n", "n", "/dev/null", Long.MAX_VALUE, Long.MAX_VALUE), 10).getFreeBytes(), equalTo(Long.MAX_VALUE - 10));
+        assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(
+            new DiskUsage("n", "n", "/dev/null", Long.MAX_VALUE, Long.MAX_VALUE), -10).getFreeBytes(), equalTo(Long.MAX_VALUE));
+    }
+
+    public void testDecidesYesIfWatermarksIgnored() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
+
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test")
+                        .settings(settings(Version.CURRENT).put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true))
+                        .numberOfShards(1)
+                        .numberOfReplicas(1))
+                .build();
+
+        final Index index = metadata.index("test").getIndex();
+
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), true, EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        DiscoveryNode node_0 = new DiscoveryNode("node_0", buildNewFakeTransportAddress(), Collections.emptyMap(),
+                new HashSet<>(DiscoveryNodeRole.roles()), Version.CURRENT);
+        DiscoveryNode node_1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Collections.emptyMap(),
+                new HashSet<>(DiscoveryNodeRole.roles()), Version.CURRENT);
+
+        RoutingTable routingTable = RoutingTable.builder()
+                .addAsNew(metadata.index("test"))
+                .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata).routingTable(routingTable).build();
+
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+                .add(node_0)
+                .add(node_1)
+        ).build();
+
+        // actual test -- after all that bloat :)
+        ImmutableOpenMap.Builder<String, DiskUsage> allFullUsages = ImmutableOpenMap.builder();
+        allFullUsages.put("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
+        allFullUsages.put("node_1", new DiskUsage("node_1", "node_1", "_na_", 100, 0)); // all full
+
+        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        shardSizes.put("[test][0][p]", 10L); // 10 bytes
+        final ImmutableOpenMap<String, DiskUsage> usages = allFullUsages.build();
+        final ClusterInfo clusterInfo = new ClusterInfo(usages, usages, shardSizes.build(), null, ImmutableOpenMap.of(),
+            ImmutableOpenMap.of());
+        RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
+                clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
+        allocation.debugDecision(true);
+        final RoutingNode routingNode = new RoutingNode("node_0", node_0);
+        Decision decision = decider.canAllocate(test_0, routingNode, allocation);
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
+
+        decision = decider.canRemain(test_0.initialize(node_0.getId(), null, 0L).moveToStarted(), routingNode, allocation);
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
     }
 
 }

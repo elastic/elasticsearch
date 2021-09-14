@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
@@ -24,13 +25,23 @@ import java.util.Map;
 
 public class GetTransformActionResponseTests extends AbstractWireSerializingTransformTestCase<Response> {
 
+    public static Response randomTransformResponse() {
+        List<TransformConfig> configs = new ArrayList<>();
+        int totalConfigs = randomInt(10);
+        for (int i = 0; i < totalConfigs; ++i) {
+            configs.add(TransformConfigTests.randomTransformConfig());
+        }
+
+        return new Response(configs, randomNonNegativeLong());
+    }
+
     public void testInvalidTransforms() throws IOException {
         List<TransformConfig> transforms = new ArrayList<>();
 
         transforms.add(TransformConfigTests.randomTransformConfig());
-        transforms.add(TransformConfigTests.randomInvalidDataFrameTransformConfig());
+        transforms.add(TransformConfigTests.randomInvalidTransformConfig());
         transforms.add(TransformConfigTests.randomTransformConfig());
-        transforms.add(TransformConfigTests.randomInvalidDataFrameTransformConfig());
+        transforms.add(TransformConfigTests.randomInvalidTransformConfig());
 
         Response r = new Response(transforms, transforms.size());
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -47,8 +58,9 @@ public class GetTransformActionResponseTests extends AbstractWireSerializingTran
     @SuppressWarnings("unchecked")
     public void testNoHeaderInResponse() throws IOException {
         List<TransformConfig> transforms = new ArrayList<>();
+        int totalConfigs = randomInt(10);
 
-        for (int i = 0; i < randomIntBetween(1, 10); ++i) {
+        for (int i = 0; i < totalConfigs; ++i) {
             transforms.add(TransformConfigTests.randomTransformConfig());
         }
 
@@ -58,25 +70,24 @@ public class GetTransformActionResponseTests extends AbstractWireSerializingTran
         Map<String, Object> responseAsMap = createParser(builder).map();
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> transformsResponse = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms",
-                responseAsMap);
+        List<Map<String, Object>> transformsResponse = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "transforms",
+            responseAsMap
+        );
 
         assertEquals(transforms.size(), transformsResponse.size());
         for (int i = 0; i < transforms.size(); ++i) {
-            assertArrayEquals(transforms.get(i).getSource().getIndex(),
-                ((ArrayList<String>)XContentMapValues.extractValue("source.index", transformsResponse.get(i))).toArray(new String[0]));
+            assertArrayEquals(
+                transforms.get(i).getSource().getIndex(),
+                ((ArrayList<String>) XContentMapValues.extractValue("source.index", transformsResponse.get(i))).toArray(new String[0])
+            );
             assertEquals(null, XContentMapValues.extractValue("headers", transformsResponse.get(i)));
         }
     }
 
     @Override
     protected Response createTestInstance() {
-        List<TransformConfig> configs = new ArrayList<>();
-        for (int i = 0; i < randomInt(10); ++i) {
-            configs.add(TransformConfigTests.randomTransformConfig());
-        }
-
-        return new Response(configs, randomNonNegativeLong());
+        return randomTransformResponse();
     }
 
     @Override

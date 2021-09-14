@@ -1,17 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -32,14 +37,21 @@ public final class EnrichStore {
     private EnrichStore() {}
 
     /**
-     * Adds a new enrich policy or overwrites an existing policy if there is already a policy with the same name.
+     * Adds a new enrich policy. If a policy already exists with the same name then
+     * this method throws an {@link IllegalArgumentException}.
      * This method can only be invoked on the elected master node.
      *
      * @param name      The unique name of the policy
      * @param policy    The policy to store
      * @param handler   The handler that gets invoked if policy has been stored or a failure has occurred.
      */
-    public static void putPolicy(String name, EnrichPolicy policy, ClusterService clusterService, Consumer<Exception> handler) {
+    public static void putPolicy(
+        final String name,
+        final EnrichPolicy policy,
+        final ClusterService clusterService,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final Consumer<Exception> handler
+    ) {
         assert clusterService.localNode().isMasterNode();
 
         if (Strings.isNullOrEmpty(name)) {
@@ -50,15 +62,21 @@ public final class EnrichStore {
         }
         // The policy name is used to create the enrich index name and
         // therefor a policy name has the same restrictions as an index name
-        MetaDataCreateIndexService.validateIndexOrAliasName(name,
-            (policyName, error) -> new IllegalArgumentException("Invalid policy name [" + policyName + "], " + error));
+        MetadataCreateIndexService.validateIndexOrAliasName(
+            name,
+            (policyName, error) -> new IllegalArgumentException("Invalid policy name [" + policyName + "], " + error)
+        );
         if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
             throw new IllegalArgumentException("Invalid policy name [" + name + "], must be lowercase");
         }
         Set<String> supportedPolicyTypes = Set.of(EnrichPolicy.SUPPORTED_POLICY_TYPES);
         if (supportedPolicyTypes.contains(policy.getType()) == false) {
-            throw new IllegalArgumentException("unsupported policy type [" + policy.getType() +
-                "], supported types are " + Arrays.toString(EnrichPolicy.SUPPORTED_POLICY_TYPES));
+            throw new IllegalArgumentException(
+                "unsupported policy type ["
+                    + policy.getType()
+                    + "], supported types are "
+                    + Arrays.toString(EnrichPolicy.SUPPORTED_POLICY_TYPES)
+            );
         }
 
         final EnrichPolicy finalPolicy;
@@ -75,11 +93,30 @@ public final class EnrichStore {
             finalPolicy = policy;
         }
         updateClusterState(clusterService, handler, current -> {
+            for (String indexExpression : finalPolicy.getIndices()) {
+                // indices field in policy can contain wildcards, aliases etc.
+                String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
+                    current,
+                    IndicesOptions.strictExpandOpen(),
+                    indexExpression
+                );
+                for (String concreteIndex : concreteIndices) {
+                    IndexMetadata imd = current.getMetadata().index(concreteIndex);
+                    assert imd != null;
+                    MappingMetadata mapping = imd.mapping();
+                    if (mapping == null) {
+                        throw new IllegalArgumentException("source index [" + concreteIndex + "] has no mapping");
+                    }
+                    Map<String, Object> mappingSource = mapping.getSourceAsMap();
+                    EnrichPolicyRunner.validateMappings(name, finalPolicy, concreteIndex, mappingSource);
+                }
+            }
+
             final Map<String, EnrichPolicy> policies = getPolicies(current);
-            if (policies.get(name) != null) {
+            EnrichPolicy existing = policies.putIfAbsent(name, finalPolicy);
+            if (existing != null) {
                 throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
             }
-            policies.put(name, finalPolicy);
             return policies;
         });
     }
@@ -131,7 +168,7 @@ public final class EnrichStore {
      */
     public static Map<String, EnrichPolicy> getPolicies(ClusterState state) {
         final Map<String, EnrichPolicy> policies;
-        final EnrichMetadata enrichMetadata = state.metaData().custom(EnrichMetadata.TYPE);
+        final EnrichMetadata enrichMetadata = state.metadata().custom(EnrichMetadata.TYPE);
         if (enrichMetadata != null) {
             // Make a copy, because policies map inside custom metadata is read only:
             policies = new HashMap<>(enrichMetadata.getPolicies());
@@ -141,20 +178,20 @@ public final class EnrichStore {
         return policies;
     }
 
-    private static void updateClusterState(ClusterService clusterService,
-                                           Consumer<Exception> handler,
-                                           Function<ClusterState, Map<String, EnrichPolicy>> function) {
+    private static void updateClusterState(
+        ClusterService clusterService,
+        Consumer<Exception> handler,
+        Function<ClusterState, Map<String, EnrichPolicy>> function
+    ) {
         clusterService.submitStateUpdateTask("update-enrich-metadata", new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 Map<String, EnrichPolicy> policies = function.apply(currentState);
-                MetaData metaData = MetaData.builder(currentState.metaData())
+                Metadata metadata = Metadata.builder(currentState.metadata())
                     .putCustom(EnrichMetadata.TYPE, new EnrichMetadata(policies))
                     .build();
-                return ClusterState.builder(currentState)
-                    .metaData(metaData)
-                    .build();
+                return ClusterState.builder(currentState).metadata(metadata).build();
             }
 
             @Override

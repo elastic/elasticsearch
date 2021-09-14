@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -29,10 +18,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportConnectionListener;
@@ -40,6 +32,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -54,6 +47,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
  * The FollowersChecker is responsible for allowing a leader to check that its followers are still connected and healthy. On deciding that a
@@ -81,8 +75,6 @@ public class FollowersChecker {
     public static final Setting<Integer> FOLLOWER_CHECK_RETRY_COUNT_SETTING =
         Setting.intSetting("cluster.fault_detection.follower_check.retry_count", 3, 1, Setting.Property.NodeScope);
 
-    private final Settings settings;
-
     private final TimeValue followerCheckInterval;
     private final TimeValue followerCheckTimeout;
     private final int followerCheckRetryCount;
@@ -94,16 +86,16 @@ public class FollowersChecker {
     private final Set<DiscoveryNode> faultyNodes = new HashSet<>();
 
     private final TransportService transportService;
-
+    private final NodeHealthService nodeHealthService;
     private volatile FastResponseState fastResponseState;
 
     public FollowersChecker(Settings settings, TransportService transportService,
                             Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
-                            BiConsumer<DiscoveryNode, String> onNodeFailure) {
-        this.settings = settings;
+                            BiConsumer<DiscoveryNode, String> onNodeFailure, NodeHealthService nodeHealthService) {
         this.transportService = transportService;
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
         this.onNodeFailure = onNodeFailure;
+        this.nodeHealthService = nodeHealthService;
 
         followerCheckInterval = FOLLOWER_CHECK_INTERVAL_SETTING.get(settings);
         followerCheckTimeout = FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings);
@@ -160,10 +152,16 @@ public class FollowersChecker {
     }
 
     private void handleFollowerCheck(FollowerCheckRequest request, TransportChannel transportChannel) throws IOException {
-        FastResponseState responder = this.fastResponseState;
+        final StatusInfo statusInfo = nodeHealthService.getHealth();
+        if (statusInfo.getStatus() == UNHEALTHY) {
+            final String message
+                = "handleFollowerCheck: node is unhealthy [" + statusInfo.getInfo() + "], rejecting " + statusInfo.getInfo();
+            logger.debug(message);
+            throw new NodeHealthCheckFailureException(message);
+        }
 
+        final FastResponseState responder = this.fastResponseState;
         if (responder.mode == Mode.FOLLOWER && responder.term == request.term) {
-            // TODO trigger a term bump if we voted for a different leader in this term
             logger.trace("responding to {} on fast path", request);
             transportChannel.sendResponse(Empty.INSTANCE);
             return;
@@ -197,15 +195,6 @@ public class FollowersChecker {
             }
         });
     }
-
-    // TODO in the PoC a faulty node was considered non-faulty again if it sent us a PeersRequest:
-    // - node disconnects, detected faulty, removal is enqueued
-    // - node reconnects, pings us, finds we are master, requests to join, all before removal is applied
-    // - join is processed before removal, but we do not publish to known-faulty nodes so the joining node does not receive this publication
-    // - it doesn't start its leader checker since it receives nothing to cause it to become a follower
-    // Apparently this meant that it remained a candidate for too long, leading to a test failure.  At the time this logic was added, we did
-    // not have gossip-based discovery which would (I think) have retried this joining process a short time later. It's therefore possible
-    // that this is no longer required, so it's omitted here until we can be sure if it's necessary or not.
 
     /**
      * @return nodes in the current cluster state which have failed their follower checks.
@@ -273,6 +262,7 @@ public class FollowersChecker {
     private class FollowerChecker {
         private final DiscoveryNode discoveryNode;
         private int failureCountSinceLastSuccess;
+        private int timeoutCountSinceLastSuccess;
 
         FollowerChecker(DiscoveryNode discoveryNode) {
             this.discoveryNode = discoveryNode;
@@ -297,21 +287,18 @@ public class FollowersChecker {
             logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
 
             transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
-                TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
-                new TransportResponseHandler<Empty>() {
-                    @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
+                TransportRequestOptions.of(followerCheckTimeout, Type.PING),
+                new TransportResponseHandler.Empty() {
 
                     @Override
-                    public void handleResponse(Empty response) {
+                    public void handleResponse(TransportResponse.Empty response) {
                         if (running() == false) {
                             logger.trace("{} no longer running", FollowerChecker.this);
                             return;
                         }
 
                         failureCountSinceLastSuccess = 0;
+                        timeoutCountSinceLastSuccess = 0;
                         logger.trace("{} check successful", FollowerChecker.this);
                         scheduleNextWakeUp();
                     }
@@ -323,16 +310,24 @@ public class FollowersChecker {
                             return;
                         }
 
-                        failureCountSinceLastSuccess++;
+                        if (exp instanceof ReceiveTimeoutTransportException) {
+                            timeoutCountSinceLastSuccess++;
+                        } else {
+                            failureCountSinceLastSuccess++;
+                        }
 
                         final String reason;
-                        if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
-                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
-                            reason = "followers check retry count exceeded";
-                        } else if (exp instanceof ConnectTransportException
+                        if (exp instanceof ConnectTransportException
                             || exp.getCause() instanceof ConnectTransportException) {
                             logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
                             reason = "disconnected";
+                        } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
+                            logger.debug(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
+                            reason = "health check failed";
+                        } else if (failureCountSinceLastSuccess + timeoutCountSinceLastSuccess >= followerCheckRetryCount) {
+                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
+                            reason = "followers check retry count exceeded [timeouts=" + timeoutCountSinceLastSuccess +
+                                ", failures=" + failureCountSinceLastSuccess + "]";
                         } else {
                             logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();
@@ -340,12 +335,6 @@ public class FollowersChecker {
                         }
 
                         failNode(reason);
-                    }
-
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
                     }
                 });
         }
@@ -392,6 +381,7 @@ public class FollowersChecker {
             return "FollowerChecker{" +
                 "discoveryNode=" + discoveryNode +
                 ", failureCountSinceLastSuccess=" + failureCountSinceLastSuccess +
+                ", timeoutCountSinceLastSuccess=" + timeoutCountSinceLastSuccess +
                 ", [" + FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey() + "]=" + followerCheckRetryCount +
                 '}';
         }

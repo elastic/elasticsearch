@@ -1,0 +1,67 @@
+---
+"DBQ from data stream":
+  - skip:
+      features: allowed_warnings
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index:   simple-data-stream1
+        id:      1
+        op_type: create
+        body:
+          foo: bar
+          '@timestamp': '2020-12-12'
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
+      delete_by_query:
+        index: simple-data-stream1
+        body:
+          query:
+            match_all: {}
+
+  - is_false: timed_out
+  - match: {deleted: 1}
+  - is_false: created
+  - is_false: updated
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {noops: 0}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
+      count:
+        index: .ds-simple-data-stream1-*000001
+
+  - match: {count: 0}
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged

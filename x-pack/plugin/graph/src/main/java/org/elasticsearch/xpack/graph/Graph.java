@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.graph;
 
@@ -60,6 +61,6 @@ public class Graph extends Plugin implements ActionPlugin {
         if (false == enabled) {
             return emptyList();
         }
-        return singletonList(new RestGraphAction(restController));
+        return singletonList(new RestGraphAction());
     }
 }

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -109,10 +110,13 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
         out.writeCollection(errors, StreamOutput::writeException);
     }
 
-    static ConstructingObjectParser<InvalidateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key_response",
-            args -> {
-                return new InvalidateApiKeyResponse((List<String>) args[0], (List<String>) args[1], (List<ElasticsearchException>) args[3]);
-            });
+    @SuppressWarnings("unchecked")
+    static final ConstructingObjectParser<InvalidateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "invalidate_api_key_response",
+        args -> {
+            return new InvalidateApiKeyResponse((List<String>) args[0], (List<String>) args[1], (List<ElasticsearchException>) args[3]);
+        }
+    );
     static {
         PARSER.declareStringArray(constructorArg(), new ParseField("invalidated_api_keys"));
         PARSER.declareStringArray(constructorArg(), new ParseField("previously_invalidated_api_keys"));

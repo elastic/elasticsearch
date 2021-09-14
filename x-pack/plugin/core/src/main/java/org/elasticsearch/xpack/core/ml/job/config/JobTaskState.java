@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
@@ -37,12 +36,7 @@ public class JobTaskState implements PersistentTaskState {
                     args -> new JobTaskState((JobState) args[0], (Long) args[1], (String) args[2]));
 
     static {
-        PARSER.declareField(constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return JobState.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, STATE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(constructorArg(), JobState::fromString, STATE);
         PARSER.declareLong(constructorArg(), ALLOCATION_ID);
         PARSER.declareString(optionalConstructorArg(), REASON);
     }
@@ -68,11 +62,7 @@ public class JobTaskState implements PersistentTaskState {
     public JobTaskState(StreamInput in) throws IOException {
         state = JobState.fromStream(in);
         allocationId = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            reason = in.readOptionalString();
-        } else {
-            reason = null;
-        }
+        reason = in.readOptionalString();
     }
 
     public JobState getState() {
@@ -108,9 +98,7 @@ public class JobTaskState implements PersistentTaskState {
     public void writeTo(StreamOutput out) throws IOException {
         state.writeTo(out);
         out.writeLong(allocationId);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeOptionalString(reason);
-        }
+        out.writeOptionalString(reason);
     }
 
     @Override

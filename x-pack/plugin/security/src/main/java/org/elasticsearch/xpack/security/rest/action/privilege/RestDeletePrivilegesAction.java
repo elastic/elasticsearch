@@ -1,18 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -25,6 +24,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
@@ -33,15 +33,16 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  */
 public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestDeletePrivilegesAction.class));
-
-    public RestDeletePrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestDeletePrivilegesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            DELETE, "/_security/privilege/{application}/{privilege}", this,
-            DELETE, "/_xpack/security/privilege/{application}/{privilege}", deprecationLogger);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(DELETE, "/_security/privilege/{application}/{privilege}")
+                .replaces(DELETE, "/_xpack/security/privilege/{application}/{privilege}", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

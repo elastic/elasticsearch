@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -19,6 +21,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -27,9 +30,12 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -53,6 +59,17 @@ public class RoleDescriptorTests extends ESTestCase {
         XContentBuilder b = jsonBuilder();
         privs.toXContent(b, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true}", Strings.toString(b));
+    }
+
+    public void testEqualsOnEmptyRoles() {
+        RoleDescriptor nullRoleDescriptor = new RoleDescriptor("null_role", randomFrom((String[]) null, new String[0]),
+                randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
+                randomFrom((RoleDescriptor.ApplicationResourcePrivileges[])null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
+                randomFrom((ConfigurableClusterPrivilege[])null, new ConfigurableClusterPrivilege[0]),
+                randomFrom((String[])null, new String[0]),
+                randomFrom((Map<String, Object>)null, Map.of()),
+                Map.of("transient", "meta", "is", "ignored"));
+        assertTrue(nullRoleDescriptor.equals(new RoleDescriptor("null_role", null, null, null, null, null, null, null)));
     }
 
     public void testToString() {
@@ -296,4 +313,81 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals(true, parsed.getTransientMetadata().get("enabled"));
     }
 
+    public void testParseIndicesPrivilegesSucceedsWhenExceptFieldsIsSubsetOfGrantedFields() throws IOException {
+        final boolean grantAll = randomBoolean();
+        final String grant = grantAll ? "\"*\"" : "\"f1\",\"f2\"";
+        final String except = grantAll ? "\"_fx\",\"f8\"" : "\"f1\"";
+
+        final String json = "{ \"indices\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"], \"field_security\" : { " +
+            "\"grant\" : [" + grant + "], \"except\" : [" + except + "] } }] }";
+        final RoleDescriptor rd = RoleDescriptor.parse("test",
+            new BytesArray(json), false, XContentType.JSON);
+        assertEquals("test", rd.getName());
+        assertEquals(1, rd.getIndicesPrivileges().length);
+        assertArrayEquals(new String[]{"idx1", "idx2"}, rd.getIndicesPrivileges()[0].getIndices());
+        assertArrayEquals((grantAll) ? new String[]{"*"} : new String[]{"f1", "f2"}, rd.getIndicesPrivileges()[0].getGrantedFields());
+        assertArrayEquals((grantAll) ? new String[]{"_fx", "f8"} : new String[]{"f1"}, rd.getIndicesPrivileges()[0].getDeniedFields());
+    }
+
+    public void testParseIndicesPrivilegesFailsWhenExceptFieldsAreNotSubsetOfGrantedFields() {
+        final String json = "{ \"indices\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"], \"field_security\" : { " +
+            "\"grant\" : [\"f1\",\"f2\"], \"except\" : [\"f3\"] } }] }";
+        final ElasticsearchParseException epe = expectThrows(ElasticsearchParseException.class, () -> RoleDescriptor.parse("test",
+            new BytesArray(json), false, XContentType.JSON));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("must be a subset of the granted fields ")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f1")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f2")));
+        assertThat(epe, TestMatchers.throwableWithMessage(containsString("f3")));
+    }
+
+    public void testIsEmpty() {
+        assertTrue(new RoleDescriptor(
+            randomAlphaOfLengthBetween(1, 10), null, null, null, null, null, null, null)
+            .isEmpty());
+
+        assertTrue(new RoleDescriptor(
+            randomAlphaOfLengthBetween(1, 10),
+            new String[0],
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            new ConfigurableClusterPrivilege[0],
+            new String[0],
+            new HashMap<>(),
+            new HashMap<>())
+            .isEmpty());
+
+        final List<Boolean> booleans = Arrays.asList(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean());
+
+        final RoleDescriptor roleDescriptor = new RoleDescriptor(
+            randomAlphaOfLengthBetween(1, 10),
+            booleans.get(0) ? new String[0] : new String[] { "foo" },
+            booleans.get(1) ?
+                new RoleDescriptor.IndicesPrivileges[0] :
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
+            booleans.get(2) ?
+                new RoleDescriptor.ApplicationResourcePrivileges[0] :
+                new RoleDescriptor.ApplicationResourcePrivileges[] {
+                    RoleDescriptor.ApplicationResourcePrivileges.builder()
+                        .application("app").privileges("foo").resources("res").build() },
+            booleans.get(3) ?
+                new ConfigurableClusterPrivilege[0] :
+                new ConfigurableClusterPrivilege[] {
+                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo")) },
+            booleans.get(4) ? new String[0] : new String[] { "foo" },
+            booleans.get(5) ? new HashMap<>() : Collections.singletonMap("foo", "bar"),
+            Collections.singletonMap("foo", "bar"));
+
+        if (booleans.stream().anyMatch(e -> e.equals(false))) {
+            assertFalse(roleDescriptor.isEmpty());
+        } else {
+            assertTrue(roleDescriptor.isEmpty());
+        }
+    }
 }

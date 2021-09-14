@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.example.rescore;
@@ -24,19 +13,19 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -64,7 +53,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         this.factorField = factorField;
     }
 
-    ExampleRescoreBuilder(StreamInput in) throws IOException {
+    public ExampleRescoreBuilder(StreamInput in) throws IOException {
         super(in);
         factor = in.readFloat();
         factorField = in.readOptionalString();
@@ -107,10 +96,10 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
     }
 
     @Override
-    public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
-        IndexFieldData<?> factorField =
-                this.factorField == null ? null : context.getForField(context.fieldMapper(this.factorField));
-        return new ExampleRescoreContext(windowSize, factor, factorField);
+    public RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
+        IndexFieldData<?> factorFieldData =
+                this.factorField == null ? null : context.getForField(context.getFieldType(this.factorField));
+        return new ExampleRescoreContext(windowSize, factor, factorFieldData);
     }
 
     @Override
@@ -170,7 +159,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
                  * them in (reader, field, docId) order because that is the
                  * order they are on disk.
                  */
-                ScoreDoc[] sortedByDocId = new ScoreDoc[topDocs.scoreDocs.length]; 
+                ScoreDoc[] sortedByDocId = new ScoreDoc[topDocs.scoreDocs.length];
                 System.arraycopy(topDocs.scoreDocs, 0, sortedByDocId, 0, topDocs.scoreDocs.length);
                 Arrays.sort(sortedByDocId, (a, b) -> a.doc - b.doc); // Safe because doc ids >= 0
                 Iterator<LeafReaderContext> leaves = searcher.getIndexReader().leaves().iterator();
@@ -183,11 +172,11 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
                             leaf = leaves.next();
                             endDoc = leaf.docBase + leaf.reader().maxDoc();
                         } while (topDocs.scoreDocs[i].doc >= endDoc);
-                        AtomicFieldData fd = context.factorField.load(leaf);
-                        if (false == (fd instanceof AtomicNumericFieldData)) {
+                        LeafFieldData fd = context.factorField.load(leaf);
+                        if (false == (fd instanceof LeafNumericFieldData)) {
                             throw new IllegalArgumentException("[" + context.factorField.getFieldName() + "] is not a number");
                         }
-                        data = ((AtomicNumericFieldData) fd).getDoubleValues();
+                        data = ((LeafNumericFieldData) fd).getDoubleValues();
                     }
                     if (false == data.advanceExact(topDocs.scoreDocs[i].doc - leaf.docBase)) {
                         throw new IllegalArgumentException("document [" + topDocs.scoreDocs[i].doc

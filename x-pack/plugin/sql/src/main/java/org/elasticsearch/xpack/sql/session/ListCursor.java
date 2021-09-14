@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.session;
@@ -11,7 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.type.Schema;
+import org.elasticsearch.xpack.ql.type.Schema;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,14 +82,14 @@ public class ListCursor implements Cursor {
                 : data.size() == pageSize ? data : data.subList(0, Math.min(pageSize, data.size()));
         return new Page(new ListRowSet(schema, currData, columnCount), next);
     }
-    
+
     @Override
-    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
+    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         listener.onResponse(of(Schema.EMPTY, data, pageSize, columnCount));
     }
 
     @Override
-    public void clear(Configuration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 

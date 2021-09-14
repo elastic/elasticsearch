@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -36,9 +37,7 @@ public class OperationModeFileWatcherTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("resource.reload.interval.high", "10ms")
                 .build();
-        watcherService = new ResourceWatcherService(settings,
-                threadPool);
-        watcherService.start();
+        watcherService = new ResourceWatcherService(settings, threadPool);
         licenseModePath = createTempFile();
         onChangeCounter = new AtomicReference<>(new CountDownLatch(1));
         operationModeFileWatcher = new OperationModeFileWatcher(watcherService, licenseModePath, logger,
@@ -47,12 +46,12 @@ public class OperationModeFileWatcherTests extends ESTestCase {
 
     @After
     public void shutdown() throws InterruptedException {
+        watcherService.close();
         terminate(threadPool);
-        watcherService.stop();
     }
 
     public void testInit() throws Exception {
-        onChangeCounter.set(new CountDownLatch(2));
+        onChangeCounter.set(new CountDownLatch(1));
         writeMode("gold");
         assertThat(operationModeFileWatcher.getCurrentOperationMode(), equalTo(License.OperationMode.PLATINUM));
         operationModeFileWatcher.init();

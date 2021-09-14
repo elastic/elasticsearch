@@ -8,16 +8,16 @@ Deletes documents that match the specified query.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_delete_by_query
+POST /my-index-000001/_delete_by_query
 {
   "query": {
     "match": {
-      "message": "some message"
+      "user.id": "elkbee"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 ////
 
@@ -47,19 +47,29 @@ POST /twitter/_delete_by_query
 [[docs-delete-by-query-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_delete_by_query`
+`POST /<target>/_delete_by_query`
+
+[[docs-delete-by-query-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>> for the target data stream, index,
+or alias:
+
+** `read`
+** `delete` or `write`
 
 [[docs-delete-by-query-api-desc]]
 ==== {api-description-title}
 
 You can specify the query criteria in the request URI or the request body
-using the same syntax as the  <<search-search,Search API>>. 
+using the same syntax as the  <<search-search,Search API>>.
 
-When you submit a delete by query request, {es} gets a snapshot of the index
+When you submit a delete by query request, {es} gets a snapshot of the data stream or index
 when it begins processing the request and deletes matching documents using
 `internal` versioning. If a document changes between the time that the
 snapshot is taken and the delete operation is processed, it results in a version
-conflict and the delete operation fails. 
+conflict and the delete operation fails.
 
 NOTE: Documents with a version equal to 0 cannot be deleted using delete by
 query because `internal` versioning does not support 0 as a valid
@@ -70,18 +80,21 @@ requests sequentially to find all of the matching documents to delete. A bulk
 delete request is performed for each batch of matching documents. If a
 search or bulk request is rejected, the requests are retried up to 10 times, with
 exponential back off. If the maximum retry limit is reached, processing halts
-and all failed requests are returned in the response. Any delete requests that 
-completed successfully still stick, they are not rolled back. 
+and all failed requests are returned in the response. Any delete requests that
+completed successfully still stick, they are not rolled back.
 
-You can opt to count version conflicts instead of halting and returning by 
-setting `conflicts` to `proceeed`. 
+You can opt to count version conflicts instead of halting and returning by
+setting `conflicts` to `proceed`. Note that if you opt to count version conflicts
+the operation could attempt to delete more documents from the source
+than `max_docs` until it has successfully deleted `max_docs` documents, or it has gone through
+every document in the source query.
 
 ===== Refreshing shards
 
 Specifying the `refresh` parameter refreshes all shards involved in the delete
-by query once the request completes. This is different than the delete API's 
-`refresh` parameter, which causes just the shard that received the delete 
-request to be refreshed. Unlike the delete API, it does not support 
+by query once the request completes. This is different than the delete API's
+`refresh` parameter, which causes just the shard that received the delete
+request to be refreshed. Unlike the delete API, it does not support
 `wait_for`.
 
 [[docs-delete-by-query-task-api]]
@@ -90,7 +103,7 @@ request to be refreshed. Unlike the delete API, it does not support
 If the request contains `wait_for_completion=false`, {es}
 performs some preflight checks, launches the request, and returns a
 <<tasks,`task`>> you can use to cancel or get the status of the task. {es} creates a
-record of this task as a document at `.tasks/task/${taskId}`. When you are 
+record of this task as a document at `.tasks/task/${taskId}`. When you are
 done with a task, you should delete the task document so {es} can reclaim the
 space.
 
@@ -101,20 +114,21 @@ before proceeding with the request. See <<index-wait-for-active-shards>>
 for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly the way they work in the
 <<docs-bulk,Bulk API>>. Delete by query uses scrolled searches, so you can also
-specify the `scroll` parameter to control how long it keeps the search context 
+specify the `scroll` parameter to control how long it keeps the search context
 alive, for example `?scroll=10m`. The default is 5 minutes.
 
+[[docs-delete-by-query-throttle]]
 ===== Throttling delete requests
 
 To control the rate at which delete by query issues batches of delete operations,
 you can set `requests_per_second` to any positive decimal number. This pads each
-batch with a wait time to throttle the rate. Set `requests_per_second` to `-1` 
+batch with a wait time to throttle the rate. Set `requests_per_second` to `-1`
 to disable throttling.
 
-Throttling uses a wait time between batches so that the internal scroll requests 
-can be given a timeout that takes the request padding into account. The padding 
-time is the difference between the batch size divided by the 
-`requests_per_second` and the time spent writing.  By default the batch size is 
+Throttling uses a wait time between batches so that the internal scroll requests
+can be given a timeout that takes the request padding into account. The padding
+time is the difference between the batch size divided by the
+`requests_per_second` and the time spent writing. By default the batch size is
 `1000`, so if `requests_per_second` is set to `500`:
 
 [source,txt]
@@ -123,23 +137,23 @@ target_time = 1000 / 500 per second = 2 seconds
 wait_time = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
 --------------------------------------------------
 
-Since the batch is issued as a single `_bulk` request, large batch sizes 
-cause {es} to create many requests and wait before starting the next set. 
-This is "bursty" instead of "smooth". 
+Since the batch is issued as a single `_bulk` request, large batch sizes
+cause {es} to create many requests and wait before starting the next set.
+This is "bursty" instead of "smooth".
 
 [[docs-delete-by-query-slice]]
 ===== Slicing
 
-Delete by query supports <<sliced-scroll, sliced scroll>> to parallelize the
+Delete by query supports <<slice-scroll, sliced scroll>> to parallelize the
 delete process. This can improve efficiency and provide a
 convenient way to break the request down into smaller parts.
 
-Setting `slices` to `auto` chooses a reasonable number for most indices. 
-If you're slicing manually or otherwise tuning automatic slicing, keep in mind 
+Setting `slices` to `auto` chooses a reasonable number for most data streams and indices.
+If you're slicing manually or otherwise tuning automatic slicing, keep in mind
 that:
 
-* Query performance is most efficient when the number of `slices` is equal to 
-the number of shards in the index. If that number is large (for example,
+* Query performance is most efficient when the number of `slices` is equal to
+the number of shards in the index or backing index. If that number is large (for example,
 500), choose a lower number as too many `slices` hurts performance. Setting
 `slices` higher than the number of shards generally does not improve efficiency
 and adds overhead.
@@ -153,86 +167,100 @@ documents being reindexed and cluster resources.
 [[docs-delete-by-query-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-(Optional, string) A comma-separated list of index names to search. Use `_all`
-or omit to search all indices.
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases to
+search. Supports wildcards (`*`). To search all data streams or indices, omit
+this parameter or use `* or `_all`.
 
 [[docs-delete-by-query-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
-  
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+
 `conflicts`::
-  (Optional, string) What to do if delete by query hits version conflicts: 
+  (Optional, string) What to do if delete by query hits version conflicts:
   `abort` or `proceed`. Defaults to `abort`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=default_operator]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=df]
-  
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
-  
-include::{docdir}/rest-api/common-parms.asciidoc[tag=lenient]
-  
-include::{docdir}/rest-api/common-parms.asciidoc[tag=max_docs]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=max_docs]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=request_cache]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=request_cache]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+`refresh`::
+(Optional, Boolean) If `true`, {es} refreshes all shards involved in the
+delete by query after the request completes. Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=scroll]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=scroll_size]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
+`scroll`::
+(Optional, <<time-units,time value>>)
+Period to retain the <<scroll-search-context,search context>> for scrolling. See
+<<scroll-search-results>>.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search_timeout]
-  
-include::{docdir}/rest-api/common-parms.asciidoc[tag=slices]
-  
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sort]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+`search_timeout`::
+(Optional, <<time-units, time units>>)
+Explicit timeout for each search request.
+Defaults to no timeout.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=slices]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=stats]
-  
-include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sort]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=version]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stats]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period each deletion request <<index-wait-for-active-shards,waits for active
+shards>>. Defaults to `1m` (one minute).
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [[docs-delete-by-query-api-request-body]]
 ==== {api-request-body-title}
 
 `query`::
-  (Optional, <<query-dsl,query object>>) Specifies the documents to delete 
+  (Optional, <<query-dsl,query object>>) Specifies the documents to delete
   using the  <<query-dsl,Query DSL>>.
-  
+
 
 [[docs-delete-by-query-api-response-body]]
 ==== Response body
@@ -241,16 +269,16 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_delete_by_query
+POST /my-index-000001/_delete_by_query
 {
   "query": { <1>
     "match": {
-      "message": "some message"
+      "user.id": "elkbee"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 //////////////////////////
 
@@ -336,43 +364,43 @@ this is non-empty then the request aborted because of those failures.
 Delete by query is implemented using batches, and any failure causes the entire
 process to abort but all failures in the current batch are collected into the
 array. You can use the `conflicts` option to prevent reindex from aborting on
-version conflicts.  
+version conflicts.
 
 [[docs-delete-by-query-api-example]]
 ==== {api-examples-title}
 
-Delete all tweets from the `twitter` index:
+Delete all documents from the `my-index-000001` data stream or index:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_delete_by_query?conflicts=proceed
+POST my-index-000001/_delete_by_query?conflicts=proceed
 {
   "query": {
     "match_all": {}
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-Delete documents from multiple indices:
+Delete documents from multiple data streams or indices:
 
 [source,console]
 --------------------------------------------------
-POST /twitter,blog/_delete_by_query
+POST /my-index-000001,my-index-000002/_delete_by_query
 {
   "query": {
     "match_all": {}
   }
 }
 --------------------------------------------------
-// TEST[s/^/PUT twitter\nPUT blog\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 Limit the delete by query operation to shards that a particular routing
-value: 
+value:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_delete_by_query?routing=1
+POST my-index-000001/_delete_by_query?routing=1
 {
   "query": {
     "range" : {
@@ -383,25 +411,25 @@ POST twitter/_delete_by_query?routing=1
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 By default `_delete_by_query` uses scroll batches of 1000. You can change the
 batch size with the `scroll_size` URL parameter:
 
 [source,console]
 --------------------------------------------------
-POST twitter/_delete_by_query?scroll_size=5000
+POST my-index-000001/_delete_by_query?scroll_size=5000
 {
   "query": {
     "term": {
-      "user": "kimchy"
+      "user.id": "kimchy"
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-[float]
+[discrete]
 [[docs-delete-by-query-manual-slice]]
 ===== Slice manually
 
@@ -410,7 +438,7 @@ slices:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_delete_by_query
+POST my-index-000001/_delete_by_query
 {
   "slice": {
     "id": 0,
@@ -418,13 +446,13 @@ POST twitter/_delete_by_query
   },
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
 }
-POST twitter/_delete_by_query
+POST my-index-000001/_delete_by_query
 {
   "slice": {
     "id": 1,
@@ -432,26 +460,26 @@ POST twitter/_delete_by_query
   },
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 Which you can verify works with:
 
 [source,console]
 ----------------------------------------------------------------
 GET _refresh
-POST twitter/_search?size=0&filter_path=hits.total
+POST my-index-000001/_search?size=0&filter_path=hits.total
 {
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
@@ -473,39 +501,39 @@ Which results in a sensible `total` like this one:
 }
 ----------------------------------------------------------------
 
-[float]
+[discrete]
 [[docs-delete-by-query-automatic-slice]]
 ===== Use automatic slicing
 
 You can also let delete-by-query automatically parallelize using
-<<sliced-scroll, sliced scroll>> to slice on `_id`. Use `slices` to specify
+<<slice-scroll, sliced scroll>> to slice on `_id`. Use `slices` to specify
 the number of slices to use:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_delete_by_query?refresh&slices=5
+POST my-index-000001/_delete_by_query?refresh&slices=5
 {
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 Which you also can verify works with:
 
 [source,console]
 ----------------------------------------------------------------
-POST twitter/_search?size=0&filter_path=hits.total
+POST my-index-000001/_search?size=0&filter_path=hits.total
 {
   "query": {
     "range": {
-      "likes": {
-        "lt": 10
+      "http.response.bytes": {
+        "lt": 2000000
       }
     }
   }
@@ -529,8 +557,8 @@ Which results in a sensible `total` like this one:
 
 Setting `slices` to `auto` will let {es} choose the number of slices
 to use. This setting will use one slice per shard, up to a certain limit. If
-there are multiple source indices, it will choose the number of slices based
-on the index with the smallest number of shards.
+there are multiple source data streams or indices, it will choose the number of slices based
+on the index or backing index with the smallest number of shards.
 
 Adding `slices` to `_delete_by_query` just automates the manual process used in
 the section above, creating sub-requests which means it has some quirks:
@@ -549,20 +577,20 @@ sub-request proportionally.
 portion of the documents. All documents will be addressed, but some slices may
 be larger than others. Expect larger slices to have a more even distribution.
 * Parameters like `requests_per_second` and `max_docs` on a request with
-slices` are distributed proportionally to each sub-request. Combine that with
+`slices` are distributed proportionally to each sub-request. Combine that with
 the point above about distribution being uneven and you should conclude that
 using `max_docs` with `slices` might not result in exactly `max_docs` documents
 being deleted.
-* Each sub-request gets a slightly different snapshot of the source index
+* Each sub-request gets a slightly different snapshot of the source data stream or index
 though these are all taken at approximately the same time.
 
-[float]
+[discrete]
 [[docs-delete-by-query-rethrottle]]
 ===== Change throttling for a request
 
 The value of `requests_per_second` can be changed on a running delete by query
 using the `_rethrottle` API. Rethrottling that speeds up the
-query takes effect immediately but rethrotting that slows down the query 
+query takes effect immediately but rethrotting that slows down the query
 takes effect after completing the current batch to prevent scroll
 timeouts.
 
@@ -648,7 +676,7 @@ and `wait_for_completion=false` was set on it then it'll come back with
 you to delete that document.
 
 
-[float]
+[discrete]
 [[docs-delete-by-query-cancel-task-api]]
 ===== Cancel a delete by query operation
 
@@ -661,6 +689,6 @@ POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 
 The task ID can be found using the <<tasks,tasks API>>.
 
-Cancellation should happen quickly but might take a few seconds. The task status 
-API above will continue to list the delete by query task until this task checks that it 
+Cancellation should happen quickly but might take a few seconds. The task status
+API above will continue to list the delete by query task until this task checks that it
 has been cancelled and terminates itself.

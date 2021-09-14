@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.ingest;
@@ -47,14 +36,14 @@ class SimulateExecutionService {
                          BiConsumer<SimulateDocumentResult, Exception> handler) {
         if (verbose) {
             List<SimulateProcessorResult> processorResultList = new CopyOnWriteArrayList<>();
-            CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), processorResultList);
+            CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), null, processorResultList);
             Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
-                verbosePipelineProcessor);
+                pipeline.getMetadata(), verbosePipelineProcessor);
             ingestDocument.executePipeline(verbosePipeline, (result, e) -> {
                 handler.accept(new SimulateDocumentVerboseResult(processorResultList), e);
             });
         } else {
-            pipeline.execute(ingestDocument, (result, e) -> {
+            ingestDocument.executePipeline(pipeline, (result, e) -> {
                 if (e == null) {
                     handler.accept(new SimulateDocumentBaseResult(result), null);
                 } else {
@@ -67,17 +56,28 @@ class SimulateExecutionService {
     public void execute(SimulatePipelineRequest.Parsed request, ActionListener<SimulatePipelineResponse> listener) {
         threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, l -> {
             final AtomicInteger counter = new AtomicInteger();
-            final List<SimulateDocumentResult> responses = new CopyOnWriteArrayList<>();
+            final List<SimulateDocumentResult> responses =
+                new CopyOnWriteArrayList<>(new SimulateDocumentBaseResult[request.getDocuments().size()]);
+
+            if (request.getDocuments().isEmpty()) {
+                l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(),
+                    request.isVerbose(), responses));
+                return;
+            }
+
+            int iter = 0;
             for (IngestDocument ingestDocument : request.getDocuments()) {
+                final int index = iter;
                 executeDocument(request.getPipeline(), ingestDocument, request.isVerbose(), (response, e) -> {
                     if (response != null) {
-                        responses.add(response);
+                        responses.set(index, response);
                     }
                     if (counter.incrementAndGet() == request.getDocuments().size()) {
                         l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(),
                             request.isVerbose(), responses));
                     }
                 });
+                iter++;
             }
         }));
     }

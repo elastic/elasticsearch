@@ -1,19 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -32,17 +32,18 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetUsersAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetUsersAction.class));
-
-    public RestGetUsersAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestGetUsersAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/user/", this,
-            GET, "/_xpack/security/user/", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/user/{username}", this,
-            GET, "/_xpack/security/user/{username}", deprecationLogger);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(GET, "/_security/user/")
+                .replaces(GET, "/_xpack/security/user/", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_security/user/{username}")
+                .replaces(GET, "/_xpack/security/user/{username}", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

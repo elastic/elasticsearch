@@ -1,32 +1,31 @@
-[role="xpack"]
-[testenv="platinum"]
-[[ml-df-analytics-apis]]
-== {ml-cap} {dfanalytics} APIs
-
-You can use the following APIs to perform {ml} {dfanalytics} activities.
-
-* <<put-dfanalytics,Create {dfanalytics-jobs}>> 
-* <<delete-dfanalytics,Delete {dfanalytics-jobs}>>
-* <<get-dfanalytics,Get {dfanalytics-jobs} info>>
-* <<get-dfanalytics-stats,Get {dfanalytics-jobs} statistics>>
-* <<start-dfanalytics,Start {dfanalytics-jobs}>>
-* <<stop-dfanalytics,Stop {dfanalytics-jobs}>>
-* <<evaluate-dfanalytics,Evaluate {dfanalytics}>>
-* <<estimate-memory-usage-dfanalytics,Estimate memory usage for {dfanalytics}>>
-
-See also <<ml-apis>>. 
-
+include::ml-df-analytics-apis.asciidoc[leveloffset=+1]
 //CREATE
-include::put-dfanalytics.asciidoc[]
+include::put-dfanalytics.asciidoc[leveloffset=+2]
+include::put-trained-models-aliases.asciidoc[leveloffset=+2]
+include::put-trained-models.asciidoc[leveloffset=+2]
+include::put-trained-model-definition-part.asciidoc[leveloffset=+2]
+include::put-trained-model-vocabulary.asciidoc[leveloffset=+2]
+//UPDATE
+include::update-dfanalytics.asciidoc[leveloffset=+2]
 //DELETE
-include::delete-dfanalytics.asciidoc[]
+include::delete-dfanalytics.asciidoc[leveloffset=+2]
+include::delete-trained-models.asciidoc[leveloffset=+2]
+include::delete-trained-models-aliases.asciidoc[leveloffset=+2]
 //EVALUATE
-include::evaluate-dfanalytics.asciidoc[]
+include::evaluate-dfanalytics.asciidoc[leveloffset=+2]
 //ESTIMATE_MEMORY_USAGE
-include::estimate-memory-usage-dfanalytics.asciidoc[]
+include::explain-dfanalytics.asciidoc[leveloffset=+2]
 //GET
-include::get-dfanalytics.asciidoc[]
-include::get-dfanalytics-stats.asciidoc[]
+include::get-dfanalytics.asciidoc[leveloffset=+2]
+include::get-dfanalytics-stats.asciidoc[leveloffset=+2]
+include::get-trained-models.asciidoc[leveloffset=+2]
+include::get-trained-models-stats.asciidoc[leveloffset=+2]
+//INFER
+include::infer-trained-model-deployment.asciidoc[leveloffset=+2]
+//PREVIEW
+include::preview-dfanalytics.asciidoc[leveloffset=+2]
 //SET/START/STOP
-include::start-dfanalytics.asciidoc[]
-include::stop-dfanalytics.asciidoc[]
+include::start-dfanalytics.asciidoc[leveloffset=+2]
+include::start-trained-model-deployment.asciidoc[leveloffset=+2]
+include::stop-dfanalytics.asciidoc[leveloffset=+2]
+include::stop-trained-model-deployment.asciidoc[leveloffset=+2]

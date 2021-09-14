@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test;
 
@@ -11,7 +12,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.Environment;
@@ -19,15 +21,15 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory;
 import org.elasticsearch.xpack.security.authc.ldap.LdapTestUtils;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
@@ -92,17 +94,17 @@ public class OpenLdapTests extends ESTestCase {
         // fake realms so ssl will get loaded
         builder.put("xpack.security.authc.realms.ldap.foo.ssl.truststore.path", truststore);
         mockSecureSettings.setString("xpack.security.authc.realms.ldap.foo.ssl.truststore.secure_password", "changeit");
-        builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", VerificationMode.FULL);
+        builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", SslVerificationMode.FULL);
         builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.path", truststore);
         mockSecureSettings.setString("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.secure_password", "changeit");
-        builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.verification_mode", VerificationMode.CERTIFICATE);
+        builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.verification_mode", SslVerificationMode.CERTIFICATE);
 
         builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.path", truststore);
         mockSecureSettings.setString("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.secure_password", "changeit");
-        builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.verification_mode", VerificationMode.FULL);
+        builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.verification_mode", SslVerificationMode.FULL);
         globalSettings = builder.setSecureSettings(mockSecureSettings).build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
-        sslService = new SSLService(globalSettings, environment);
+        sslService = new SSLService(environment);
     }
 
     public void testConnect() throws Exception {
@@ -207,12 +209,13 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveSingleValuedAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply("ldap")),
+                .putList(getFullSettingKey(realmId.getName(), LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING.apply("ldap")),
                         "cn", "sn")
+                .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
-        LdapMetaDataResolver resolver = new LdapMetaDataResolver(config, true);
+        LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
             assertThat(map.size(), equalTo(2));
@@ -224,12 +227,13 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveMultiValuedAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply("ldap")),
+                .putList(getFullSettingKey(realmId.getName(), LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING.apply("ldap")),
                         "objectClass")
+                .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
-        LdapMetaDataResolver resolver = new LdapMetaDataResolver(config, true);
+        LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
             assertThat(map.size(), equalTo(1));
@@ -241,12 +245,13 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveMissingAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply("ldap")),
+                .putList(getFullSettingKey(realmId.getName(), LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING.apply("ldap")),
                         "alias")
+                .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
-        LdapMetaDataResolver resolver = new LdapMetaDataResolver(config, true);
+        LdapMetadataResolver resolver = new LdapMetadataResolver(config, true);
         try (LDAPConnection ldapConnection = setupOpenLdapConnection()) {
             final Map<String, Object> map = resolve(ldapConnection, resolver);
             assertThat(map.size(), equalTo(0));
@@ -261,9 +266,10 @@ public class OpenLdapTests extends ESTestCase {
             .put(LdapTestCase.buildLdapSettings(realmId, urls, templates, groupSearchBase, scope, null, false));
         builder.put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid");
         return builder
-            .put(getFullSettingKey(realmId, SSLConfigurationSettings.TRUST_STORE_PATH_REALM), getDataPath(LDAPTRUST_PATH))
-            .put(getFullSettingKey(realmId, SSLConfigurationSettings.LEGACY_TRUST_STORE_PASSWORD_REALM), "changeit")
+            .put(SSLConfigurationSettings.TRUSTSTORE_PATH.realm(realmId).getKey(), getDataPath(LDAPTRUST_PATH))
+            .put(SSLConfigurationSettings.LEGACY_TRUSTSTORE_PASSWORD.realm(realmId).getKey(), "changeit")
             .put(globalSettings)
+            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();
     }
 
@@ -284,7 +290,7 @@ public class OpenLdapTests extends ESTestCase {
         return LdapTestUtils.openConnection(OpenLdapTests.OPEN_LDAP_DNS_URL, HAWKEYE_DN, OpenLdapTests.PASSWORD, truststore);
     }
 
-    private Map<String, Object> resolve(LDAPConnection connection, LdapMetaDataResolver resolver) throws Exception {
+    private Map<String, Object> resolve(LDAPConnection connection, LdapMetadataResolver resolver) throws Exception {
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         resolver.resolve(connection, HAWKEYE_DN, TimeValue.timeValueSeconds(1), logger, null, future);
         return future.get();

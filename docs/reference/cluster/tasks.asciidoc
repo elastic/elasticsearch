@@ -4,7 +4,7 @@
 <titleabbrev>Task management</titleabbrev>
 ++++
 
-beta[The task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.]
+beta::["The task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{es-issue}51628]
 
 Returns information about the tasks currently executing in the cluster.
 
@@ -15,6 +15,11 @@ Returns information about the tasks currently executing in the cluster.
 
 `GET /_tasks`
 
+[[tasks-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[tasks-api-desc]]
 ==== {api-description-title}
@@ -27,26 +32,27 @@ on one or more nodes in the cluster.
 [[tasks-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=task-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=task-id]
 
 
 [[tasks-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=actions]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=actions]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=group-by]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=group-by]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
-
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request blocks until the operation is complete.
+Defaults to `false`.
     
 [[tasks-api-response-codes]]
 ==== {api-response-codes-title}
@@ -69,7 +75,7 @@ GET _tasks?nodes=nodeId1,nodeId2&actions=cluster:* <3>
 // TEST[skip:No tasks to retrieve]
 
 <1> Retrieves all tasks currently running on all nodes in the cluster.
-<2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`.  See <<cluster-nodes>> for more info about how to select individual nodes.
+<2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`. See <<cluster-nodes>> for more info about how to select individual nodes.
 <3> Retrieves all cluster-related tasks running on nodes `nodeId1` and `nodeId2`.
 
 The API returns the following result:
@@ -165,7 +171,8 @@ The API returns the following result:
           "description" : "indices[test], types[test], search_type[QUERY_THEN_FETCH], source[{\"query\":...}]",
           "start_time_in_millis" : 1483478610008,
           "running_time_in_nanos" : 13991383,
-          "cancellable" : true
+          "cancellable" : true,
+          "cancelled" : false
         }
       }
     }
@@ -237,6 +244,13 @@ nodes `nodeId1` and `nodeId2`.
 POST _tasks/_cancel?nodes=nodeId1,nodeId2&actions=*reindex
 --------------------------------------------------
 
+A task may continue to run for some time after it has been cancelled because it
+may not be able to safely stop its current activity straight away. The list
+tasks API will continue to list these cancelled tasks until they complete. The
+`cancelled` flag in the response to the list tasks API indicates that the
+cancellation command has been processed and the task will stop as soon as
+possible.
+
 ===== Task Grouping
 
 The task lists returned by task API commands can be grouped either by nodes 
@@ -261,7 +275,7 @@ GET _tasks?group_by=none
 The `X-Opaque-Id` header, when provided on the HTTP request header, is going to 
 be returned as a header in the response as well as in the `headers` field for in 
 the task information. This allows to track certain calls, or associate certain 
-tasks with a the client that started them:
+tasks with the client that started them:
 
 [source,sh]
 --------------------------------------------------

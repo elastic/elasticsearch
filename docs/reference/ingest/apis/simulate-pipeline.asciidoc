@@ -54,14 +54,20 @@ POST /_ingest/pipeline/my-pipeline-id/_simulate
 [[simulate-pipeline-api-request]]
 ==== {api-request-title}
 
-POST /_ingest/pipeline/<pipeline>/_simulate
+`POST /_ingest/pipeline/<pipeline>/_simulate`
 
-GET /_ingest/pipeline/<pipeline>/_simulate
+`GET /_ingest/pipeline/<pipeline>/_simulate`
 
-POST /_ingest/pipeline/_simulate
+`POST /_ingest/pipeline/_simulate`
 
-GET /_ingest/pipeline/_simulate
+`GET /_ingest/pipeline/_simulate`
 
+[[simulate-pipeline-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`read_pipeline`, `manage_pipeline`, `manage_ingest_pipelines`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[simulate-pipeline-api-desc]]
 ==== {api-description-title}
@@ -78,63 +84,60 @@ or supply a pipeline definition in the body of the request.
 ==== {api-path-parms-title}
 
 `<pipeline>`::
-(Optional, string)
-Pipeline ID used to simulate an ingest.
-
+(Required*, string)
+Pipeline to test. If you don't specify a `pipeline` in the request body, this
+parameter is required.
 
 [[simulate-pipeline-api-query-params]]
 ==== {api-query-parms-title}
 
 `verbose`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the response includes output data
 for each processor in the executed pipeline.
 
 
+[role="child_attributes"]
 [[simulate-pipeline-api-request-body]]
 ==== {api-request-body-title}
 
-`description`::
-(Optional, string)
-Description of the ingest pipeline.
-
-`processors`::
+`pipeline`::
+(Required*, object)
+Pipeline to test. If you don't specify the `<pipeline>` request path parameter,
+this parameter is required. If you specify both this and the request path
+parameter, the API only uses the request path parameter.
 +
---
-(Optional, array of <<ingest-processors,processor objects>>)
-Array of processors used to pre-process documents
-during ingest.
-
-Processors are executed in the order provided.
-
-See <<ingest-processors>> for processor object definitions
-and a list of built-in processors.
---
+.Properties of `pipeline`
+[%collapsible%open]
+====
+include::put-pipeline.asciidoc[tag=pipeline-object]
+====
 
 `docs`::
+(Required, array of objects)
+Sample documents to test in the pipeline.
 +
---
-(Required, array)
-Array of documents
-ingested by the pipeline.
-
-Document object parameters include:
+.Properties of `docs` objects
+[%collapsible%open]
+====
+`_id`::
+(Optional, string)
+Unique identifier for the document. This ID must be unique within the `_index`.
 
 `_index`::
 (Optional, string)
 Name of the index containing the document.
 
-`_id`::
+`_routing`::
 (Optional, string)
-Unique identifier for the document.
-This ID is only unique within the index.
+Value used to send the document to a specific primary shard. See the
+<<mapping-routing-field,`_routing`>> field.
 
 `_source`::
 (Required, object)
 JSON body for the document.
---
-
+====
 
 [[simulate-pipeline-api-example]]
 ==== {api-examples-title}
@@ -294,7 +297,7 @@ you can add the `verbose` parameter to the request.
 
 [source,console]
 ----
-POST /_ingest/pipeline/_simulate?verbose
+POST /_ingest/pipeline/_simulate?verbose=true
 {
   "pipeline" :
   {
@@ -338,76 +341,88 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-   "docs": [
-      {
-         "processor_results": [
-            {
-               "doc": {
-                  "_id": "id",
-                  "_index": "index",
-                  "_source": {
-                     "field2": "_value2",
-                     "foo": "bar"
-                  },
-                  "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.674Z"
-                  }
-               }
+  "docs" : [
+    {
+      "processor_results" : [
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_source" : {
+              "field2" : "_value2",
+              "foo" : "bar"
             },
-            {
-               "doc": {
-                  "_id": "id",
-                  "_index": "index",
-                  "_source": {
-                     "field3": "_value3",
-                     "field2": "_value2",
-                     "foo": "bar"
-                  },
-                  "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.675Z"
-                  }
-               }
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251836Z"
             }
-         ]
-      },
-      {
-         "processor_results": [
-            {
-               "doc": {
-                  "_id": "id",
-                  "_index": "index",
-                  "_source": {
-                     "field2": "_value2",
-                     "foo": "rab"
-                  },
-                  "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.676Z"
-                  }
-               }
+          }
+        },
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_source" : {
+              "field3" : "_value3",
+              "field2" : "_value2",
+              "foo" : "bar"
             },
-            {
-               "doc": {
-                  "_id": "id",
-                  "_index": "index",
-                  "_source": {
-                     "field3": "_value3",
-                     "field2": "_value2",
-                     "foo": "rab"
-                  },
-                  "_ingest": {
-                     "timestamp": "2017-05-04T22:46:09.677Z"
-                  }
-               }
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251836Z"
             }
-         ]
-      }
-   ]
+          }
+        }
+      ]
+    },
+    {
+      "processor_results" : [
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_source" : {
+              "field2" : "_value2",
+              "foo" : "rab"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251863Z"
+            }
+          }
+        },
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_source" : {
+              "field3" : "_value3",
+              "field2" : "_value2",
+              "foo" : "rab"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251863Z"
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
 ----
-// TESTRESPONSE[s/"2017-05-04T22:46:09.674Z"/$body.docs.0.processor_results.0.doc._ingest.timestamp/]
-// TESTRESPONSE[s/"2017-05-04T22:46:09.675Z"/$body.docs.0.processor_results.1.doc._ingest.timestamp/]
-// TESTRESPONSE[s/"2017-05-04T22:46:09.676Z"/$body.docs.1.processor_results.0.doc._ingest.timestamp/]
-// TESTRESPONSE[s/"2017-05-04T22:46:09.677Z"/$body.docs.1.processor_results.1.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251836Z"/$body.docs.0.processor_results.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251836Z"/$body.docs.0.processor_results.1.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251863Z"/$body.docs.1.processor_results.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251863Z"/$body.docs.1.processor_results.1.doc._ingest.timestamp/]
 
 ////
 [source,console]

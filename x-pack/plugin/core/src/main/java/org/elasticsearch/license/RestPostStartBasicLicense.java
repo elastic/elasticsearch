@@ -1,32 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartBasicLicense extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPostStartBasicLicense.class));
+    RestPostStartBasicLicense() {}
 
-    RestPostStartBasicLicense(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, "/_license/start_basic", this,
-                POST, "/_xpack/license/start_basic", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(POST, "/_license/start_basic")
+                .replaces(POST, "/_xpack/license/start_basic", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

@@ -10,8 +10,7 @@ The following specialized API is available in the Score context.
 ==== Static Methods
 The following methods are directly callable without a class/instance qualifier. Note parameters denoted by a (*) are treated as read-only values.
 
-* double cosineSimilarity(List *, VectorScriptDocValues.DenseVectorScriptDocValues)
-* double cosineSimilaritySparse(Map *, VectorScriptDocValues.SparseVectorScriptDocValues)
+* double cosineSimilarity(List *, String *)
 * double decayDateExp(String *, String *, String *, double *, JodaCompatibleZonedDateTime)
 * double decayDateGauss(String *, String *, String *, double *, JodaCompatibleZonedDateTime)
 * double decayDateLinear(String *, String *, String *, double *, JodaCompatibleZonedDateTime)
@@ -21,8 +20,9 @@ The following methods are directly callable without a class/instance qualifier. 
 * double decayNumericExp(double *, double *, double *, double *, double)
 * double decayNumericGauss(double *, double *, double *, double *, double)
 * double decayNumericLinear(double *, double *, double *, double *, double)
-* double dotProduct(List, VectorScriptDocValues.DenseVectorScriptDocValues)
-* double dotProductSparse(Map *, VectorScriptDocValues.SparseVectorScriptDocValues)
+* double dotProduct(List *, String *)
+* double l1norm(List *, String *)
+* double l2norm(List *, String *)
 * double randomScore(int *)
 * double randomScore(int *, String *)
 * double saturation(double, double)
@@ -32,12 +32,15 @@ The following methods are directly callable without a class/instance qualifier. 
 The following classes are available grouped by their respective packages. Click on a class to view details about the available methods and fields.
 
 
-==== org.elasticsearch.index.query
-<<painless-api-reference-score-org-elasticsearch-index-query, Expand details for org.elasticsearch.index.query>>
+==== java.lang
+<<painless-api-reference-score-java-lang, Expand details for java.lang>>
 
-* <<painless-api-reference-score-VectorScriptDocValues, VectorScriptDocValues>>
-* <<painless-api-reference-score-VectorScriptDocValues-DenseVectorScriptDocValues, VectorScriptDocValues.DenseVectorScriptDocValues>>
-* <<painless-api-reference-score-VectorScriptDocValues-SparseVectorScriptDocValues, VectorScriptDocValues.SparseVectorScriptDocValues>>
+* <<painless-api-reference-score-String, String>>
+
+==== org.elasticsearch.xpack.vectors.query
+<<painless-api-reference-score-org-elasticsearch-xpack-vectors-query, Expand details for org.elasticsearch.xpack.vectors.query>>
+
+* <<painless-api-reference-score-DenseVectorScriptDocValues, DenseVectorScriptDocValues>>
 
 include::packages.asciidoc[]
 

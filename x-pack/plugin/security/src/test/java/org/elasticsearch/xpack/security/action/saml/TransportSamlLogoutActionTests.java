@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.saml;
 
@@ -32,14 +33,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,11 +48,13 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -61,7 +64,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlNameId;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealmTests;
 import org.elasticsearch.xpack.security.authc.saml.SamlTestCase;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -101,8 +104,10 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     private TransportSamlLogoutAction action;
     private Client client;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setup() throws Exception {
+        final RealmIdentifier realmIdentifier = new RealmIdentifier("saml", REALM_NAME);
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Settings settings = Settings.builder()
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
@@ -112,6 +117,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ENTITY_ID), SP_URL)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), SP_URL)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
             .build();
 
         final ThreadContext threadContext = new ThreadContext(settings);
@@ -132,17 +138,15 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         }).when(client).prepareGet(anyString(), anyString());
         doAnswer(invocationOnMock -> {
             IndexRequestBuilder builder = new IndexRequestBuilder(client, IndexAction.INSTANCE);
-            builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setId((String) invocationOnMock.getArguments()[2]);
+            builder.setIndex((String) invocationOnMock.getArguments()[0]);
             return builder;
-        }).when(client).prepareIndex(anyString(), anyString(), anyString());
+        }).when(client).prepareIndex(anyString());
         doAnswer(invocationOnMock -> {
             UpdateRequestBuilder builder = new UpdateRequestBuilder(client, UpdateAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
+                    .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareUpdate(anyString(), anyString(), anyString());
+        }).when(client).prepareUpdate(anyString(), anyString());
         doAnswer(invocationOnMock -> {
             BulkRequestBuilder builder = new BulkRequestBuilder(client, BulkAction.INSTANCE);
             return builder;
@@ -201,11 +205,14 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, securityIndex, clusterService);
+        final SecurityContext securityContext = new SecurityContext(settings, threadContext);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
+            clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
@@ -213,8 +220,6 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         action = new TransportSamlLogoutAction(transportService, mock(ActionFilters.class), realms, tokenService);
 
         final Environment env = TestEnvironment.newEnvironment(settings);
-
-        final RealmIdentifier realmIdentifier = new RealmIdentifier("saml", REALM_NAME);
 
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
         samlRealm = SamlRealm.create(realmConfig, mock(SSLService.class), mock(ResourceWatcherService.class), mock(UserRoleMapper.class));
@@ -229,23 +234,23 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     public void testLogoutInvalidatesToken() throws Exception {
         final String session = randomAlphaOfLengthBetween(12, 18);
         final String nameId = randomAlphaOfLengthBetween(6, 16);
-        final Map<String, Object> userMetaData = MapBuilder.<String, Object>newMapBuilder()
+        final Map<String, Object> userMetadata = MapBuilder.<String, Object>newMapBuilder()
                 .put(SamlRealm.USER_METADATA_NAMEID_FORMAT, NameID.TRANSIENT)
                 .put(SamlRealm.USER_METADATA_NAMEID_VALUE, nameId)
                 .map();
-        final User user = new User("punisher", new String[]{"superuser"}, null, null, userMetaData, true);
+        final User user = new User("punisher", new String[]{"superuser"}, null, null, userMetadata, true);
         final Authentication.RealmRef realmRef = new Authentication.RealmRef(samlRealm.name(), SamlRealmSettings.TYPE, "node01");
-        final Map<String, Object> tokenMetaData = samlRealm.createTokenMetadata(
+        final Map<String, Object> tokenMetadata = samlRealm.createTokenMetadata(
             new SamlNameId(NameID.TRANSIENT, nameId, null, null, null), session);
         final Authentication authentication = new Authentication(user, realmRef, null, null, Authentication.AuthenticationType.REALM,
-            tokenMetaData);
+            tokenMetadata);
 
 
-        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetaData, future);
-        final String accessToken = future.actionGet().v1();
+        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetadata, future);
+        final String accessToken = future.actionGet().getAccessToken();
         mockGetTokenFromId(tokenService, userTokenId, authentication, false, client);
 
         final SamlLogoutRequest request = new SamlLogoutRequest();
@@ -254,6 +259,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         action.doExecute(mock(Task.class), request, listener);
         final SamlLogoutResponse response = listener.get();
         assertThat(response, notNullValue());
+        assertThat(response.getRequestId(), notNullValue());
         assertThat(response.getRedirectUrl(), notNullValue());
 
         final IndexRequest indexRequest1 = indexRequests.get(0);

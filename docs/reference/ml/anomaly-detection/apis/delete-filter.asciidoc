@@ -1,42 +1,41 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-filter]]
-=== Delete filter API
+= Delete filters API
 ++++
-<titleabbrev>Delete filter</titleabbrev>
+<titleabbrev>Delete filters</titleabbrev>
 ++++
 
 Deletes a filter.
 
 [[ml-delete-filter-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `DELETE _ml/filters/<filter_id>`
 
 [[ml-delete-filter-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>>.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-delete-filter-desc]]
-==== {api-description-title}
+== {api-description-title}
 
-This API deletes a {stack-ov}/ml-rules.html[filter]. 
-If a {ml} job references the filter, you cannot delete the filter. You must 
-update or delete the job before you can delete the filter.
+This API deletes a filter. If an {anomaly-job} references the filter, you cannot
+delete the filter. You must update or delete the job before you can delete the
+filter. For more information, see
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Custom rules].
 
 [[ml-delete-filter-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<filter_id>`::
-  (Required, string) Identifier for the filter.
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-delete-filter-example]]
-==== {api-examples-title}
-
-The following example deletes the `safe_domains` filter:
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

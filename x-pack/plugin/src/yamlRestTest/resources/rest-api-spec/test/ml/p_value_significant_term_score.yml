@@ -1,0 +1,108 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: store
+        body:
+          mappings:
+            properties:
+              product:
+                type: keyword
+              failed:
+                type: boolean
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: store
+        refresh: true
+        body: |
+          { "index": {} }
+          { "product": "TV", "failed": false }
+          { "index": {} }
+          { "product": "TV", "failed": false }
+          { "index": {} }
+          { "product": "TV", "failed": false }
+          { "index": {} }
+          { "product": "TV", "failed": false }
+          { "index": {} }
+          { "product": "TV", "failed": true }
+          { "index": {} }
+          { "product": "TV", "failed": true }
+          { "index": {} }
+          { "product": "TV", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": true }
+          { "index": {} }
+          { "product": "VCR", "failed": false }
+          { "index": {} }
+          { "product": "VCR", "failed": false }
+          { "index": {} }
+          { "product": "VCR", "failed": false }
+---
+"Test p_value significant terms score":
+  - skip:
+      features: close_to
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "query": { "bool": {"filter":[{"term": {"failed": true}}]}},
+            "aggs": {
+              "significant_failures": {
+                "significant_terms": {
+                  "field": "product",
+                  "p_value": {"background_is_superset": true}
+                }
+              }
+            }
+          }
+  - close_to: { aggregations.significant_failures.buckets.0.score: {value: 1.957508054106207, error: 0.000001}}
+  - match: {aggregations.significant_failures.buckets.0.key: VCR}
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "query": { "bool": {"filter":[{"term": {"failed": true}}]}},
+            "aggs": {
+              "significant_failures": {
+                "significant_terms": {
+                  "field": "product",
+                  "background_filter": {"bool": {"filter":[{"term": {"failed": false}}]}},
+                  "p_value": {"background_is_superset": false}
+                }
+              }
+            }
+          }
+  - close_to: { aggregations.significant_failures.buckets.0.score: {value: 1.957508054106207, error: 0.000001}}
+  - match: {aggregations.significant_failures.buckets.0.key: VCR}

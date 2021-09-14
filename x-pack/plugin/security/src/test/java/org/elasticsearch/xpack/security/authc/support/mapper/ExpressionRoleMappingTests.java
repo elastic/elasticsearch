@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
@@ -28,12 +29,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AnyExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -57,8 +59,11 @@ public class ExpressionRoleMappingTests extends ESTestCase {
 
     @Before
     public void setupMapping() throws Exception {
-        realm = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ldap1"),
-            Settings.EMPTY, Mockito.mock(Environment.class), new ThreadContext(Settings.EMPTY));
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
+        realm = new RealmConfig(
+            realmIdentifier,
+            Settings.builder().put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            Mockito.mock(Environment.class), new ThreadContext(Settings.EMPTY));
     }
 
     public void testValidExpressionWithFixedRoleNames() throws Exception {

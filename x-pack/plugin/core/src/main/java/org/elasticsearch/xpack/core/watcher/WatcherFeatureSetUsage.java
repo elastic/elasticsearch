@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,6 +28,11 @@ public class WatcherFeatureSetUsage extends XPackFeatureSet.Usage {
     public WatcherFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> stats) {
         super(XPackField.WATCHER, available, enabled);
         this.stats = stats;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
     }
 
     public Map<String, Object> stats() {

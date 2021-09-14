@@ -1,0 +1,26 @@
+{
+  "priority": 2147483647,
+  "version" : ${xpack.ml.version.id},
+  "index_patterns" : [
+    ".ml-anomalies-*"
+  ],
+  "template" : {
+    "settings" : {
+      "index" : {
+        "translog" : {
+          "durability" : "async"
+        },
+        "auto_expand_replicas" : "0-1",
+        "query" : {
+          "default_field" : "all_field_values"
+        },
+        "hidden": true
+      }
+    },
+    "mappings": ${xpack.ml.anomalydetection.results.mappings}
+  },
+  "_meta" : {
+    "description": "index template for ML anomaly detection results indices",
+    "managed": true
+  }
+}

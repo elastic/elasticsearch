@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.routing.allocation;
 
@@ -22,8 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -51,15 +40,15 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> building initial cluster state");
         AllocationId allocationId = AllocationId.newRelocation(AllocationId.newInitializing());
-        final IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(2).numberOfReplicas(0)
                 .putInSyncAllocationIds(1, Collections.singleton(allocationId.getId()))
                 .build();
-        final Index index = indexMetaData.getIndex();
+        final Index index = indexMetadata.getIndex();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
-                .metaData(MetaData.builder().put(indexMetaData, false));
+                .metadata(Metadata.builder().put(indexMetadata, false));
 
         final ShardRouting initShard = TestShardRouting.newShardRouting(new ShardId(index, 0), "node1",
             true, ShardRoutingState.INITIALIZING);
@@ -101,17 +90,17 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
             replicaId = AllocationId.newRelocation(replicaId);
         }
 
-        final IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(1)
             .putInSyncAllocationIds(0,
                 relocatingReplica ? Sets.newHashSet(primaryId.getId(), replicaId.getId()) : Sets.newHashSet(primaryId.getId()))
             .build();
-        final Index index = indexMetaData.getIndex();
+        final Index index = indexMetadata.getIndex();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))
                 .add(newNode("node3")).add(newNode("node4")))
-            .metaData(MetaData.builder().put(indexMetaData, false));
+            .metadata(Metadata.builder().put(indexMetadata, false));
 
         final ShardRouting relocatingPrimary = TestShardRouting.newShardRouting(new ShardId(index, 0), "node1",
             "node2", true, ShardRoutingState.RELOCATING, primaryId);

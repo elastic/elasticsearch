@@ -1,0 +1,79 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[autoscaling-get-autoscaling-policy]]
+=== Get autoscaling policy API
+++++
+<titleabbrev>Get autoscaling policy</titleabbrev>
+++++
+
+NOTE: {cloud-only}
+
+Get autoscaling policy.
+
+[[autoscaling-get-autoscaling-policy-request]]
+==== {api-request-title}
+
+//////////////////////////
+[source,console]
+--------------------------------------------------
+PUT /_autoscaling/policy/my_autoscaling_policy
+{
+  "roles" : [],
+  "deciders": {
+    "fixed": {
+    }
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST
+// TEARDOWN
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+GET /_autoscaling/policy/<name>
+--------------------------------------------------
+// TEST[s/<name>/my_autoscaling_policy/]
+
+[[autoscaling-get-autoscaling-policy-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have
+`manage_autoscaling` cluster privileges. For more information, see
+<<security-privileges>>.
+
+[[autoscaling-get-autoscaling-policy-desc]]
+==== {api-description-title}
+
+This API gets an autoscaling policy with the provided name.
+
+[[autoscaling-get-autoscaling-policy-examples]]
+==== {api-examples-title}
+
+This example gets an autoscaling policy named `my_autoscaling_policy`.
+
+[source,console]
+--------------------------------------------------
+GET /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+   "roles": <roles>,
+   "deciders": <deciders>
+}
+--------------------------------------------------
+// TEST[s/<roles>/$body.roles/]
+// TEST[s/<deciders>/$body.deciders/]

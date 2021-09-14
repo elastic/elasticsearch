@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -46,7 +35,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         transport = mock(Transport.class);
-        remoteConnectionManager = new RemoteConnectionManager("remote-cluster", new ConnectionManager(Settings.EMPTY, transport));
+        remoteConnectionManager = new RemoteConnectionManager("remote-cluster", new ClusterConnectionManager(Settings.EMPTY, transport));
     }
 
     @SuppressWarnings("unchecked")
@@ -61,36 +50,36 @@ public class RemoteConnectionManagerTests extends ESTestCase {
 
         DiscoveryNode node1 = new DiscoveryNode("node-1", address, Version.CURRENT);
         PlainActionFuture<Void> future1 = PlainActionFuture.newFuture();
-        remoteConnectionManager.connectToNode(node1, null, validator, future1);
+        remoteConnectionManager.connectToRemoteClusterNode(node1, validator, future1);
         assertTrue(future1.isDone());
 
         // Add duplicate connect attempt to ensure that we do not get duplicate connections in the round robin
-        remoteConnectionManager.connectToNode(node1, null, validator, PlainActionFuture.newFuture());
+        remoteConnectionManager.connectToRemoteClusterNode(node1, validator, PlainActionFuture.newFuture());
 
         DiscoveryNode node2 = new DiscoveryNode("node-2", address, Version.CURRENT.minimumCompatibilityVersion());
         PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
-        remoteConnectionManager.connectToNode(node2, null, validator, future2);
+        remoteConnectionManager.connectToRemoteClusterNode(node2, validator, future2);
         assertTrue(future2.isDone());
 
-        assertEquals(node1, remoteConnectionManager.getRemoteConnection(node1).getNode());
-        assertEquals(node2, remoteConnectionManager.getRemoteConnection(node2).getNode());
+        assertEquals(node1, remoteConnectionManager.getConnection(node1).getNode());
+        assertEquals(node2, remoteConnectionManager.getConnection(node2).getNode());
 
         DiscoveryNode node4 = new DiscoveryNode("node-4", address, Version.CURRENT);
-        assertThat(remoteConnectionManager.getRemoteConnection(node4), instanceOf(RemoteConnectionManager.ProxyConnection.class));
+        assertThat(remoteConnectionManager.getConnection(node4), instanceOf(RemoteConnectionManager.ProxyConnection.class));
 
         // Test round robin
         Set<Version> versions = new HashSet<>();
-        versions.add(remoteConnectionManager.getRemoteConnection(node4).getVersion());
-        versions.add(remoteConnectionManager.getRemoteConnection(node4).getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
 
         assertThat(versions, hasItems(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
 
         // Test that the connection is cleared from the round robin list when it is closed
-        remoteConnectionManager.getRemoteConnection(node1).close();
+        remoteConnectionManager.getConnection(node1).close();
 
         versions.clear();
-        versions.add(remoteConnectionManager.getRemoteConnection(node4).getVersion());
-        versions.add(remoteConnectionManager.getRemoteConnection(node4).getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
 
         assertThat(versions, hasItems(Version.CURRENT.minimumCompatibilityVersion()));
         assertEquals(1, versions.size());
@@ -107,6 +96,11 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return node;
+        }
+
+        @Override
+        public Version getVersion() {
+            return node.getVersion();
         }
 
         @Override

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.monitoring.test;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.MockDeterministicScript;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
@@ -44,7 +46,7 @@ public class MockPainlessScriptEngine extends MockScriptEngine {
     @Override
     public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> options) {
         if (context.instanceClazz.equals(ScoreScript.class)) {
-            return context.factoryClazz.cast(new MockScoreScript(p -> 0.0));
+            return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
         }
         throw new IllegalArgumentException("mock painless does not know how to handle context [" + context.name + "]");
     }

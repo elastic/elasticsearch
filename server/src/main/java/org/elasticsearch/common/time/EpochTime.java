@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
@@ -125,13 +114,13 @@ class EpochTime {
         .optionalStart() // optional is used so isSupported will be called when printing
         .appendFraction(NANOS_OF_SECOND, 0, 9, true)
         .optionalEnd()
-        .toFormatter(IsoLocale.ROOT);
+        .toFormatter(Locale.ROOT);
 
     // this supports seconds ending in dot
     private static final DateTimeFormatter SECONDS_FORMATTER2 = new DateTimeFormatterBuilder()
         .appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
         .appendLiteral('.')
-        .toFormatter(IsoLocale.ROOT);
+        .toFormatter(Locale.ROOT);
 
     // this supports milliseconds without any fraction
     private static final DateTimeFormatter MILLISECONDS_FORMATTER1 = new DateTimeFormatterBuilder()
@@ -139,13 +128,13 @@ class EpochTime {
         .optionalStart()
         .appendFraction(NANOS_OF_MILLI, 0, 6, true)
         .optionalEnd()
-        .toFormatter(IsoLocale.ROOT);
+        .toFormatter(Locale.ROOT);
 
     // this supports milliseconds ending in dot
     private static final DateTimeFormatter MILLISECONDS_FORMATTER2 = new DateTimeFormatterBuilder()
         .append(MILLISECONDS_FORMATTER1)
         .appendLiteral('.')
-        .toFormatter(IsoLocale.ROOT);
+        .toFormatter(Locale.ROOT);
 
     static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter("epoch_second", SECONDS_FORMATTER1,
         builder -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L),

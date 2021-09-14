@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
@@ -22,12 +11,12 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.packaging.util.Distribution;
 import org.junit.BeforeClass;
 
-import java.nio.file.Files;
 import java.nio.file.Paths;
 
-import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
+import static org.elasticsearch.packaging.util.FileUtils.append;
+import static org.elasticsearch.packaging.util.FileUtils.assertPathsDoNotExist;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
-import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
@@ -47,64 +36,51 @@ public class DebPreservationTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         assertRemoved(distribution());
-        installation = installPackage(distribution());
+        installation = installPackage(sh, distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), newShell());
+        verifyPackageInstallation(installation, distribution(), sh);
     }
 
     public void test20Remove() throws Exception {
+        append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
+
         remove(distribution());
 
         // some config files were not removed
-
         assertPathsExist(
             installation.config,
             installation.config("elasticsearch.yml"),
             installation.config("jvm.options"),
-            installation.config("log4j2.properties")
+            installation.config("log4j2.properties"),
+            installation.config(Paths.get("jvm.options.d", "heap.options"))
         );
 
-        if (distribution().isDefault()) {
-            assertPathsExist(
-                installation.config,
-                installation.config("role_mapping.yml"),
-                installation.config("roles.yml"),
-                installation.config("users"),
-                installation.config("users_roles")
-            );
-        }
-
-        // keystore was removed
-
-        assertPathsDontExist(
-            installation.config("elasticsearch.keystore"),
-            installation.config(".elasticsearch.keystore.initial_md5sum")
+        assertPathsExist(
+            installation.config,
+            installation.config("role_mapping.yml"),
+            installation.config("roles.yml"),
+            installation.config("users"),
+            installation.config("users_roles")
         );
+
+        // keystore was not removed
+        assertPathsExist(installation.config("elasticsearch.keystore"));
 
         // doc files were removed
-
-        assertPathsDontExist(
-            Paths.get("/usr/share/doc/" + distribution().flavor.name),
-            Paths.get("/usr/share/doc/" + distribution().flavor.name + "/copyright")
-        );
-
-        // sysvinit service file was not removed
-        assertTrue(Files.exists(SYSVINIT_SCRIPT));
+        assertPathsDoNotExist(Paths.get("/usr/share/doc/elasticsearch"), Paths.get("/usr/share/doc/elasticsearch/copyright"));
 
         // defaults file was not removed
-        assertTrue(Files.exists(installation.envFile));
+        assertThat(installation.envFile, fileExists());
     }
 
     public void test30Purge() throws Exception {
-        sh.run("dpkg --purge " + distribution().flavor.name);
+        append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
+
+        sh.run("dpkg --purge elasticsearch");
 
         assertRemoved(distribution());
 
-        assertPathsDontExist(
-            installation.config,
-            installation.envFile,
-            SYSVINIT_SCRIPT
-        );
+        assertPathsDoNotExist(installation.config, installation.envFile);
 
         assertThat(packageStatus(distribution()).exitCode, is(1));
     }

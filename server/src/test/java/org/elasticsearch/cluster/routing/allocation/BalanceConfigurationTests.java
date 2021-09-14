@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -27,8 +16,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -41,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
 
@@ -115,18 +105,18 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     }
 
     private ClusterState initCluster(AllocationService strategy) {
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         for (int i = 0; i < numberOfIndices; i++) {
-            IndexMetaData.Builder index = IndexMetaData.builder("test" + i).settings(settings(Version.CURRENT))
+            IndexMetadata.Builder index = IndexMetadata.builder("test" + i).settings(settings(Version.CURRENT))
                 .numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas);
-            metaDataBuilder = metaDataBuilder.put(index);
+            metadataBuilder = metadataBuilder.put(index);
         }
 
-        MetaData metaData = metaDataBuilder.build();
+        Metadata metadata = metadataBuilder.build();
 
-        for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
+        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
             routingTableBuilder.addAsNew(cursor.value);
         }
 
@@ -139,7 +129,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             nodes.add(newNode("node" + i));
         }
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).nodes(nodes).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).nodes(nodes).metadata(metadata).routingTable(initialRoutingTable).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         logger.info("restart all the primary shards, replicas will start initializing");
@@ -347,14 +337,14 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new UnsupportedOperationException("explain not supported");
             }
-        }, EmptyClusterInfoService.INSTANCE);
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+        }, EmptyClusterInfoService.INSTANCE, EmptySnapshotsInfoService.INSTANCE);
+        Metadata.Builder metadataBuilder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        IndexMetaData.Builder indexMeta = IndexMetaData.builder("test")
+        IndexMetadata.Builder indexMeta = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1);
-        metaDataBuilder = metaDataBuilder.put(indexMeta);
-        MetaData metaData = metaDataBuilder.build();
-        for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
+        metadataBuilder = metadataBuilder.put(indexMeta);
+        Metadata metadata = metadataBuilder.build();
+        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
             routingTableBuilder.addAsNew(cursor.value);
         }
         RoutingTable routingTable = routingTableBuilder.build();
@@ -365,7 +355,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+            .getDefault(Settings.EMPTY)).nodes(nodes).metadata(metadata).routingTable(routingTable).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();

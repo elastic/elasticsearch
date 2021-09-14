@@ -1,61 +1,53 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-
 import joptsimple.OptionSet;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
+import joptsimple.OptionSpec;
+
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+
 /**
- * A subcommand for the keystore cli to create a new keystore.
+ * A sub-command for the keystore cli to create a new keystore.
  */
-class CreateKeyStoreCommand extends EnvironmentAwareCommand {
+class CreateKeyStoreCommand extends KeyStoreAwareCommand {
+
+    private final OptionSpec<Void> passwordOption;
 
     CreateKeyStoreCommand() {
         super("Creates a new elasticsearch keystore");
+        this.passwordOption = parser.acceptsAll(Arrays.asList("p", "password"), "Prompt for password to encrypt the keystore");
     }
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
-        if (Files.exists(keystoreFile)) {
-            if (terminal.promptYesNo("An elasticsearch keystore already exists. Overwrite?", false) == false) {
-                terminal.println("Exiting without creating keystore.");
-                return;
+        try (SecureString password = options.has(passwordOption) ? readPassword(terminal, true) : new SecureString(new char[0])) {
+            Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
+            if (Files.exists(keystoreFile)) {
+                if (terminal.promptYesNo("An elasticsearch keystore already exists. Overwrite?", false) == false) {
+                    terminal.println("Exiting without creating keystore.");
+                    return;
+                }
             }
+            KeyStoreWrapper keystore = KeyStoreWrapper.create();
+            keystore.save(env.configFile(), password.getChars());
+            terminal.println("Created elasticsearch keystore in " + KeyStoreWrapper.keystorePath(env.configFile()));
+        } catch (SecurityException e) {
+            throw new UserException(ExitCodes.IO_ERROR, "Error creating the elasticsearch keystore.");
         }
-
-
-        char[] password = new char[0];// terminal.readSecret("Enter passphrase (empty for no passphrase): ");
-        /* TODO: uncomment when entering passwords on startup is supported
-        char[] passwordRepeat = terminal.readSecret("Enter same passphrase again: ");
-        if (Arrays.equals(password, passwordRepeat) == false) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Passphrases are not equal, exiting.");
-        }*/
-
-        KeyStoreWrapper keystore = KeyStoreWrapper.create();
-        keystore.save(env.configFile(), password);
-        terminal.println("Created elasticsearch keystore in " + env.configFile());
     }
 }

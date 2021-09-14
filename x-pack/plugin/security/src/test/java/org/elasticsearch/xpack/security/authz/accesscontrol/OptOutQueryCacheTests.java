@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
@@ -17,12 +18,11 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -124,38 +124,16 @@ public class OptOutQueryCacheTests extends ESTestCase {
         assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
     }
 
-    public void testOptOutQueryCacheAuthIsNotAllowed() {
-        final Settings.Builder settings = Settings.builder()
-                .put("index.version.created", Version.CURRENT)
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0);
-        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
-        final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(false);
-        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
-        cache.listenForLicenseStateChanges();
-        final Weight weight = mock(Weight.class);
-        final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
-        cache.doCache(weight, policy);
-        verify(indicesQueryCache).doCache(same(weight), same(policy));
-    }
-
     public void testOptOutQueryCacheNoIndicesPermissions() {
         final Settings.Builder settings = Settings.builder()
                 .put("index.version.created", Version.CURRENT)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0);
-        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
-        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
-        cache.listenForLicenseStateChanges();
+        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext);
         final Weight weight = mock(Weight.class);
         final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
         final Weight w = cache.doCache(weight, policy);
@@ -168,8 +146,8 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 .put("index.version.created", Version.CURRENT)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0);
-        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final IndicesAccessControl.IndexAccessControl indexAccessControl = mock(IndicesAccessControl.IndexAccessControl.class);
@@ -177,31 +155,11 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
         when(indicesAccessControl.getIndexPermissions("index")).thenReturn(indexAccessControl);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
-        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
-        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
-        cache.listenForLicenseStateChanges();
+        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext);
         final Weight weight = mock(Weight.class);
         final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
         cache.doCache(weight, policy);
         verify(indicesQueryCache).doCache(same(weight), same(policy));
-    }
-
-    public void testOptOutQueryCacheRemovesLicenseStateListenerOnClose() {
-        final Settings.Builder settings = Settings.builder()
-                .put("index.version.created", Version.CURRENT)
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0);
-        final IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
-        final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
-        cache.listenForLicenseStateChanges();
-        verify(licenseState).addListener(cache);
-        cache.close();
-        verify(licenseState).removeListener(cache);
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

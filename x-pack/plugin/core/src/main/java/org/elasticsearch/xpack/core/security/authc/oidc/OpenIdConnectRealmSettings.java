@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc.oidc;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -19,7 +21,9 @@ import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -29,9 +33,11 @@ public class OpenIdConnectRealmSettings {
     private OpenIdConnectRealmSettings() {
     }
 
-    private static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS =
-            List.of("HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512");
+    public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS =
+        List.of("HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512");
     private static final List<String> RESPONSE_TYPES = List.of("code", "id_token", "id_token token");
+    public static final List<String> CLIENT_AUTH_METHODS = List.of("client_secret_basic", "client_secret_post", "client_secret_jwt");
+    public static final List<String> SUPPORTED_CLIENT_AUTH_JWT_ALGORITHMS = List.of("HS256", "HS384", "HS512");
     public static final String TYPE = "oidc";
 
     public static final Setting.AffixSetting<String> RP_CLIENT_ID
@@ -75,7 +81,22 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<List<String>> RP_REQUESTED_SCOPES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE), "rp.requested_scopes",
         key -> Setting.listSetting(key, Collections.singletonList("openid"), Function.identity(), Setting.Property.NodeScope));
-
+    public static final Setting.AffixSetting<String> RP_CLIENT_AUTH_METHOD
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.client_auth_method",
+        key -> new Setting<>(key, "client_secret_basic", Function.identity(), v -> {
+            if (CLIENT_AUTH_METHODS.contains(v) == false) {
+                throw new IllegalArgumentException(
+                    "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + CLIENT_AUTH_METHODS + "}]");
+            }
+        }, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<String> RP_CLIENT_AUTH_JWT_SIGNATURE_ALGORITHM
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.client_auth_jwt_signature_algorithm",
+        key -> new Setting<>(key, "HS384", Function.identity(), v -> {
+            if (SUPPORTED_CLIENT_AUTH_JWT_ALGORITHMS.contains(v) == false) {
+                throw new IllegalArgumentException(
+                    "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + SUPPORTED_CLIENT_AUTH_JWT_ALGORITHMS + "}]");
+            }
+        }, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<String> OP_AUTHORIZATION_ENDPOINT
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "op.authorization_endpoint",
         key -> Setting.simpleString(key, v -> {
@@ -139,6 +160,48 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<Integer> HTTP_MAX_ENDPOINT_CONNECTIONS
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.max_endpoint_connections",
         key -> Setting.intSetting(key, 200, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<String> HTTP_PROXY_HOST
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.proxy.host",
+        key -> Setting.simpleString(key, new Setting.Validator<String>() {
+            @Override
+            public void validate(String value) {
+                // There is no point in validating the hostname in itself without the scheme and port
+            }
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings) {
+                final String namespace = HTTP_PROXY_HOST.getNamespace(HTTP_PROXY_HOST.getConcreteSetting(key));
+                final Setting<Integer> portSetting = HTTP_PROXY_PORT.getConcreteSettingForNamespace(namespace);
+                final Integer port = (Integer) settings.get(portSetting);
+                final Setting<String> schemeSetting = HTTP_PROXY_SCHEME.getConcreteSettingForNamespace(namespace);
+                final String scheme = (String) settings.get(schemeSetting);
+                try {
+                    new HttpHost(value, port, scheme);
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("HTTP host for hostname [" + value + "] (from [" + key + "])," +
+                        " port [" + port + "] (from [" + portSetting.getKey() + "]) and " +
+                        "scheme [" + scheme + "] (from ([" + schemeSetting.getKey() + "]) is invalid");
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = HTTP_PROXY_HOST.getNamespace(HTTP_PROXY_HOST.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(HTTP_PROXY_PORT.getConcreteSettingForNamespace(namespace),
+                    HTTP_PROXY_SCHEME.getConcreteSettingForNamespace(namespace));
+                return settings.iterator();
+            }
+        }, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<Integer> HTTP_PROXY_PORT
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.proxy.port",
+        key -> Setting.intSetting(key, 80, 1, 65535, Setting.Property.NodeScope), () -> HTTP_PROXY_HOST);
+    public static final Setting.AffixSetting<String> HTTP_PROXY_SCHEME
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.proxy.scheme",
+        key -> Setting.simpleString(key, "http", value -> {
+            if (value.equals("http") == false && value.equals("https") == false) {
+                throw new IllegalArgumentException("Invalid value [" + value + "] for [" + key + "]. Only `http` or `https` are allowed.");
+            }
+        }, Setting.Property.NodeScope));
 
     public static final ClaimSetting PRINCIPAL_CLAIM = new ClaimSetting("principal");
     public static final ClaimSetting GROUPS_CLAIM = new ClaimSetting("groups");
@@ -149,9 +212,11 @@ public class OpenIdConnectRealmSettings {
     public static Set<Setting.AffixSetting<?>> getSettings() {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet(
             RP_CLIENT_ID, RP_REDIRECT_URI, RP_RESPONSE_TYPE, RP_REQUESTED_SCOPES, RP_CLIENT_SECRET, RP_SIGNATURE_ALGORITHM,
-            RP_POST_LOGOUT_REDIRECT_URI, OP_AUTHORIZATION_ENDPOINT, OP_TOKEN_ENDPOINT, OP_USERINFO_ENDPOINT,
-            OP_ENDSESSION_ENDPOINT, OP_ISSUER, OP_JWKSET_PATH, HTTP_CONNECT_TIMEOUT, HTTP_CONNECTION_READ_TIMEOUT, HTTP_SOCKET_TIMEOUT,
-            HTTP_MAX_CONNECTIONS, HTTP_MAX_ENDPOINT_CONNECTIONS, ALLOWED_CLOCK_SKEW);
+            RP_POST_LOGOUT_REDIRECT_URI, RP_CLIENT_AUTH_METHOD, RP_CLIENT_AUTH_JWT_SIGNATURE_ALGORITHM, OP_AUTHORIZATION_ENDPOINT,
+            OP_TOKEN_ENDPOINT, OP_USERINFO_ENDPOINT, OP_ENDSESSION_ENDPOINT, OP_ISSUER, OP_JWKSET_PATH,
+            POPULATE_USER_METADATA, HTTP_CONNECT_TIMEOUT, HTTP_CONNECTION_READ_TIMEOUT,
+            HTTP_SOCKET_TIMEOUT, HTTP_MAX_CONNECTIONS, HTTP_MAX_ENDPOINT_CONNECTIONS, HTTP_PROXY_HOST, HTTP_PROXY_PORT,
+            HTTP_PROXY_SCHEME, ALLOWED_CLOCK_SKEW);
         set.addAll(DelegatedAuthorizationSettings.getSettings(TYPE));
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         set.addAll(SSLConfigurationSettings.getRealmSettings(TYPE));

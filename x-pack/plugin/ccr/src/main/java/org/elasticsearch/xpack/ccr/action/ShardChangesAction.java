@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,13 +26,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.MissingHistoryOperationsException;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -39,6 +41,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 
@@ -48,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -63,7 +67,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         super(NAME, ShardChangesAction.Response::new);
     }
 
-    public static class Request extends SingleShardRequest<Request> {
+    public static class Request extends SingleShardRequest<Request> implements RawIndexingDataTransportRequest {
 
         private long fromSeqNo;
         private int maxOperationCount;
@@ -355,13 +359,13 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                     request.getMaxBatchSize());
             // must capture after snapshotting operations to ensure this MUS is at least the highest MUS of any of these operations.
             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
-            // must capture IndexMetaData after snapshotting operations to ensure the returned mapping version is at least as up-to-date
-            // as the mapping version that these operations used. Here we must not use IndexMetaData from ClusterService for we expose
+            // must capture IndexMetadata after snapshotting operations to ensure the returned mapping version is at least as up-to-date
+            // as the mapping version that these operations used. Here we must not use IndexMetadata from ClusterService for we expose
             // a new cluster state to ClusterApplier(s) before exposing it in the ClusterService.
-            final IndexMetaData indexMetaData = indexService.getMetaData();
-            final long mappingVersion = indexMetaData.getMappingVersion();
-            final long settingsVersion = indexMetaData.getSettingsVersion();
-            final long aliasesVersion = indexMetaData.getAliasesVersion();
+            final IndexMetadata indexMetadata = indexService.getMetadata();
+            final long mappingVersion = indexMetadata.getMappingVersion();
+            final long settingsVersion = indexMetadata.getSettingsVersion();
+            final long aliasesVersion = indexMetadata.getAliasesVersion();
             return getResponse(
                     mappingVersion,
                     settingsVersion,
@@ -388,18 +392,28 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                         seqNoStats.getGlobalCheckpoint(),
                         request.getFromSeqNo());
                 indexShard.addGlobalCheckpointListener(
-                        request.getFromSeqNo(),
-                        (g, e) -> {
+                    request.getFromSeqNo(),
+                    new GlobalCheckpointListeners.GlobalCheckpointListener() {
+
+                        @Override
+                        public Executor executor() {
+                            return threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
+                        }
+
+                        @Override
+                        public void accept(final long g, final Exception e) {
                             if (g != UNASSIGNED_SEQ_NO) {
                                 assert request.getFromSeqNo() <= g
-                                        : shardId + " only advanced to [" + g + "] while waiting for [" + request.getFromSeqNo() + "]";
+                                    : shardId + " only advanced to [" + g + "] while waiting for [" + request.getFromSeqNo() + "]";
                                 globalCheckpointAdvanced(shardId, g, request, listener);
                             } else {
                                 assert e != null;
                                 globalCheckpointAdvancementFailure(shardId, e, request, listener, indexShard);
                             }
-                        },
-                        request.getPollTimeout());
+                        }
+
+                    },
+                    request.getPollTimeout());
             } else {
                 super.asyncShardOperation(request, shardId, listener);
             }
@@ -430,15 +444,15 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                     e);
             if (e instanceof TimeoutException) {
                 try {
-                    final IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
-                    if (indexMetaData == null) {
+                    final IndexMetadata indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                    if (indexMetadata == null) {
                         listener.onFailure(new IndexNotFoundException(shardId.getIndex()));
                         return;
                     }
-
-                    final long mappingVersion = indexMetaData.getMappingVersion();
-                    final long settingsVersion = indexMetaData.getSettingsVersion();
-                    final long aliasesVersion = indexMetaData.getAliasesVersion();
+                    checkHistoryUUID(indexShard, request.expectedHistoryUUID);
+                    final long mappingVersion = indexMetadata.getMappingVersion();
+                    final long settingsVersion = indexMetadata.getSettingsVersion();
+                    final long aliasesVersion = indexMetadata.getAliasesVersion();
                     final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
                     final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                     listener.onResponse(
@@ -481,6 +495,14 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
     static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
+    private static void checkHistoryUUID(IndexShard indexShard, String expectedHistoryUUID) {
+        final String historyUUID = indexShard.getHistoryUUID();
+        if (historyUUID.equals(expectedHistoryUUID) == false) {
+            throw new IllegalStateException(
+                "unexpected history uuid, expected [" + expectedHistoryUUID + "], actual [" + historyUUID + "]");
+        }
+    }
+
     /**
      * Returns at most the specified maximum number of operations from the specified from sequence number. This method will never return
      * operations above the specified global checkpoint.
@@ -507,11 +529,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
-        final String historyUUID = indexShard.getHistoryUUID();
-        if (historyUUID.equals(expectedHistoryUUID) == false) {
-            throw new IllegalStateException("unexpected history uuid, expected [" + expectedHistoryUUID + "], actual [" +
-                historyUUID + "]");
-        }
+        checkHistoryUUID(indexShard, expectedHistoryUUID);
         if (fromSeqNo > globalCheckpoint) {
             throw new IllegalStateException(
                     "not exposing operations from [" + fromSeqNo + "] greater than the global checkpoint [" + globalCheckpoint + "]");
@@ -521,7 +539,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         long toSeqNo = Math.min(globalCheckpoint, (fromSeqNo + maxOperationCount) - 1);
         assert fromSeqNo <= toSeqNo : "invalid range from_seqno[" + fromSeqNo + "] > to_seqno[" + toSeqNo + "]";
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = indexShard.newChangesSnapshot("ccr", fromSeqNo, toSeqNo, true)) {
+        try (Translog.Snapshot snapshot = indexShard.newChangesSnapshot("ccr", fromSeqNo, toSeqNo, true, true)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);

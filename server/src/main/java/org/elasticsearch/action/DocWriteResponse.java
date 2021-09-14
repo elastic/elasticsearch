@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action;
 
@@ -23,8 +12,9 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -131,6 +121,25 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     // needed for deserialization
+    protected DocWriteResponse(ShardId shardId, StreamInput in) throws IOException {
+        super(in);
+        this.shardId = shardId;
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
+        id = in.readString();
+        version = in.readZLong();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        forcedRefresh = in.readBoolean();
+        result = Result.readFrom(in);
+    }
+
+    /**
+     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.IndexAction} and BwC
+     * deserialization path
+     */
     protected DocWriteResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
@@ -258,10 +267,19 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         return location.toString();
     }
 
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeWithoutShardId(out);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
+        writeWithoutShardId(out);
+    }
+
+    private void writeWithoutShardId(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
@@ -276,6 +294,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+        }
         innerToXContent(builder, params);
         builder.endObject();
         return builder;
@@ -307,7 +328,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      */
     protected static void parseInnerToXContent(XContentParser parser, Builder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 
         String currentFieldName = parser.currentName();
         token = parser.nextToken();
@@ -315,7 +336,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         if (token.isValue()) {
             if (_INDEX.equals(currentFieldName)) {
                 // index uuid and shard id are unknown and can't be parsed back for now.
-                context.setShardId(new ShardId(new Index(parser.text(), IndexMetaData.INDEX_UUID_NA_VALUE), -1));
+                context.setShardId(new ShardId(new Index(parser.text(), IndexMetadata.INDEX_UUID_NA_VALUE), -1));
             } else if (_ID.equals(currentFieldName)) {
                 context.setId(parser.text());
             } else if (_VERSION.equals(currentFieldName)) {

@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 
 import javax.crypto.Cipher;
 import javax.crypto.EncryptedPrivateKeyInfo;
@@ -29,19 +18,17 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
@@ -63,7 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-final class PemUtils {
+public final class PemUtils {
 
     private static final String PKCS1_HEADER = "-----BEGIN RSA PRIVATE KEY-----";
     private static final String PKCS1_FOOTER = "-----END RSA PRIVATE KEY-----";
@@ -86,6 +73,29 @@ final class PemUtils {
     }
 
     /**
+     * Creates a {@link PrivateKey} from the contents of a file and handles any exceptions
+     *
+     * @param path           the path for the key file
+     * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
+     * @return a private key from the contents of the file
+     */
+    public static PrivateKey readPrivateKey(Path path, Supplier<char[]> passwordSupplier) throws IOException, GeneralSecurityException {
+        try {
+            final PrivateKey privateKey = PemUtils.parsePrivateKey(path, passwordSupplier);
+            if (privateKey == null) {
+                throw new SslConfigException("could not load ssl private key file [" + path + "]");
+            }
+            return privateKey;
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure("PEM private key", List.of(path), e, null);
+        } catch (IOException e) {
+            throw SslFileUtil.ioException("PEM private key", List.of(path), e);
+        } catch (GeneralSecurityException e) {
+            throw SslFileUtil.securityException("PEM private key", List.of(path), e);
+        }
+    }
+
+    /**
      * Creates a {@link PrivateKey} from the contents of a file. Supports PKCS#1, PKCS#8
      * encoded formats of encrypted and plaintext RSA, DSA and EC(secp256r1) keys
      *
@@ -93,7 +103,7 @@ final class PemUtils {
      * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
      * @return a private key from the contents of the file
      */
-    public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException, GeneralSecurityException {
+    static PrivateKey parsePrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException, GeneralSecurityException {
         try (BufferedReader bReader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
             String line = bReader.readLine();
             while (null != line && line.startsWith(HEADER) == false) {
@@ -121,13 +131,9 @@ final class PemUtils {
             } else if (OPENSSL_EC_PARAMS_HEADER.equals(line.trim())) {
                 return parseOpenSslEC(removeECHeaders(bReader), passwordSupplier);
             } else {
-                throw new SslConfigException("error parsing Private Key [" + keyPath.toAbsolutePath()
-                    + "], file does not contain a supported key format");
+                throw new SslConfigException("cannot read PEM private key [" + keyPath.toAbsolutePath()
+                    + "] because the file does not contain a supported key format");
             }
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            throw new SslConfigException("private key file [" + keyPath.toAbsolutePath() + "] does not exist", e);
-        } catch (IOException | GeneralSecurityException e) {
-            throw new SslConfigException("private key file [" + keyPath.toAbsolutePath() + "] cannot be parsed", e);
         }
     }
 
@@ -201,7 +207,18 @@ final class PemUtils {
         if (null == line || PKCS8_FOOTER.equals(line.trim()) == false) {
             throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
         }
-        byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
+        return parsePKCS8PemString(sb.toString());
+    }
+
+    /**
+     * Creates a {@link PrivateKey} from a String that contains the PEM encoded representation of a plaintext private key encoded in PKCS8
+     * @param pemString the PEM encoded representation of a plaintext private key encoded in PKCS8
+     * @return {@link PrivateKey}
+     * @throws IOException if the algorithm identifier can not be parsed from DER
+     * @throws GeneralSecurityException if the private key can't be generated from the {@link PKCS8EncodedKeySpec}
+     */
+    public static PrivateKey parsePKCS8PemString(String pemString) throws IOException, GeneralSecurityException{
+        byte[] keyBytes = Base64.getDecoder().decode(pemString);
         String keyAlgo = getKeyAlgorithmIdentifier(keyBytes);
         KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
         return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
@@ -351,7 +368,6 @@ final class PemUtils {
         EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = new EncryptedPrivateKeyInfo(keyBytes);
         SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(encryptedPrivateKeyInfo.getAlgName());
         SecretKey secretKey = secretKeyFactory.generateSecret(new PBEKeySpec(keyPassword));
-        Arrays.fill(keyPassword, '\u0000');
         Cipher cipher = Cipher.getInstance(encryptedPrivateKeyInfo.getAlgName());
         cipher.init(Cipher.DECRYPT_MODE, secretKey, encryptedPrivateKeyInfo.getAlgParameters());
         PKCS8EncodedKeySpec keySpec = encryptedPrivateKeyInfo.getKeySpec(cipher);
@@ -452,7 +468,7 @@ final class PemUtils {
      */
     private static byte[] generateOpenSslKey(char[] password, byte[] salt, int keyLength) {
         byte[] passwordBytes = CharArrays.toUtf8Bytes(password);
-        MessageDigest md5 = messageDigest("md5");
+        MessageDigest md5 = SslUtil.messageDigest("md5");
         byte[] key = new byte[keyLength];
         int copied = 0;
         int remaining;
@@ -510,9 +526,12 @@ final class PemUtils {
         parser.readAsn1Object().getInteger(); // version
         String keyHex = parser.readAsn1Object().getString();
         BigInteger privateKeyInt = new BigInteger(keyHex, 16);
+        DerParser.Asn1Object choice = parser.readAsn1Object();
+        parser = choice.getParser();
+        String namedCurve = getEcCurveNameFromOid(parser.readAsn1Object().getOid());
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("EC");
-        AlgorithmParameterSpec prime256v1ParamSpec = new ECGenParameterSpec("secp256r1");
-        keyPairGenerator.initialize(prime256v1ParamSpec);
+        AlgorithmParameterSpec algorithmParameterSpec = new ECGenParameterSpec(namedCurve);
+        keyPairGenerator.initialize(algorithmParameterSpec);
         ECParameterSpec parameterSpec = ((ECKey) keyPairGenerator.generateKeyPair().getPrivate()).getParams();
         return new ECPrivateKeySpec(privateKeyInt, parameterSpec);
     }
@@ -588,7 +607,7 @@ final class PemUtils {
             "] is not żsupported");
     }
 
-    static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
+    public static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         List<Certificate> certificates = new ArrayList<>(certPaths.size());
         for (Path path : certPaths) {
@@ -603,11 +622,42 @@ final class PemUtils {
         return certificates;
     }
 
-    private static MessageDigest messageDigest(String digestAlgorithm) {
-        try {
-            return MessageDigest.getInstance(digestAlgorithm);
-        } catch (NoSuchAlgorithmException e) {
-            throw new SslConfigException("unexpected exception creating MessageDigest instance for [" + digestAlgorithm + "]", e);
+    private static String getEcCurveNameFromOid(String oidString) throws GeneralSecurityException {
+        switch (oidString) {
+            // see https://tools.ietf.org/html/rfc5480#section-2.1.1.1
+            case "1.2.840.10045.3.1":
+                return "secp192r1";
+            case "1.3.132.0.1":
+                return "sect163k1";
+            case "1.3.132.0.15":
+                return "sect163r2";
+            case "1.3.132.0.33":
+                return "secp224r1";
+            case "1.3.132.0.26":
+                return "sect233k1";
+            case "1.3.132.0.27":
+                return "sect233r1";
+            case "1.2.840.10045.3.1.7":
+                return "secp256r1";
+            case "1.3.132.0.16":
+                return "sect283k1";
+            case "1.3.132.0.17":
+                return "sect283r1";
+            case "1.3.132.0.34":
+                return "secp384r1";
+            case "1.3.132.0.36":
+                return "sect409k1";
+            case "1.3.132.0.37":
+                return "sect409r1";
+            case "1.3.132.0.35":
+                return "secp521r1";
+            case "1.3.132.0.38":
+                return "sect571k1";
+            case "1.3.132.0.39":
+                return "sect571r1";
         }
+        throw new GeneralSecurityException("Error parsing EC named curve identifier. Named curve with OID: " + oidString
+            + " is not supported");
     }
+
 }

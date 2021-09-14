@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
@@ -15,9 +16,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.support.CachingRealm;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 
 /**
  * A {@link UserRoleMapper} that composes one or more <i>delegate</i> role-mappers.

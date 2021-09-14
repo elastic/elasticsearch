@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -33,8 +34,11 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,16 +68,21 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     public void testCacheSettings() {
-        String cachingHashAlgo = randomFrom(Hasher.getAvailableAlgoCacheHash());
+        List<String> availableCacheAlgos = Hasher.getAvailableAlgoCacheHash();
+        if (inFipsJvm()) {
+            availableCacheAlgos = availableCacheAlgos.stream().filter(name -> (name.startsWith("pbkdf2"))).collect(Collectors.toList());
+        }
+        String cachingHashAlgo = randomFrom(availableCacheAlgos);
         int maxUsers = randomIntBetween(10, 100);
         TimeValue ttl = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
         Settings settings = Settings.builder()
-            .put(globalSettings)
-            .put(RealmSettings.getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING), cachingHashAlgo)
-            .put(RealmSettings.getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING), maxUsers)
-            .put(RealmSettings.getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), ttl)
-            .build();
+                .put(globalSettings)
+                .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING), cachingHashAlgo)
+                .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING), maxUsers)
+                .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), ttl)
+                .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
+                .build();
 
         RealmConfig config = new RealmConfig(identifier, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -95,7 +104,8 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
         final Settings settings = Settings.builder()
                 .put(globalSettings)
-                .put(RealmSettings.getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), -1)
+                .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), -1)
+                .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
 
         final RealmConfig config =
@@ -274,11 +284,12 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         TimeValue ttl = TimeValue.timeValueNanos(randomIntBetween(10, 100));
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_cache_ttl");
         Settings settings = Settings.builder()
-                .put(globalSettings)
-                .put(RealmSettings.getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), ttl)
-                .build();
+            .put(globalSettings)
+            .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), ttl)
+            .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
+            .build();
         RealmConfig config = new RealmConfig(identifier, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(config, threadPool);
 
         final UsernamePasswordToken authToken = new UsernamePasswordToken("the-user", new SecureString("the-password"));
@@ -306,7 +317,8 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_cache_ttl");
         Settings settings = Settings.builder()
                 .put(globalSettings)
-                .put(RealmSettings.getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), ttl)
+                .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), ttl)
+                .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = new RealmConfig(identifier, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -410,9 +422,13 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final AtomicInteger authCounter = new AtomicInteger(0);
-        final Hasher pwdHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher pwdHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(pwdHasher.hash(password));
-        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("caching", "test_realm"), globalSettings,
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
+        RealmConfig config = new RealmConfig(
+            realmIdentifier,
+            Settings.builder().put(globalSettings)
+                .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
             TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
             @Override
@@ -476,15 +492,19 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final AtomicInteger authCounter = new AtomicInteger(0);
-        final Hasher pwdHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher pwdHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(pwdHasher.hash(password));
-        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("caching", "test_realm"), globalSettings,
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
+        RealmConfig config = new RealmConfig(
+            realmIdentifier,
+            Settings.builder().put(globalSettings)
+                .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
             TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
 
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
         final int numberOfThreads = scaledRandomIntBetween((numberOfProcessors + 1) / 2, numberOfProcessors * 3);
         List<Thread> threads = new ArrayList<>(numberOfThreads);
-        final SecureString credsToUse = new SecureString(randomAlphaOfLength(12).toCharArray());
+        final SecureString credsToUse = new SecureString(randomAlphaOfLength(14).toCharArray());
 
         // we use a bunch of different latches here, the first `latch` is used to ensure all threads have been started
         // before they start to execute. The `authWaitLatch` is there to ensure we have all threads waiting on the
@@ -559,9 +579,12 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final SecureString randomPassword = new SecureString(randomAlphaOfLength(password.length()).toCharArray());
-        final Hasher localHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher localHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(localHasher.hash(password));
-        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("caching", "test_realm"), globalSettings,
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
+        RealmConfig config = new RealmConfig(realmIdentifier,
+                Settings.builder().put(globalSettings)
+                    .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
             @Override
@@ -629,8 +652,11 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final AtomicInteger lookupCounter = new AtomicInteger(0);
 
-        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("caching", "test_realm"), globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
+        RealmConfig config = new RealmConfig(realmIdentifier,
+            Settings.builder().put(globalSettings)
+                .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
             @Override
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
@@ -688,8 +714,9 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     public void testAuthenticateDisabled() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("caching", "test_authentication_disabled");
         final Settings settings = Settings.builder()
-            .put(RealmSettings.getFullSettingKey(realmId, CachingUsernamePasswordRealmSettings.AUTHC_ENABLED_SETTING), false)
+            .put(getFullSettingKey(realmId, CachingUsernamePasswordRealmSettings.AUTHC_ENABLED_SETTING), false)
             .put(globalSettings)
+            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         final ThreadContext threadContext = new ThreadContext(settings);
@@ -717,9 +744,16 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     static class FailingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         FailingAuthenticationRealm(Settings global, ThreadPool threadPool) {
-            super(new RealmConfig(new RealmConfig.RealmIdentifier("caching", "failing-test"), global,
-                    TestEnvironment.newEnvironment(global),
-                    threadPool.getThreadContext()), threadPool);
+            super(new RealmConfig(
+                new RealmConfig.RealmIdentifier("caching", "failing-test"),
+                Settings.builder()
+                    .put(global)
+                    .put(getFullSettingKey(
+                        new RealmConfig.RealmIdentifier("caching", "failing-test"),
+                        RealmSettings.ORDER_SETTING), 0)
+                    .build(),
+                TestEnvironment.newEnvironment(global),
+                threadPool.getThreadContext()), threadPool);
         }
 
         @Override
@@ -736,9 +770,14 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     static class ThrowingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         ThrowingAuthenticationRealm(Settings globalSettings, ThreadPool threadPool) {
-            super(new RealmConfig(new RealmConfig.RealmIdentifier("caching", "throwing-test"), globalSettings,
-                    TestEnvironment.newEnvironment(globalSettings),
-                    threadPool.getThreadContext()), threadPool);
+            super(new RealmConfig(
+                new RealmConfig.RealmIdentifier("caching", "throwing-test"),
+                Settings.builder()
+                    .put(globalSettings)
+                    .put(getFullSettingKey(new RealmConfig.RealmIdentifier("caching", "throwing-test"), RealmSettings.ORDER_SETTING), 0)
+                    .build(),
+                TestEnvironment.newEnvironment(globalSettings),
+                threadPool.getThreadContext()), threadPool);
         }
 
         @Override
@@ -760,9 +799,14 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         private boolean usersEnabled = true;
 
         AlwaysAuthenticateCachingRealm(Settings globalSettings, ThreadPool threadPool) {
-            this(new RealmConfig(new RealmConfig.RealmIdentifier("caching", "always-test"), globalSettings,
-                    TestEnvironment.newEnvironment(globalSettings),
-                    threadPool.getThreadContext()), threadPool);
+            this(new RealmConfig(
+                new RealmConfig.RealmIdentifier("caching", "always-test"),
+                Settings.builder()
+                    .put(globalSettings)
+                    .put(getFullSettingKey(new RealmConfig.RealmIdentifier("caching", "always-test"), RealmSettings.ORDER_SETTING), 0)
+                    .build(),
+                TestEnvironment.newEnvironment(globalSettings),
+                threadPool.getThreadContext()), threadPool);
         }
 
         AlwaysAuthenticateCachingRealm(RealmConfig config, ThreadPool threadPool) {

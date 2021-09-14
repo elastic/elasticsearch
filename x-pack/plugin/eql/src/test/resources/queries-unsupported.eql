@@ -1,0 +1,391 @@
+//
+// Pipes
+//
+
+process where true | count;
+process where true | count process_name;
+process where true | count parent_process_name, process_name;
+process where true | unique process_name;
+process where true | unique process_name, command_line;
+
+
+network where true
+| unique destination_address, destination_port
+| filter timestamp_utc >= "2018-05-01";
+
+
+process where true | unique_count process_name | filter count < 5;
+
+process where process_name == "powershell.exe"
+| unique command_line
+| head 50
+;
+
+file where true | sort file_name
+;
+
+network where total_out_bytes > 100000000
+| sort total_out_bytes
+| tail 5
+;
+
+process where descendant of [process where process_name == "lsass.exe"] and process_name == "cmd.exe";
+
+dns where pid == 100 | head 100 | tail 50 | unique pid;
+
+network where pid == 100 | unique command_line | count;
+
+security where user_domain == "endgame" | count user_name, a, b | tail 5;
+
+process where 1==1 | count user_name, unique_pid, concat(field2,a,bc);
+
+process where 1==1 | unique user_name, concat(field2,a,bc), field2;
+
+
+
+process where true | filter true;
+
+process where 1==1 | filter abc == def;
+
+process where 1==1 | filter abc == def and 1 != 2;
+
+process where 1==1 | count process_name | filter percent > 0.5;
+
+
+
+
+
+
+any where true | unique a, b, c | sort a, b, c | count;
+
+any where true | unique a, b,   c | sort a, b, c | count;
+
+any where true | unique a, b,   c | sort a,b,c | count;
+
+file where child of [registry where true];
+
+file where event of [registry where true];
+
+file where event of [registry where true];
+
+file where descendant of [registry where true];
+
+//sequence by unique_pid [process where true] [file where true] fork;
+
+//sequence by unique_pid [process where true] [file where true] fork==true;
+
+// no longer supported
+//sequence by unique_pid [process where true] [file where true] fork==1;
+
+//sequence
+//  [process where true] by unique_pid
+//  [file where true] fork==true by unique_pid
+//  [process where true] by unique_ppid
+//| head 4;
+
+//sequence by unique_pid [process where true] [file where true] fork==false;
+
+// no longer supported
+// sequence by unique_pid [process where true] [file where true] fork==0 [network where true];
+//sequence by unique_pid [process where true] [file where true] fork [network where true];
+
+
+// no longer supported
+// sequence by unique_pid [process where true] [file where true] fork==0;
+//sequence by unique_pid [process where true] [file where true] fork==true;
+
+
+sequence with maxspan=2.5m
+    [process where x == x] by pid
+    [file where file_path == "*"] by ppid
+;
+
+sequence by pid with maxspan=2.0h
+    [process where process_name == "*"]
+    [file where file_path == "*"]
+;
+
+sequence by pid with maxspan=2.0h
+    [process where process_name == "*"]
+    [file where file_path == "*"]
+;
+
+sequence by pid with maxspan=1.0075d
+    [process where process_name == "*"]
+    [file where file_path == "*"]
+;
+
+
+
+/* TESTS FROM
+ * https://raw.githubusercontent.com/endgameinc/eql/master/eql/etc/test_queries.toml
+ */
+
+process where serial_event_id <= 8 and serial_event_id > 7
+| filter serial_event_id == 8;
+
+process where true
+| filter serial_event_id <= 10
+| filter serial_event_id > 6;
+
+process where true
+| filter serial_event_id <= 10
+| filter serial_event_id > 6
+| head 2;
+
+process where true
+| head 1000
+| filter serial_event_id <= 10
+| filter serial_event_id > 6
+| tail 2
+;
+
+
+
+
+process where process_name == "VMACTHLP.exe" and unique_pid == 12 | filter true;
+
+
+
+process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
+| unique process_name;
+
+process where process_name in ("python.exe", "smss.exe", "Explorer.exe")
+| unique length(process_name);
+
+process where process_name in ("python.exe", "smss.exe", "explorer.exe")
+| unique length(process_name) == length("python.exe");
+
+process where process_name in ("Python.exe", "smss.exe", "explorer.exe")
+| unique process_name != "python.exe";
+
+process where process_name in ("python.exe", "smss.exe", "explorer.exe")
+| unique process_name
+| head 2
+| tail 1;
+
+process where process_name in ("python.exe", "smss.exe", "explorer.exe")
+| unique process_name
+| tail 2
+| head 1;
+
+process where process_name in ("python.exe", "smss.exe")
+| unique process_name, parent_process_name;
+
+process where process_name in ("python.exe", "smss.exe")
+| unique process_name, parent_process_name;
+
+process where process_name in ("python.exe", "smss.exe")
+| head 5
+| unique process_name, parent_process_name;
+
+
+
+
+file where file_name == "csrss.exe" and opcode==0
+  and descendant of [process where opcode in (1,3) and process_name="cmd.exe"]
+;
+
+process where opcode==1 and process_name == "csrss.exe"
+  and descendant of [file where file_name == "csrss.exe" and opcode=0]
+;
+
+process where opcode==1 and process_name == "smss.exe"
+  and descendant of [
+  file where file_name == "csrss.exe" and opcode==0
+      and descendant of [
+      process where opcode in(1,3) and process_name=="cmd.exe"
+      ]
+  ]
+;
+
+
+
+
+file where true
+| tail 4
+| sort file_path;
+
+process where true
+| head 5
+| sort md5, event_subtype_full, process_name;
+
+process where true
+| head 5
+| sort md5, event_subtype_full, null_field, process_name;
+
+process where true
+| head 5
+| sort md5, event_subtype_full, null_field, process_name;
+
+process where true
+| head 5
+| sort md5, event_subtype_full, null_field, process_name
+| head 2;
+
+process where true
+| head 5
+| sort md5, event_subtype_full, null_field, process_name
+| sort serial_event_id;
+
+sequence with maxspan=0.5s
+  [file where event_subtype_full == "file_create_event"] by file_path
+  [process where opcode == 1] by process_path
+  [process where opcode == 2] by process_path
+  [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+sequence
+  [file where opcode==0] by unique_pid
+  [file where opcode==0] by unique_pid
+| filter events[1].serial_event_id == 92;
+
+any where true
+| unique event_type_full;
+
+process where opcode==1 and process_name in ("services.exe", "smss.exe", "lsass.exe")
+  and descendant of [process where process_name == "cmd.exe" ];
+
+process where process_name in ("services.exe", "smss.exe", "lsass.exe")
+  and descendant of [process where process_name == "cmd.exe" ];
+
+process where opcode==2 and process_name in ("services.exe", "smss.exe", "lsass.exe")
+  and descendant of [process where process_name == "cmd.exe" ];
+
+process where process_name=="svchost.exe"
+  and child of [file where file_name=="svchost.exe" and opcode==0];
+
+process where process_name=="svchost.exe"
+  and not child of [file where file_name=="svchost.exe" and opcode==0]
+| head 3;
+
+process where process_name=="lsass.exe"
+  and child of [
+  process where process_name=="python.exe"
+    and child of [process where process_name=="cmd.exe"]
+  ]
+;
+
+file where child of [
+process where child of [
+    process where child of [process where process_name=="*wsmprovhost.exe"]
+  ]
+]
+| tail 1;
+
+file where process_name == "python.exe"
+| unique unique_pid;
+
+file where event of [process where process_name == "python.exe" ]
+| unique unique_pid;
+
+
+
+process where event of [process where process_name == "python.exe" ];
+
+sequence
+  [process where serial_event_id<3] by unique_pid * 2
+  [process where true] by unique_ppid * 2
+| tail 1
+;
+
+sequence
+  [process where serial_event_id<3] by unique_pid * 2, length(unique_pid), string(unique_pid)
+  [process where true] by unique_ppid * 2, length(unique_ppid), string(unique_ppid)
+| tail 1
+;
+
+
+process where "net.EXE" == original_file_name
+| filter process_name=="net*.exe"
+;
+
+process where process_name == original_file_name
+| filter process_name=='net*.exe'
+;
+
+process where original_file_name == process_name
+| filter length(original_file_name) > 0
+;
+
+
+
+process where process_name != original_file_name
+| filter length(original_file_name) > 0;
+
+any where process_name == "svchost.exe"
+| unique_count event_type_full, process_name;
+
+any where process_name == "svchost.exe"
+| sort event_type_full, serial_event_id
+| unique_count event_type_full, process_name;
+
+any where process_name == "svchost.exe"
+| unique_count event_type_full, opcode
+| filter count == 7;
+
+any where process_name == "svchost.exe"
+| unique_count event_type_full, opcode
+| filter percent >= .5
+;
+
+
+// Array functions
+// * parser will recognize as valid, but functions will fail to resolve in verifier
+
+
+// registry where arrayContains(bytes_written_string_list, 'En-uS');
+// registry where arrayContains(bytes_written_string_list, 'En');
+
+// network where mysterious_field
+//  and arraySearch(mysterious_field.subarray, s, true);
+
+// registry where arraySearch(bytes_written_string_list, a, a == 'en-us');
+// registry where arraySearch(bytes_written_string_list, a, endsWith(a, '-us'));
+// network where mysterious_field and arraySearch(mysterious_field.subarray, s, false);
+// network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a == 's0-*');
+// network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a != 's0-*');
+
+// network where mysterious_field
+//   and arraySearch(mysterious_field.subarray, sub1,
+//     arraySearch(sub1.c, nested, nested.x.y == '*'))
+// ;
+
+// network where mysterious_field
+//   and arraySearch(mysterious_field.subarray, sub1,
+//     sub1.a == 's0-a' and arraySearch(sub1.c, nested, nested.z == 's0-c1-x-z'))
+// ;
+
+// network where mysterious_field
+//   and arraySearch(mysterious_field.subarray, sub1,
+//     sub1.a == 's0-a' and arraySearch(sub1.c, nested, nested.z == sub1.cross_match));
+
+// network where mysterious_field
+//   and arraySearch(mysterious_field.subarray, sub1,
+//     arraySearch(sub1.c, nested, nested.x.y == mysterious_field.outer_cross_match));
+
+// registry where arrayCount(bytes_written_string_list, s, s == '*-us') == 1;
+// registry where arrayCount(bytes_written_string_list, s, s == '*en*') == 2;
+// registry where arrayContains(bytes_written_string_list, "missing", "en-US");
+
+
+// array fields
+
+registry where length(bytes_written_string_list) == 2 and bytes_written_string_list[1] == "EN";
+registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == 'EN-us'
+;
+
+registry where bytes_written_string_list[0] == 'EN-us'
+;
+
+registry where bytes_written_string_list[1] == 'EN'
+;
+
+
+registry where a[0];
+registry where a.b.c[0];
+registry where a[0].b;
+registry where a[0][1].b;
+registry where a[0].b[1];
+registry where topField.subField[100].subsubField == 0;

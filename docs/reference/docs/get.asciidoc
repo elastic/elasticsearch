@@ -8,9 +8,9 @@ Retrieves the specified JSON document from an index.
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/0
+GET my-index-000001/_doc/0
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-get-api-request]]
 ==== {api-request-title}
@@ -23,6 +23,12 @@ GET twitter/_doc/0
 
 `HEAD <index>/_source/<_id>`
 
+[[docs-get-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
 [[docs-get-api-desc]]
 ==== {api-description-title}
 You use GET to retrieve a document and its source or stored fields from a
@@ -30,18 +36,18 @@ particular index. Use HEAD to verify that a document exists. You can
 use the `_source` resource retrieve just the document source or verify
 that it exists.
 
-[float]
+[discrete]
 [[realtime]]
 ===== Realtime
 
 By default, the get API is realtime, and is not affected by the refresh
-rate of the index (when data will become visible for search). If a document
-has been updated but is not yet refreshed, the get API will issue a refresh
-call in-place to make the document visible. This will also make other documents
-changed since the last refresh visible. In order to disable realtime GET,
-one can set the `realtime` parameter to `false`.
+rate of the index (when data will become visible for search). In case where
+stored fields are requested (see `stored_fields` parameter) and the document
+has been updated but is not yet refreshed, the get API will have to parse
+and analyze the source to extract the stored fields. In order to disable
+realtime GET, the `realtime` parameter can be set to `false`.
 
-[float]
+[discrete]
 [[get-source-filtering]]
 ===== Source filtering
 
@@ -51,9 +57,9 @@ You can turn off `_source` retrieval by using the `_source` parameter:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/0?_source=false
+GET my-index-000001/_doc/0?_source=false
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 If you only need one or two fields from the `_source`, use the `_source_includes`
 or `_source_excludes` parameters to include or filter out particular fields.
@@ -63,19 +69,19 @@ of fields or wildcard expressions. Example:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/0?_source_includes=*.id&_source_excludes=entities
+GET my-index-000001/_doc/0?_source_includes=*.id&_source_excludes=entities
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 If you only want to specify includes, you can use a shorter notation:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/0?_source=*.id,retweeted
+GET my-index-000001/_doc/0?_source=*.id
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-[float]
+[discrete]
 [[get-routing]]
 ===== Routing
 
@@ -84,14 +90,14 @@ specified to retrieve a document. For example:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/2?routing=user1
+GET my-index-000001/_doc/2?routing=user1
 --------------------------------------------------
 // TEST[continued]
 
-This request gets the tweet with id `2`, but it is routed based on the
+This request gets the document with id `2`, but it is routed based on the
 user. The document is not fetched if the correct routing is not specified.
 
-[float]
+[discrete]
 [[preference]]
 ===== Preference
 
@@ -112,7 +118,7 @@ Custom (string) value::
 	states. A sample value can be something like the web session id, or the
 	user name.
 
-[float]
+[discrete]
 [[get-refresh]]
 ===== Refresh
 
@@ -122,7 +128,7 @@ it to `true` should be done after careful thought and verification that
 this does not cause a heavy load on the system (and slows down
 indexing).
 
-[float]
+[discrete]
 [[get-distributed]]
 ===== Distributed
 
@@ -132,7 +138,7 @@ result. The replicas are the primary shard and its replicas within that
 shard id group. This means that the more replicas we have, the
 better GET scaling we will have.
 
-[float]
+[discrete]
 [[get-versioning]]
 ===== Versioning support
 
@@ -156,25 +162,27 @@ deleted documents in the background as you continue to index more data.
 [[docs-get-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=realtime]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, Boolean) If `true`, the request refreshes the relevant shard before
+retrieving the document. Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=stored_fields]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stored_fields]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=doc-version]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=version_type]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 
 [[docs-get-api-response-body]]
 ==== {api-response-body-title}
@@ -206,7 +214,7 @@ The explicit routing, if set.
 '_source'::
 If `found` is `true`, contains the document data formatted in JSON.
 Excluded if the `_source` parameter is set to `false` or the `stored_fields`
-paramter is set to `true`.
+parameter is set to `true`.
 
 '_fields'::
 If the `stored_fields` parameter is set to `true` and `found` is
@@ -215,47 +223,61 @@ If the `stored_fields` parameter is set to `true` and `found` is
 [[docs-get-api-example]]
 ==== {api-examples-title}
 
-Retrieve the JSON document with the `_id` 0 from the `twitter` index:
+Retrieve the JSON document with the `_id` 0 from the `my-index-000001` index:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/0
+GET my-index-000001/_doc/0
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following result:
 
 [source,console-result]
 --------------------------------------------------
 {
-    "_index" : "twitter",
-    "_id" : "0",
-    "_version" : 1,
-    "_seq_no" : 10,
-    "_primary_term" : 1,
-    "found": true,
-    "_source" : {
-        "user" : "kimchy",
-        "date" : "2009-11-15T14:12:12",
-        "likes": 0,
-        "message" : "trying out Elasticsearch"
+  "_index": "my-index-000001",
+  "_id": "0",
+  "_version": 1,
+  "_seq_no": 0,
+  "_primary_term": 1,
+  "found": true,
+  "_source": {
+    "@timestamp": "2099-11-15T14:12:12",
+    "http": {
+      "request": {
+        "method": "get"
+      },
+      "response": {
+        "status_code": 200,
+        "bytes": 1070000
+      },
+      "version": "1.1"
+    },
+    "source": {
+      "ip": "127.0.0.1"
+    },
+    "message": "GET /search HTTP/1.1 200 1070000",
+    "user": {
+      "id": "kimchy"
     }
+  }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no": $body._seq_no/ s/"_primary_term": 1/"_primary_term": $body._primary_term/]
 
 Check to see if a document with the `_id` 0 exists:
 
 [source,console]
 --------------------------------------------------
-HEAD twitter/_doc/0
+HEAD my-index-000001/_doc/0
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 {es} returns a status code of `200 - OK` if the document exists, or
 `404 - Not Found` if it doesn't.
 
-[float]
+[discrete]
 [[_source]]
 ===== Get the source field only
 
@@ -264,7 +286,7 @@ just the `_source` field of a document. For example:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_source/1
+GET my-index-000001/_source/1
 --------------------------------------------------
 // TEST[continued]
 
@@ -273,7 +295,7 @@ You can use the source filtering parameters to control which parts of the
 
 [source,console]
 --------------------------------------------------
-GET twitter/_source/1/?_source_includes=*.id&_source_excludes=entities
+GET my-index-000001/_source/1/?_source_includes=*.id&_source_excludes=entities
 --------------------------------------------------
 // TEST[continued]
 
@@ -283,11 +305,11 @@ available if it is disabled in the <<mapping-source-field,mapping>>.
 
 [source,console]
 --------------------------------------------------
-HEAD twitter/_source/1
+HEAD my-index-000001/_source/1
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[get-stored-fields]]
 ===== Get stored fields
 
@@ -297,7 +319,7 @@ Consider for instance the following mapping:
 
 [source,console]
 --------------------------------------------------
-PUT twitter
+PUT my-index-000001
 {
    "mappings": {
        "properties": {
@@ -318,10 +340,10 @@ Now we can add a document:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/1
+PUT my-index-000001/_doc/1
 {
-    "counter" : 1,
-    "tags" : ["red"]
+  "counter": 1,
+  "tags": [ "production" ]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -330,7 +352,7 @@ And then try to retrieve it:
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/1?stored_fields=tags,counter
+GET my-index-000001/_doc/1?stored_fields=tags,counter
 --------------------------------------------------
 // TEST[continued]
 
@@ -339,7 +361,7 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-   "_index": "twitter",
+   "_index": "my-index-000001",
    "_id": "1",
    "_version": 1,
    "_seq_no" : 22,
@@ -347,7 +369,7 @@ The API returns the following result:
    "found": true,
    "fields": {
       "tags": [
-         "red"
+         "production"
       ]
    }
 }
@@ -355,23 +377,23 @@ The API returns the following result:
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Field values fetched from the document itself are always returned as an array.
-Since the `counter` field is not stored, the get request  ignores it.
+Since the `counter` field is not stored, the get request ignores it.
 
 You can also retrieve metadata fields like the `_routing` field:
 
 [source,console]
 --------------------------------------------------
-PUT twitter/_doc/2?routing=user1
+PUT my-index-000001/_doc/2?routing=user1
 {
-    "counter" : 1,
-    "tags" : ["white"]
+  "counter" : 1,
+  "tags" : ["env2"]
 }
 --------------------------------------------------
 // TEST[continued]
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/2?routing=user1&stored_fields=tags,counter
+GET my-index-000001/_doc/2?routing=user1&stored_fields=tags,counter
 --------------------------------------------------
 // TEST[continued]
 
@@ -380,7 +402,7 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-   "_index": "twitter",
+   "_index": "my-index-000001",
    "_id": "2",
    "_version": 1,
    "_seq_no" : 13,
@@ -389,7 +411,7 @@ The API returns the following result:
    "found": true,
    "fields": {
       "tags": [
-         "white"
+         "env2"
       ]
    }
 }

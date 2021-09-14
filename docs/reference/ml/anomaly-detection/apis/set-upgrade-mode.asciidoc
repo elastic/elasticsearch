@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-set-upgrade-mode]]
-=== Set upgrade mode API
+= Set upgrade mode API
 ++++
 <titleabbrev>Set upgrade mode</titleabbrev>
 ++++
@@ -10,7 +10,7 @@ Sets a cluster wide upgrade_mode setting that prepares {ml} indices for an
 upgrade. 
 
 [[ml-set-upgrade-mode-request]]
-==== {api-request-title}
+== {api-request-title}
 //////////////////////////
 
 [source,console]
@@ -25,14 +25,13 @@ POST /_ml/set_upgrade_mode?enabled=false&timeout=10m
 `POST _ml/set_upgrade_mode`
 
 [[ml-set-upgrade-mode-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>>.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-set-upgrade-mode-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 When upgrading your cluster, in some circumstances you must restart your nodes and
 reindex your {ml} indices. In those circumstances, there must be no {ml} jobs running. 
@@ -57,10 +56,10 @@ IMPORTANT:  No new {ml} jobs can be opened while the `upgrade_mode` setting is
 `true`.
 
 [[ml-set-upgrade-mode-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `enabled`::
-  (Optional, boolean) When `true`, this enables `upgrade_mode`. Defaults to
+  (Optional, Boolean) When `true`, this enables `upgrade_mode`. Defaults to
   `false`.
 
 `timeout`::
@@ -68,7 +67,7 @@ IMPORTANT:  No new {ml} jobs can be opened while the `upgrade_mode` setting is
   value is 30 seconds.
 
 [[ml-set-upgrade-mode-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 The following example enables `upgrade_mode` for the cluster:
 

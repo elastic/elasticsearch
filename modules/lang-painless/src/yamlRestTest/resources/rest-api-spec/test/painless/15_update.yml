@@ -1,0 +1,125 @@
+---
+"Update Script":
+
+  - do:
+      index:
+          index:  test_1
+          id:     1
+          body:
+              foo:    bar
+              count:  1
+
+  - do:
+      update:
+          index:  test_1
+          id:     1
+          body:
+            script:
+              lang:   painless
+              source: "ctx._source.foo = params.bar"
+              params: { bar: 'xxx' }
+
+  - match: { _index:   test_1 }
+  - match: { _id:      "1"    }
+  - match: { _version: 2      }
+
+  - do:
+      get:
+          index:  test_1
+          id:     1
+
+  - match: { _source.foo:        xxx }
+  - match: { _source.count:      1   }
+
+  - do:
+      update:
+          index:  test_1
+          id:     1
+          body:
+            script:
+              lang:   painless
+              source: "ctx._source.foo = 'yyy'"
+
+  - match: { _index:   test_1 }
+  - match: { _id:      "1"    }
+  - match: { _version: 3      }
+
+  - do:
+      get:
+          index:  test_1
+          id:     1
+
+  - match: { _source.foo:        yyy }
+  - match: { _source.count:      1   }
+
+  - do:
+      update:
+          index:  test_1
+          id:     1
+          body:
+            script:
+              lang:   painless
+              source: "ctx._source.missing_length = ctx._source.missing?.length()"
+
+  - match: { _index:   test_1 }
+  - match: { _id:      "1"    }
+  - match: { _version: 4      }
+
+  - do:
+      get:
+          index:  test_1
+          id:     1
+
+  - match: { _source.foo:        yyy }
+  - match: { _source.count:      1   }
+  - is_false: _source.missing
+  - is_false: _source.missing_length
+
+  - do:
+      update:
+          index:  test_1
+          id:     1
+          body:
+            script:
+              lang:   painless
+              source: "ctx._source.foo_length = ctx._source.foo?.length()"
+
+  - match: { _index:   test_1 }
+  - match: { _id:      "1"    }
+  - match: { _version: 5      }
+
+  - do:
+      get:
+          index:  test_1
+          id:     1
+
+  - match: { _source.foo:        yyy }
+  - match: { _source.foo_length: 3 }
+  - match: { _source.count:      1   }
+  - is_false: _source.missing
+  - is_false: _source.missing_length
+
+---
+"Update Script with script error":
+  - do:
+      index:
+          index:  test_1
+          id:     2
+          body:
+              foo:    bar
+              count:  1
+
+  - do:
+      catch: bad_request
+      update:
+          index:  test_1
+          id:     2
+          body:
+            script:
+              lang:   painless
+              source: "ctx._source.ctx = ctx"
+              params: { bar: 'xxx' }
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Iterable object is self-referencing itself" }

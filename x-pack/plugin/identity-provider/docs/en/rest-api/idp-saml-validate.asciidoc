@@ -1,0 +1,82 @@
+[role="xpack"]
+[[idp-saml-validate]]
+=== Validate a SAML authentication request
+++++
+<titleabbrev>Validate a SAML authentication request</titleabbrev>
+++++
+
+Validates a SAML authentication request that was received from a Service Provider.
+
+[[idp-saml-validate-request]]
+==== {api-request-title}
+
+`POST /_idp/saml/validate`
+
+[[idp-saml-validate-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have a role that grants the `cluster:admin/idp/saml/validate` privilege.
+
+[[idp-saml-validate-desc]]
+==== {api-description-title}
+
+This API validates a SAML authentication request. It does so by
+* Verifying that the SAML message is syntactically correct
+* Validating the signature if the authentication request should be signed and a signature is provided
+* Verifying that the IDP is the intended recipient of this
+* Verifying that the SP is known to the IDP and trusted and that the ACS URL it asks us to send the response is known and trusted
+* Verifying that the IDP can satisfy the requirements that the SP imposes ( i.e. NameID Policy )
+
+[[idp-saml-validate-request-body]]
+==== {api-request-body-title}
+
+The following parameters can be specified in the body of a POST request:
+
+`authn_request_query`::
+(Required, string) The SAML Authentication request in the form of the query
+string of the request that was sent by the Service Provider.
+
+
+[[idp-saml-validate-example]]
+==== {api-examples-title}
+
+The following example submits an unsigned SAML authentication request for validation.
+
+[source, console]
+--------------------------------------------------------------------
+POST /_idp/saml/validate
+{
+  "authn_request_query":"SAMLRequest=fZFbb4MwDIX%2FSpR3IEA7aFSoqlWVKnXT1Mse9jKZENpokLA4VNu%2FH71NnTT11efYx%2F48nnw1NTlIi8rojIY%2Bo0RqYUqldxndbuZeSif5GKGpo5ZPO7fXK%2FnZSXSkb9TIz0pGO6u5AVTINTQSuRN8PX1a8shnvLXGGWFqSqaI0ro%2B6tFo7Bpp19IelJDb1TKje%2Bda5EGAbeh%2FqAI0%2BMbugmNCAAIpmfWxSoM7rXp1i9p0pS9r6DXhC3P2K60cJYtZRt8hhCKsCmDDQTpiMEgfQpZUMknTMh4BKxLRyyyuejtiJxcaHWiX0YhFzGOxF442YchZwqOhHw%2FYGyWvV1z9cfQCh5%2Ba7S2V%2B1DgioLm%2Fx8%2BDm4H%2F%2F7guZ%2B0mL2YWolvMje2AXc%2F6FhRpVedrNxZ0KikdjTILwl%2F%2F5r%2FAA%3D%3D&RelayState=SAwdVW" <1>
+}
+--------------------------------------------------------------------
+// TEST[skip:Do not enable identity provider for the docs cluster, at least not yet]
+<1> The query string, urlencoded, with no further modifications from what was sent by the user's browser.
+
+A successful call returns a JSON structure that contains information about the Service Provider that initiated the Signle Sign On, and
+a nested JSON structured called `authn_state` that should not be interpreted by the caller but passed as-is in subsequent calls to the
+init API.
+
+
+[source, console-result]
+--------------------------------------------------------------------
+{
+  "service_provider" : {
+    "entity_id" : "https://sp1.kibana.org" <1>
+    "acs" : "https://sp1.kibana.org/saml/acs" <2>
+  },
+  "force_authn" : false, <3>
+  "authn_state" : {
+    "authn_request_id" : "_3243243243fdwfsd34r2f32f23",
+    "nameid_format" : "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+  }
+}
+--------------------------------------------------------------------
+// TESTRESPONSE[skip:Do not enable identity provider for the docs cluster, at least not yet]
+<1> The SAML entity ID of the Service Provider that generated the authentication request
+<2> The SAML assertion consumer service URL of the Service Provider that generated the authentication request
+<3> Indicates whether or not the Service Provider requests that the end user is forced to re-authenticate even if they have
+an existing session with the Identity Provider.
+
+IMPORTANT: It is assumed that the `authn_state` object is not passed to the end user and is not stored anywhere where it could be
+edited by the end user ( i.e. in a Browser cookie ). If there is a need for this, then the caller of the API must take precautions and
+ensure that the `authn_state` object is integrity protected ( i.e. signed or encrypted ).

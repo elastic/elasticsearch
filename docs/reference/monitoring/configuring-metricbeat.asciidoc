@@ -14,14 +14,12 @@ as described in <<collecting-monitoring-data>>.
 
 image::monitoring/images/metricbeat.png[Example monitoring architecture]
 
-//NOTE: The tagged regions are re-used in the Stack Overview.
-
-. Enable the collection of monitoring data. +
+. Enable the collection of monitoring data.
 +
 --
 // tag::enable-collection[]
 Set `xpack.monitoring.collection.enabled` to `true` on the
-production cluster. By default, it is is disabled (`false`). 
+production cluster. By default, it is disabled (`false`). 
 
 You can use the following APIs to review and change this setting:
 
@@ -35,70 +33,76 @@ PUT _cluster/settings
     "xpack.monitoring.collection.enabled": true
   }
 }
----------------------------------- 
+----------------------------------
 
 If {es} {security-features} are enabled, you must have `monitor` cluster privileges to 
 view the cluster settings and `manage` cluster privileges to change them.
-
 // end::enable-collection[]
+
 For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
 --
 
-. {metricbeat-ref}/metricbeat-installation.html[Install {metricbeat}] on each
-{es} node in the production cluster.
+. {metricbeat-ref}/metricbeat-installation-configuration.html[Install
+{metricbeat}]. Ideally install a single {metricbeat} instance configured with
+`scope: cluster` and configure `hosts` to point to an endpoint (e.g. a
+load-balancing proxy) which directs requests to the master-ineligible nodes in
+the cluster. If this is not possible then install one {metricbeat} instance for
+each {es} node in the production cluster and use the default `scope: node`.
+When {metricbeat} is monitoring {es} with `scope: node` then you must install a
+{metricbeat} instance for each {es} node. If you don't, some metrics will not
+be collected. {metricbeat} with `scope: node` collects most of the metrics from
+the elected master of the cluster, so you must scale up all your
+master-eligible nodes to account for this extra load and you should not use
+this mode if you have dedicated master nodes.
 
-. Enable the {es} {xpack} module in {metricbeat} on each {es} node. +
+. Enable the {es} module in {metricbeat} on each {es} node.
 +
 --
-// tag::enable-es-module[]
-For example, to enable the default configuration in the `modules.d` directory, 
-run the following command:
+For example, to enable the default configuration for the {stack-monitor-features}
+in the `modules.d` directory, run the following command:
 
 ["source","sh",subs="attributes,callouts"]
 ----------------------------------------------------------------------
 metricbeat modules enable elasticsearch-xpack
 ----------------------------------------------------------------------
 
-For more information, see 
-{metricbeat-ref}/configuration-metricbeat.html[Specify which modules to run] and 
+For more information, refer to 
 {metricbeat-ref}/metricbeat-module-elasticsearch.html[{es} module]. 
-
-// end::enable-es-module[]
 --
 
-. Configure the {es} {xpack} module in {metricbeat} on each {es} node. +
+. Configure the {es} module in {metricbeat} on each {es} node.
 +
 --
-// tag::configure-es-module[]
 The `modules.d/elasticsearch-xpack.yml` file contains the following settings:
 
 [source,yaml]
 ----------------------------------
   - module: elasticsearch
-    metricsets:
-      - ccr
-      - cluster_stats
-      - index
-      - index_recovery
-      - index_summary
-      - ml_job
-      - node_stats
-      - shard
+    xpack.enabled: true
     period: 10s
-    hosts: ["http://localhost:9200"]
+    hosts: ["http://localhost:9200"] <1>
+    #scope: node <2>
     #username: "user"
     #password: "secret"
-    xpack.enabled: true
+    #ssl.enabled: true
+    #ssl.certificate_authorities: ["/etc/pki/root/ca.pem"]
+    #ssl.certificate: "/etc/pki/client/cert.pem"
+    #ssl.key: "/etc/pki/client/cert.key"
+    #ssl.verification_mode: "full"
 ----------------------------------
-
-By default, the module collects {es} monitoring metrics from
+<1> By default, the module collects {es} monitoring metrics from
 `http://localhost:9200`. If that host and port number are not correct, you must
 update the `hosts` setting. If you configured {es} to use encrypted
 communications, you must access it via HTTPS. For example, use a `hosts` setting
 like `https://localhost:9200`.
-// end::configure-es-module[]
+<2> By default, `scope` is set to `node` and each entry in the `hosts` list
+indicates a distinct node in an {es} cluster. If you set `scope` to `cluster`
+then each entry in the `hosts` list indicates a single endpoint for a distinct
+{es} cluster (for example, a load-balancing proxy fronting the cluster). You
+should use `scope: cluster` if the cluster has dedicated master nodes, and
+configure the endpoint in the `hosts` list not to direct requests to the
+dedicated master nodes.
 
-// tag::remote-monitoring-user[]
 If Elastic {security-features} are enabled, you must also provide a user ID
 and password so that {metricbeat} can collect metrics successfully: 
 
@@ -109,13 +113,13 @@ Alternatively, use the
 
 .. Add the `username` and `password` settings to the {es} module configuration
 file. 
-// end::remote-monitoring-user[]
+
+.. If TLS is enabled on the HTTP layer of your {es} cluster, you must either use https as the URL scheme in the `hosts` setting or add the `ssl.enabled: true` setting. Depending on the TLS configuration of your {es} cluster, you might also need to specify {metricbeat-ref}/configuration-ssl.html[additional ssl.*] settings.
 --
 
 . Optional: Disable the system module in {metricbeat}.
 +
 --
-// tag::disable-system-module[]
 By default, the {metricbeat-ref}/metricbeat-module-system.html[system module] is
 enabled. The information it collects, however, is not shown on the *Monitoring*
 page in {kib}. Unless you want to use that information for other purposes, run
@@ -126,10 +130,9 @@ the following command:
 metricbeat modules disable system
 ----------------------------------------------------------------------
 
-// end::disable-system-module[] 
 --
 
-. Identify where to send the monitoring data. +
+. Identify where to send the monitoring data.
 +
 --
 TIP: In production environments, we strongly recommend using a separate cluster 
@@ -145,7 +148,7 @@ configuration file (`metricbeat.yml`):
 ----------------------------------
 output.elasticsearch:
   # Array of hosts to connect to.
-  hosts: ["http://es-mon-1:9200", "http://es-mon2:9200"] <1>
+  hosts: ["http://es-mon-1:9200", "http://es-mon-2:9200"] <1>
   
   # Optional protocol and basic auth credentials.
   #protocol: "https"
@@ -181,10 +184,9 @@ For more information about these configuration options, see
 
 . {metricbeat-ref}/metricbeat-starting.html[Start {metricbeat}] on each node. 
 
-. Disable the default collection of {es} monitoring metrics. +
+. Disable the default collection of {es} monitoring metrics.
 +
 --
-// tag::disable-default-collection[]
 Set `xpack.monitoring.elasticsearch.collection.enabled` to `false` on the 
 production cluster.
 
@@ -201,10 +203,8 @@ PUT _cluster/settings
 ----------------------------------
 
 If {es} {security-features} are enabled, you must have `monitor` cluster
-privileges to  view the cluster settings and `manage` cluster privileges
+privileges to view the cluster settings and `manage` cluster privileges
 to change them.
-
-// end::disable-default-collection[]
 --
 
 . {kibana-ref}/monitoring-data.html[View the monitoring data in {kib}]. 

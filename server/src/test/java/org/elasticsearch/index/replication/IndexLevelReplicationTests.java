@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.replication;
 
@@ -30,12 +19,12 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -62,7 +51,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -128,11 +116,11 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> future = shards.asyncRecoverReplica(replica,
-                (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, null, recoveryListener) {
                     @Override
                     public void cleanFiles(int totalTranslogOps, long globalCheckpoint,
-                                           Store.MetadataSnapshot sourceMetaData, ActionListener<Void> listener) {
-                        super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData, ActionListener.runAfter(listener, () -> {
+                                           Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener) {
+                        super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, ActionListener.runAfter(listener, () -> {
                             latch.countDown();
                             try {
                                 latch.await();
@@ -171,7 +159,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     public void testAppendOnlyRecoveryThenReplication() throws Exception {
         CountDownLatch indexedOnPrimary = new CountDownLatch(1);
         CountDownLatch recoveryDone = new CountDownLatch(1);
-        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(1)) {
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(1)) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
                 return config -> new InternalEngine(config) {
@@ -205,7 +193,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> fut = shards.asyncRecoverReplica(replica,
-                (shard, node) -> new RecoveryTarget(shard, node, recoveryListener) {
+                (shard, node) -> new RecoveryTarget(shard, node, null, recoveryListener) {
                     @Override
                     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                         try {
@@ -295,9 +283,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     }
 
     public void testConflictingOpsOnReplica() throws Exception {
-        Map<String, String> mappings =
-                Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
-        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
+        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(2, mappings))) {
             shards.startAll();
             List<IndexShard> replicas = shards.getReplicas();
             IndexShard replica1 = replicas.get(0);
@@ -323,9 +310,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     }
 
     public void testReplicaTermIncrementWithConcurrentPrimaryPromotion() throws Exception {
-        Map<String, String> mappings =
-            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
-        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
+        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(2, mappings))) {
             shards.startAll();
             long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();
             List<IndexShard> replicas = shards.getReplicas();
@@ -371,9 +357,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     }
 
     public void testReplicaOperationWithConcurrentPrimaryPromotion() throws Exception {
-        Map<String, String> mappings =
-            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
-        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(1, mappings))) {
+        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(1, mappings))) {
             shards.startAll();
             long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();
             IndexRequest indexRequest = new IndexRequest(index.getName()).id("1").source("{ \"f\": \"1\"}", XContentType.JSON);
@@ -443,7 +428,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     }
                 }
             }, null, null, config);
-        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(0)) {
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(0)) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) { return engineFactory; }}) {
 
@@ -474,7 +459,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                         assertThat(snapshot.totalOperations(), equalTo(0));
                     }
                 }
-                try (Translog.Snapshot snapshot = shard.getHistoryOperations("test", 0)) {
+                try (Translog.Snapshot snapshot = shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
             }
@@ -492,7 +477,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                         assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(Collections.singletonList(noop2)));
                     }
                 }
-                try (Translog.Snapshot snapshot = shard.getHistoryOperations("test", 0)) {
+                try (Translog.Snapshot snapshot = shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
             }
@@ -568,19 +553,17 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat(snapshot.next(), nullValue());
                 assertThat(snapshot.skippedOperations(), equalTo(0));
             }
-            // Make sure that replica2 receives translog ops (eg. op2) from replica1
-            // and does not overwrite its stale operation (op1) as it is trimmed.
             logger.info("--> Promote replica1 as the primary");
             shards.promoteReplicaToPrimary(replica1).get(); // wait until resync completed.
             shards.index(new IndexRequest(index.getName()).id("d2").source("{}", XContentType.JSON));
             final Translog.Operation op2;
             try (Translog.Snapshot snapshot = getTranslog(replica2).newSnapshot()) {
-                assertThat(snapshot.totalOperations(), equalTo(initDocs + 2));
+                assertThat(snapshot.totalOperations(), equalTo(1));
                 op2 = snapshot.next();
                 assertThat(op2.seqNo(), equalTo(op1.seqNo()));
                 assertThat(op2.primaryTerm(), greaterThan(op1.primaryTerm()));
-                assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
-                assertThat(snapshot.skippedOperations(), equalTo(1));
+                assertNull(snapshot.next());
+                assertThat(snapshot.skippedOperations(), equalTo(0));
             }
 
             // Make sure that peer-recovery transfers all but non-overridden operations.
@@ -589,7 +572,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.promoteReplicaToPrimary(replica2).get();
             logger.info("--> Recover replica3 from replica2");
             recoverReplica(replica3, replica2, true);
-            try (Translog.Snapshot snapshot = replica3.getHistoryOperations("test", 0)) {
+            try (Translog.Snapshot snapshot = replica3.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
                 final List<Translog.Operation> expectedOps = new ArrayList<>(initOperations);
                 expectedOps.add(op2);
@@ -635,12 +618,12 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     }
 
     private void updateGCDeleteCycle(IndexShard shard, TimeValue interval) {
-        IndexMetaData.Builder builder = IndexMetaData.builder(shard.indexSettings().getIndexMetaData());
+        IndexMetadata.Builder builder = IndexMetadata.builder(shard.indexSettings().getIndexMetadata());
         builder.settings(Settings.builder()
             .put(shard.indexSettings().getSettings())
             .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), interval.getStringRep())
         );
-        shard.indexSettings().updateIndexMetaData(builder.build());
+        shard.indexSettings().updateIndexMetadata(builder.build());
         shard.onSettingsChanged();
     }
 

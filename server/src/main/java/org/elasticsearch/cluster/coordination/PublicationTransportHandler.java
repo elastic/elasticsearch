@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -24,37 +13,45 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class PublicationTransportHandler {
@@ -64,30 +61,36 @@ public class PublicationTransportHandler {
     public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/coordination/publish_state";
     public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
 
+    private final BigArrays bigArrays;
     private final TransportService transportService;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest;
 
-    private AtomicReference<ClusterState> lastSeenClusterState = new AtomicReference<>();
+    private final AtomicReference<ClusterState> lastSeenClusterState = new AtomicReference<>();
 
     // the master needs the original non-serialized state as the cluster state contains some volatile information that we
     // don't want to be replicated because it's not usable on another node (e.g. UnassignedInfo.unassignedTimeNanos) or
     // because it's mostly just debugging info that would unnecessarily blow up CS updates (I think there was one in
     // snapshot code).
     // TODO: look into these and check how to get rid of them
-    private AtomicReference<PublishRequest> currentPublishRequestToSelf = new AtomicReference<>();
+    private final AtomicReference<PublishRequest> currentPublishRequestToSelf = new AtomicReference<>();
 
     private final AtomicLong fullClusterStateReceivedCount = new AtomicLong();
     private final AtomicLong incompatibleClusterStateDiffReceivedCount = new AtomicLong();
     private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
     // -> no need to put a timeout on the options here, because we want the response to eventually be received
     //  and not log an error if it arrives after the timeout
-    private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
-        .withType(TransportRequestOptions.Type.STATE).build();
+    private static final TransportRequestOptions STATE_REQUEST_OPTIONS =
+            TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE);
 
-    public PublicationTransportHandler(TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
-                                       Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
-                                       BiConsumer<ApplyCommitRequest, ActionListener<Void>> handleApplyCommit) {
+    public PublicationTransportHandler(
+        BigArrays bigArrays,
+        TransportService transportService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
+        BiConsumer<ApplyCommitRequest, ActionListener<Void>> handleApplyCommit
+    ) {
+        this.bigArrays = bigArrays;
         this.transportService = transportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handlePublishRequest = handlePublishRequest;
@@ -97,31 +100,9 @@ public class PublicationTransportHandler {
 
         transportService.registerRequestHandler(COMMIT_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
             ApplyCommitRequest::new,
-            (request, channel, task) -> handleApplyCommit.accept(request, transportCommitCallback(channel)));
-    }
-
-    private ActionListener<Void> transportCommitCallback(TransportChannel channel) {
-        return new ActionListener<Void>() {
-
-            @Override
-            public void onResponse(Void aVoid) {
-                try {
-                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                } catch (IOException e) {
-                    logger.debug("failed to send response on commit", e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    channel.sendResponse(e);
-                } catch (IOException ie) {
-                    e.addSuppressed(ie);
-                    logger.debug("failed to send response on commit", e);
-                }
-            }
-        };
+            (request, channel, task) -> handleApplyCommit.accept(
+                request,
+                new ChannelActionListener<>(channel, COMMIT_STATE_ACTION_NAME, request).map(r -> TransportResponse.Empty.INSTANCE)));
     }
 
     public PublishClusterStateStats stats() {
@@ -131,226 +112,21 @@ public class PublicationTransportHandler {
             compatibleClusterStateDiffReceivedCount.get());
     }
 
-    public interface PublicationContext {
-
-        void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
-                                ActionListener<PublishWithJoinResponse> responseActionListener);
-
-        void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
-                             ActionListener<TransportResponse.Empty> responseActionListener);
-
-    }
-
-    public PublicationContext newPublicationContext(ClusterChangedEvent clusterChangedEvent) {
-        final DiscoveryNodes nodes = clusterChangedEvent.state().nodes();
-        final ClusterState newState = clusterChangedEvent.state();
-        final ClusterState previousState = clusterChangedEvent.previousState();
-        final boolean sendFullVersion = clusterChangedEvent.previousState().getBlocks().disableStatePersistence();
-        final Map<Version, BytesReference> serializedStates = new HashMap<>();
-        final Map<Version, BytesReference> serializedDiffs = new HashMap<>();
-
-        // we build these early as a best effort not to commit in the case of error.
-        // sadly this is not water tight as it may that a failed diff based publishing to a node
-        // will cause a full serialization based on an older version, which may fail after the
-        // change has been committed.
-        buildDiffAndSerializeStates(clusterChangedEvent.state(), clusterChangedEvent.previousState(),
-            nodes, sendFullVersion, serializedStates, serializedDiffs);
-
-        return new PublicationContext() {
-            @Override
-            public void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
-                                           ActionListener<PublishWithJoinResponse> originalListener) {
-                assert publishRequest.getAcceptedState() == clusterChangedEvent.state() : "state got switched on us";
-                final ActionListener<PublishWithJoinResponse> responseActionListener;
-                if (destination.equals(nodes.getLocalNode())) {
-                    // if publishing to self, use original request instead (see currentPublishRequestToSelf for explanation)
-                    final PublishRequest previousRequest = currentPublishRequestToSelf.getAndSet(publishRequest);
-                    // we might override an in-flight publication to self in case where we failed as master and became master again,
-                    // and the new publication started before the previous one completed (which fails anyhow because of higher current term)
-                    assert previousRequest == null || previousRequest.getAcceptedState().term() < publishRequest.getAcceptedState().term();
-                    responseActionListener = new ActionListener<PublishWithJoinResponse>() {
-                        @Override
-                        public void onResponse(PublishWithJoinResponse publishWithJoinResponse) {
-                            currentPublishRequestToSelf.compareAndSet(publishRequest, null); // only clean-up our mess
-                            originalListener.onResponse(publishWithJoinResponse);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            currentPublishRequestToSelf.compareAndSet(publishRequest, null); // only clean-up our mess
-                            originalListener.onFailure(e);
-                        }
-                    };
-                } else {
-                    responseActionListener = originalListener;
-                }
-                if (sendFullVersion || !previousState.nodes().nodeExists(destination)) {
-                    logger.trace("sending full cluster state version {} to {}", newState.version(), destination);
-                    PublicationTransportHandler.this.sendFullClusterState(newState, serializedStates, destination, responseActionListener);
-                } else {
-                    logger.trace("sending cluster state diff for version {} to {}", newState.version(), destination);
-                    PublicationTransportHandler.this.sendClusterStateDiff(newState, serializedDiffs, serializedStates, destination,
-                        responseActionListener);
-                }
-            }
-
-            @Override
-            public void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
-                                        ActionListener<TransportResponse.Empty> responseActionListener) {
-                transportService.sendRequest(destination, COMMIT_STATE_ACTION_NAME, applyCommitRequest, stateRequestOptions,
-                    new TransportResponseHandler<TransportResponse.Empty>() {
-
-                        @Override
-                        public TransportResponse.Empty read(StreamInput in) {
-                            return TransportResponse.Empty.INSTANCE;
-                        }
-
-                        @Override
-                        public void handleResponse(TransportResponse.Empty response) {
-                            responseActionListener.onResponse(response);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            responseActionListener.onFailure(exp);
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.GENERIC;
-                        }
-                    });
-            }
-        };
-    }
-
-    private void sendClusterStateToNode(ClusterState clusterState, BytesReference bytes, DiscoveryNode node,
-                                        ActionListener<PublishWithJoinResponse> responseActionListener, boolean sendDiffs,
-                                        Map<Version, BytesReference> serializedStates) {
-        try {
-            final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
-            final Consumer<TransportException> transportExceptionHandler = exp -> {
-                if (sendDiffs && exp.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
-                    logger.debug("resending full cluster state to node {} reason {}", node, exp.getDetailedMessage());
-                    sendFullClusterState(clusterState, serializedStates, node, responseActionListener);
-                } else {
-                    logger.debug(() -> new ParameterizedMessage("failed to send cluster state to {}", node), exp);
-                    responseActionListener.onFailure(exp);
-                }
-            };
-            final TransportResponseHandler<PublishWithJoinResponse> publishWithJoinResponseHandler =
-                new TransportResponseHandler<PublishWithJoinResponse>() {
-
-                    @Override
-                    public PublishWithJoinResponse read(StreamInput in) throws IOException {
-                        return new PublishWithJoinResponse(in);
-                    }
-
-                    @Override
-                    public void handleResponse(PublishWithJoinResponse response) {
-                        responseActionListener.onResponse(response);
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        transportExceptionHandler.accept(exp);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.GENERIC;
-                    }
-                };
-            transportService.sendRequest(node, PUBLISH_STATE_ACTION_NAME, request, stateRequestOptions, publishWithJoinResponseHandler);
-        } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", node), e);
-            responseActionListener.onFailure(e);
-        }
-    }
-
-    private static void buildDiffAndSerializeStates(ClusterState clusterState, ClusterState previousState, DiscoveryNodes discoveryNodes,
-                                                    boolean sendFullVersion, Map<Version, BytesReference> serializedStates,
-                                                    Map<Version, BytesReference> serializedDiffs) {
-        Diff<ClusterState> diff = null;
-        for (DiscoveryNode node : discoveryNodes) {
-            try {
-                if (sendFullVersion || !previousState.nodes().nodeExists(node)) {
-                    if (serializedStates.containsKey(node.getVersion()) == false) {
-                        serializedStates.put(node.getVersion(), serializeFullClusterState(clusterState, node.getVersion()));
-                    }
-                } else {
-                    // will send a diff
-                    if (diff == null) {
-                        diff = clusterState.diff(previousState);
-                    }
-                    if (serializedDiffs.containsKey(node.getVersion()) == false) {
-                        serializedDiffs.put(node.getVersion(), serializeDiffClusterState(diff, node.getVersion()));
-                    }
-                }
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);
-            }
-        }
-    }
-
-    private void sendFullClusterState(ClusterState clusterState, Map<Version, BytesReference> serializedStates,
-                                      DiscoveryNode node, ActionListener<PublishWithJoinResponse> responseActionListener) {
-        BytesReference bytes = serializedStates.get(node.getVersion());
-        if (bytes == null) {
-            try {
-                bytes = serializeFullClusterState(clusterState, node.getVersion());
-                serializedStates.put(node.getVersion(), bytes);
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to serialize cluster state before publishing it to node {}", node), e);
-                responseActionListener.onFailure(e);
-                return;
-            }
-        }
-        sendClusterStateToNode(clusterState, bytes, node, responseActionListener, false, serializedStates);
-    }
-
-    private void sendClusterStateDiff(ClusterState clusterState,
-                                      Map<Version, BytesReference> serializedDiffs, Map<Version, BytesReference> serializedStates,
-                                      DiscoveryNode node, ActionListener<PublishWithJoinResponse> responseActionListener) {
-        final BytesReference bytes = serializedDiffs.get(node.getVersion());
-        assert bytes != null : "failed to find serialized diff for node " + node + " of version [" + node.getVersion() + "]";
-        sendClusterStateToNode(clusterState, bytes, node, responseActionListener, true, serializedStates);
-    }
-
-    public static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
-        final BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
-            stream.setVersion(nodeVersion);
-            stream.writeBoolean(true);
-            clusterState.writeTo(stream);
-        }
-        return bStream.bytes();
-    }
-
-    public static BytesReference serializeDiffClusterState(Diff diff, Version nodeVersion) throws IOException {
-        final BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
-            stream.setVersion(nodeVersion);
-            stream.writeBoolean(false);
-            diff.writeTo(stream);
-        }
-        return bStream.bytes();
-    }
-
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
         final Compressor compressor = CompressorFactory.compressor(request.bytes());
         StreamInput in = request.bytes().streamInput();
         try {
             if (compressor != null) {
-                in = compressor.streamInput(in);
+                in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
             }
             in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
             in.setVersion(request.version());
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
                 final ClusterState incomingState;
-                try {
-                    incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                // Close early to release resources used by the de-compression as early as possible
+                try (StreamInput input = in) {
+                    incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
                 } catch (Exception e){
                     logger.warn("unexpected error while deserializing an incoming cluster state", e);
                     throw e;
@@ -370,7 +146,11 @@ public class PublicationTransportHandler {
                 } else {
                     ClusterState incomingState;
                     try {
-                        Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeen.nodes().getLocalNode());
+                        final Diff<ClusterState> diff;
+                        // Close stream early to release resources used by the de-compression as early as possible
+                        try (StreamInput input = in) {
+                            diff = ClusterState.readDiffFrom(input, lastSeen.nodes().getLocalNode());
+                        }
                         incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
                     } catch (IncompatibleClusterStateVersionException e) {
                         incompatibleClusterStateDiffReceivedCount.incrementAndGet();
@@ -404,4 +184,252 @@ public class PublicationTransportHandler {
         }
         return handlePublishRequest.apply(new PublishRequest(incomingState));
     }
+
+    public PublicationContext newPublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+        final PublicationContext publicationContext = new PublicationContext(clusterStatePublicationEvent);
+        boolean success = false;
+        try {
+            // Build the serializations we expect to need now, early in the process, so that an error during serialization fails the
+            // publication straight away. This isn't watertight since we send diffs on a best-effort basis and may fall back to sending a
+            // full state (and therefore serializing it) if the diff-based publication fails.
+            publicationContext.buildDiffAndSerializeStates();
+            success = true;
+            return publicationContext;
+        } finally {
+            if (success == false) {
+                publicationContext.decRef();
+            }
+        }
+    }
+
+    private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node) {
+        final Version nodeVersion = node.getVersion();
+        final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
+        boolean success = false;
+        try {
+            try (StreamOutput stream = new OutputStreamStreamOutput(
+                CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream)))
+            ) {
+                stream.setVersion(nodeVersion);
+                stream.writeBoolean(true);
+                clusterState.writeTo(stream);
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);
+            }
+            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream::close);
+            logger.trace(
+                "serialized full cluster state version [{}] for node version [{}] with size [{}]",
+                clusterState.version(),
+                nodeVersion,
+                result.length());
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                bytesStream.close();
+            }
+        }
+    }
+
+    private ReleasableBytesReference serializeDiffClusterState(long clusterStateVersion, Diff<ClusterState> diff, DiscoveryNode node) {
+        final Version nodeVersion = node.getVersion();
+        final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
+        boolean success = false;
+        try {
+            try (StreamOutput stream = new OutputStreamStreamOutput(
+                CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream)))
+            ) {
+                stream.setVersion(nodeVersion);
+                stream.writeBoolean(false);
+                diff.writeTo(stream);
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to serialize cluster state diff for publishing to node {}", e, node);
+            }
+            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream::close);
+            logger.trace(
+                "serialized cluster state diff for version [{}] for node version [{}] with size [{}]",
+                clusterStateVersion,
+                nodeVersion,
+                result.length());
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                bytesStream.close();
+            }
+        }
+    }
+
+    /**
+     * Publishing a cluster state typically involves sending the same cluster state (or diff) to every node, so the work of diffing,
+     * serializing, and compressing the state can be done once and the results shared across publish requests. The
+     * {@code PublicationContext} implements this sharing. It's ref-counted: the initial reference is released by the coordinator when
+     * a state (or diff) has been sent to every node, every transmitted diff also holds a reference in case it needs to retry with a full
+     * state.
+     */
+    public class PublicationContext extends AbstractRefCounted {
+
+        private final DiscoveryNodes discoveryNodes;
+        private final ClusterState newState;
+        private final ClusterState previousState;
+        private final boolean sendFullVersion;
+
+        // All the values of these maps have one ref for the context (while it's open) and one for each in-flight message.
+        private final Map<Version, ReleasableBytesReference> serializedStates = new ConcurrentHashMap<>();
+        private final Map<Version, ReleasableBytesReference> serializedDiffs = new HashMap<>();
+
+        PublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+            discoveryNodes = clusterStatePublicationEvent.getNewState().nodes();
+            newState = clusterStatePublicationEvent.getNewState();
+            previousState = clusterStatePublicationEvent.getOldState();
+            sendFullVersion = previousState.getBlocks().disableStatePersistence();
+        }
+
+        void buildDiffAndSerializeStates() {
+            assert refCount() > 0;
+            final LazyInitializable<Diff<ClusterState>, RuntimeException> diffSupplier
+                = new LazyInitializable<>(() -> newState.diff(previousState));
+            for (DiscoveryNode node : discoveryNodes) {
+                if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
+                    serializedStates.computeIfAbsent(
+                        node.getVersion(),
+                        v -> serializeFullClusterState(newState, node));
+                } else {
+                    serializedDiffs.computeIfAbsent(
+                        node.getVersion(),
+                        v -> serializeDiffClusterState(newState.version(), diffSupplier.getOrCompute(), node));
+                }
+            }
+        }
+
+        public void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
+                                       ActionListener<PublishWithJoinResponse> listener) {
+            assert refCount() > 0;
+            assert publishRequest.getAcceptedState() == newState : "state got switched on us";
+            assert transportService.getThreadPool().getThreadContext().isSystemContext();
+            final ActionListener<PublishWithJoinResponse> responseActionListener;
+            if (destination.equals(discoveryNodes.getLocalNode())) {
+                // if publishing to self, use original request instead (see currentPublishRequestToSelf for explanation)
+                final PublishRequest previousRequest = currentPublishRequestToSelf.getAndSet(publishRequest);
+                // we might override an in-flight publication to self in case where we failed as master and became master again,
+                // and the new publication started before the previous one completed (which fails anyhow because of higher current term)
+                assert previousRequest == null || previousRequest.getAcceptedState().term() < publishRequest.getAcceptedState().term();
+                responseActionListener = new ActionListener<PublishWithJoinResponse>() {
+                    @Override
+                    public void onResponse(PublishWithJoinResponse publishWithJoinResponse) {
+                        currentPublishRequestToSelf.compareAndSet(publishRequest, null); // only clean-up our mess
+                        listener.onResponse(publishWithJoinResponse);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        currentPublishRequestToSelf.compareAndSet(publishRequest, null); // only clean-up our mess
+                        listener.onFailure(e);
+                    }
+                };
+            } else {
+                responseActionListener = listener;
+            }
+            if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
+                logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);
+                sendFullClusterState(destination, responseActionListener);
+            } else {
+                logger.trace("sending cluster state diff for version [{}] to [{}]", newState.version(), destination);
+                sendClusterStateDiff(destination, responseActionListener);
+            }
+        }
+
+        public void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
+                                    ActionListener<TransportResponse.Empty> listener) {
+            assert transportService.getThreadPool().getThreadContext().isSystemContext();
+            transportService.sendRequest(
+                destination,
+                COMMIT_STATE_ACTION_NAME,
+                applyCommitRequest,
+                STATE_REQUEST_OPTIONS,
+                new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
+        }
+
+        private void sendFullClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
+            assert refCount() > 0;
+            ReleasableBytesReference bytes = serializedStates.get(destination.getVersion());
+            if (bytes == null) {
+                try {
+                    bytes = serializedStates.computeIfAbsent(
+                        destination.getVersion(),
+                        v -> serializeFullClusterState(newState, destination));
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage(
+                        "failed to serialize cluster state before publishing it to node {}", destination), e);
+                    listener.onFailure(e);
+                    return;
+                }
+            }
+            sendClusterState(destination, bytes, listener);
+        }
+
+        private void sendClusterStateDiff(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
+            final ReleasableBytesReference bytes = serializedDiffs.get(destination.getVersion());
+            assert bytes != null
+                : "failed to find serialized diff for node " + destination + " of version [" + destination.getVersion() + "]";
+
+            // acquire a ref to the context just in case we need to try again with the full cluster state
+            if (tryIncRef() == false) {
+                assert false;
+                listener.onFailure(new IllegalStateException("publication context released before transmission"));
+                return;
+            }
+            sendClusterState(destination, bytes, ActionListener.runAfter(listener.delegateResponse((delegate, e) -> {
+                if (e instanceof TransportException) {
+                    final TransportException transportException = (TransportException) e;
+                    if (transportException.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
+                        logger.debug(() -> new ParameterizedMessage(
+                            "resending full cluster state to node {} reason {}",
+                            destination,
+                            transportException.getDetailedMessage()));
+                        sendFullClusterState(destination, delegate);
+                        return;
+                    }
+                }
+
+                logger.debug(new ParameterizedMessage("failed to send cluster state to {}", destination), e);
+                delegate.onFailure(e);
+            }), this::decRef));
+        }
+
+        private void sendClusterState(
+            DiscoveryNode destination,
+            ReleasableBytesReference bytes,
+            ActionListener<PublishWithJoinResponse> listener
+        ) {
+            assert refCount() > 0;
+            if (bytes.tryIncRef() == false) {
+                assert false;
+                listener.onFailure(new IllegalStateException("serialized cluster state released before transmission"));
+                return;
+            }
+            try {
+                transportService.sendRequest(
+                    destination,
+                    PUBLISH_STATE_ACTION_NAME,
+                    new BytesTransportRequest(bytes, destination.getVersion()),
+                    STATE_REQUEST_OPTIONS,
+                    new ActionListenerResponseHandler<PublishWithJoinResponse>(
+                        ActionListener.runAfter(listener, bytes::decRef),
+                        PublishWithJoinResponse::new,
+                        ThreadPool.Names.GENERIC));
+            } catch (Exception e) {
+                assert false : e;
+                logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", destination), e);
+                listener.onFailure(e);
+            }
+        }
+
+        @Override
+        protected void closeInternal() {
+            serializedDiffs.values().forEach(Releasables::closeExpectNoException);
+            serializedStates.values().forEach(Releasables::closeExpectNoException);
+        }
+    }
+
 }

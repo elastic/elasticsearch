@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
@@ -30,12 +19,11 @@ import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -44,16 +32,24 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
     private ValuesSource.Numeric valuesSource;
     private int maxDocsPerValue;
 
-    DiversifiedNumericSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
-            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
-            ValuesSource.Numeric valuesSource, int maxDocsPerValue) throws IOException {
-        super(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
-        this.valuesSource = valuesSource;
+    DiversifiedNumericSamplerAggregator(
+        String name,
+        int shardSize,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata,
+        ValuesSourceConfig valuesSourceConfig,
+        int maxDocsPerValue
+    ) throws IOException {
+        super(name, shardSize, factories, context, parent, metadata);
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.maxDocsPerValue = maxDocsPerValue;
     }
 
     @Override
-    public DeferringBucketCollector getDeferringCollector() {
+    public DeferringBucketCollector buildDeferringCollector() {
         bdd = new DiverseDocsDeferringCollector(this::addRequestCircuitBreakerBytes);
         return bdd;
     }
@@ -65,13 +61,13 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
      */
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
         DiverseDocsDeferringCollector(Consumer<Long> circuitBreakerConsumer) {
-            super(shardSize, context.bigArrays(), circuitBreakerConsumer);
+            super(shardSize, bigArrays(), circuitBreakerConsumer);
         }
 
         @Override
         protected TopDocsCollector<ScoreDocKey> createTopDocsCollector(int size) {
             // Make sure we do not allow size > maxDoc, to prevent accidental OOM
-            int minMaxDocsPerValue = Math.min(maxDocsPerValue, context.searcher().getIndexReader().maxDoc());
+            int minMaxDocsPerValue = Math.min(maxDocsPerValue, searcher().getIndexReader().maxDoc());
             return new ValuesDiversifiedTopDocsCollector(size, minMaxDocsPerValue);
         }
 
@@ -103,8 +99,7 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
                     public boolean advanceExact(int target) throws IOException {
                         if (values.advanceExact(target)) {
                             if (values.docValueCount() > 1) {
-                                throw new IllegalArgumentException(
-                                        "Sample diversifying key must be a single valued-field");
+                                throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                             }
                             return true;
                         } else {

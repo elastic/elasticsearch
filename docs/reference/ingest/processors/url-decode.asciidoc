@@ -1,6 +1,10 @@
 [[urldecode-processor]]
-=== URL Decode Processor
-URL-decodes a string
+=== URL decode processor
+++++
+<titleabbrev>URL decode</titleabbrev>
+++++
+
+URL-decodes a string. If the field is an array of strings, all members of the array will be decoded.
 
 [[urldecode-options]]
 .URL Decode Options

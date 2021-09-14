@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
@@ -43,16 +32,16 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
     public void testBasicAddDelete() {
         StoredScriptSource source = new StoredScriptSource("lang", "code", emptyMap());
-        ScriptMetaData smd = ScriptMetaData.putStoredScript(null, "test", source);
+        ScriptMetadata smd = ScriptMetadata.putStoredScript(null, "test", source);
         assertThat(smd.getStoredScript("test"), equalTo(source));
 
-        smd = ScriptMetaData.deleteStoredScript(smd, "test");
+        smd = ScriptMetadata.deleteStoredScript(smd, "test");
         assertThat(smd.getStoredScript("test"), nullValue());
     }
 
     public void testInvalidDelete() {
         ResourceNotFoundException rnfe =
-            expectThrows(ResourceNotFoundException.class, () -> ScriptMetaData.deleteStoredScript(null, "test"));
+            expectThrows(ResourceNotFoundException.class, () -> ScriptMetadata.deleteStoredScript(null, "test"));
         assertThat(rnfe.getMessage(), equalTo("stored script [test] does not exist and cannot be deleted"));
     }
 
@@ -80,7 +69,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("mustache", code,
-                Collections.singletonMap("content_type", "application/json; charset=UTF-8"));
+                Collections.singletonMap("content_type", "application/json;charset=utf-8"));
 
             assertThat(parsed, equalTo(source));
         }

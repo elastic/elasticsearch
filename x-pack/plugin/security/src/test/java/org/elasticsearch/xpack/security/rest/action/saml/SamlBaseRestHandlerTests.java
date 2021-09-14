@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.saml;
 
@@ -17,13 +18,17 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.hamcrest.Matchers;
 
+import java.util.Collections;
+import java.util.List;
+
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SamlBaseRestHandlerTests extends ESTestCase {
 
     public void testSamlAvailableOnTrialAndPlatinum() {
-        final SamlBaseRestHandler handler = buildHandler(randomFrom(License.OperationMode.TRIAL, License.OperationMode.PLATINUM));
+        final SamlBaseRestHandler handler = buildHandler(randomFrom(
+            License.OperationMode.TRIAL, License.OperationMode.PLATINUM, License.OperationMode.ENTERPRISE));
         assertThat(handler.checkFeatureAvailable(new FakeRestRequest()), Matchers.nullValue());
     }
 
@@ -48,6 +53,11 @@ public class SamlBaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "saml_test";
+            }
+
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
             }
 
             @Override

@@ -5,6 +5,11 @@
       "description":"Deletes documents matching the provided query."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -56,7 +61,6 @@
         "description":"Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "conflicts":{
-        "note":"This is not copied from search",
         "type":"enum",
         "options":[
           "abort",
@@ -70,6 +74,7 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],
@@ -146,7 +151,7 @@
       },
       "refresh":{
         "type":"boolean",
-        "description":"Should the effected indexes be refreshed?"
+        "description":"Should the affected indexes be refreshed?"
       },
       "timeout":{
         "type":"time",
@@ -159,7 +164,7 @@
       },
       "scroll_size":{
         "type":"number",
-        "defaut_value":100,
+        "default":100,
         "description":"Size on the scroll request powering the delete by query"
       },
       "wait_for_completion":{
@@ -173,9 +178,9 @@
         "description":"The throttle for this request in sub-requests per second. -1 means no throttle."
       },
       "slices":{
-        "type":"number",
+        "type":"number|string",
         "default":1,
-        "description":"The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks."
+        "description":"The number of slices this task should be divided into. Defaults to 1, meaning the task isn't sliced into subtasks. Can be set to `auto`."
       }
     },
     "body":{

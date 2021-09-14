@@ -1,0 +1,36 @@
+---
+"Test Index and Search locale dependent mappings / dates":
+  - do:
+      indices.create:
+          index: test_index
+          body:
+              settings:
+                  number_of_shards: 1
+              mappings:
+                  properties:
+                      date_field:
+                          type: date
+                          format: "E, d MMM yyyy HH:mm:ss Z"
+                          locale: "de"
+  - do:
+      bulk:
+          refresh: true
+          body:
+              - '{"index": {"_index": "test_index", "_id": "1"}}'
+              - '{"date_field": "Mi, 06 Dez 2000 02:55:00 -0800"}'
+              - '{"index": {"_index": "test_index", "_id": "2"}}'
+              - '{"date_field": "Do, 07 Dez 2000 02:55:00 -0800"}'
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test_index
+          body: {"query" : {"range" : {"date_field" : {"gte": "Di, 05 Dez 2000 02:55:00 -0800", "lte": "Do, 07 Dez 2000 00:00:00 -0800"}}}}
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test_index
+          body: {"query" : {"range" : {"date_field" : {"gte": "Di, 05 Dez 2000 02:55:00 -0800", "lte": "Fr, 08 Dez 2000 00:00:00 -0800"}}}}
+  - match: { hits.total: 2 }

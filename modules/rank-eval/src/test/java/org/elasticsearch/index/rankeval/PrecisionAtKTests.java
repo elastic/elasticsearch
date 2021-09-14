@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
@@ -46,25 +35,25 @@ import static org.hamcrest.CoreMatchers.containsString;
 
 public class PrecisionAtKTests extends ESTestCase {
 
-    private static final int IRRELEVANT_RATING_0 = 0;
-    private static final int RELEVANT_RATING_1 = 1;
+    private static final int IRRELEVANT_RATING = 0;
+    private static final int RELEVANT_RATING = 1;
 
-    public void testPrecisionAtFiveCalculation() {
+    public void testCalculation() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING));
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated, "test"), rated);
         assertEquals(1, evaluated.metricScore(), 0.00001);
         assertEquals(1, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(1, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
     }
 
-    public void testPrecisionAtFiveIgnoreOneResult() {
+    public void testIgnoreOneResult() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
-        rated.add(createRatedDoc("test", "1", RELEVANT_RATING_1));
-        rated.add(createRatedDoc("test", "2", RELEVANT_RATING_1));
-        rated.add(createRatedDoc("test", "3", RELEVANT_RATING_1));
-        rated.add(createRatedDoc("test", "4", IRRELEVANT_RATING_0));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING));
+        rated.add(createRatedDoc("test", "1", RELEVANT_RATING));
+        rated.add(createRatedDoc("test", "2", RELEVANT_RATING));
+        rated.add(createRatedDoc("test", "3", RELEVANT_RATING));
+        rated.add(createRatedDoc("test", "4", IRRELEVANT_RATING));
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated, "test"), rated);
         assertEquals((double) 4 / 5, evaluated.metricScore(), 0.00001);
         assertEquals(4, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -73,10 +62,10 @@ public class PrecisionAtKTests extends ESTestCase {
 
     /**
      * test that the relevant rating threshold can be set to something larger than
-     * 1. e.g. we set it to 2 here and expect dics 0-2 to be not relevant, doc 3 and
-     * 4 to be relevant
+     * 1. e.g. we set it to 2 here and expect docs 0-1 to be not relevant, docs 2-4
+     * to be relevant
      */
-    public void testPrecisionAtFiveRelevanceThreshold() {
+    public void testRelevanceThreshold() {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(createRatedDoc("test", "0", 0));
         rated.add(createRatedDoc("test", "1", 1));
@@ -92,13 +81,15 @@ public class PrecisionAtKTests extends ESTestCase {
 
     public void testPrecisionAtFiveCorrectIndex() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test_other", "0", RELEVANT_RATING_1));
-        rated.add(createRatedDoc("test_other", "1", RELEVANT_RATING_1));
-        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
-        rated.add(createRatedDoc("test", "1", RELEVANT_RATING_1));
-        rated.add(createRatedDoc("test", "2", IRRELEVANT_RATING_0));
+        rated.add(createRatedDoc("test_other", "0", RELEVANT_RATING));
+        rated.add(createRatedDoc("test_other", "1", RELEVANT_RATING));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING));
+        rated.add(createRatedDoc("test", "1", RELEVANT_RATING));
+        rated.add(createRatedDoc("test", "2", IRRELEVANT_RATING));
         // the following search hits contain only the last three documents
-        EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated.subList(2, 5), "test"), rated);
+        List<RatedDocument> ratedSubList = rated.subList(2, 5);
+        PrecisionAtK precisionAtK = new PrecisionAtK(1, false, 5);
+        EvalQueryQuality evaluated = (precisionAtK).evaluate("id", toSearchHits(ratedSubList, "test"), rated);
         assertEquals((double) 2 / 3, evaluated.metricScore(), 0.00001);
         assertEquals(2, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(3, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
@@ -106,11 +97,11 @@ public class PrecisionAtKTests extends ESTestCase {
 
     public void testIgnoreUnlabeled() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
-        rated.add(createRatedDoc("test", "1", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING));
+        rated.add(createRatedDoc("test", "1", RELEVANT_RATING));
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test"), 3);
-        searchHits[2] = new SearchHit(2, "2", Collections.emptyMap());
+        searchHits[2] = new SearchHit(2, "2", Collections.emptyMap(), Collections.emptyMap());
         searchHits[2].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
 
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", searchHits, rated);
@@ -119,7 +110,7 @@ public class PrecisionAtKTests extends ESTestCase {
         assertEquals(3, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
 
         // also try with setting `ignore_unlabeled`
-        PrecisionAtK prec = new PrecisionAtK(1, true, 10);
+        PrecisionAtK prec = new PrecisionAtK(true);
         evaluated = prec.evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 2, evaluated.metricScore(), 0.00001);
         assertEquals(2, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -129,7 +120,7 @@ public class PrecisionAtKTests extends ESTestCase {
     public void testNoRatedDocs() throws Exception {
         SearchHit[] hits = new SearchHit[5];
         for (int i = 0; i < 5; i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", hits, Collections.emptyList());
@@ -138,7 +129,7 @@ public class PrecisionAtKTests extends ESTestCase {
         assertEquals(5, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
 
         // also try with setting `ignore_unlabeled`
-        PrecisionAtK prec = new PrecisionAtK(1, true, 10);
+        PrecisionAtK prec = new PrecisionAtK(true);
         evaluated = prec.evaluate("id", hits, Collections.emptyList());
         assertEquals(0.0d, evaluated.metricScore(), 0.00001);
         assertEquals(0, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -231,7 +222,7 @@ public class PrecisionAtKTests extends ESTestCase {
         PrecisionAtK pAtK;
         switch (randomIntBetween(0, 2)) {
         case 0:
-            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(), !original.getIgnoreUnlabeled(),
+            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(), original.getIgnoreUnlabeled() == false,
                     original.forcedSearchSize().getAsInt());
             break;
         case 1:
@@ -251,7 +242,7 @@ public class PrecisionAtKTests extends ESTestCase {
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         }
         return hits;

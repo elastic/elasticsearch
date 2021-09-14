@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security;
@@ -34,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -132,16 +122,27 @@ public class PutRoleMappingRequestTests extends ESTestCase {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         putRoleMappingRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String output = Strings.toString(builder);
-        final String expected =
-             "{"+
-               "\"enabled\":" + enabled + "," +
-               "\"roles\":[\"superuser\"]," +
-               "\"role_templates\":[]," +
-               "\"rules\":{" +
-                   "\"field\":{\"username\":[\"user\"]}" +
-               "}," +
-               "\"metadata\":{\"k1\":\"v1\"}" +
-             "}";
+        final String expected = String.format(
+            Locale.ROOT,
+            "{"
+                + "  \"enabled\": %s,"
+                + "  \"roles\": ["
+                + "    \"superuser\""
+                + "  ],"
+                + "\"role_templates\":[],"
+                + "\"rules\":{"
+                + "    \"field\": {"
+                + "      \"username\": ["
+                + "        \"user\""
+                + "      ]"
+                + "    }"
+                + "},"
+                + "  \"metadata\": {"
+                + "    \"k1\": \"v1\""
+                + "  }"
+                + "}",
+            enabled
+        ).replaceAll("\\s+", "");
 
         assertThat(output, equalTo(expected));
     }
@@ -164,19 +165,34 @@ public class PutRoleMappingRequestTests extends ESTestCase {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         putRoleMappingRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String output = Strings.toString(builder);
-        final String expected =
-             "{"+
-               "\"enabled\":" + enabled + "," +
-               "\"roles\":[]," +
-               "\"role_templates\":[" +
-                 "{\"template\":\"{\\\"source\\\":\\\"_realm_{{realm.name}}\\\"}\",\"format\":\"string\"}," +
-                 "{\"template\":\"{\\\"source\\\":\\\"some_role\\\"}\",\"format\":\"string\"}" +
-               "]," +
-               "\"rules\":{" +
-                   "\"field\":{\"username\":[\"user\"]}" +
-               "}," +
-               "\"metadata\":{\"k1\":\"v1\"}" +
-             "}";
+        final String expected = String.format(
+            Locale.ROOT,
+            "{"
+                + "  \"enabled\": %s,"
+                + "\"roles\":[],"
+                + "\"role_templates\":["
+                + "    {"
+                + "      \"template\": \"{\\\"source\\\":\\\"_realm_{{realm.name}}\\\"}\","
+                + "      \"format\": \"string\""
+                + "    },"
+                + "    {"
+                + "      \"template\": \"{\\\"source\\\":\\\"some_role\\\"}\","
+                + "      \"format\": \"string\""
+                + "    }"
+                + "],"
+                + "\"rules\":{"
+                + "    \"field\": {"
+                + "      \"username\": ["
+                + "        \"user\""
+                + "      ]"
+                + "    }"
+                + "},"
+                + "  \"metadata\": {"
+                + "    \"k1\": \"v1\""
+                + "  }"
+                + "}",
+            enabled
+        ).replaceAll("\\s+", "");
 
         assertThat(output, equalTo(expected));
     }
@@ -217,8 +233,8 @@ public class PutRoleMappingRequestTests extends ESTestCase {
             return new PutRoleMappingRequest(randomAlphaOfLength(5), original.isEnabled(), original.getRoles(),
                 original.getRoleTemplates(), original.getRules(), original.getMetadata(), original.getRefreshPolicy());
         case 1:
-            return new PutRoleMappingRequest(original.getName(), !original.isEnabled(), original.getRoles(), original.getRoleTemplates(),
-                original.getRules(), original.getMetadata(), original.getRefreshPolicy());
+            return new PutRoleMappingRequest(original.getName(), original.isEnabled() == false, original.getRoles(),
+                original.getRoleTemplates(), original.getRules(), original.getMetadata(), original.getRefreshPolicy());
         case 2:
             return new PutRoleMappingRequest(original.getName(), original.isEnabled(), original.getRoles(), original.getRoleTemplates(),
                     FieldRoleMapperExpression.ofGroups("group"), original.getMetadata(), original.getRefreshPolicy());

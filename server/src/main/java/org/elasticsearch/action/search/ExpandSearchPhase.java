@@ -1,31 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -33,7 +24,6 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * This search phase is an optional phase that will be executed once all hits are fetched from the shards that executes
@@ -43,14 +33,13 @@ import java.util.function.Function;
 final class ExpandSearchPhase extends SearchPhase {
     private final SearchPhaseContext context;
     private final InternalSearchResponse searchResponse;
-    private final Function<InternalSearchResponse, SearchPhase> nextPhaseFactory;
+    private final AtomicArray<SearchPhaseResult> queryResults;
 
-    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse,
-                      Function<InternalSearchResponse, SearchPhase> nextPhaseFactory) {
+    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         super("expand");
         this.context = context;
         this.searchResponse = searchResponse;
-        this.nextPhaseFactory = nextPhaseFactory;
+        this.queryResults = queryResults;
     }
 
     /**
@@ -89,7 +78,8 @@ final class ExpandSearchPhase extends SearchPhase {
                     CollapseBuilder innerCollapseBuilder = innerHitBuilder.getInnerCollapseBuilder();
                     SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder)
                         .query(groupQuery)
-                        .postFilter(searchRequest.source().postFilter());
+                        .postFilter(searchRequest.source().postFilter())
+                        .runtimeMappings(searchRequest.source().runtimeMappings());
                     SearchRequest groupRequest = new SearchRequest(searchRequest);
                     groupRequest.source(sourceBuilder);
                     multiRequest.add(groupRequest);
@@ -112,11 +102,11 @@ final class ExpandSearchPhase extends SearchPhase {
                             hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
                         }
                     }
-                    context.executeNextPhase(this, nextPhaseFactory.apply(searchResponse));
+                    context.sendSearchResponse(searchResponse, queryResults);
                 }, context::onFailure)
             );
         } else {
-            context.executeNextPhase(this, nextPhaseFactory.apply(searchResponse));
+            context.sendSearchResponse(searchResponse, queryResults);
         }
     }
 
@@ -135,6 +125,9 @@ final class ExpandSearchPhase extends SearchPhase {
                 groupSource.fetchSource(options.getFetchSourceContext().includes(),
                     options.getFetchSourceContext().excludes());
             }
+        }
+        if (options.getFetchFields() != null) {
+            options.getFetchFields().forEach(ff -> groupSource.fetchField(ff));
         }
         if (options.getDocValueFields() != null) {
             options.getDocValueFields().forEach(ff -> groupSource.docValueField(ff.field, ff.format));

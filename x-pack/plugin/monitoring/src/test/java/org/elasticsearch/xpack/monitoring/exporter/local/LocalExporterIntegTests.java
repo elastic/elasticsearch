@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
@@ -10,7 +11,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -65,6 +66,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         // Now disabling the monitoring service, so that no more collection are started
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                 Settings.builder().putNull(MonitoringService.ENABLED.getKey())
+                                  .putNull("xpack.monitoring.exporters._local.type")
                                   .putNull("xpack.monitoring.exporters._local.enabled")
                                   .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
                                   .putNull("xpack.monitoring.exporters._local.index.name.time_format")));
@@ -76,7 +78,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 // indexing some random documents
                 IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
                 for (int i = 0; i < indexRequestBuilders.length; i++) {
-                    indexRequestBuilders[i] = client().prepareIndex("test", "type", Integer.toString(i))
+                    indexRequestBuilders[i] = client().prepareIndex("test").setId(Integer.toString(i))
                             .setSource("title", "This is a random document");
                 }
                 indexRandom(true, indexRequestBuilders);
@@ -85,6 +87,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             // start the monitoring service so that /_monitoring/bulk is not ignored
             final Settings.Builder exporterSettings = Settings.builder()
                     .put(MonitoringService.ENABLED.getKey(), true)
+                    .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
                     .put("xpack.monitoring.exporters._local.enabled", true)
                     .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", false);
 
@@ -223,7 +226,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         templates.add(".monitoring-beats");
 
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(".monitoring-*").get();
-        Set<String> actualTemplates = response.getIndexTemplates().stream().map(IndexTemplateMetaData::getName).collect(Collectors.toSet());
+        Set<String> actualTemplates = response.getIndexTemplates().stream().map(IndexTemplateMetadata::getName).collect(Collectors.toSet());
         assertEquals(templates, actualTemplates);
     }
 
@@ -249,7 +252,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
      */
     private void checkMonitoringDocs() {
         ClusterStateResponse response = client().admin().cluster().prepareState().get();
-        String customTimeFormat = response.getState().getMetaData().transientSettings()
+        String customTimeFormat = response.getState().getMetadata().transientSettings()
                 .get("xpack.monitoring.exporters._local.index.name.time_format");
         assertEquals(indexTimeFormat, customTimeFormat);
         if (customTimeFormat == null) {
@@ -298,7 +301,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         }
     }
 
-    private static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {
+    public static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {
         final MonitoredSystem system = randomFrom(BEATS, KIBANA, LOGSTASH);
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference source;

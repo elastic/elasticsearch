@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -27,21 +16,28 @@ import java.io.IOException;
 
 /**
  * Abstract diffable object with simple diffs implementation that sends the entire object if object has changed or
- * nothing is object remained the same.
+ * nothing if object remained the same.
  */
 public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffable<T> {
 
+    private static final Diff<?> EMPTY = new CompleteDiff<>();
+
+    @SuppressWarnings("unchecked")
     @Override
     public Diff<T> diff(T previousState) {
-        if (this.get().equals(previousState)) {
-            return new CompleteDiff<>();
+        if (this.equals(previousState)) {
+            return (Diff<T>) EMPTY;
         } else {
-            return new CompleteDiff<>(get());
+            return new CompleteDiff<>((T) this);
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static <T extends Diffable<T>> Diff<T> readDiffFrom(Reader<T> reader, StreamInput in) throws IOException {
-        return new CompleteDiff<T>(reader, in);
+        if (in.readBoolean()) {
+            return new CompleteDiff<>(reader.read(in));
+        }
+        return (Diff<T>) EMPTY;
     }
 
     private static class CompleteDiff<T extends Diffable<T>> implements Diff<T> {
@@ -63,17 +59,6 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
             this.part = null;
         }
 
-        /**
-         * Read simple diff from the stream
-         */
-        CompleteDiff(Reader<T> reader, StreamInput in) throws IOException {
-            if (in.readBoolean()) {
-                this.part = reader.read(in);
-            } else {
-                this.part = null;
-            }
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (part != null) {
@@ -92,11 +77,6 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
                 return part;
             }
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    public T get() {
-        return (T) this;
     }
 }
 

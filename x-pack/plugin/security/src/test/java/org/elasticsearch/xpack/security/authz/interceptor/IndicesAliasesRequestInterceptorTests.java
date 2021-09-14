@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.interceptor;
 
@@ -15,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -34,7 +36,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -42,12 +46,12 @@ import static org.mockito.Mockito.when;
 
 public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testInterceptorThrowsWhenFLSDLSEnabled() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.isAuditingAllowed()).thenReturn(true);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
@@ -90,8 +94,8 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
             listener.onResponse(AuthorizationResult.deny());
             return null;
-        }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
-            any(ActionListener.class));
+        }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), anyMap(),
+            anyActionListener());
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
                 () -> {
                     interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
@@ -101,12 +105,12 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                 securityException.getMessage());
     }
 
+    @SuppressWarnings("unchecked")
     public void testInterceptorThrowsWhenTargetHasGreaterPermissions() throws Exception {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.isAuditingAllowed()).thenReturn(true);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(randomBoolean());
+        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
@@ -135,7 +139,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                 listener.onResponse(AuthorizationResult.deny());
                 return null;
             }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
-                any(ActionListener.class));
+                anyActionListener());
             ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
                 () -> {
                     interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
@@ -163,7 +167,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                 listener.onResponse(AuthorizationResult.granted());
                 return null;
             }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
-                any(ActionListener.class));
+                anyActionListener());
             interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
             plainActionFuture.actionGet();
         }

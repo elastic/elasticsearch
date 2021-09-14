@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.logging;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 public class LoggingAction implements Action {
 
@@ -37,14 +39,14 @@ public class LoggingAction implements Action {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         LoggingAction action = (LoggingAction) o;
-
-        if (!text.equals(action.text)) return false;
-        if (level != action.level) return false;
-        return !(category != null ? !category.equals(action.category) : action.category != null);
+        return Objects.equals(text, action.text) && level == action.level && Objects.equals(category, action.category);
     }
 
     @Override

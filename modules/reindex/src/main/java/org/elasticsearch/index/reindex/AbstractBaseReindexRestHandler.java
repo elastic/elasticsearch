@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -23,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -49,7 +39,7 @@ public abstract class AbstractBaseReindexRestHandler<
     protected RestChannelConsumer doPrepareRequest(RestRequest request, NodeClient client,
                                                    boolean includeCreated, boolean includeUpdated) throws IOException {
         // Build the internal request
-        Request internal = setCommonOptions(request, buildRequest(request));
+        Request internal = setCommonOptions(request, buildRequest(request, client.getNamedWriteableRegistry()));
 
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {
@@ -77,7 +67,7 @@ public abstract class AbstractBaseReindexRestHandler<
     /**
      * Build the Request based on the RestRequest.
      */
-    protected abstract Request buildRequest(RestRequest request) throws IOException;
+    protected abstract Request buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException;
 
     /**
      * Sets common options of {@link AbstractBulkByScrollRequest} requests.

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -26,15 +15,17 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Collections.emptyMap;
@@ -47,7 +38,7 @@ import static org.hamcrest.Matchers.containsString;
  * cluster....
  */
 public class ReindexSourceTargetValidationTests extends ESTestCase {
-    private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()
+    private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder()
                 .put(index("target", "target_alias", "target_multi"), true)
                 .put(index("target2", "target_multi"), true)
                 .put(index("target_with_write_index", true, "target_multi_with_write_index"), true)
@@ -58,9 +49,11 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
                 .put(index("baz"), true)
                 .put(index("source", "source_multi"), true)
                 .put(index("source2", "source_multi"), true)).build();
-    private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver();
+    private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = TestIndexNameExpressionResolver.newInstance();
     private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER);
+        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER,
+        EmptySystemIndices.INSTANCE
+    );
 
     private final BytesReference query = new BytesArray("{ \"foo\" : \"bar\" }");
 
@@ -94,9 +87,14 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     public void testTargetIsAliasWithWriteIndexDisabled() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> succeeds("target_alias_with_write_index_disabled", "foo"));
-        assertThat(e.getMessage(), containsString("no write index is defined for alias [target_alias_with_write_index_disabled]. " +
-            "The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one " +
-            "being designated as a write index"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "no write index is defined for alias [target_alias_with_write_index_disabled]. "
+                    + "The write index may be explicitly disabled using is_write_index=false or the alias points to multiple "
+                    + "indices without one being designated as a write index"
+            )
+        );
         succeeds("qux", "foo"); // writing directly into the index of which this is the alias works though
     }
 
@@ -130,17 +128,17 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
                 INDEX_NAME_EXPRESSION_RESOLVER, AUTO_CREATE_INDEX, STATE);
     }
 
-    private static IndexMetaData index(String name, String... aliases) {
+    private static IndexMetadata index(String name, String... aliases) {
         return index(name, null, aliases);
     }
 
-    private static IndexMetaData index(String name, @Nullable Boolean writeIndex, String... aliases) {
-        IndexMetaData.Builder builder = IndexMetaData.builder(name).settings(Settings.builder()
+    private static IndexMetadata index(String name, @Nullable Boolean writeIndex, String... aliases) {
+        IndexMetadata.Builder builder = IndexMetadata.builder(name).settings(Settings.builder()
                 .put("index.version.created", Version.CURRENT.id)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1));
         for (String alias: aliases) {
-            builder.putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex).build());
+            builder.putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex).build());
         }
         return builder.build();
     }

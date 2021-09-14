@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.translog;
@@ -28,8 +17,8 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.OutputStreamIndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
@@ -106,6 +95,17 @@ final class Checkpoint {
         out.writeLong(trimmedAboveSeqNo);
     }
 
+    /**
+     * Returns the maximum sequence number of operations in this checkpoint after applying {@link #trimmedAboveSeqNo}.
+     */
+    long maxEffectiveSeqNo() {
+        if (trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            return maxSeqNo;
+        } else {
+            return Math.min(trimmedAboveSeqNo, maxSeqNo);
+        }
+    }
+
     static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint,
                                               long minTranslogGeneration) {
         final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
@@ -141,7 +141,7 @@ final class Checkpoint {
     }
 
     public static Checkpoint read(Path path) throws IOException {
-        try (Directory dir = new SimpleFSDirectory(path.getParent())) {
+        try (Directory dir = new NIOFSDirectory(path.getParent())) {
             try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
@@ -156,6 +156,25 @@ final class Checkpoint {
     }
 
     public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
+        byte[] bytes = createCheckpointBytes(checkpointFile, checkpoint);
+
+        // now go and write to the channel, in one go.
+        try (FileChannel channel = factory.open(checkpointFile, options)) {
+            Channels.writeToChannel(bytes, channel);
+            // fsync with metadata as we use this method when creating the file
+            channel.force(true);
+        }
+    }
+
+    public static void write(FileChannel fileChannel, Path checkpointFile, Checkpoint checkpoint) throws IOException {
+        byte[] bytes = createCheckpointBytes(checkpointFile, checkpoint);
+        Channels.writeToChannel(bytes, fileChannel, 0);
+        // no need to force metadata, file size stays the same and we did the full fsync
+        // when we first created the file, so the directory entry doesn't change as well
+        fileChannel.force(false);
+    }
+
+    private static byte[] createCheckpointBytes(Path checkpointFile, Checkpoint checkpoint) throws IOException {
         final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(V3_FILE_SIZE) {
             @Override
             public synchronized byte[] toByteArray() {
@@ -174,15 +193,8 @@ final class Checkpoint {
                 "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + V3_FILE_SIZE;
             assert indexOutput.getFilePointer() < 512 :
                 "checkpoint files have to be smaller than 512 bytes for atomic writes; size: " + indexOutput.getFilePointer();
-
         }
-        // now go and write to the channel, in one go.
-        try (FileChannel channel = factory.open(checkpointFile, options)) {
-            Channels.writeToChannel(byteOutputStream.toByteArray(), channel);
-            // no need to force metadata, file size stays the same and we did the full fsync
-            // when we first created the file, so the directory entry doesn't change as well
-            channel.force(false);
-        }
+        return byteOutputStream.toByteArray();
     }
 
     @Override

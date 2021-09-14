@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -24,16 +13,17 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -43,6 +33,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -55,15 +46,17 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestGetAliasesAction extends BaseRestHandler {
 
-    public RestGetAliasesAction(final RestController controller) {
-        controller.registerHandler(GET, "/_alias", this);
-        controller.registerHandler(GET, "/_aliases", this);
-        controller.registerHandler(GET, "/_alias/{name}", this);
-        controller.registerHandler(HEAD, "/_alias/{name}", this);
-        controller.registerHandler(GET, "/{index}/_alias", this);
-        controller.registerHandler(HEAD, "/{index}/_alias", this);
-        controller.registerHandler(GET, "/{index}/_alias/{name}", this);
-        controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_alias"),
+            new Route(GET, "/_aliases"),
+            new Route(GET, "/_alias/{name}"),
+            new Route(HEAD, "/_alias/{name}"),
+            new Route(GET, "/{index}/_alias"),
+            new Route(HEAD, "/{index}/_alias"),
+            new Route(GET, "/{index}/_alias/{name}"),
+            new Route(HEAD, "/{index}/_alias/{name}"));
     }
 
     @Override
@@ -72,18 +65,23 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     static RestResponse buildRestResponse(boolean aliasesExplicitlyRequested, String[] requestedAliases,
-            ImmutableOpenMap<String, List<AliasMetaData>> responseAliasMap, XContentBuilder builder) throws Exception {
+                                          ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
+                                          Map<String, List<DataStreamAlias>> dataStreamAliases, XContentBuilder builder) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
-        for (final ObjectObjectCursor<String, List<AliasMetaData>> cursor : responseAliasMap) {
-            for (final AliasMetaData aliasMetaData : cursor.value) {
+        for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {
+            for (final AliasMetadata aliasMetadata : cursor.value) {
                 if (aliasesExplicitlyRequested) {
                     // only display indices that have aliases
                     indicesToDisplay.add(cursor.key);
                 }
-                returnedAliasNames.add(aliasMetaData.alias());
+                returnedAliasNames.add(aliasMetadata.alias());
             }
         }
+        dataStreamAliases.entrySet().stream()
+            .flatMap(entry -> entry.getValue().stream())
+            .forEach(dataStreamAlias -> returnedAliasNames.add(dataStreamAlias.getName()));
+
         // compute explicitly requested aliases that have are not returned in the result
         final SortedSet<String> missingAliases = new TreeSet<>();
         // first wildcard index, leading "-" as an alias name after this index means
@@ -96,7 +94,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
             }
         }
         for (int i = 0; i < requestedAliases.length; i++) {
-            if (MetaData.ALL.equals(requestedAliases[i]) || Regex.isSimpleMatchPattern(requestedAliases[i])
+            if (Metadata.ALL.equals(requestedAliases[i]) || Regex.isSimpleMatchPattern(requestedAliases[i])
                     || (i > firstWildcardIndex && requestedAliases[i].charAt(0) == '-')) {
                 // only explicitly requested aliases will be called out as missing (404)
                 continue;
@@ -107,7 +105,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 if (requestedAliases[j].charAt(0) == '-') {
                     // this is an exclude pattern
                     if (Regex.simpleMatch(requestedAliases[j].substring(1), requestedAliases[i])
-                            || MetaData.ALL.equals(requestedAliases[j].substring(1))) {
+                            || Metadata.ALL.equals(requestedAliases[j].substring(1))) {
                         // aliases[i] is excluded by aliases[j]
                         break;
                     }
@@ -139,20 +137,42 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 builder.field("status", status.getStatus());
             }
 
-            for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : responseAliasMap) {
-                if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
+            for (final var entry : responseAliasMap) {
+                if (aliasesExplicitlyRequested == false || indicesToDisplay.contains(entry.key)) {
                     builder.startObject(entry.key);
                     {
                         builder.startObject("aliases");
                         {
-                            for (final AliasMetaData alias : entry.value) {
-                                AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
+                            for (final AliasMetadata alias : entry.value) {
+                                AliasMetadata.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
                             }
                         }
                         builder.endObject();
                     }
                     builder.endObject();
                 }
+            }
+            // No need to do filtering like is done for aliases pointing to indices (^),
+            // because this already happens in TransportGetAliasesAction.
+            for (var entry : dataStreamAliases.entrySet()) {
+                builder.startObject(entry.getKey());
+                {
+                    builder.startObject("aliases");
+                    {
+                        for (DataStreamAlias alias : entry.getValue()) {
+                            builder.startObject(alias.getName());
+                            if (entry.getKey().equals(alias.getWriteDataStream())) {
+                                builder.field("is_write_index", true);
+                            }
+                            if (alias.getFilter() != null) {
+                                builder.field("filter", XContentHelper.convertToMap(alias.getFilter().uncompressed(), true).v2());
+                            }
+                            builder.endObject();
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
             }
         }
         builder.endObject();
@@ -175,10 +195,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
         //we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will
         //not always be available there (they may get replaced so retrieving request.aliases is not quite the same).
-        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
+        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
-                return buildRestResponse(namesProvided, aliases, response.getAliases(), builder);
+                return buildRestResponse(namesProvided, aliases, response.getAliases(), response.getDataStreamAliases(), builder);
             }
         });
     }

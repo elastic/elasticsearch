@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.actions.throttler;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 
@@ -38,7 +39,7 @@ public class ActionThrottler implements Throttler {
 
     @Override
     public Result throttle(String actionId, WatchExecutionContext ctx) {
-        if (licenseState.isWatcherAllowed() == false) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.WATCHER) == false) {
             return Result.throttle(LICENSE, "watcher license does not allow action execution");
         }
         if (periodThrottler != null) {

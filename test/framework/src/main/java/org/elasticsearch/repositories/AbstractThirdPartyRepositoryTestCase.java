@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories;
 
@@ -24,10 +13,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -41,7 +29,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -76,10 +63,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     @Override
     public void tearDown() throws Exception {
         deleteAndAssertEmpty(getRepository().basePath());
+        client().admin().cluster().prepareDeleteRepository("test-repo").get();
         super.tearDown();
     }
 
-    private void deleteAndAssertEmpty(BlobPath path) throws Exception {
+    private void deleteAndAssertEmpty(BlobPath path) {
         final BlobStoreRepository repo = getRepository();
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repo.threadPool().generic().execute(ActionRunnable.run(future, () -> repo.blobStore().blobContainer(path).delete()));
@@ -88,7 +76,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         if (parent == null) {
             assertChildren(path, Collections.emptyList());
         } else {
-            assertDeleted(parent, path.toArray()[path.toArray().length - 1]);
+            assertThat(listChildren(parent), not(contains(path.parts().get(path.parts().size() - 1))));
         }
     }
 
@@ -100,9 +88,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test-idx-1", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-2", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-3", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-2").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-3").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
         }
         client().admin().indices().prepareRefresh().get();
 
@@ -124,7 +112,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 .prepareGetSnapshots("test-repo")
                 .setSnapshots(snapshotName)
                 .get()
-                .getSnapshots("test-repo")
+                .getSnapshots()
                 .get(0)
                 .state(),
             equalTo(SnapshotState.SUCCESS));
@@ -152,10 +140,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }));
         future.actionGet();
         assertChildren(repo.basePath(), Collections.singleton("foo"));
-        assertBlobsByPrefix(repo.basePath(), "fo", Collections.emptyMap());
+        BlobStoreTestUtil.assertBlobsByPrefix(repo, repo.basePath(), "fo", Collections.emptyMap());
         assertChildren(repo.basePath().add("foo"), List.of("nested", "nested2"));
-        assertBlobsByPrefix(repo.basePath().add("foo"), "nest",
-            Collections.singletonMap("nested-blob", new PlainBlobMetaData("nested-blob", testBlobLen)));
+        BlobStoreTestUtil.assertBlobsByPrefix(repo, repo.basePath().add("foo"), "nest",
+            Collections.singletonMap("nested-blob", new PlainBlobMetadata("nested-blob", testBlobLen)));
         assertChildren(repo.basePath().add("foo").add("nested"), Collections.emptyList());
         if (randomBoolean()) {
             deleteAndAssertEmpty(repo.basePath());
@@ -164,13 +152,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }
     }
 
-    protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
-        BlobStoreTestUtil.assertBlobsByPrefix(getRepository(), path, prefix, blobs);
-    }
-
     public void testCleanup() throws Exception {
-        createRepository("test-repo");
-
         createIndex("test-idx-1");
         createIndex("test-idx-2");
         createIndex("test-idx-3");
@@ -178,9 +160,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test-idx-1", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-2", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-3", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-2").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+            client().prepareIndex("test-idx-3").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
         }
         client().admin().indices().prepareRefresh().get();
 
@@ -202,7 +184,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 .prepareGetSnapshots("test-repo")
                 .setSnapshots(snapshotName)
                 .get()
-                .getSnapshots("test-repo")
+                .getSnapshots()
                 .get(0)
                 .state(),
             equalTo(SnapshotState.SUCCESS));
@@ -218,7 +200,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         logger.info("--> deleting a snapshot to trigger repository cleanup");
         client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", snapshotName)).actionGet();
 
-        assertConsistentRepository(repo, genericExec);
+        BlobStoreTestUtil.assertConsistency(repo);
 
         logger.info("--> Create dangling index");
         createDanglingIndex(repo, genericExec);
@@ -243,31 +225,20 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 blobStore.blobContainer(repo.basePath()).writeBlob(prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
             }
         }));
-        future.actionGet();
-        assertTrue(assertCorruptionVisible(repo, genericExec));
-    }
+        future.get();
 
-    protected boolean assertCorruptionVisible(BlobStoreRepository repo, Executor executor) throws Exception {
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        executor.execute(ActionRunnable.supply(future, () -> {
+        final PlainActionFuture<Boolean> corruptionFuture = PlainActionFuture.newFuture();
+        genericExec.execute(ActionRunnable.supply(corruptionFuture, () -> {
             final BlobStore blobStore = repo.blobStore();
             return blobStore.blobContainer(repo.basePath().add("indices")).children().containsKey("foo")
-                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath().add("indices").add("foo")), "bar")
-                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "meta-foo.dat")
-                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "snap-foo.dat");
+                    && blobStore.blobContainer(repo.basePath().add("indices").add("foo")).blobExists("bar")
+                    && blobStore.blobContainer(repo.basePath()).blobExists("meta-foo.dat")
+                    && blobStore.blobContainer(repo.basePath()).blobExists("snap-foo.dat");
         }));
-        return future.actionGet();
+        assertTrue(corruptionFuture.get());
     }
 
-    protected void assertConsistentRepository(BlobStoreRepository repo, Executor executor) throws Exception {
-        BlobStoreTestUtil.assertConsistency(repo, executor);
-    }
-
-    protected void assertDeleted(BlobPath path, String name) throws Exception {
-        assertThat(listChildren(path), not(contains(name)));
-    }
-
-    protected void assertChildren(BlobPath path, Collection<String> children) throws Exception {
+    private void assertChildren(BlobPath path, Collection<String> children) {
         listChildren(path);
         final Set<String> foundChildren = listChildren(path);
         if (children.isEmpty()) {

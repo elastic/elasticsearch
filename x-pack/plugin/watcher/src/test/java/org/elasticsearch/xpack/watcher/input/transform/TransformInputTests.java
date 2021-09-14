@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.input.transform;
 
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
+import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -50,8 +52,8 @@ public class TransformInputTests extends ESTestCase {
         ScriptTransform scriptTransform = ScriptTransform.builder(script).build();
         TransformInput transformInput = new TransformInput(scriptTransform);
 
-        ExecutableTransform executableTransform = new ExecutableScriptTransform(scriptTransform, logger, scriptService);
-        ExecutableInput input = new ExecutableTransformInput(transformInput, executableTransform);
+        ExecutableTransform<?, ?> executableTransform = new ExecutableScriptTransform(scriptTransform, logger, scriptService);
+        ExecutableInput<?, ?> input = new ExecutableTransformInput(transformInput, executableTransform);
 
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", Payload.EMPTY);
         Input.Result result = input.execute(ctx, new Payload.Simple());
@@ -60,8 +62,9 @@ public class TransformInputTests extends ESTestCase {
     }
 
     public void testParserValid() throws Exception {
-        Map<String, TransformFactory> transformFactories = Collections.singletonMap("script",
-                new ScriptTransformFactory(scriptService));
+        Map<String,
+            TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
+            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
 
@@ -84,8 +87,9 @@ public class TransformInputTests extends ESTestCase {
     public void testParserInvalid() throws Exception {
         XContentBuilder jsonBuilder = jsonBuilder().value("just a string");
 
-        Map<String, TransformFactory> transformFactories = Collections.singletonMap("script",
-                new ScriptTransformFactory(scriptService));
+        Map<String,
+            TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
+            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
         XContentParser parser = createParser(jsonBuilder);
@@ -103,8 +107,9 @@ public class TransformInputTests extends ESTestCase {
     }
 
     public void testTransformInputToXContentIsSameAsParsing() throws Exception {
-        Map<String, TransformFactory> transformFactories = Collections.singletonMap("script",
-                new ScriptTransformFactory(scriptService));
+        Map<String,
+            TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
+            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
 

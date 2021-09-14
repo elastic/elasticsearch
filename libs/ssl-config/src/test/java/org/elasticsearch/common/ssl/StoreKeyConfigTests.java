@@ -1,38 +1,34 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.X509ExtendedKeyManager;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -50,11 +46,20 @@ public class StoreKeyConfigTests extends ESTestCase {
 
     private static final char[] P12_PASS = "p12-pass".toCharArray();
     private static final char[] JKS_PASS = "jks-pass".toCharArray();
+    private static final String KEY_MGR_ALGORITHM = KeyManagerFactory.getDefaultAlgorithm();
+    private static final char[] KEY_PASS = "key-pass".toCharArray();
+
+    private Path configBasePath;
+
+    @Before
+    public void setupPath() {
+        configBasePath = getDataPath("/certs");
+    }
 
     public void testLoadSingleKeyPKCS12() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path p12 = getDataPath("/certs/cert1/cert1.p12");
-        final StoreKeyConfig keyConfig = new StoreKeyConfig(p12, P12_PASS, "PKCS12", P12_PASS, KeyManagerFactory.getDefaultAlgorithm());
+        final StoreKeyConfig keyConfig = config(p12, P12_PASS, "PKCS12");
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(p12));
         assertKeysLoaded(keyConfig, "cert1");
     }
@@ -62,33 +67,45 @@ public class StoreKeyConfigTests extends ESTestCase {
     public void testLoadMultipleKeyPKCS12() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path p12 = getDataPath("/certs/cert-all/certs.p12");
-        final StoreKeyConfig keyConfig = new StoreKeyConfig(p12, P12_PASS, "PKCS12", P12_PASS, KeyManagerFactory.getDefaultAlgorithm());
+        final StoreKeyConfig keyConfig = config(p12, P12_PASS, "PKCS12");
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(p12));
         assertKeysLoaded(keyConfig, "cert1", "cert2");
     }
 
+    public void testFilterMultipleKeyPKCS12() throws Exception {
+        assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
+        final Path p12 = getDataPath("/certs/cert-all/certs.p12");
+        final StoreKeyConfig keyConfig = config(
+            p12,
+            P12_PASS,
+            "PKCS12",
+            ks -> KeyStoreUtil.filter(ks, entry -> entry.getAlias().equals("cert1"))
+        );
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(p12));
+        assertKeysLoaded(keyConfig, "cert1");
+    }
+
     public void testLoadMultipleKeyJksWithSeparateKeyPassword() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
-        final Path jks = getDataPath("/certs/cert-all/certs.jks");
-        final StoreKeyConfig keyConfig = new StoreKeyConfig(jks, JKS_PASS, "jks", "key-pass".toCharArray(),
-            KeyManagerFactory.getDefaultAlgorithm());
-        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(jks));
+        final String jks = "cert-all/certs.jks";
+        final StoreKeyConfig keyConfig = new StoreKeyConfig(jks, JKS_PASS, "jks", null, KEY_PASS, KEY_MGR_ALGORITHM, configBasePath);
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(configBasePath.resolve(jks)));
         assertKeysLoaded(keyConfig, "cert1", "cert2");
     }
 
     public void testKeyManagerFailsWithIncorrectStorePassword() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
-        final Path jks = getDataPath("/certs/cert-all/certs.jks");
-        final StoreKeyConfig keyConfig = new StoreKeyConfig(jks, P12_PASS, "jks", "key-pass".toCharArray(),
-            KeyManagerFactory.getDefaultAlgorithm());
-        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(jks));
-        assertPasswordIsIncorrect(keyConfig, jks);
+        final String jks = "cert-all/certs.jks";
+        final StoreKeyConfig keyConfig = new StoreKeyConfig(jks, P12_PASS, "jks", null, KEY_PASS, KEY_MGR_ALGORITHM, configBasePath);
+        final Path path = configBasePath.resolve(jks);
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(path));
+        assertPasswordIsIncorrect(keyConfig, path);
     }
 
     public void testKeyManagerFailsWithIncorrectKeyPassword() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path jks = getDataPath("/certs/cert-all/certs.jks");
-        final StoreKeyConfig keyConfig = new StoreKeyConfig(jks, JKS_PASS, "jks", JKS_PASS, KeyManagerFactory.getDefaultAlgorithm());
+        final StoreKeyConfig keyConfig = config(jks, JKS_PASS, "jks");
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(jks));
         assertPasswordIsIncorrect(keyConfig, jks);
     }
@@ -96,7 +113,7 @@ public class StoreKeyConfigTests extends ESTestCase {
     public void testKeyManagerFailsWithMissingKeystoreFile() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path path = getDataPath("/certs/cert-all/certs.jks").getParent().resolve("dne.jks");
-        final StoreKeyConfig keyConfig = new StoreKeyConfig(path, JKS_PASS, "jks", JKS_PASS, KeyManagerFactory.getDefaultAlgorithm());
+        final StoreKeyConfig keyConfig = config(path, JKS_PASS, "jks");
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(path));
         assertFileNotFound(keyConfig, path);
     }
@@ -115,7 +132,7 @@ public class StoreKeyConfigTests extends ESTestCase {
             ks = getDataPath("/certs/ca-all/ca.jks");
             password = JKS_PASS;
         }
-        final StoreKeyConfig keyConfig = new StoreKeyConfig(ks, password, type, password, KeyManagerFactory.getDefaultAlgorithm());
+        final StoreKeyConfig keyConfig = config(ks, password, type);
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertNoPrivateKeyEntries(keyConfig, ks);
     }
@@ -128,7 +145,7 @@ public class StoreKeyConfigTests extends ESTestCase {
 
         final Path p12 = createTempFile("cert", ".p12");
 
-        final StoreKeyConfig keyConfig = new StoreKeyConfig(p12, P12_PASS, "PKCS12", P12_PASS, KeyManagerFactory.getDefaultAlgorithm());
+        final StoreKeyConfig keyConfig = config(p12, P12_PASS, "PKCS12");
 
         Files.copy(cert1, p12, StandardCopyOption.REPLACE_EXISTING);
         assertKeysLoaded(keyConfig, "cert1");
@@ -144,6 +161,15 @@ public class StoreKeyConfigTests extends ESTestCase {
 
         Files.delete(p12);
         assertFileNotFound(keyConfig, p12);
+    }
+
+    private StoreKeyConfig config(Path path, char[] password, String type) {
+        return config(path, password, type, null);
+    }
+
+    private StoreKeyConfig config(Path path, char[] password, String type, Function<KeyStore, KeyStore> filter) {
+        final String pathName = path == null ? null : path.toString();
+        return new StoreKeyConfig(pathName, password, type, filter, password, KeyManagerFactory.getDefaultAlgorithm(), configBasePath);
     }
 
     private void assertKeysLoaded(StoreKeyConfig keyConfig, String... names) throws CertificateParsingException {
@@ -166,6 +192,17 @@ public class StoreKeyConfigTests extends ESTestCase {
                 Arrays.asList(DNS_NAME, "localhost"),
                 Arrays.asList(IP_NAME, "127.0.0.1")
             ));
+        }
+
+        final List<Tuple<PrivateKey, X509Certificate>> keys = keyConfig.getKeys(true);
+        assertThat(keys, iterableWithSize(names.length));
+        for (Tuple<PrivateKey, X509Certificate> tup : keys) {
+            PrivateKey privateKey = tup.v1();
+            assertThat(privateKey, notNullValue());
+            assertThat(privateKey.getAlgorithm(), is("RSA"));
+
+            final X509Certificate certificate = tup.v2();
+            assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
         }
     }
 
@@ -203,7 +240,7 @@ public class StoreKeyConfigTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("keystore"));
         assertThat(exception.getMessage(), containsString(file.toAbsolutePath().toString()));
         assertThat(exception.getMessage(), containsString("does not exist"));
-        assertThat(exception.getCause(), nullValue());
+        assertThat(exception.getCause(), instanceOf(NoSuchFileException.class));
     }
 
     private void assertNoPrivateKeyEntries(StoreKeyConfig keyConfig, Path file) {

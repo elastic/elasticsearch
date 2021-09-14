@@ -1,0 +1,29 @@
+{
+    "properties" : {
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "integer_range_field" : {
+            "type" : "integer_range"
+        },
+        "float_range_field" : {
+            "type" : "float_range"
+        },
+        "long_range_field" : {
+            "type" : "long_range"
+        },
+        "double_range_field" : {
+            "type" : "double_range"
+        },
+        "date_range_field" : {
+            "type" : "date_range"
+        },
+        "ip_range_field" : {
+            "type" : "ip_range"
+        }
+    }
+}

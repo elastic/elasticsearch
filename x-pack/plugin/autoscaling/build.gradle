@@ -1,0 +1,22 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'x-pack-autoscaling'
+  description 'Elasticsearch Expanded Pack Plugin - Autoscaling'
+  classname 'org.elasticsearch.xpack.autoscaling.Autoscaling'
+  extendedPlugins = ['x-pack-core']
+  hasNativeController false
+  requiresKeystore true
+}
+archivesBaseName = 'x-pack-autoscaling'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('data-streams'))
+  testImplementation project(path: xpackModule('searchable-snapshots'))
+  testImplementation project(path: xpackModule('ilm'))
+}
+
+addQaCheckDependencies()

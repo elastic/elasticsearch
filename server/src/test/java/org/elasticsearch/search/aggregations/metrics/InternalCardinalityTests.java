@@ -1,37 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
-import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
-import org.elasticsearch.search.aggregations.metrics.ParsedCardinality;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
 
@@ -48,10 +32,10 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     public void setUp() throws Exception {
         super.setUp();
         algos = new ArrayList<>();
-        p = randomIntBetween(HyperLogLogPlusPlus.MIN_PRECISION, HyperLogLogPlusPlus.MAX_PRECISION);
+        p = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION);
     }
 
-    @After //we force @After to have it run before ESTestCase#after otherwise it fails
+    @After // we force @After to have it run before ESTestCase#after otherwise it fails
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
@@ -61,26 +45,22 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected InternalCardinality createTestInstance(String name,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        HyperLogLogPlusPlus hllpp = new HyperLogLogPlusPlus(p,
-                new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()), 1);
+    protected InternalCardinality createTestInstance(String name, Map<String, Object> metadata) {
+        HyperLogLogPlusPlus hllpp = new HyperLogLogPlusPlus(
+            p,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+            1
+        );
         algos.add(hllpp);
         for (int i = 0; i < 100; i++) {
             hllpp.collect(0, BitMixer.mix64(randomIntBetween(1, 100)));
         }
-        return new InternalCardinality(name, hllpp, pipelineAggregators, metaData);
-    }
-
-    @Override
-    protected Reader<InternalCardinality> instanceReader() {
-        return InternalCardinality::new;
+        return new InternalCardinality(name, hllpp, metadata);
     }
 
     @Override
     protected void assertReduced(InternalCardinality reduced, List<InternalCardinality> inputs) {
-        HyperLogLogPlusPlus[] algos = inputs.stream().map(InternalCardinality::getState)
-                .toArray(size -> new HyperLogLogPlusPlus[size]);
+        HyperLogLogPlusPlus[] algos = inputs.stream().map(InternalCardinality::getState).toArray(size -> new HyperLogLogPlusPlus[size]);
         if (algos.length > 0) {
             HyperLogLogPlusPlus result = algos[0];
             for (int i = 1; i < algos.length; i++) {
@@ -102,35 +82,35 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     @Override
     protected InternalCardinality mutateInstance(InternalCardinality instance) {
         String name = instance.getName();
-        HyperLogLogPlusPlus state = instance.getState();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        AbstractHyperLogLogPlusPlus state = instance.getState();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            HyperLogLogPlusPlus newState = new HyperLogLogPlusPlus(state.precision(),
-                    new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()), 0);
-            newState.merge(0, state, 0);
-            int extraValues = between(10, 100);
-            for (int i = 0; i < extraValues; i++) {
-                newState.collect(0, BitMixer.mix64(randomIntBetween(500, 10000)));
-            }
-            algos.add(newState);
-            state = newState;
-            break;
-        case 2:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
-            } else {
-                metaData = new HashMap<>(instance.getMetaData());
-            }
-            metaData.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                HyperLogLogPlusPlus newState = new HyperLogLogPlusPlus(
+                    state.precision(),
+                    new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+                    0
+                );
+                for (int i = 0; i < 10; i++) {
+                    newState.collect(0, BitMixer.mix64(randomIntBetween(500, 10000)));
+                }
+                algos.add(newState);
+                state = newState;
+                break;
+            case 2:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalCardinality(name, state, pipelineAggregators, metaData);
+        return new InternalCardinality(name, state, metadata);
     }
 }

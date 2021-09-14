@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.store;
@@ -28,7 +17,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleMarkFailure;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -74,7 +63,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
             logger.info("start check index");
             try {
                 Directory dir = store.directory();
-                if (!Lucene.indexExists(dir)) {
+                if (Lucene.indexExists(dir) == false) {
                     return;
                 }
                 try {
@@ -82,18 +71,20 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                     PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
                     CheckIndex.Status status = store.checkIndex(out);
                     out.flush();
-                    if (!status.clean) {
-                        ESTestCase.checkIndexFailed = true;
-                        logger.warn("check index [failure] index files={}\n{}", Arrays.toString(dir.listAll()), os.bytes().utf8ToString());
-                        throw new IOException("index check failure");
+                    if (status.clean == false) {
+                        IOException failure = new IOException("failed to check index for shard " + shardId +
+                            ";index files [" + Arrays.toString(dir.listAll()) + "] os [" + os.bytes().utf8ToString() + "]");
+                        ESTestCase.checkIndexFailures.add(failure);
+                        throw failure;
                     } else {
                         if (logger.isDebugEnabled()) {
                             logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
                         }
                     }
                 } catch (LockObtainFailedException e) {
-                    ESTestCase.checkIndexFailed = true;
-                    throw new IllegalStateException("IndexWriter is still open on shard " + shardId, e);
+                    IllegalStateException failure = new IllegalStateException("IndexWriter is still open on shard " + shardId, e);
+                    ESTestCase.checkIndexFailures.add(failure);
+                    throw failure;
                 }
             } catch (Exception e) {
                 logger.warn("failed to check index", e);
@@ -124,11 +115,11 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
     }
 
     private Directory randomDirectoryService(Random random, IndexSettings indexSettings, ShardPath path) throws IOException {
-        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData())
+        final IndexMetadata build = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(Settings.builder()
                 // don't use the settings from indexSettings#getSettings() they are merged with node settings and might contain
                 // secure settings that should not be copied in here since the new IndexSettings ctor below will barf if we do
-                .put(indexSettings.getIndexMetaData().getSettings())
+                .put(indexSettings.getIndexMetadata().getSettings())
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
                     RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey()))
             .build();

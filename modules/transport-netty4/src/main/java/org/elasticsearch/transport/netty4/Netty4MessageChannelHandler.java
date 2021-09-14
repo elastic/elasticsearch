@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport.netty4;
@@ -25,9 +14,15 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
-import io.netty.util.Attribute;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.InboundPipeline;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transports;
 
 import java.nio.channels.ClosedChannelException;
@@ -45,28 +40,33 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
 
     private WriteOperation currentWrite;
+    private final InboundPipeline pipeline;
 
-    Netty4MessageChannelHandler(Netty4Transport transport) {
+    Netty4MessageChannelHandler(PageCacheRecycler recycler, Netty4Transport transport) {
         this.transport = transport;
+        final ThreadPool threadPool = transport.getThreadPool();
+        final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();
+        this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
+            transport.getInflightBreaker(), requestHandlers::getHandler, transport::inboundMessage);
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
         assert Transports.assertTransportThread();
         assert msg instanceof ByteBuf : "Expected message type ByteBuf, found: " + msg.getClass();
 
         final ByteBuf buffer = (ByteBuf) msg;
-        try {
-            Channel channel = ctx.channel();
-            Attribute<Netty4TcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
-            transport.inboundMessage(channelAttribute.get(), Netty4Utils.toBytesReference(buffer));
-        } finally {
-            buffer.release();
+        Netty4TcpChannel channel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
+        final BytesReference wrapped = Netty4Utils.toBytesReference(buffer);
+        try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, buffer::release)) {
+            pipeline.handleBytes(channel, reference);
         }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
         ExceptionsHelper.maybeDieOnAnotherThread(cause);
         final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
         final Throwable newCause = unwrapped != null ? unwrapped : cause;
@@ -81,12 +81,15 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
         assert msg instanceof ByteBuf;
+        assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
         final boolean queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
         assert queued;
+        assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
     }
 
     @Override
     public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+        assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
         if (ctx.channel().isWritable()) {
             doFlush(ctx);
         }
@@ -95,28 +98,28 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     @Override
     public void flush(ChannelHandlerContext ctx) {
-        Channel channel = ctx.channel();
-        if (channel.isWritable() || channel.isActive() == false) {
-            doFlush(ctx);
+        assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
+        if (doFlush(ctx) == false) {
+            ctx.flush();
         }
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
         doFlush(ctx);
+        Releasables.closeExpectNoException(pipeline);
         super.channelInactive(ctx);
     }
 
-    private void doFlush(ChannelHandlerContext ctx) {
+    private boolean doFlush(ChannelHandlerContext ctx) {
         assert ctx.executor().inEventLoop();
         final Channel channel = ctx.channel();
         if (channel.isActive() == false) {
-            if (currentWrite != null) {
-                currentWrite.promise.tryFailure(new ClosedChannelException());
-            }
             failQueuedWrites();
-            return;
+            return false;
         }
+        boolean needsFlush = true;
         while (channel.isWritable()) {
             if (currentWrite == null) {
                 currentWrite = queuedWrites.poll();
@@ -125,11 +128,6 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 break;
             }
             final WriteOperation write = currentWrite;
-            if (write.buf.readableBytes() == 0) {
-                write.promise.trySuccess();
-                currentWrite = null;
-                continue;
-            }
             final int readableBytes = write.buf.readableBytes();
             final int bufferSize = Math.min(readableBytes, 1 << 18);
             final int readerIndex = write.buf.readerIndex();
@@ -142,7 +140,8 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 writeBuffer = write.buf;
             }
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
-            if (sliced == false || write.buf.readableBytes() == 0) {
+            needsFlush = true;
+            if (sliced == false) {
                 currentWrite = null;
                 writeFuture.addListener(future -> {
                     assert ctx.executor().inEventLoop();
@@ -160,18 +159,30 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                     }
                 });
             }
-            ctx.flush();
-            if (channel.isActive() == false) {
-                failQueuedWrites();
-                return;
+            if (channel.isWritable() == false) {
+                // try flushing to make channel writable again, loop will only continue if channel becomes writable again
+                ctx.flush();
+                needsFlush = false;
             }
         }
+        if (needsFlush) {
+            ctx.flush();
+        }
+        if (channel.isActive() == false) {
+            failQueuedWrites();
+        }
+        return true;
     }
 
     private void failQueuedWrites() {
+        if (currentWrite != null) {
+            final WriteOperation current = currentWrite;
+            currentWrite = null;
+            current.failAsClosedChannel();
+        }
         WriteOperation queuedWrite;
         while ((queuedWrite = queuedWrites.poll()) != null) {
-            queuedWrite.promise.tryFailure(new ClosedChannelException());
+            queuedWrite.failAsClosedChannel();
         }
     }
 
@@ -184,6 +195,11 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         WriteOperation(ByteBuf buf, ChannelPromise promise) {
             this.buf = buf;
             this.promise = promise;
+        }
+
+        void failAsClosedChannel() {
+            promise.tryFailure(new ClosedChannelException());
+            buf.release();
         }
     }
 }

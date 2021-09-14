@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
@@ -66,12 +67,6 @@ public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAct
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        // This will be displayed in tasks api and allows stats api to figure out which policies are being executed.
-        @Override
-        public String getDescription() {
-            return name;
         }
 
         @Override

@@ -3,7 +3,11 @@
 
 The store module allows you to control how index data is stored and accessed on disk.
 
-[float]
+NOTE: This is a low-level setting. Some store implementations have poor
+concurrency or disable optimizations for heap memory usage. We recommend
+sticking to the defaults.
+
+[discrete]
 [[file-system]]
 === File system storage types
 
@@ -11,12 +15,12 @@ There are different file system implementations or _storage types_. By default,
 Elasticsearch will pick the best implementation based on the operating
 environment.
 
-This can be overridden for all indices by adding this to the
-`config/elasticsearch.yml` file:
+The storage type can also be explicitly set for all indices by configuring the
+store type in the `config/elasticsearch.yml` file:
 
 [source,yaml]
 ---------------------------------
-index.store.type: niofs
+index.store.type: hybridfs
 ---------------------------------
 
 It is a _static_ setting that can be set on a per-index basis at index
@@ -24,10 +28,10 @@ creation time:
 
 [source,console]
 ---------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
-    "index.store.type": "niofs"
+    "index.store.type": "hybridfs"
   }
 }
 ---------------------------------
@@ -44,18 +48,20 @@ supported systems but is subject to change.
 
 [[simplefs]]`simplefs`::
 
+deprecated::[7.15,"simplefs is deprecated and will be removed in 8.0. Use niofs or other file systems instead. Elasticsearch 7.15 or later uses niofs for the simplefs store type as it offers superior or equivalent performance to simplefs."]
+
 The Simple FS type is a straightforward implementation of file system
 storage (maps to Lucene `SimpleFsDirectory`) using a random access file.
 This implementation has poor concurrent performance (multiple threads
-will bottleneck). It is usually better to use the `niofs` when you need
-index persistence.
+will bottleneck) and disables some optimizations for heap memory usage.
 
 [[niofs]]`niofs`::
 
 The NIO FS type stores the shard index on the file system (maps to
 Lucene `NIOFSDirectory`) using NIO. It allows multiple threads to read
 from the same file concurrently. It is not recommended on Windows
-because of a bug in the SUN Java implementation.
+because of a bug in the SUN Java implementation and disables some
+optimizations for heap memory usage.
 
 [[mmapfs]]`mmapfs`::
 
@@ -114,7 +120,7 @@ or in the index settings at index creation time:
 
 [source,console]
 ---------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "index.store.preload": ["nvd", "dvd"]

@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,7 +19,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class RefCountedTests extends ESTestCase {
-    public void testRefCount() throws IOException {
+
+    public void testRefCount() {
         MyRefCounted counted = new MyRefCounted();
 
         int incs = randomIntBetween(1, 100);
@@ -66,19 +56,10 @@ public class RefCountedTests extends ESTestCase {
 
         counted.decRef();
         assertFalse(counted.tryIncRef());
-        try {
-            counted.incRef();
-            fail(" expected exception");
-        } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), equalTo("test is already closed can't increment refCount current count [0]"));
-        }
-
-        try {
-            counted.ensureOpen();
-            fail(" expected exception");
-        } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), equalTo("closed"));
-        }
+        assertThat(
+            expectThrows(IllegalStateException.class, counted::incRef).getMessage(),
+            equalTo(AbstractRefCounted.ALREADY_CLOSED_MESSAGE));
+        assertThat(expectThrows(IllegalStateException.class, counted::ensureOpen).getMessage(), equalTo("closed"));
     }
 
     public void testMultiThreaded() throws InterruptedException {
@@ -87,49 +68,40 @@ public class RefCountedTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final CopyOnWriteArrayList<Exception> exceptions = new CopyOnWriteArrayList<>();
         for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        latch.await();
-                        for (int j = 0; j < 10000; j++) {
-                            counted.incRef();
-                            try {
-                                counted.ensureOpen();
-                            } finally {
-                                counted.decRef();
-                            }
+            threads[i] = new Thread(() -> {
+                try {
+                    latch.await();
+                    for (int j = 0; j < 10000; j++) {
+                        counted.incRef();
+                        assertTrue(counted.hasReferences());
+                        try {
+                            counted.ensureOpen();
+                        } finally {
+                            counted.decRef();
                         }
-                    } catch (Exception e) {
-                        exceptions.add(e);
                     }
+                } catch (Exception e) {
+                    exceptions.add(e);
                 }
-            };
+            });
             threads[i].start();
         }
         latch.countDown();
-        for (int i = 0; i < threads.length; i++) {
-            threads[i].join();
+        for (Thread thread : threads) {
+            thread.join();
         }
         counted.decRef();
-        try {
-            counted.ensureOpen();
-            fail("expected to be closed");
-        } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), equalTo("closed"));
-        }
+        assertThat(expectThrows(IllegalStateException.class, counted::ensureOpen).getMessage(), equalTo("closed"));
+        assertThat(expectThrows(IllegalStateException.class, counted::incRef).getMessage(),
+            equalTo(AbstractRefCounted.ALREADY_CLOSED_MESSAGE));
         assertThat(counted.refCount(), is(0));
+        assertFalse(counted.hasReferences());
         assertThat(exceptions, Matchers.emptyIterable());
-
     }
 
-    private final class MyRefCounted extends AbstractRefCounted {
+    private static final class MyRefCounted extends AbstractRefCounted {
 
         private final AtomicBoolean closed = new AtomicBoolean(false);
-
-        MyRefCounted() {
-            super("test");
-        }
 
         @Override
         protected void closeInternal() {
@@ -138,7 +110,8 @@ public class RefCountedTests extends ESTestCase {
 
         public void ensureOpen() {
             if (closed.get()) {
-                assert this.refCount() == 0;
+                assertEquals(0, this.refCount());
+                assertFalse(hasReferences());
                 throw new IllegalStateException("closed");
             }
         }

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.expression.gen.processor.BinaryProcessor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
-import org.elasticsearch.xpack.sql.expression.gen.processor.BinaryProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -30,7 +31,7 @@ public abstract class BinaryDateTimeProcessor extends BinaryProcessor {
     }
 
     @Override
-    protected void doWrite(StreamOutput out) {
+    protected void doWrite(StreamOutput out) throws IOException {
     }
 
     ZoneId zoneId() {

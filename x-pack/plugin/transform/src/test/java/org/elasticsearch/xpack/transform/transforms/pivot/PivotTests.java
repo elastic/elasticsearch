@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -17,28 +18,37 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.transform.transforms.pivot.Aggregations.AggregationType;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.transforms.Function;
+import org.elasticsearch.xpack.transform.transforms.pivot.TransformAggregations.AggregationType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -47,24 +57,31 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PivotTests extends ESTestCase {
 
     private NamedXContentRegistry namedXContentRegistry;
     private Client client;
 
-    private final Set<String> supportedAggregations = Stream.of(AggregationType.values()).map(AggregationType::getName)
-            .collect(Collectors.toSet());
-    private final String[] unsupportedAggregations = { "stats" };
+    // exclude aggregations from the analytics module as we don't have parser for it here
+    private final Set<String> externalAggregations = Collections.singleton("top_metrics");
+
+    private final Set<String> supportedAggregations = Stream.of(AggregationType.values())
+        .map(AggregationType::getName)
+        .filter(agg -> externalAggregations.contains(agg) == false)
+        .collect(Collectors.toSet());
+    private final String[] unsupportedAggregations = { "global" };
 
     @Before
     public void registerAggregationNamedObjects() throws Exception {
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new TestSpatialPlugin()));
         namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -86,26 +103,16 @@ public class PivotTests extends ESTestCase {
         return namedXContentRegistry;
     }
 
-
-    /*
-      Had to disable warnings because tests get random date histo configs, and changing to
-      new interval format was non-trivial.  Best for ML team to fix
-     */
-    @Override
-    protected boolean enableWarningsCheck() {
-        return false;
-    }
-
     public void testValidateExistingIndex() throws Exception {
-        SourceConfig source = new SourceConfig(new String[]{"existing_source_index"}, QueryConfig.matchAll());
-        Pivot pivot = new Pivot(getValidPivotConfig());
+        SourceConfig source = new SourceConfig("existing_source_index");
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
 
         assertValidTransform(client, source, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
-        SourceConfig source = new SourceConfig(new String[]{"non_existing_source_index"}, QueryConfig.matchAll());
-        Pivot pivot = new Pivot(getValidPivotConfig());
+        SourceConfig source = new SourceConfig("non_existing_source_index");
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
 
         assertInvalidTransform(client, source, pivot);
     }
@@ -113,29 +120,47 @@ public class PivotTests extends ESTestCase {
     public void testInitialPageSize() throws Exception {
         int expectedPageSize = 1000;
 
-        Pivot pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), expectedPageSize));
+        Function pivot = new Pivot(
+            new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), expectedPageSize),
+            new SettingsConfig(),
+            Version.CURRENT,
+            Collections.emptySet()
+        );
         assertThat(pivot.getInitialPageSize(), equalTo(expectedPageSize));
 
-        pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null));
-        assertThat(pivot.getInitialPageSize(), equalTo(Pivot.DEFAULT_INITIAL_PAGE_SIZE));
+        pivot = new Pivot(
+            new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null),
+            new SettingsConfig(),
+            Version.CURRENT,
+            Collections.emptySet()
+        );
+        assertThat(pivot.getInitialPageSize(), equalTo(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE));
+
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
     }
 
     public void testSearchFailure() throws Exception {
         // test a failure during the search operation, transform creation fails if
         // search has failures although they might just be temporary
-        SourceConfig source = new SourceConfig(new String[] { "existing_source_index_with_failing_shards" }, QueryConfig.matchAll());
+        SourceConfig source = new SourceConfig("existing_source_index_with_failing_shards");
 
-        Pivot pivot = new Pivot(getValidPivotConfig());
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
 
         assertInvalidTransform(client, source, pivot);
     }
 
     public void testValidateAllSupportedAggregations() throws Exception {
+        SourceConfig source = new SourceConfig("existing_source");
+
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
-            SourceConfig source = new SourceConfig(new String[]{"existing_source"}, QueryConfig.matchAll());
 
-            Pivot pivot = new Pivot(getValidPivotConfig(aggregationConfig));
+            Function pivot = new Pivot(
+                getValidPivotConfig(aggregationConfig),
+                new SettingsConfig(),
+                Version.CURRENT,
+                Collections.emptySet()
+            );
             assertValidTransform(client, source, pivot);
         }
     }
@@ -144,10 +169,39 @@ public class PivotTests extends ESTestCase {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Pivot pivot = new Pivot(getValidPivotConfig(aggregationConfig));
-            ElasticsearchException ex = expectThrows(ElasticsearchException.class, pivot::validateConfig);
-            assertThat("expected aggregations to be unsupported, but they were", ex, is(notNullValue()));
+            Function pivot = new Pivot(
+                getValidPivotConfig(aggregationConfig),
+                new SettingsConfig(),
+                Version.CURRENT,
+                Collections.emptySet()
+            );
+
+            pivot.validateConfig(ActionListener.wrap(r -> { fail("expected an exception but got a response"); }, e -> {
+                assertThat(e, is(instanceOf(ValidationException.class)));
+                assertThat(
+                    "expected aggregations to be unsupported, but they were",
+                    e.getMessage(),
+                    containsString("Unsupported aggregation type [" + agg + "]")
+                );
+            }));
         }
+    }
+
+    public void testGetPerformanceCriticalFields() throws IOException {
+        String groupConfigJson = "{"
+            + "\"group-A\": { \"terms\": { \"field\": \"field-A\" } },"
+            + "\"group-B\": { \"terms\": { \"field\": \"field-B\" } },"
+            + "\"group-C\": { \"terms\": { \"field\": \"field-C\" } }"
+            + "}";
+        GroupConfig groupConfig;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, groupConfigJson)) {
+            groupConfig = GroupConfig.fromXContent(parser, false);
+        }
+        assertThat(groupConfig.validate(null), is(nullValue()));
+
+        PivotConfig pivotConfig = new PivotConfig(groupConfig, AggregationConfigTests.randomAggregationConfig(), null);
+        Function pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        assertThat(pivot.getPerformanceCriticalFields(), contains("field-A", "field-B", "field-C"));
     }
 
     private class MyMockClient extends NoOpClient {
@@ -157,8 +211,11 @@ public class PivotTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse>
-        void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
 
             if (request instanceof SearchRequest) {
                 SearchRequest searchRequest = (SearchRequest) request;
@@ -176,10 +233,24 @@ public class PivotTests extends ESTestCase {
                 }
 
                 final SearchResponseSections sections = new SearchResponseSections(
-                        new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0), null, null, false, null, null,
-                        1);
-                final SearchResponse response = new SearchResponse(sections, null, 10, searchFailures.size() > 0 ? 0 : 5, 0, 0,
-                        searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]), null);
+                    new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1
+                );
+                final SearchResponse response = new SearchResponse(
+                    sections,
+                    null,
+                    10,
+                    searchFailures.size() > 0 ? 0 : 5,
+                    0,
+                    0,
+                    searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]),
+                    null
+                );
 
                 listener.onResponse((Response) response);
                 return;
@@ -203,58 +274,82 @@ public class PivotTests extends ESTestCase {
 
     private AggregationConfig getAggregationConfig(String agg) throws IOException {
         if (agg.equals(AggregationType.SCRIPTED_METRIC.getName())) {
-            return parseAggregations("{\"pivot_scripted_metric\": {\n" +
-                "\"scripted_metric\": {\n" +
-                "    \"init_script\" : \"state.transactions = []\",\n" +
-                "    \"map_script\" : \"state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)\", \n" +
-                "    \"combine_script\" : \"double profit = 0; for (t in state.transactions) { profit += t } return profit\",\n" +
-                "    \"reduce_script\" : \"double profit = 0; for (a in states) { profit += a } return profit\"\n" +
-                "  }\n" +
-                "}}");
+            return parseAggregations(
+                "{\"pivot_scripted_metric\": {\n"
+                    + "\"scripted_metric\": {\n"
+                    + "    \"init_script\" : \"state.transactions = []\",\n"
+                    + "    \"map_script\" : "
+                    + "        \"state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)\", \n"
+                    + "    \"combine_script\" : \"double profit = 0; for (t in state.transactions) { profit += t } return profit\",\n"
+                    + "    \"reduce_script\" : \"double profit = 0; for (a in states) { profit += a } return profit\"\n"
+                    + "  }\n"
+                    + "}}"
+            );
         }
         if (agg.equals(AggregationType.BUCKET_SCRIPT.getName())) {
-            return parseAggregations("{\"pivot_bucket_script\":{" +
-                "\"bucket_script\":{" +
-                "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
-                "\"script\":\"return params.param_1\"}}}");
+            return parseAggregations(
+                "{\"pivot_bucket_script\":{"
+                    + "\"bucket_script\":{"
+                    + "\"buckets_path\":{\"param_1\":\"other_bucket\"},"
+                    + "\"script\":\"return params.param_1\"}}}"
+            );
         }
         if (agg.equals(AggregationType.BUCKET_SELECTOR.getName())) {
-            return parseAggregations("{\"pivot_bucket_selector\":{" +
-                "\"bucket_selector\":{" +
-                "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
-                "\"script\":\"params.param_1 > 42.0\"}}}");
+            return parseAggregations(
+                "{\"pivot_bucket_selector\":{"
+                    + "\"bucket_selector\":{"
+                    + "\"buckets_path\":{\"param_1\":\"other_bucket\"},"
+                    + "\"script\":\"params.param_1 > 42.0\"}}}"
+            );
         }
         if (agg.equals(AggregationType.WEIGHTED_AVG.getName())) {
-            return parseAggregations("{\n" +
-                "\"pivot_weighted_avg\": {\n" +
-                "  \"weighted_avg\": {\n" +
-                "   \"value\": {\"field\": \"values\"},\n" +
-                "   \"weight\": {\"field\": \"weights\"}\n" +
-                "  }\n" +
-                "}\n" +
-                "}");
+            return parseAggregations(
+                "{\n"
+                    + "\"pivot_weighted_avg\": {\n"
+                    + "  \"weighted_avg\": {\n"
+                    + "   \"value\": {\"field\": \"values\"},\n"
+                    + "   \"weight\": {\"field\": \"weights\"}\n"
+                    + "  }\n"
+                    + "}\n"
+                    + "}"
+            );
         }
-        return parseAggregations("{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n"
-                + "    }\n" + "  }" + "}");
+        if (agg.equals(AggregationType.FILTER.getName())) {
+            return parseAggregations(
+                "{" + "\"pivot_filter\": {" + "  \"filter\": {" + "   \"term\": {\"field\": \"value\"}" + "  }" + "}" + "}"
+            );
+        }
+        if (agg.equals(AggregationType.GEO_LINE.getName())) {
+            return parseAggregations(
+                "{\"pivot_geo_line\": {\"geo_line\": {\"point\": {\"field\": \"values\"}, \"sort\":{\"field\": \"timestamp\"}}}}"
+            );
+        }
+        if (agg.equals("global")) {
+            return parseAggregations("{\"pivot_global\": {\"global\": {}}}");
+        }
+
+        return parseAggregations(
+            "{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n" + "    }\n" + "  }" + "}"
+        );
     }
 
     private AggregationConfig parseAggregations(String json) throws IOException {
-        final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        final XContentParser parser = XContentType.JSON.xContent()
+            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         // parseAggregators expects to be already inside the xcontent object
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         return AggregationConfig.fromXContent(parser, false);
     }
 
-    private static void assertValidTransform(Client client, SourceConfig source, Pivot pivot) throws Exception {
+    private static void assertValidTransform(Client client, SourceConfig source, Function pivot) throws Exception {
         validate(client, source, pivot, true);
     }
 
-    private static void assertInvalidTransform(Client client, SourceConfig source, Pivot pivot) throws Exception {
+    private static void assertInvalidTransform(Client client, SourceConfig source, Function pivot) throws Exception {
         validate(client, source, pivot, false);
     }
 
-    private static void validate(Client client, SourceConfig source, Pivot pivot, boolean expectValid) throws Exception {
+    private static void validate(Client client, SourceConfig source, Function pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         pivot.validateQuery(client, source, ActionListener.wrap(validity -> {
@@ -266,10 +361,20 @@ public class PivotTests extends ESTestCase {
         }));
 
         assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
-        if (expectValid == true && exceptionHolder.get() != null) {
+        if (expectValid && exceptionHolder.get() != null) {
             throw exceptionHolder.get();
         } else if (expectValid == false && exceptionHolder.get() == null) {
             fail("Expected config to be invalid");
         }
+    }
+
+    // This is to pass license checks :)
+    private static class TestSpatialPlugin extends SpatialPlugin {
+
+        @Override
+        protected XPackLicenseState getLicenseState() {
+            return new XPackLicenseState(System::currentTimeMillis);
+        }
+
     }
 }

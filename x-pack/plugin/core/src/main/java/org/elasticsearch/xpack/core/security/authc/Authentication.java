@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
@@ -13,18 +14,28 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
 public class Authentication implements ToXContentObject {
+
+    public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
 
     private final User user;
     private final RealmRef authenticatedBy;
@@ -76,6 +87,14 @@ public class Authentication implements ToXContentObject {
         return lookedUpBy;
     }
 
+    /**
+     * Get the realm where the effective user comes from.
+     * The effective user is the es-security-runas-user if present or the authenticated user.
+     */
+    public RealmRef getSourceRealm() {
+        return lookedUpBy == null ? authenticatedBy : lookedUpBy;
+    }
+
     public Version getVersion() {
         return version;
     }
@@ -88,39 +107,8 @@ public class Authentication implements ToXContentObject {
         return metadata;
     }
 
-    public static Authentication readFromContext(ThreadContext ctx) throws IOException, IllegalArgumentException {
-        Authentication authentication = ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY);
-        if (authentication != null) {
-            assert ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null;
-            return authentication;
-        }
-
-        String authenticationHeader = ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY);
-        if (authenticationHeader == null) {
-            return null;
-        }
-        return deserializeHeaderAndPutInContext(authenticationHeader, ctx);
-    }
-
-    public static Authentication getAuthentication(ThreadContext context) {
-        return context.getTransient(AuthenticationField.AUTHENTICATION_KEY);
-    }
-
-    static Authentication deserializeHeaderAndPutInContext(String header, ThreadContext ctx)
-            throws IOException, IllegalArgumentException {
-        assert ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY) == null;
-
-        Authentication authentication = decode(header);
-        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        return authentication;
-    }
-
-    public static Authentication decode(String header) throws IOException {
-        byte[] bytes = Base64.getDecoder().decode(header);
-        StreamInput input = StreamInput.wrap(bytes);
-        Version version = Version.readVersion(input);
-        input.setVersion(version);
-        return new Authentication(input);
+    public boolean isServiceAccount() {
+        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType()) && null == getLookedUpBy();
     }
 
     /**
@@ -128,19 +116,7 @@ public class Authentication implements ToXContentObject {
      * {@link IllegalStateException} will be thrown
      */
     public void writeToContext(ThreadContext ctx) throws IOException, IllegalArgumentException {
-        ensureContextDoesNotContainAuthentication(ctx);
-        String header = encode();
-        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, this);
-        ctx.putHeader(AuthenticationField.AUTHENTICATION_KEY, header);
-    }
-
-    void ensureContextDoesNotContainAuthentication(ThreadContext ctx) {
-        if (ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY) != null) {
-            if (ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY) == null) {
-                throw new IllegalStateException("authentication present as a transient but not a header");
-            }
-            throw new IllegalStateException("authentication is already present in the context");
-        }
+        new AuthenticationContextSerializer().writeToContext(this, ctx);
     }
 
     public String encode() throws IOException {
@@ -164,6 +140,57 @@ public class Authentication implements ToXContentObject {
         out.writeMap(metadata);
     }
 
+    /**
+     * Checks whether the user or API key of the passed in authentication can access the resources owned by the user
+     * or API key of this authentication. The rules are as follows:
+     *   * True if the authentications are for the same API key (same API key ID)
+     *   * True if they are the same username from the same realm
+     *      - For file and native realm, same realm means the same realm type
+     *      - For all other realms, same realm means same realm type plus same realm name
+     *   * An user and its API key cannot access each other's resources
+     *   * An user and its token can access each other's resources
+     *   * Two API keys are never able to access each other's resources regardless of their ownership.
+     *
+     *  This check is a best effort and it does not account for certain static and external changes.
+     *  See also <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/security-limitations.html">
+     *      security limitations</a>
+     */
+    public boolean canAccessResourcesOf(Authentication other) {
+        if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
+            final boolean sameKeyId = getMetadata().get(API_KEY_ID_KEY).equals(other.getMetadata().get(API_KEY_ID_KEY));
+            if (sameKeyId) {
+                assert getUser().principal().equals(other.getUser().principal()) :
+                    "The same API key ID cannot be attributed to two different usernames";
+            }
+            return sameKeyId;
+        }
+
+        if (getAuthenticationType().equals(other.getAuthenticationType())
+            || (AuthenticationType.REALM == getAuthenticationType() && AuthenticationType.TOKEN == other.getAuthenticationType())
+            || (AuthenticationType.TOKEN == getAuthenticationType() && AuthenticationType.REALM == other.getAuthenticationType())) {
+            if (false == getUser().principal().equals(other.getUser().principal())) {
+                return false;
+            }
+            final RealmRef thisRealm = getSourceRealm();
+            final RealmRef otherRealm = other.getSourceRealm();
+            if (FileRealmSettings.TYPE.equals(thisRealm.getType()) || NativeRealmSettings.TYPE.equals(thisRealm.getType())) {
+                return thisRealm.getType().equals(otherRealm.getType());
+            }
+            return thisRealm.getName().equals(otherRealm.getName()) && thisRealm.getType().equals(otherRealm.getType());
+        } else {
+            assert EnumSet.of(
+                AuthenticationType.REALM,
+                AuthenticationType.API_KEY,
+                AuthenticationType.TOKEN,
+                AuthenticationType.ANONYMOUS,
+                AuthenticationType.INTERNAL
+            ).containsAll(EnumSet.of(getAuthenticationType(), other.getAuthenticationType()))
+                : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
+                + EnumSet.of(getAuthenticationType(), other.getAuthenticationType());
+            return false;
+        }
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -185,10 +212,26 @@ public class Authentication implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        toXContentFragment(builder);
+        return builder.endObject();
+    }
+
+    /**
+     * Generates XContent without the start/end object.
+     */
+    public void toXContentFragment(XContentBuilder builder) throws IOException {
         builder.field(User.Fields.USERNAME.getPreferredName(), user.principal());
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
+        if (isServiceAccount()) {
+            final String tokenName = (String) getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
+            assert tokenName != null : "token name cannot be null";
+            final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
+            assert tokenSource != null : "token source cannot be null";
+            builder.field(User.Fields.TOKEN.getPreferredName(),
+                Map.of("name", tokenName, "type", ServiceAccountSettings.REALM_TYPE + "_" + tokenSource));
+        }
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
         builder.startObject(User.Fields.AUTHENTICATION_REALM.getPreferredName());
@@ -204,7 +247,20 @@ public class Authentication implements ToXContentObject {
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
         }
         builder.endObject();
-        return builder.endObject();
+        builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("Authentication[")
+            .append(user)
+            .append(",type=").append(type)
+            .append(",by=").append(authenticatedBy);
+        if (lookedUpBy != null) {
+            builder.append(",lookup=").append(lookedUpBy);
+        }
+        builder.append("]");
+        return builder.toString();
     }
 
     public static class RealmRef {
@@ -250,8 +306,8 @@ public class Authentication implements ToXContentObject {
 
             RealmRef realmRef = (RealmRef) o;
 
-            if (!nodeName.equals(realmRef.nodeName)) return false;
-            if (!name.equals(realmRef.name)) return false;
+            if (nodeName.equals(realmRef.nodeName) == false) return false;
+            if (name.equals(realmRef.name) == false) return false;
             return type.equals(realmRef.type);
         }
 
@@ -261,6 +317,11 @@ public class Authentication implements ToXContentObject {
             result = 31 * result + name.hashCode();
             result = 31 * result + type.hashCode();
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
         }
     }
 
@@ -272,4 +333,3 @@ public class Authentication implements ToXContentObject {
         INTERNAL
     }
 }
-

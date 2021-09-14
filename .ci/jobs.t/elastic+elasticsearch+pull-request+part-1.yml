@@ -1,0 +1,5 @@
+---
+jjbb-template: pull-request-gradle-unix.yml
+vars:
+  - pr-job: "part-1"
+  - gradle-args: "-Dignore.tests.seed checkPart1"

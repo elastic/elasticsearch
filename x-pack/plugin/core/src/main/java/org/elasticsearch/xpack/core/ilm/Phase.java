@@ -1,17 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.common.ParseField;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,6 +35,7 @@ import java.util.stream.Collectors;
  * particular point in the lifecycle of an index.
  */
 public class Phase implements ToXContentObject, Writeable {
+    private static final Logger logger = LogManager.getLogger(Phase.class);
 
     public static final ParseField MIN_AGE = new ParseField("min_age");
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
@@ -40,7 +46,20 @@ public class Phase implements ToXContentObject, Writeable {
                     .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()))));
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), MIN_AGE.getPreferredName()), MIN_AGE, ValueType.VALUE);
+            (ContextParser<String, Object>) (p, c) -> {
+                // In earlier versions it was possible to create a Phase with a negative `min_age` which would then cause errors
+                // when the phase is read from the cluster state during startup (even before negative timevalues were strictly
+                // disallowed) so this is a hack to treat negative `min_age`s as 0 to prevent those errors.
+                // They will be saved as `0` so this hack can be removed once we no longer have to read cluster states from 7.x.
+                assert Version.CURRENT.major < 9 : "remove this hack now that we don't have to read 7.x cluster states";
+                final String timeValueString = p.text();
+                if (timeValueString.startsWith("-")) {
+                    logger.warn("phase has negative min_age value of [{}] - this will be treated as a min_age of 0",
+                        timeValueString);
+                    return TimeValue.ZERO;
+                }
+                return TimeValue.parseTimeValue(timeValueString, MIN_AGE.getPreferredName());
+            }, MIN_AGE, ValueType.VALUE);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
                 (p, c, n) -> p.namedObject(LifecycleAction.class, n, null), v -> {
                     throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported");

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.oidc;
 
@@ -15,11 +16,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateResponse;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
@@ -38,17 +40,19 @@ public class TransportOpenIdConnectAuthenticateAction
     private final ThreadPool threadPool;
     private final AuthenticationService authenticationService;
     private final TokenService tokenService;
+    private final SecurityContext securityContext;
     private static final Logger logger = LogManager.getLogger(TransportOpenIdConnectAuthenticateAction.class);
 
     @Inject
     public TransportOpenIdConnectAuthenticateAction(ThreadPool threadPool, TransportService transportService,
                                                     ActionFilters actionFilters, AuthenticationService authenticationService,
-                                                    TokenService tokenService) {
+                                                    TokenService tokenService, SecurityContext securityContext) {
         super(OpenIdConnectAuthenticateAction.NAME, transportService, actionFilters,
             (Writeable.Reader<OpenIdConnectAuthenticateRequest>) OpenIdConnectAuthenticateRequest::new);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
+        this.securityContext = securityContext;
     }
 
     @Override
@@ -57,7 +61,7 @@ public class TransportOpenIdConnectAuthenticateAction
         final OpenIdConnectToken token = new OpenIdConnectToken(request.getRedirectUri(), new State(request.getState()),
             new Nonce(request.getNonce()), request.getRealm());
         final ThreadContext threadContext = threadPool.getThreadContext();
-        Authentication originatingAuthentication = Authentication.getAuthentication(threadContext);
+        Authentication originatingAuthentication = securityContext.getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authenticationService.authenticate(OpenIdConnectAuthenticateAction.NAME, request, token, ActionListener.wrap(
                 authentication -> {
@@ -69,10 +73,10 @@ public class TransportOpenIdConnectAuthenticateAction
                     @SuppressWarnings("unchecked") final Map<String, Object> tokenMetadata = (Map<String, Object>) result.getMetadata()
                         .get(OpenIdConnectRealm.CONTEXT_TOKEN_DATA);
                     tokenService.createOAuth2Tokens(authentication, originatingAuthentication, tokenMetadata, true,
-                        ActionListener.wrap(tuple -> {
+                        ActionListener.wrap(tokenResult -> {
                             final TimeValue expiresIn = tokenService.getExpirationDelay();
-                            listener.onResponse(new OpenIdConnectAuthenticateResponse(authentication.getUser().principal(), tuple.v1(),
-                                tuple.v2(), expiresIn));
+                            listener.onResponse(new OpenIdConnectAuthenticateResponse(authentication, tokenResult.getAccessToken(),
+                                tokenResult.getRefreshToken(), expiresIn));
                         }, listener::onFailure));
                 }, e -> {
                     logger.debug(() -> new ParameterizedMessage("OpenIDConnectToken [{}] could not be authenticated", token), e);

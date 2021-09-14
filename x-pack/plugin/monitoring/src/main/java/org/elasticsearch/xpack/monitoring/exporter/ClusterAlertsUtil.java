@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
@@ -84,7 +85,7 @@ public class ClusterAlertsUtil {
      * @see #WATCH_IDS
      */
     public static String createUniqueWatchId(final ClusterService clusterService, final String watchId) {
-        return createUniqueWatchId(clusterService.state().metaData().clusterUUID(), watchId);
+        return createUniqueWatchId(clusterService.state().metadata().clusterUUID(), watchId);
     }
 
     /**
@@ -112,7 +113,7 @@ public class ClusterAlertsUtil {
         final String resource = String.format(Locale.ROOT, WATCH_FILE, watchId);
 
         try {
-            final String clusterUuid = clusterService.state().metaData().clusterUUID();
+            final String clusterUuid = clusterService.state().metadata().clusterUUID();
             final String uniqueWatchId = createUniqueWatchId(clusterUuid, watchId);
 
             // load the resource as-is
@@ -151,7 +152,7 @@ public class ClusterAlertsUtil {
 
             if (unknownIds.isEmpty() == false) {
                 throw new SettingsException(
-                    "[" + CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + 
+                    "[" + CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).getKey() +
                             "] contains unrecognized Cluster Alert IDs [" + String.join(", ", unknownIds) + "]");
             }
         }

@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,14 +35,14 @@ import java.util.function.BiConsumer;
  * See CLengthEncodedInputParser.h in the C++ code for a more
  * detailed description.
  */
-class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
+public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
     private static final Logger LOGGER = LogManager.getLogger(JsonDataToProcessWriter.class);
-    private NamedXContentRegistry xContentRegistry;
+    private final NamedXContentRegistry xContentRegistry;
 
-    JsonDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
-                            DataDescription dataDescription, AnalysisConfig analysisConfig,
-                            DataCountsReporter dataCountsReporter, NamedXContentRegistry xContentRegistry) {
+    public JsonDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
+                                   DataDescription dataDescription, AnalysisConfig analysisConfig,
+                                   DataCountsReporter dataCountsReporter, NamedXContentRegistry xContentRegistry) {
         super(includeControlField, includeTokensField, autodetectProcess, dataDescription, analysisConfig,
                 dataCountsReporter, LOGGER);
         this.xContentRegistry = xContentRegistry;
@@ -53,7 +53,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
      * the OutputStream. No transformation is applied to the data the timestamp
      * is expected in seconds from the epoch. If any of the fields in
      * <code>analysisFields</code> or the <code>DataDescription</code>s
-     * timeField is missing from the JOSN inputIndex an exception is thrown
+     * timeField is missing from the JSON inputIndex an exception is thrown
      */
     @Override
     public void write(InputStream inputStream, CategorizationAnalyzer categorizationAnalyzer, XContentType xContentType,
@@ -61,21 +61,17 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
             throws IOException {
         dataCountsReporter.startNewIncrementalCount();
 
-        if (xContentType.equals(XContentType.JSON)) {
+        if (xContentType.canonical() == XContentType.JSON) {
             writeJsonXContent(categorizationAnalyzer, inputStream);
-        } else if (xContentType.equals(XContentType.SMILE)) {
+        } else if (xContentType.canonical() == XContentType.SMILE) {
             writeSmileXContent(categorizationAnalyzer, inputStream);
         } else {
             throw new RuntimeException("XContentType [" + xContentType
                     + "] is not supported by JsonDataToProcessWriter");
         }
 
-        // this line can throw and will be propagated
-        dataCountsReporter.finishReporting(
-                ActionListener.wrap(
-                        response -> handler.accept(dataCountsReporter.incrementalStats(), null),
-                        e -> handler.accept(null, e)
-                ));
+        dataCountsReporter.finishReporting();
+        handler.accept(dataCountsReporter.incrementalStats(), null);
     }
 
     private void writeJsonXContent(CategorizationAnalyzer categorizationAnalyzer, InputStream inputStream) throws IOException {

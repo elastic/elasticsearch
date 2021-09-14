@@ -1,20 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.elasticsearch.xpack.sql.expression.Alias;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.plan.TableIdentifier;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedRelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FromClauseContext;
@@ -35,43 +46,37 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.RelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SetQuantifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TableNameContext;
-import org.elasticsearch.xpack.sql.plan.TableIdentifier;
-import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
-import org.elasticsearch.xpack.sql.plan.logical.Filter;
+import org.elasticsearch.xpack.sql.plan.logical.Having;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
-import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
-import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
-import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params) {
-        super(params);
+    protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
+        super(params, zoneId);
     }
 
     @Override
     public LogicalPlan visitQuery(QueryContext ctx) {
         LogicalPlan body = plan(ctx.queryNoWith());
 
-        List<SubQueryAlias> namedQueries = visitList(ctx.namedQuery(), SubQueryAlias.class);
+        List<SubQueryAlias> namedQueries = visitList(this, ctx.namedQuery(), SubQueryAlias.class);
 
         // unwrap query (and validate while at it)
         Map<String, SubQueryAlias> cteRelations = new LinkedHashMap<>(namedQueries.size());
@@ -94,18 +99,31 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitQueryNoWith(QueryNoWithContext ctx) {
         LogicalPlan plan = plan(ctx.queryTerm());
 
-        if (!ctx.orderBy().isEmpty()) {
+        if (ctx.orderBy().isEmpty() == false) {
             List<OrderByContext> orders = ctx.orderBy();
             OrderByContext endContext = orders.get(orders.size() - 1);
-            plan = new OrderBy(source(ctx.ORDER(), endContext), plan, visitList(ctx.orderBy(), Order.class));
+            Source source = source(ctx.ORDER(), endContext);
+            List<Order> order = visitList(this, ctx.orderBy(), Order.class);
+
+            if (plan instanceof Limit) {
+                // Limit from TOP clauses must be the parent of the OrderBy clause
+                Limit limit = (Limit) plan;
+                plan = limit.replaceChild(new OrderBy(source, limit.child(), order));
+            } else {
+                plan = new OrderBy(source, plan, order);
+            }
         }
 
         LimitClauseContext limitClause = ctx.limitClause();
         if (limitClause != null) {
             Token limit = limitClause.limit;
             if (limit != null && limitClause.INTEGER_VALUE() != null) {
-                plan = new Limit(source(limitClause), new Literal(source(limitClause),
-                        Integer.parseInt(limit.getText()), DataType.INTEGER), plan);
+                if (plan instanceof Limit) {
+                    throw new ParsingException(source(limitClause),
+                        "TOP and LIMIT are not allowed in the same query - use one or the other");
+                } else {
+                    plan = limit(plan, source(limitClause), limit);
+                }
             }
         }
 
@@ -126,8 +144,9 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             query = new Filter(source(ctx), query, expression(ctx.where));
         }
 
-        List<NamedExpression> selectTarget = ctx.selectItems().isEmpty() ? emptyList() : visitList(ctx.selectItems().selectItem(),
-                NamedExpression.class);
+        List<NamedExpression> selectTarget = ctx.selectItems().isEmpty()
+            ? emptyList()
+            : visitList(this, ctx.selectItems().selectItem(), NamedExpression.class);
 
         // GROUP BY
         GroupByContext groupByCtx = ctx.groupBy();
@@ -142,18 +161,25 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             ParserRuleContext endSource = groupingElement.isEmpty() ? groupByCtx : groupingElement.get(groupingElement.size() - 1);
             query = new Aggregate(source(ctx.GROUP(), endSource), query, groupBy, selectTarget);
         }
-        else if (!selectTarget.isEmpty()) {
+        else if (selectTarget.isEmpty() == false) {
             query = new Project(source(ctx.selectItems()), query, selectTarget);
         }
 
         // HAVING
         if (ctx.having != null) {
-            query = new Filter(source(ctx.having), query, expression(ctx.having));
+            query = new Having(source(ctx.having), query, expression(ctx.having));
         }
 
         if (ctx.setQuantifier() != null && ctx.setQuantifier().DISTINCT() != null) {
             query = new Distinct(source(ctx.setQuantifier()), query);
         }
+
+        // TOP
+        SqlBaseParser.TopClauseContext topClauseContext = ctx.topClause();
+        if (topClauseContext != null && topClauseContext.top != null && topClauseContext.INTEGER_VALUE() != null) {
+            query = limit(query, source(topClauseContext), topClauseContext.top);
+        }
+
         return query;
     }
 
@@ -241,5 +267,9 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         String alias = visitQualifiedName(ctx.qualifiedName());
         TableIdentifier tableIdentifier = visitTableIdentifier(ctx.tableIdentifier());
         return new UnresolvedRelation(source(ctx), tableIdentifier, alias, ctx.FROZEN() != null);
+    }
+
+    private Limit limit(LogicalPlan plan, Source source, Token limit) {
+        return new Limit(source, new Literal(source, Integer.parseInt(limit.getText()), DataTypes.INTEGER), plan);
     }
 }

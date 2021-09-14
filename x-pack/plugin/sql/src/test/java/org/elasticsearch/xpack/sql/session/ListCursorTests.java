@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.plugin.CursorTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class ListCursorTests extends AbstractWireSerializingTestCase<ListCursor> {
+public class ListCursorTests extends AbstractSqlWireSerializingTestCase<ListCursor> {
     public static ListCursor randomPagingListCursor() {
         int size = between(1, 20);
         int depth = between(1, 20);
@@ -46,7 +48,7 @@ public class ListCursorTests extends AbstractWireSerializingTestCase<ListCursor>
     }
 
     @Override
-    protected Reader<ListCursor> instanceReader() {
+    protected Writeable.Reader<ListCursor> instanceReader() {
         return ListCursor::new;
     }
 
@@ -55,8 +57,8 @@ public class ListCursorTests extends AbstractWireSerializingTestCase<ListCursor>
         /* Randomly choose between internal protocol round trip and String based
          * round trips used to toXContent. */
         if (randomBoolean()) {
-            return super.copyInstance(instance, version);
+            return copyWriteable(instance, getNamedWriteableRegistry(), ListCursor::new, version);
         }
-        return (ListCursor) Cursors.decodeFromString(Cursors.encodeToString(instance, randomZone()));
+        return (ListCursor) CursorTests.decodeFromString(Cursors.encodeToString(instance, randomZone()));
     }
 }

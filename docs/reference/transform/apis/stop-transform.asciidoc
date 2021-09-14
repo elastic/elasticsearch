@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[stop-transform]]
-=== Stop {transforms} API
+= Stop {transforms} API
 
 [subs="attributes"]
 ++++
@@ -10,11 +10,9 @@
 
 Stops one or more {transforms}.
 
-beta[]
-
 
 [[stop-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _transform/<transform_id>/_stop` +
 
@@ -24,16 +22,14 @@ beta[]
 
 
 [[stop-transform-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_transform` 
-cluster privileges to use this API. The built-in `transform_admin` role has 
-these privileges. For more information, see <<security-privileges>> and 
-<<built-in-roles>>.
+Requires the `manage_transform` cluster privilege. This privilege is included 
+in the `transform_admin` built-in role.
 
 
 [[stop-transform-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can stop multiple {transforms} in a single API request by using a
 comma-separated list of {transforms} or a wildcard expression.
@@ -42,38 +38,21 @@ All {transforms} can be stopped by using `_all` or `*` as the
 
 
 [[stop-transform-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<transform_id>`::
-  (Required, string) Identifier for the {transform}. This identifier
-  can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
-  underscores. It must start and end with alphanumeric characters.
-
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[stop-transform-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean) Specifies what to do when the request:
-+
---
-* Contains wildcard expressions and there are no {transforms} that match.
-* Contains the `_all` string or no identifiers and there are no matches.
-* Contains wildcard expressions and there are only partial matches. 
-
-The default value is `true`, which returns a successful acknowledgement message
-when there are no matches. When there are only partial matches, the API stops
-the appropriate {transforms}. For example, if the request contains
-`test-id1*,test-id2*` as the identifiers and there are no {transforms}
-that match `test-id2*`, the API nonetheless stops the {transforms}
-that match `test-id1*`.
-
-If this parameter is `false`, the request returns a `404` status code when there
-are no matches or only partial matches.
---
+(Optional, Boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms2]
 
 `force`::
-  (Optional, boolean) Set to `true` to stop a failed {transform} or to 
+  (Optional, Boolean) Set to `true` to stop a failed {transform} or to 
   forcefully stop a {transform} that did not respond to the initial stop 
   request.
 
@@ -86,13 +65,17 @@ are no matches or only partial matches.
   call itself timed out while waiting for the status change. Defaults to `30s`
 
 `wait_for_completion`::
-  (Optional, boolean) If set to `true`, causes the API to block until the indexer 
+  (Optional, Boolean) If set to `true`, causes the API to block until the indexer 
   state completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
 
+`wait_for_checkpoint`::
+  (Optional, Boolean) If set to `true`, the transform will not completely stop
+  until the current checkpoint is completed. If set to `false`, the {transform}
+  stops as soon as possible. Defaults to `false`.
 
 [[stop-transform-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
@@ -100,7 +83,7 @@ are no matches or only partial matches.
 
 
 [[stop-transform-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

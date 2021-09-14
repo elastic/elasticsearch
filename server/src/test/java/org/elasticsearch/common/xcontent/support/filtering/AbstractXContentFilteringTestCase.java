@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.support.filtering;
@@ -31,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractFilteringTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
@@ -41,20 +31,68 @@ import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractXContentFilteringTestCase extends AbstractFilteringTestCase {
 
-    protected final void testFilter(Builder expected, Builder actual, Set<String> includes, Set<String> excludes) throws IOException {
-        assertFilterResult(expected.apply(createBuilder()), actual.apply(createBuilder(includes, excludes)));
+    protected final void testFilter(Builder expected, Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
+        assertFilterResult(expected.apply(createBuilder()), filter(sample, includes, excludes));
     }
 
     protected abstract void assertFilterResult(XContentBuilder expected, XContentBuilder actual);
 
     protected abstract XContentType getXContentType();
 
+    @Override
+    protected boolean removesEmptyArrays() {
+        return true;
+    }
+
     private XContentBuilder createBuilder() throws IOException {
         return XContentBuilder.builder(getXContentType().xContent());
     }
 
-    private XContentBuilder createBuilder(Set<String> includes, Set<String> excludes) throws IOException {
-        return XContentBuilder.builder(getXContentType().xContent(), includes, excludes);
+    private XContentBuilder filter(Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
+        if (randomBoolean()) {
+            return filterOnBuilder(sample, includes, excludes);
+        }
+        FilterPath[] excludesFilter = FilterPath.compile(excludes);
+        if (excludesFilter != null && Arrays.stream(excludesFilter).anyMatch(FilterPath::hasDoubleWildcard)) {
+            /*
+             * If there are any double wildcard filters the parser based
+             * filtering produced weird invalid json. Just field names
+             * and no objects?! Weird. Anyway, we can't use it.
+             */
+            return filterOnBuilder(sample, includes, excludes);
+        }
+        FilterPath[] includesFilter = FilterPath.compile(includes);
+        return filterOnParser(sample, includesFilter, excludesFilter);
+    }
+
+    private XContentBuilder filterOnBuilder(Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
+        return sample.apply(XContentBuilder.builder(getXContentType(), includes, excludes));
+    }
+
+    private XContentBuilder filterOnParser(Builder sample, FilterPath[] includes, FilterPath[] excludes) throws IOException {
+        try (XContentBuilder builtSample = sample.apply(createBuilder())) {
+            BytesReference sampleBytes = BytesReference.bytes(builtSample);
+            try (
+                XContentParser parser = getXContentType().xContent()
+                    .createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        sampleBytes.streamInput(),
+                        includes,
+                        excludes
+                    );
+            ) {
+                XContentBuilder result = createBuilder();
+                if (sampleBytes.get(sampleBytes.length() - 1) == '\n') {
+                    result.lfAtEnd();
+                }
+                if (parser.nextToken() == null) {
+                    // If the filter removed everything then emit an open/close
+                    return result.startObject().endObject();
+                }
+                return result.copyCurrentStructure(parser);
+            }
+        }
     }
 
     public void testSingleFieldObject() throws IOException {

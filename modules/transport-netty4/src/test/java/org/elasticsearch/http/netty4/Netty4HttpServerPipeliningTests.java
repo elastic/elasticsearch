@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.netty4;
@@ -26,17 +15,17 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.util.ReferenceCounted;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -44,6 +33,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -118,7 +108,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 Netty4HttpServerPipeliningTests.this.networkService,
                 Netty4HttpServerPipeliningTests.this.bigArrays,
                 Netty4HttpServerPipeliningTests.this.threadPool,
-                xContentRegistry(), new NullDispatcher());
+                xContentRegistry(), new NullDispatcher(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                new SharedGroupFactory(settings));
         }
 
         @Override
@@ -151,7 +142,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
     }
 
-    class PossiblySlowUpstreamHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<FullHttpRequest>> {
+    class PossiblySlowUpstreamHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
         private final ExecutorService executorService;
 
@@ -160,7 +151,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         }
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) throws Exception {
+        protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest msg) throws Exception {
             executorService.submit(new PossiblySlowRunnable(ctx, msg));
         }
 
@@ -175,26 +166,23 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
     class PossiblySlowRunnable implements Runnable {
 
         private ChannelHandlerContext ctx;
-        private HttpPipelinedRequest<FullHttpRequest> pipelinedRequest;
-        private FullHttpRequest fullHttpRequest;
+        private HttpPipelinedRequest pipelinedRequest;
 
-        PossiblySlowRunnable(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) {
+        PossiblySlowRunnable(ChannelHandlerContext ctx, HttpPipelinedRequest msg) {
             this.ctx = ctx;
             this.pipelinedRequest = msg;
-            this.fullHttpRequest = pipelinedRequest.getRequest();
         }
 
         @Override
         public void run() {
             try {
-                final String uri = fullHttpRequest.uri();
+                final String uri = pipelinedRequest.uri();
 
                 final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
 
-                Netty4HttpRequest httpRequest = new Netty4HttpRequest(fullHttpRequest, pipelinedRequest.getSequence());
-                Netty4HttpResponse response =
-                    httpRequest.createResponse(RestStatus.OK, new BytesArray(uri.getBytes(StandardCharsets.UTF_8)));
-                response.headers().add(HttpHeaderNames.CONTENT_LENGTH, buffer.readableBytes());
+                HttpResponse response =
+                    pipelinedRequest.createResponse(RestStatus.OK, new BytesArray(uri.getBytes(StandardCharsets.UTF_8)));
+                response.addHeader("content-length", Integer.toString(buffer.readableBytes()));
 
                 final boolean slow = uri.matches("/slow/\\d+");
                 if (slow) {
@@ -210,7 +198,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 final ChannelPromise promise = ctx.newPromise();
                 ctx.writeAndFlush(response, promise);
             } finally {
-                fullHttpRequest.release();
+                pipelinedRequest.release();
             }
         }
 

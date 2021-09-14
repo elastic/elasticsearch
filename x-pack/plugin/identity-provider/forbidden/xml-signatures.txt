@@ -1,0 +1,8 @@
+@defaultMessage DocumentBuilderFactory should not be used directly. (See x-pack-security SamlUtils#getHardenedDocumentBuilder if you ever need one)
+javax.xml.parsers.DocumentBuilderFactory#newInstance()
+javax.xml.parsers.DocumentBuilderFactory#newInstance(java.lang.String, java.lang.ClassLoader)
+
+@defaultMessage TransformerFactory should not be used directly. Use IdPSamlTestCase#getHardenedXMLTransformer() instead.
+javax.xml.transform.TransformerFactory#newInstance()
+javax.xml.transform.TransformerFactory#newInstance(java.lang.String, java.lang.ClassLoader)
+

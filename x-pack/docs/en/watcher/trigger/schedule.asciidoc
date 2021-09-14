@@ -1,6 +1,9 @@
 [role="xpack"]
 [[trigger-schedule]]
-=== Schedule trigger
+=== {watcher} schedule trigger
+++++
+<titleabbrev>Schedule trigger</titleabbrev>
+++++
 
 Schedule <<trigger,triggers>> define when the watch execution should start based
 on date and time. All times are specified in UTC time.

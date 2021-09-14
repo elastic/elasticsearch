@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
+
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -71,7 +73,7 @@ public class LdapSessionFactory extends SessionFactory {
                 protected void doRun() throws Exception {
                     listener.onResponse(
                             (new LdapSession(logger, config, connection, ((SimpleBindRequest) connection.getLastBindRequest()).getBindDN(),
-                                    groupResolver, metaDataResolver, timeout, null)));
+                                    groupResolver, metadataResolver, timeout, null)));
                 }
 
                 @Override
@@ -98,7 +100,7 @@ public class LdapSessionFactory extends SessionFactory {
                 void loop() {
                     final String template = userDnTemplates[loopIndex++];
                     final SimpleBindRequest bind = new SimpleBindRequest(buildDnFromTemplate(username, template), passwordBytes);
-                    LdapUtils.maybeForkThenBind(connection, bind, threadPool, this);
+                    LdapUtils.maybeForkThenBind(connection, bind, false, threadPool, this);
                 }
             }.loop();
         } catch (LDAPException e) {

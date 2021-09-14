@@ -5,6 +5,10 @@
       "description":"Returns the source of a document."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -63,8 +67,7 @@
         "options":[
           "internal",
           "external",
-          "external_gte",
-          "force"
+          "external_gte"
         ],
         "description":"Specific version type"
       }

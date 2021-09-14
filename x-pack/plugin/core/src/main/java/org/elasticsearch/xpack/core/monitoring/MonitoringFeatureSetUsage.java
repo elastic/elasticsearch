@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.monitoring;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.Version;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,11 +31,15 @@ public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
         collectionEnabled = in.readOptionalBoolean();
     }
 
-    public MonitoringFeatureSetUsage(boolean available, boolean enabled,
-                                     boolean collectionEnabled, Map<String, Object> exporters) {
-        super(XPackField.MONITORING, available, enabled);
+    public MonitoringFeatureSetUsage(boolean collectionEnabled, Map<String, Object> exporters) {
+        super(XPackField.MONITORING, true, true);
         this.exporters = exporters;
         this.collectionEnabled = collectionEnabled;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
     }
 
     public Map<String, Object> getExporters() {

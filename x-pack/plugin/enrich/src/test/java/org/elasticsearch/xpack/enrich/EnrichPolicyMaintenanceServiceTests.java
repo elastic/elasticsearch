@@ -1,21 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Phaser;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -23,16 +12,33 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Phaser;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.enrich.AbstractEnrichTestCase.createSourceIndices;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -113,17 +119,20 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             enrichKeys.add(randomAlphaOfLength(10));
         }
-        return new EnrichPolicy(MATCH_TYPE, null, List.of(randomAlphaOfLength(10)), randomAlphaOfLength(10), enrichKeys);
+        String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        return new EnrichPolicy(MATCH_TYPE, null, List.of(sourceIndex), randomAlphaOfLength(10), enrichKeys);
     }
 
     private void addPolicy(String policyName, EnrichPolicy policy) throws InterruptedException {
-        doSyncronously((clusterService, exceptionConsumer) ->
-            EnrichStore.putPolicy(policyName, policy, clusterService, exceptionConsumer));
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+        createSourceIndices(client(), policy);
+        doSyncronously(
+            (clusterService, exceptionConsumer) -> EnrichStore.putPolicy(policyName, policy, clusterService, resolver, exceptionConsumer)
+        );
     }
 
     private void removePolicy(String policyName) throws InterruptedException {
-        doSyncronously((clusterService, exceptionConsumer) ->
-            EnrichStore.deletePolicy(policyName, clusterService, exceptionConsumer));
+        doSyncronously((clusterService, exceptionConsumer) -> EnrichStore.deletePolicy(policyName, clusterService, exceptionConsumer));
     }
 
     private void doSyncronously(BiConsumer<ClusterService, Consumer<Exception>> function) throws InterruptedException {
@@ -143,18 +152,20 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
     }
 
     private String fakeRunPolicy(String forPolicy) throws IOException {
+        XContentBuilder source = JsonXContent.contentBuilder();
+        source.startObject();
+        {
+            source.startObject(MapperService.SINGLE_MAPPING_NAME);
+            {
+                source.startObject("_meta");
+                source.field(EnrichPolicyRunner.ENRICH_POLICY_NAME_FIELD_NAME, forPolicy);
+                source.endObject();
+            }
+            source.endObject();
+        }
+        source.endObject();
         String newIndexName = EnrichPolicy.getBaseName(forPolicy) + "-" + indexNameAutoIncrementingCounter++;
-        CreateIndexRequest request = new CreateIndexRequest(newIndexName)
-            .mapping(
-                MapperService.SINGLE_MAPPING_NAME, JsonXContent.contentBuilder()
-                    .startObject()
-                    .startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject("_meta")
-                    .field(EnrichPolicyRunner.ENRICH_POLICY_NAME_FIELD_NAME, forPolicy)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            );
+        CreateIndexRequest request = new CreateIndexRequest(newIndexName).mapping(source);
         client().admin().indices().create(request).actionGet();
         promoteFakePolicyIndex(newIndexName, forPolicy);
         return newIndexName;

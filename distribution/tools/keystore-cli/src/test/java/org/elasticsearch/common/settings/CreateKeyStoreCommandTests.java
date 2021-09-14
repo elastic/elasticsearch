@@ -1,32 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
+
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.env.Environment;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.env.Environment;
+import static org.hamcrest.Matchers.containsString;
 
 public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
@@ -40,34 +32,77 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
-    public void testPosix() throws Exception {
+    public void testNotMatchingPasswords() throws Exception {
+        String password = getPossibleKeystorePassword();
+        terminal.addSecretInput(password);
+        terminal.addSecretInput("notthekeystorepasswordyouarelookingfor");
+        UserException e = expectThrows(UserException.class, () -> execute(randomFrom("-p", "--password")));
+        assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
+        assertThat(e.getMessage(), containsString("Passwords are not equal, exiting"));
+    }
+
+    public void testDefaultNotPromptForPassword() throws Exception {
+        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         execute();
+        Path configDir = env.configFile();
+        assertNotNull(KeyStoreWrapper.load(configDir));
+    }
+
+    public void testPosix() throws Exception {
+        final String password = getPossibleKeystorePassword();
+        // Sometimes (rarely) test with explicit empty password
+        final boolean withPassword = password.length() > 0 || rarely();
+        if (withPassword) {
+            terminal.addSecretInput(password);
+            terminal.addSecretInput(password);
+            execute(randomFrom("-p", "--password"));
+        } else {
+            execute();
+        }
         Path configDir = env.configFile();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testNotPosix() throws Exception {
         env = setupEnv(false, fileSystems);
-        execute();
+        final String password = getPossibleKeystorePassword();
+        // Sometimes (rarely) test with explicit empty password
+        final boolean withPassword = password.length() > 0 || rarely();
+        if (withPassword) {
+            terminal.addSecretInput(password);
+            terminal.addSecretInput(password);
+            execute(randomFrom("-p", "--password"));
+        } else {
+            execute();
+        }
         Path configDir = env.configFile();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testOverwrite() throws Exception {
+        String password = getPossibleKeystorePassword();
         Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
         byte[] content = "not a keystore".getBytes(StandardCharsets.UTF_8);
         Files.write(keystoreFile, content);
 
-        terminal.addTextInput(""); // default is no
+        terminal.addTextInput(""); // default is no (don't overwrite)
         execute();
         assertArrayEquals(content, Files.readAllBytes(keystoreFile));
 
-        terminal.addTextInput("n"); // explicit no
+        terminal.addTextInput("n"); // explicit no (don't overwrite)
         execute();
         assertArrayEquals(content, Files.readAllBytes(keystoreFile));
 
-        terminal.addTextInput("y");
-        execute();
+        terminal.addTextInput("y"); // overwrite
+        // Sometimes (rarely) test with explicit empty password
+        final boolean withPassword = password.length() > 0 || rarely();
+        if (withPassword) {
+            terminal.addSecretInput(password);
+            terminal.addSecretInput(password);
+            execute(randomFrom("-p", "--password"));
+        } else {
+            execute();
+        }
         assertNotNull(KeyStoreWrapper.load(env.configFile()));
     }
 }

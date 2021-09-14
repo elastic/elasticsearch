@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.network;
@@ -26,10 +15,11 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimary
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -100,7 +90,7 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
+    private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -112,11 +102,12 @@ public final class NetworkModule {
                          CircuitBreakerService circuitBreakerService,
                          NamedWriteableRegistry namedWriteableRegistry,
                          NamedXContentRegistry xContentRegistry,
-                         NetworkService networkService, HttpServerTransport.Dispatcher dispatcher) {
+                         NetworkService networkService, HttpServerTransport.Dispatcher dispatcher,
+                         ClusterSettings clusterSettings) {
         this.settings = settings;
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(settings, threadPool, bigArrays,
-                pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher);
+                pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings);
             for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
                 registerHttpTransport(entry.getKey(), entry.getValue());
             }
@@ -151,7 +142,7 @@ public final class NetworkModule {
     // this lives here instead of the more aptly named ClusterModule because it used to be used by the Transport client
     /**
      * Register an allocation command.
-     * <p>
+     *
      * @param reader the reader to read it from a stream
      * @param parser the parser to read it from XContent
      * @param commandName the names under which the command should be parsed. The {@link ParseField#getPreferredName()} is special because
@@ -203,7 +194,7 @@ public final class NetworkModule {
      * Registers a new {@link TransportInterceptor}
      */
     private void registerTransportInterceptor(TransportInterceptor interceptor) {
-        this.transportIntercetors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
+        this.transportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
     }
 
     /**
@@ -211,7 +202,7 @@ public final class NetworkModule {
      * @see #registerTransportInterceptor(TransportInterceptor)
      */
     public TransportInterceptor getTransportInterceptor() {
-        return new CompositeTransportInterceptor(this.transportIntercetors);
+        return new CompositeTransportInterceptor(this.transportInterceptors);
     }
 
     static final class CompositeTransportInterceptor implements TransportInterceptor {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.saml;
 
@@ -52,7 +53,7 @@ public final class TransportSamlLogoutAction
         invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
             try {
                 final String token = request.getToken();
-                tokenService.getAuthenticationAndMetaData(token, ActionListener.wrap(
+                tokenService.getAuthenticationAndMetadata(token, ActionListener.wrap(
                         tuple -> {
                             Authentication authentication = tuple.v1();
                             final Map<String, Object> tokenMetadata = tuple.v2();
@@ -112,10 +113,10 @@ public final class TransportSamlLogoutAction
         final String session = getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_SESSION);
         final LogoutRequest logout = realm.buildLogoutRequest(nameId.asXml(), session);
         if (logout == null) {
-            return new SamlLogoutResponse((String)null);
+            return new SamlLogoutResponse(null, null);
         }
         final String uri = new SamlRedirect(logout, realm.getSigningConfiguration()).getRedirectUrl();
-        return new SamlLogoutResponse(uri);
+        return new SamlLogoutResponse(logout.getID(), uri);
     }
 
     private String getMetadataString(Map<String, Object> metadata, String key) {

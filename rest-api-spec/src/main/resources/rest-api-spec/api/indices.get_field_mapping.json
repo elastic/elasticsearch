@@ -5,6 +5,10 @@
       "description":"Returns mapping for one or more fields."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -38,10 +42,6 @@
       ]
     },
     "params":{
-      "include_type_name":{
-        "type":"boolean",
-        "description":"Whether a type should be returned in the body of the mappings."
-      },
       "include_defaults":{
         "type":"boolean",
         "description":"Whether the default mapping values should be returned as well"
@@ -59,6 +59,7 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],

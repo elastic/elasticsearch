@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -42,9 +31,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequestBuilder;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
@@ -62,12 +48,16 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuild
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -95,17 +85,12 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequestBuilder;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequestBuilder;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Administrative actions/operations against indices.
@@ -284,6 +269,23 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     void open(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener);
 
     /**
+     * Adds a block to an index
+     *
+     * @param block   The block to add
+     * @param indices The name of the indices to add the block to
+     */
+    AddIndexBlockRequestBuilder prepareAddBlock(APIBlock block, String... indices);
+
+    /**
+     * Adds a block to an index
+     *
+     * @param request  The add index block request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#openIndexRequest(String)
+     */
+    void addBlock(AddIndexBlockRequest request, ActionListener<AddIndexBlockResponse> listener);
+
+    /**
      * Opens one or more indices based on their index name.
      *
      * @param indices The name of the indices to close
@@ -337,29 +339,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     FlushRequestBuilder prepareFlush(String... indices);
 
     /**
-     * Explicitly sync flush one or more indices (write sync id to shards for faster recovery).
-     *
-     * @param request The sync flush request
-     * @return A result future
-     * @see org.elasticsearch.client.Requests#syncedFlushRequest(String...)
-     */
-    ActionFuture<SyncedFlushResponse> syncedFlush(SyncedFlushRequest request);
-
-    /**
-     * Explicitly sync flush one or more indices (write sync id to shards for faster recovery).
-     *
-     * @param request  The sync flush request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#syncedFlushRequest(String...)
-     */
-    void syncedFlush(SyncedFlushRequest request, ActionListener <SyncedFlushResponse> listener);
-
-    /**
-     * Explicitly sync flush one or more indices (write sync id to shards for faster recovery).
-     */
-    SyncedFlushRequestBuilder prepareSyncedFlush(String... indices);
-
-    /**
      * Explicitly force merge one or more indices into a the number of segments.
      *
      * @param request The optimize request
@@ -381,52 +360,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Explicitly force merge one or more indices into a the number of segments.
      */
     ForceMergeRequestBuilder prepareForceMerge(String... indices);
-
-    /**
-     * Explicitly upgrade one or more indices
-     *
-     * @param request The upgrade request
-     * @return A result future
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    ActionFuture<UpgradeResponse> upgrade(UpgradeRequest request);
-
-    /**
-     * Explicitly upgrade one or more indices
-     *
-     * @param request  The upgrade request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    void upgrade(UpgradeRequest request, ActionListener<UpgradeResponse> listener);
-
-    /**
-     *  Explicitly upgrade one or more indices
-     */
-    UpgradeStatusRequestBuilder prepareUpgradeStatus(String... indices);
-
-    /**
-     * Check upgrade status of one or more indices
-     *
-     * @param request The upgrade request
-     * @return A result future
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    ActionFuture<UpgradeStatusResponse> upgradeStatus(UpgradeStatusRequest request);
-
-    /**
-     * Check upgrade status of one or more indices
-     *
-     * @param request  The upgrade request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    void upgradeStatus(UpgradeStatusRequest request, ActionListener<UpgradeStatusResponse> listener);
-
-    /**
-     * Check upgrade status of one or more indices
-     */
-    UpgradeRequestBuilder prepareUpgrade(String... indices);
 
     /**
      * Get the complete mappings of one or more types
@@ -732,11 +665,20 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
      */
-    ActionFuture<RolloverResponse> rolloversIndex(RolloverRequest request);
+    ActionFuture<RolloverResponse> rolloverIndex(RolloverRequest request);
 
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
      */
     void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
 
+    /**
+     * Resolves names and wildcard expressions to indices, aliases, and data streams
+     */
+    void resolveIndex(ResolveIndexAction.Request request, ActionListener<ResolveIndexAction.Response> listener);
+
+    /**
+     * Resolves names and wildcard expressions to indices, aliases, and data streams
+     */
+    ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request);
 }

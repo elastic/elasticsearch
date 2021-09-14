@@ -1,0 +1,39 @@
+[role="xpack"]
+[[slm-settings]]
+=== {slm-cap} settings in {es}
+[subs="attributes"]
+++++
+<titleabbrev>{slm-cap} settings</titleabbrev>
+++++
+
+These are the settings available for configuring
+<<snapshot-lifecycle-management, {slm}>> ({slm-init}).
+
+==== Cluster-level settings
+
+[[slm-history-index-enabled]]
+`slm.history_index_enabled`::
+(<<static-cluster-setting,Static>>, Boolean)
+Controls whether {slm-init} records the history of actions taken as part of {slm-init} policies
+to the `slm-history-*` indices. Defaults to `true`.
+
+[[slm-retention-schedule]]
+`slm.retention_schedule`::
+(<<dynamic-cluster-setting,Dynamic>>, <<schedule-cron,cron scheduler value>>)
+Controls when the <<slm-retention,retention task>> runs.
+Can be a periodic or absolute time schedule.
+Supports all values supported by the <<schedule-cron,cron scheduler>>.
+Defaults to daily at 1:30am UTC: `0 30 1 * * ?`.
+
+[[slm-retention-duration]]
+`slm.retention_duration`::
+(<<dynamic-cluster-setting,Dynamic>>, <<time-units,time value>>)
+Limits how long {slm-init} should spend deleting old snapshots.
+Defaults to one hour: `1h`.
+
+[[repositories-url-allowed]]
+// tag::repositories-url-allowed[]
+`repositories.url.allowed_urls` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies the <<snapshots-read-only-repository,read-only URL repositories>> that snapshots can be restored from.
+// end::repositories-url-allowed[]

@@ -1,76 +1,109 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
 
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
 esplugin {
-  description 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
+  description 'Ingest processor that uses lookup geo data based on IP adresses using the MaxMind geo database'
   classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
 }
 
 dependencies {
-  // Upgrade to 2.10.0 or higher when jackson-core gets upgraded to 2.9.x. Blocked by #27032
-  compile ('com.maxmind.geoip2:geoip2:2.9.0')
+  api('com.maxmind.geoip2:geoip2:2.13.1')
   // geoip2 dependencies:
-  compile("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  compile("com.fasterxml.jackson.core:jackson-databind:2.8.11.3")
-  compile('com.maxmind.db:maxmind-db:1.2.2')
+  api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  api('com.maxmind.db:maxmind-db:1.3.1')
 
-  testCompile 'org.elasticsearch:geolite2-databases:20180911'
+  testImplementation 'org.elasticsearch:geolite2-databases:20191119'
+  internalClusterTestImplementation project(path: ":modules:reindex")
 }
 
-task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
-  from { zipTree(configurations.testCompile.files.find { it.name.contains('geolite2-databases')}) }
+restResources {
+  restApi {
+    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
+}
+
+def useFixture = providers.environmentVariable("geoip_use_service")
+  .forUseAtConfigurationTime()
+  .map { s -> Boolean.parseBoolean(s) == false }
+  .getOrElse(true)
+
+def fixtureAddress = {
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = tasks.getByPath(":test:fixtures:geoip-fixture:postProcessFixture").ext."test.fixtures.geoip-fixture.tcp.80"
+  assert ephemeralPort > 0
+  return "http://127.0.0.1:${ephemeralPort}/"
+}
+
+if (useFixture) {
+  apply plugin: 'elasticsearch.test.fixtures'
+  testFixtures.useFixture(':test:fixtures:geoip-fixture', 'geoip-fixture')
+}
+
+tasks.named("internalClusterTest").configure {
+  if (useFixture) {
+    nonInputProperties.systemProperty "geoip_endpoint", "${-> fixtureAddress()}"
+  }
+}
+
+tasks.register("copyDefaultGeoIp2DatabaseFiles", Copy) {
+  from { zipTree(configurations.testCompileClasspath.files.find { it.name.contains('geolite2-databases') }) }
   into "${project.buildDir}/ingest-geoip"
   include "*.mmdb"
 }
 
-project.bundlePlugin.dependsOn(copyDefaultGeoIp2DatabaseFiles)
-
-bundlePlugin {
+tasks.named("bundlePlugin").configure {
+  dependsOn("copyDefaultGeoIp2DatabaseFiles")
   from("${project.buildDir}/ingest-geoip") {
     into '/'
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses (
-  // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
-  'org.apache.http.HttpEntity',
-  'org.apache.http.HttpHost',
-  'org.apache.http.HttpResponse',
-  'org.apache.http.StatusLine',
-  'org.apache.http.auth.UsernamePasswordCredentials',
-  'org.apache.http.client.config.RequestConfig$Builder',
-  'org.apache.http.client.config.RequestConfig',
-  'org.apache.http.client.methods.CloseableHttpResponse',
-  'org.apache.http.client.methods.HttpGet',
-  'org.apache.http.client.utils.URIBuilder',
-  'org.apache.http.impl.auth.BasicScheme',
-  'org.apache.http.impl.client.CloseableHttpClient',
-  'org.apache.http.impl.client.HttpClientBuilder',
-  'org.apache.http.util.EntityUtils'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
+    'org.apache.http.HttpEntity',
+    'org.apache.http.HttpHost',
+    'org.apache.http.HttpResponse',
+    'org.apache.http.StatusLine',
+    'org.apache.http.auth.UsernamePasswordCredentials',
+    'org.apache.http.client.config.RequestConfig$Builder',
+    'org.apache.http.client.config.RequestConfig',
+    'org.apache.http.client.methods.CloseableHttpResponse',
+    'org.apache.http.client.methods.HttpGet',
+    'org.apache.http.client.utils.URIBuilder',
+    'org.apache.http.impl.auth.BasicScheme',
+    'org.apache.http.impl.client.CloseableHttpClient',
+    'org.apache.http.impl.client.HttpClientBuilder',
+    'org.apache.http.util.EntityUtils'
+  )
+}
 
-test {
-  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  tasks.named("test").configure {
     // Windows cannot cleanup database files properly unless it loads everything on heap.
     // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
     systemProperty 'es.geoip.load_db_on_heap', 'true'
   }
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /geoip.*/, to: 'maxmind-geolite2-eula'
+  mapping from: /maxmind-db.*/, to: 'maxmind-db-reader'
+  ignoreFile 'elastic-geoip-database-service-agreement-LICENSE.txt'
 }

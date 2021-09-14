@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
@@ -24,13 +13,15 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.threadpool.ThreadPool;
 
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
@@ -44,14 +35,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-
 /**
  * Used to publish secure setting hashes in the cluster state and to validate those hashes against the local values of those same settings.
  * This is colloquially referred to as the secure setting consistency check. It will publish and verify hashes only for the collection
- * of settings passed in the constructor. The settings have to have the {@link Setting.Property#Consistent} property. 
+ * of settings passed in the constructor. The settings have to have the {@link Setting.Property#Consistent} property.
  */
 public final class ConsistentSettingsService {
     private static final Logger logger = LogManager.getLogger(ConsistentSettingsService.class);
@@ -87,11 +74,11 @@ public final class ConsistentSettingsService {
     /**
      * Verifies that the hashes of consistent secure settings in the latest {@code ClusterState} verify for the values of those same
      * settings on the local node. The settings to be checked are passed in the constructor. Also, validates that a missing local
-     * value is also missing in the published set, and vice-versa.  
+     * value is also missing in the published set, and vice-versa.
      */
     public boolean areAllConsistent() {
         final ClusterState state = clusterService.state();
-        final Map<String, String> publishedHashesOfConsistentSettings = state.metaData().hashesOfConsistentSettings();
+        final Map<String, String> publishedHashesOfConsistentSettings = state.metadata().hashesOfConsistentSettings();
         final Set<String> publishedSettingKeysToVerify = new HashSet<>();
         publishedSettingKeysToVerify.addAll(publishedHashesOfConsistentSettings.keySet());
         final AtomicBoolean allConsistent = new AtomicBoolean(true);
@@ -223,13 +210,13 @@ public final class ConsistentSettingsService {
             clusterService.submitStateUpdateTask("publish-secure-settings-hashes", new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final Map<String, String> publishedHashesOfConsistentSettings = currentState.metaData()
+                    final Map<String, String> publishedHashesOfConsistentSettings = currentState.metadata()
                             .hashesOfConsistentSettings();
                     if (computedHashesOfConsistentSettings.equals(publishedHashesOfConsistentSettings)) {
                         logger.debug("Nothing to publish. What is already published matches this node's view.");
                         return currentState;
                     } else {
-                        return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
+                        return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata())
                                 .hashesOfConsistentSettings(computedHashesOfConsistentSettings)).build();
                     }
                 }
@@ -245,11 +232,6 @@ public final class ConsistentSettingsService {
         @Override
         public void offMaster() {
             logger.trace("I am no longer master, nothing to do");
-        }
-
-        @Override
-        public String executorName() {
-            return ThreadPool.Names.SAME;
         }
     }
 

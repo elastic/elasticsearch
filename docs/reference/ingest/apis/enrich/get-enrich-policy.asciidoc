@@ -6,29 +6,36 @@
 <titleabbrev>Get enrich policy</titleabbrev>
 ++++
 
-Returns information about an enrich policy.
+Returns information about an <<enrich-policy,enrich policy>>.
 
 ////
 [source,console]
 ----
 PUT /users
+{
+  "mappings" : {
+    "properties" : {
+      "email" : { "type" : "keyword" }
+    }
+  }
+}
 
 PUT /_enrich/policy/my-policy
 {
-    "match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
-    }
+  "match": {
+    "indices": "users",
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+  }
 }
 
 PUT /_enrich/policy/other-policy
 {
-    "match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
-    }
+  "match": {
+    "indices": "users",
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+  }
 }
 ----
 ////
@@ -43,9 +50,11 @@ GET /_enrich/policy/my-policy
 [[get-enrich-policy-api-request]]
 ==== {api-request-title}
 
-`GET /_enrich/policy/<enrich-policy>`
+`GET /_enrich/policy/<name>`
 
 `GET /_enrich/policy`
+
+`GET /_enrich/policy/policy1,policy2`
 
 
 [[get-enrich-policy-api-prereqs]]
@@ -57,7 +66,7 @@ include::put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
 [[get-enrich-policy-api-path-params]]
 ==== {api-path-parms-title}
 
-`<enrich-policy>`::
+`<name>`::
 +
 --
 (Optional, string)
@@ -87,24 +96,24 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "policies": [
-        {
-            "config": {
-                "match": {
-                    "name" : "my-policy",
-                    "indices" : ["users"],
-                    "match_field" : "email",
-                    "enrich_fields" : [
-                        "first_name",
-                        "last_name",
-                        "city",
-                        "zip",
-                        "state"
-                    ]
-                }
-            }
+  "policies": [
+    {
+      "config": {
+        "match": {
+          "name": "my-policy",
+          "indices": [ "users" ],
+          "match_field": "email",
+          "enrich_fields": [
+            "first_name",
+            "last_name",
+            "city",
+            "zip",
+            "state"
+          ]
         }
-    ]
+      }
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -123,40 +132,40 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "policies": [
-        {
-            "config": {
-                "match": {
-                    "name" : "my-policy",
-                    "indices" : ["users"],
-                    "match_field" : "email",
-                    "enrich_fields" : [
-                        "first_name",
-                        "last_name",
-                        "city",
-                        "zip",
-                        "state"
-                    ]
-                }
-            }
-        },
-        {
-            "config": {
-                "match": {
-                    "name" : "other-policy",
-                    "indices" : ["users"],
-                    "match_field" : "email",
-                    "enrich_fields" : [
-                        "first_name",
-                        "last_name",
-                        "city",
-                        "zip",
-                        "state"
-                    ]
-                }
-            }
+  "policies": [
+    {
+      "config": {
+        "match": {
+          "name": "my-policy",
+          "indices": [ "users" ],
+          "match_field": "email",
+          "enrich_fields": [
+            "first_name",
+            "last_name",
+            "city",
+            "zip",
+            "state"
+          ]
         }
-    ]
+      }
+    },
+    {
+      "config": {
+        "match": {
+          "name": "other-policy",
+          "indices": [ "users" ],
+          "match_field": "email",
+          "enrich_fields": [
+            "first_name",
+            "last_name",
+            "city",
+            "zip",
+            "state"
+          ]
+        }
+      }
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -175,40 +184,40 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "policies": [
-        {
-            "config": {
-                "match": {
-                    "name" : "my-policy",
-                    "indices" : ["users"],
-                    "match_field" : "email",
-                    "enrich_fields" : [
-                        "first_name",
-                        "last_name",
-                        "city",
-                        "zip",
-                        "state"
-                    ]
-                }
-            }
-        },
-        {
-            "config": {
-                "match": {
-                    "name" : "other-policy",
-                    "indices" : ["users"],
-                    "match_field" : "email",
-                    "enrich_fields" : [
-                        "first_name",
-                        "last_name",
-                        "city",
-                        "zip",
-                        "state"
-                    ]
-                }
-            }
+  "policies": [
+    {
+      "config": {
+        "match": {
+          "name": "my-policy",
+          "indices": [ "users" ],
+          "match_field": "email",
+          "enrich_fields": [
+            "first_name",
+            "last_name",
+            "city",
+            "zip",
+            "state"
+          ]
         }
-    ]
+      }
+    },
+    {
+      "config": {
+        "match": {
+          "name": "other-policy",
+          "indices": [ "users" ],
+          "match_field": "email",
+          "enrich_fields": [
+            "first_name",
+            "last_name",
+            "city",
+            "zip",
+            "state"
+          ]
+        }
+      }
+    }
+  ]
 }
 --------------------------------------------------
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.user;
 
@@ -58,8 +59,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     @Override
     protected void doExecute(Task task, HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         final String username = request.username();
-
-        final Authentication authentication = Authentication.getAuthentication(threadPool.getThreadContext());
+        final Authentication authentication = securityContext.getAuthentication();
         final User user = authentication.getUser();
         if (user.principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));

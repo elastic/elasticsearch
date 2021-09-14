@@ -84,6 +84,7 @@ s|SQL-92
 |`TABLES`                     |              |
 |`THEN`                       |reserved      |reserved
 |`TO`                         |reserved      |reserved
+|`TOP`                        |reserved      |reserved
 |`TRUE`                       |reserved      |reserved
 |`TYPE`                       |              |
 |`USING`                      |reserved      |reserved

@@ -1,32 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
 public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
@@ -36,8 +35,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
-        taskQueue = new DeterministicTaskQueue(settings, random());
+        taskQueue = new DeterministicTaskQueue();
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, CcrSettings.getSettings()
             .stream().filter(s -> s.hasNodeScope()).collect(Collectors.toSet()));
         restoreSourceService = new CcrRestoreSourceService(taskQueue.getThreadPool(), new CcrSettings(Settings.EMPTY, clusterSettings));
@@ -151,24 +149,24 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         restoreSourceService.openSession(sessionUUID1, indexShard1);
 
-        ArrayList<StoreFileMetaData> files = new ArrayList<>();
+        ArrayList<StoreFileMetadata> files = new ArrayList<>();
         indexShard1.snapshotStoreMetadata().forEach(files::add);
 
-        StoreFileMetaData fileMetaData = files.get(0);
-        String fileName = fileMetaData.name();
+        StoreFileMetadata fileMetadata = files.get(0);
+        String fileName = fileMetadata.name();
 
-        byte[] expectedBytes = new byte[(int) fileMetaData.length()];
-        byte[] actualBytes = new byte[(int) fileMetaData.length()];
+        byte[] expectedBytes = new byte[(int) fileMetadata.length()];
+        byte[] actualBytes = new byte[(int) fileMetadata.length()];
         Engine.IndexCommitRef indexCommitRef = indexShard1.acquireSafeIndexCommit();
         try (IndexInput indexInput = indexCommitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE)) {
             indexInput.seek(0);
-            indexInput.readBytes(expectedBytes, 0, (int) fileMetaData.length());
+            indexInput.readBytes(expectedBytes, 0, (int) fileMetadata.length());
         }
 
         BytesArray byteArray = new BytesArray(actualBytes);
         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID1)) {
             long offset = sessionReader.readFileBytes(fileName, byteArray);
-            assertEquals(offset, fileMetaData.length());
+            assertEquals(offset, fileMetadata.length());
         }
 
         assertArrayEquals(expectedBytes, actualBytes);
@@ -187,7 +185,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         restoreSourceService.openSession(sessionUUID, indexShard);
 
-        ArrayList<StoreFileMetaData> files = new ArrayList<>();
+        ArrayList<StoreFileMetadata> files = new ArrayList<>();
         indexShard.snapshotStoreMetadata().forEach(files::add);
 
         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {

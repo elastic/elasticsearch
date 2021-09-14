@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -25,41 +28,59 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
 
     // array of illegal characters, see {@link AggregatorFactories#VALID_AGG_NAME}
-    private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = {'[', ']', '>'};
+    private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = { '[', ']', '>' };
 
     public static GroupConfig randomGroupConfig() {
+        return randomGroupConfig(Version.CURRENT);
+    }
+
+    public static GroupConfig randomGroupConfig(Version version) {
+        return randomGroupConfig(() -> randomSingleGroupSource(version));
+    }
+
+    public static GroupConfig randomGroupConfig(Supplier<SingleGroupSource> singleGroupSourceSupplier) {
         Map<String, Object> source = new LinkedHashMap<>();
         Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
         // ensure that the unlikely does not happen: 2 group_by's share the same name
         Set<String> names = new HashSet<>();
         for (int i = 0; i < randomIntBetween(1, 20); ++i) {
-            String targetFieldName = randomAlphaOfLengthBetween(1, 20);
+            String targetFieldName = "group_" + randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
-                SingleGroupSource groupBy;
-                Type type = randomFrom(SingleGroupSource.Type.values());
-                switch (type) {
-                case TERMS:
-                    groupBy = TermsGroupSourceTests.randomTermsGroupSource();
-                    break;
-                case HISTOGRAM:
-                    groupBy = HistogramGroupSourceTests.randomHistogramGroupSource();
-                    break;
-                case DATE_HISTOGRAM:
-                default:
-                    groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
-                }
-
-                source.put(targetFieldName, Collections.singletonMap(type.value(), getSource(groupBy)));
+                SingleGroupSource groupBy = singleGroupSourceSupplier.get();
+                source.put(targetFieldName, Collections.singletonMap(groupBy.getType().value(), getSource(groupBy)));
                 groups.put(targetFieldName, groupBy);
             }
         }
 
         return new GroupConfig(source, groups);
+    }
+
+    public static SingleGroupSource randomSingleGroupSource(Version version) {
+        Type type = randomFrom(SingleGroupSource.Type.values());
+        switch (type) {
+            case TERMS:
+                return TermsGroupSourceTests.randomTermsGroupSource(version);
+            case HISTOGRAM:
+                return HistogramGroupSourceTests.randomHistogramGroupSource(version);
+            case DATE_HISTOGRAM:
+                return DateHistogramGroupSourceTests.randomDateHistogramGroupSource(version);
+            case GEOTILE_GRID:
+                return GeoTileGroupSourceTests.randomGeoTileGroupSource(version);
+            default:
+                fail("unknown group source type, please implement tests and add support here");
+        }
+        return null;
     }
 
     @Override
@@ -83,7 +104,9 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
-            assertFalse(groupConfig.isValid());
+            ValidationException validationException = groupConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("pivot.groups must not be null"));
         }
 
         // strict throws
@@ -94,29 +117,56 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
 
     public void testInvalidGroupByNames() throws IOException {
 
-        String invalidName = randomAlphaOfLengthBetween(0, 5)
-                + ILLEGAL_FIELD_NAME_CHARACTERS[randomIntBetween(0, ILLEGAL_FIELD_NAME_CHARACTERS.length - 1)]
-                + randomAlphaOfLengthBetween(0, 5);
+        String invalidName = randomAlphaOfLengthBetween(0, 5) + ILLEGAL_FIELD_NAME_CHARACTERS[randomIntBetween(
+            0,
+            ILLEGAL_FIELD_NAME_CHARACTERS.length - 1
+        )] + randomAlphaOfLengthBetween(0, 5);
 
         XContentBuilder source = JsonXContent.contentBuilder()
-                .startObject()
-                    .startObject(invalidName)
-                        .startObject("terms")
-                            .field("field", "user")
-                        .endObject()
-                    .endObject()
-                .endObject();
+            .startObject()
+            .startObject(invalidName)
+            .startObject("terms")
+            .field("field", "user")
+            .endObject()
+            .endObject()
+            .endObject();
 
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(source)) {
             GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
-            assertFalse(groupConfig.isValid());
+            ValidationException validationException = groupConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("pivot.groups must not be null"));
         }
 
         // strict throws
         try (XContentParser parser = createParser(source)) {
             Exception e = expectThrows(ParsingException.class, () -> GroupConfig.fromXContent(parser, false));
             assertTrue(e.getMessage().startsWith("Invalid group name"));
+        }
+    }
+
+    public void testInvalidGroupSourceValidation() throws IOException {
+        XContentBuilder source = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject(randomAlphaOfLengthBetween(1, 20))
+            .startObject("terms")
+            .endObject()
+            .endObject()
+            .endObject();
+
+        // lenient, passes but reports invalid
+        try (XContentParser parser = createParser(source)) {
+            GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
+            ValidationException validationException = groupConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("Required one of fields [field, script], but none were specified"));
+        }
+
+        // strict throws
+        try (XContentParser parser = createParser(source)) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> GroupConfig.fromXContent(parser, false));
+            assertThat(e.getMessage(), startsWith("Required one of fields [field, script], but none were specified"));
         }
     }
 

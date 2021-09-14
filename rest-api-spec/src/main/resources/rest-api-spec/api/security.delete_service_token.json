@@ -1,0 +1,48 @@
+{
+  "security.delete_service_token":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-service-token.html",
+      "description":"Deletes a service account token."
+    },
+    "stability":"beta",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/service/{namespace}/{service}/credential/token/{name}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "namespace":{
+              "type":"string",
+              "description":"An identifier for the namespace"
+            },
+            "service":{
+              "type":"string",
+              "description":"An identifier for the service name"
+            },
+            "name":{
+              "type":"string",
+              "description":"An identifier for the token name"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "refresh":{
+        "type":"enum",
+        "options":[
+          "true",
+          "false",
+          "wait_for"
+        ],
+        "description":"If `true` then refresh the affected shards to make this operation visible to search, if `wait_for` (the default) then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+      }
+    }
+  }
+}

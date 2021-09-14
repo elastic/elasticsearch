@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -27,7 +28,7 @@ import java.util.Objects;
 /**
  * Encapsulates enrich policies as custom metadata inside cluster state.
  */
-public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
+public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     static final String TYPE = "enrich";
 
@@ -75,8 +76,8 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.ALL_CONTEXTS;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.ALL_CONTEXTS;
     }
 
     @Override

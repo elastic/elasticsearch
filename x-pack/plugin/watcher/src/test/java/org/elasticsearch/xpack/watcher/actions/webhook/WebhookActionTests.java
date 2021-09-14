@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.actions.email.EmailActionTests;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
@@ -33,7 +35,6 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
-import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -46,7 +47,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Map;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.common.http.HttpClientTests.mockClusterService;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -215,7 +216,7 @@ public class WebhookActionTests extends ESTestCase {
     public void testThatSelectingProxyWorks() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
-        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null,
+        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment), null,
             mockClusterService());
              MockWebServer proxyServer = new MockWebServer()) {
             proxyServer.start();
@@ -268,7 +269,7 @@ public class WebhookActionTests extends ESTestCase {
         return WatcherTestUtils.createTestWatch(watchId,
                 mock(Client.class),
                 ExecuteScenario.Success.client(),
-                new AbstractWatcherIntegrationTestCase.NoopEmailService(),
+                new EmailActionTests.NoopEmailService(),
                 mock(WatcherSearchTemplateService.class),
                 logger);
     }

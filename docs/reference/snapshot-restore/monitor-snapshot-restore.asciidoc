@@ -1,0 +1,176 @@
+[[snapshots-monitor-snapshot-restore]]
+== Monitor snapshot and restore progress
+++++
+<titleabbrev>Monitor snapshot and restore</titleabbrev>
+++++
+
+Use the <<get-snapshot-api,get snapshot API>> or the
+<<get-snapshot-status-api,get snapshot status API>> to monitor the
+progress of snapshot operations. Both APIs support the
+`wait_for_completion` parameter that blocks the client until the
+operation finishes, which is the simplest method of being notified
+about operation completion.
+
+////
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+
+PUT /_snapshot/my_fs_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_other_backup_location"
+  }
+}
+
+PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+
+PUT /_snapshot/my_backup/some_other_snapshot?wait_for_completion=true
+-----------------------------------
+// TESTSETUP
+
+////
+
+Use the `_current` parameter to retrieve all currently running
+snapshots in the cluster:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/my_backup/_current
+-----------------------------------
+
+Including a snapshot name in the request retrieves information about a single snapshot:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/my_backup/snapshot_1
+-----------------------------------
+
+This request retrieves basic information about the snapshot, including start and end time, version of
+{es} that created the snapshot, the list of included data streams and indices, the current state of the
+snapshot and the list of failures that occurred during the snapshot.
+
+Similar to repositories, you can retrieve information about multiple snapshots in a single request, and wildcards are supported:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/my_backup/snapshot_*,some_other_snapshot
+-----------------------------------
+
+Separate repository names with commas or use wildcards to retrieve snapshots from multiple repositories:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/_all
+GET /_snapshot/my_backup,my_fs_backup
+GET /_snapshot/my*/snap*
+-----------------------------------
+
+Add the `_all` parameter to the request to list all snapshots currently stored in the repository:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/my_backup/_all
+-----------------------------------
+
+This request fails if some of the snapshots are unavailable. Use the boolean parameter `ignore_unavailable` to
+return all snapshots that are currently available.
+
+Getting all snapshots in the repository can be costly on cloud-based repositories,
+both from a cost and performance perspective. If the only information required is
+the snapshot names or UUIDs in the repository and the data streams and indices in each snapshot, then
+the optional boolean parameter `verbose` can be set to `false` to execute a more
+performant and cost-effective retrieval of the snapshots in the repository.
+
+NOTE: Setting `verbose` to `false` omits additional information
+about the snapshot, such as metadata, start and end time, number of shards that include the snapshot, and error messages. The default value of the `verbose` parameter is `true`.
+
+[discrete]
+[[get-snapshot-detailed-status]]
+=== Retrieving snapshot status
+To retrieve more detailed information about snapshots, use the <<get-snapshot-status-api,get snapshot status API>>. While snapshot request returns only basic information about the snapshot in progress, the snapshot status request returns
+complete breakdown of the current state for each shard participating in the snapshot.
+
+// tag::get-snapshot-status-warning[]
+[WARNING]
+====
+Using the get snapshot status API to return any status results other than the currently running snapshots (`_current`) can be very expensive. Each request to retrieve snapshot status results in file reads from every shard in a snapshot, for each snapshot. Such requests are taxing to machine resources and can also incur high processing costs when running in the cloud.
+
+For example, if you have 100 snapshots with 1,000 shards each, the API request will result in 100,000 file reads (100 snapshots * 1,000 shards). Depending on the latency of your file storage, the request can take extremely long to retrieve results.
+====
+// end::get-snapshot-status-warning[]
+
+The following request retrieves all currently running snapshots with
+detailed status information:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/_status
+-----------------------------------
+
+By specifying a repository name, it's possible
+to limit the results to a particular repository:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/my_backup/_status
+-----------------------------------
+
+If both repository name and snapshot name are specified, the request
+returns detailed status information for the given snapshot, even
+if not currently running:
+
+[source,console]
+-----------------------------------
+GET /_snapshot/my_backup/snapshot_1/_status
+-----------------------------------
+
+[discrete]
+=== Monitoring restore operations
+
+The restore process piggybacks on the standard recovery mechanism of
+{es}. As a result, standard recovery monitoring services can be used
+to monitor the state of restore. When the restore operation starts, the
+cluster typically goes into `yellow` state because the restore operation works
+by recovering primary shards of the restored indices. After the recovery of the
+primary shards is completed, {es} switches to the standard replication
+process that creates the required number of replicas. When all required
+replicas are created, the cluster switches to the `green` states.
+
+The cluster health operation provides only a high level status of the restore process. It's possible to get more
+detailed insight into the current state of the recovery process by using <<indices-recovery, index recovery>> and
+<<cat-recovery, cat recovery>> APIs.
+
+[discrete]
+[[get-snapshot-stop-snapshot]]
+=== Stop snapshot and restore operations
+To stop a currently running snapshot that was started by mistake or is taking unusually long, use
+the <<delete-snapshot-api,delete snapshot API>>.
+This operation checks whether the deleted snapshot is currently running. If it is, the delete snapshot operation stops
+that snapshot before deleting the snapshot data from the repository.
+
+[source,console]
+-----------------------------------
+DELETE /_snapshot/my_backup/snapshot_1
+-----------------------------------
+
+The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
+be canceled by deleting data streams and indices that are being restored. Data for all deleted data streams and indices will be removed
+from the cluster as a result of this operation.
+
+[discrete]
+[[get-snapshot-cluster-blocks]]
+=== Effect of cluster blocks on snapshot and restore
+Many snapshot and restore operations are affected by cluster and index blocks. For example, registering and unregistering
+repositories require global metadata write access. The snapshot operation requires that all indices, backing indices, and their metadata (including
+global metadata) are readable. The restore operation requires the global metadata to be writable. However,
+the index level blocks are ignored during restore because indices are essentially recreated during restore.
+A repository content is not part of the cluster and therefore cluster blocks do not affect internal
+repository operations such as listing or deleting snapshots from an already registered repository.

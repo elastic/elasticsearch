@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
@@ -49,7 +50,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(scheduleRegistry, clock);
         this.tickInterval = TICKER_INTERVAL_SETTING.get(settings);
-        this.ticker = new Ticker(Node.NODE_DATA_SETTING.get(settings));
+        this.ticker = new Ticker(DiscoveryNode.canContainData(settings));
     }
 
     @Override

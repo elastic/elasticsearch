@@ -10,7 +10,7 @@ reindexed into a target index.
 `params` (`Map`, read-only)::
         User-defined parameters passed in as part of the query.
 
-`ctx['_op']` (`String`)::
+`ctx['op']` (`String`)::
         The name of the operation.
 
 {ref}/mapping-routing-field.html[`ctx['_routing']`] (`String`)::
@@ -18,9 +18,6 @@ reindexed into a target index.
 
 {ref}/mapping-index-field.html[`ctx['_index']`] (`String`)::
         The name of the index.
-
-{ref}/mapping-type-field.html[`ctx['_type']`] (`String`)::
-        The type of document within an index.
 
 {ref}/mapping-id-field.html[`ctx['_id']`] (`int`, read-only)::
         The unique document id.
@@ -34,7 +31,7 @@ reindexed into a target index.
 
 *Side Effects*
 
-`ctx['_op']`::
+`ctx['op']`::
         Use the default of `index` to update a document. Set to `none` to
         specify no operation or `delete` to delete the current document from
         the index.
@@ -44,9 +41,6 @@ reindexed into a target index.
 
 {ref}/mapping-index-field.html[`ctx['_index']`]::
         Modify this to change the destination index for the current document.
-
-{ref}/mapping-type-field.html[`ctx['_type']`]::
-        Modify this to change the type for the current document.
 
 {ref}/mapping-id-field.html[`ctx['_id']`]::
         Modify this to change the id for the current document.

@@ -4,7 +4,7 @@
 <titleabbrev>cat task management</titleabbrev>
 ++++
 
-beta::[The cat task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.]
+beta::["The cat task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{es-issue}51628]
 
 Returns information about tasks currently executing in the cluster,
 similar to the <<tasks,task management>> API.
@@ -13,10 +13,13 @@ similar to the <<tasks,task management>> API.
 [[cat-tasks-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/_tasks/<task_id>`
+`GET /_cat/tasks`
 
-`GET /_cat/_tasks`
+[[cat-tasks-api-prereqs]]
+==== {api-prereq-title}
 
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-tasks-api-desc]]
 ==== {api-description-title}
@@ -28,76 +31,45 @@ It is a more compact view
 of the JSON <<tasks,task management>> API.
 
 
-[[cat-tasks-api-path-params]]
-==== {api-path-parms-title}
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=task-id]
-
-
 [[cat-tasks-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=actions]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=group-by]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+`nodes`::
+(Optional, string)
+Comma-separated list of node IDs or names used to limit the response. Supports
+wildcard (`*`) expressions.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+`parent_task_id`::
+(Optional, string)
+Parent task ID used to limit the response.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-tasks-api-response-codes]]
 ==== {api-response-codes-title}
 
-include::{docdir}/cluster/tasks.asciidoc[tag=tasks-api-404]
+include::{es-repo-dir}/cluster/tasks.asciidoc[tag=tasks-api-404]
 
 
 [[cat-tasks-api-examples]]
 ==== {api-examples-title}
 
-
-[[cat-tasks-api-specific-ex]]
-===== Get information for a specific task
-
 [source,console]
 ----
-GET _cat/tasks/oTUltX4IQMOUUVeiohTt8A:124?v
-----
-// TEST[skip:No tasks to retrieve]
-
-The API returns the following response:
-
-[source,txt]
-----
-action                         task_id                    parent_task_id             type      start_time    timestamp running_time ip             node
-cluster:monitor/tasks/lists[n] oTUltX4IQMOUUVeiohTt8A:124 oTUltX4IQMOUUVeiohTt8A:123 direct    1458585884904 01:48:24  44.1micros   127.0.0.1:9300 oTUltX4IQMOUUVeiohTt8A
-----
-// TESTRESPONSE[skip:No tasks to retrieve]
-// TESTRESPONSE[non_json]
-
-
-[[cat-tasks-api-all-ex]]
-===== Get information for all tasks in a cluster
-
-[source,console]
-----
-GET _cat/tasks?v
+GET _cat/tasks?v=true
 ----
 // TEST[skip:No tasks to retrieve]
 

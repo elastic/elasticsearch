@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -27,17 +16,19 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
+import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 
@@ -51,11 +42,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Function;
 
-import static org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
-import static org.elasticsearch.action.search.SearchResponse.Clusters;
 
 /**
  * Merges multiple search responses into one. Used in cross-cluster search when reduction is performed locally on each cluster.
@@ -81,16 +69,16 @@ final class SearchResponseMerger {
     final int size;
     final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
-    private final Function<Boolean, ReduceContext> reduceContextFunction;
+    private final InternalAggregation.ReduceContextBuilder aggReduceContextBuilder;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
 
     SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, SearchTimeProvider searchTimeProvider,
-                         Function<Boolean, ReduceContext> reduceContextFunction) {
+                         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder) {
         this.from = from;
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
-        this.reduceContextFunction = Objects.requireNonNull(reduceContextFunction);
+        this.aggReduceContextBuilder = Objects.requireNonNull(aggReduceContextBuilder);
     }
 
     /**
@@ -123,11 +111,11 @@ final class SearchResponseMerger {
         //the current reduce phase counts as one
         int numReducePhases = 1;
         List<ShardSearchFailure> failures = new ArrayList<>();
-        Map<String, ProfileShardResult> profileResults = new HashMap<>();
+        Map<String, SearchProfileShardResult> profileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
         Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
-        Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<>();
+        Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions = new HashMap<>();
         Boolean trackTotalHits = null;
 
         TopDocsStats topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
@@ -150,7 +138,8 @@ final class SearchResponseMerger {
             Suggest suggest = searchResponse.getSuggest();
             if (suggest != null) {
                 for (Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> entries : suggest) {
-                    List<Suggest.Suggestion> suggestionList = groupedSuggestions.computeIfAbsent(entries.getName(), s -> new ArrayList<>());
+                    List<Suggest.Suggestion<?>> suggestionList =
+                        groupedSuggestions.computeIfAbsent(entries.getName(), s -> new ArrayList<>());
                     suggestionList.add(entries);
                 }
                 List<CompletionSuggestion> completionSuggestions = suggest.filter(CompletionSuggestion.class);
@@ -196,15 +185,16 @@ final class SearchResponseMerger {
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
         setSuggestShardIndex(shards, groupedSuggestions);
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-        InternalAggregations reducedAggs = InternalAggregations.reduce(aggs, reduceContextFunction.apply(true));
+        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
-        SearchProfileShardResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
+        SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
         //make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
         Arrays.sort(shardFailures, FAILURES_COMPARATOR);
         InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest, profileShardResults,
             topDocsStats.timedOut, topDocsStats.terminatedEarly, numReducePhases);
         long tookInMillis = searchTimeProvider.buildTookInMillis();
-        return new SearchResponse(response, null, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters);
+        return new SearchResponse(response, null, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures,
+            clusters, null);
     }
 
     private static final Comparator<ShardSearchFailure> FAILURES_COMPARATOR = new Comparator<ShardSearchFailure>() {
@@ -308,10 +298,10 @@ final class SearchResponseMerger {
     }
 
     private static void setSuggestShardIndex(Map<ShardIdAndClusterAlias, Integer> shards,
-                                             Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
+                                             Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions) {
         assignShardIndex(shards);
-        for (List<Suggest.Suggestion> suggestions : groupedSuggestions.values()) {
-            for (Suggest.Suggestion suggestion : suggestions) {
+        for (List<Suggest.Suggestion<?>> suggestions : groupedSuggestions.values()) {
+            for (Suggest.Suggestion<?> suggestion : suggestions) {
                 if (suggestion instanceof CompletionSuggestion) {
                     CompletionSuggestion completionSuggestion = (CompletionSuggestion) suggestion;
                     for (CompletionSuggestion.Entry options : completionSuggestion) {

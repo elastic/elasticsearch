@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.query;
@@ -24,26 +13,35 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
-import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 
-import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_CANCELLED;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_POST_FILTER;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT;
 
 abstract class QueryCollectorContext {
+    private static final Collector EMPTY_COLLECTOR = new SimpleCollector() {
+        @Override
+        public void collect(int doc) {
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE_NO_SCORES;
+        }
+    };
+
     private String profilerName;
 
     QueryCollectorContext(String profilerName) {
@@ -127,7 +125,7 @@ abstract class QueryCollectorContext {
     static QueryCollectorContext createMultiCollectorContext(Collection<Collector> subs) {
         return new QueryCollectorContext(REASON_SEARCH_MULTI) {
             @Override
-            Collector create(Collector in) throws IOException {
+            Collector create(Collector in) {
                 List<Collector> subCollectors = new ArrayList<> ();
                 subCollectors.add(in);
                 subCollectors.addAll(subs);
@@ -135,7 +133,7 @@ abstract class QueryCollectorContext {
             }
 
             @Override
-            protected InternalProfileCollector createWithProfiler(InternalProfileCollector in) throws IOException {
+            protected InternalProfileCollector createWithProfiler(InternalProfileCollector in) {
                 final List<InternalProfileCollector> subCollectors = new ArrayList<> ();
                 subCollectors.add(in);
                 if (subs.stream().anyMatch((col) -> col instanceof InternalProfileCollector == false)) {
@@ -151,28 +149,24 @@ abstract class QueryCollectorContext {
     }
 
     /**
-     * Creates a collector that throws {@link TaskCancelledException} if the search is cancelled
-     */
-    static QueryCollectorContext createCancellableCollectorContext(BooleanSupplier cancelled) {
-        return new QueryCollectorContext(REASON_SEARCH_CANCELLED) {
-            @Override
-            Collector create(Collector in) throws IOException {
-                return new CancellableCollector(cancelled, in);
-            }
-        };
-    }
-
-    /**
      * Creates collector limiting the collection to the first <code>numHits</code> documents
      */
     static QueryCollectorContext createEarlyTerminationCollectorContext(int numHits) {
         return new QueryCollectorContext(REASON_SEARCH_TERMINATE_AFTER_COUNT) {
-            private EarlyTerminatingCollector collector;
+            private Collector collector;
 
+            /**
+             * Creates a {@link MultiCollector} to ensure that the {@link EarlyTerminatingCollector}
+             * can terminate the collection independently of the provided <code>in</code> {@link Collector}.
+             */
             @Override
-            Collector create(Collector in) throws IOException {
+            Collector create(Collector in) {
                 assert collector == null;
-                this.collector = new EarlyTerminatingCollector(in, numHits, true);
+
+                List<Collector> subCollectors = new ArrayList<> ();
+                subCollectors.add(new EarlyTerminatingCollector(EMPTY_COLLECTOR, numHits, true));
+                subCollectors.add(in);
+                this.collector = MultiCollector.wrap(subCollectors);
                 return collector;
             }
         };

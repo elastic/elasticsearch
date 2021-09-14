@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
@@ -28,16 +17,18 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,6 +42,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
+
 public class LocalAllocateDangledIndices {
 
     private static final Logger logger = LogManager.getLogger(LocalAllocateDangledIndices.class);
@@ -63,28 +56,28 @@ public class LocalAllocateDangledIndices {
 
     private final AllocationService allocationService;
 
-    private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
+    private final IndexMetadataVerifier indexMetadataVerifier;
 
     @Inject
     public LocalAllocateDangledIndices(TransportService transportService, ClusterService clusterService,
-                                       AllocationService allocationService, MetaDataIndexUpgradeService metaDataIndexUpgradeService) {
+                                       AllocationService allocationService, IndexMetadataVerifier indexMetadataVerifier) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
+        this.indexMetadataVerifier = indexMetadataVerifier;
         transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SAME, AllocateDangledRequest::new,
             new AllocateDangledRequestHandler());
     }
 
-    public void allocateDangled(Collection<IndexMetaData> indices, ActionListener<AllocateDangledResponse> listener) {
+    public void allocateDangled(Collection<IndexMetadata> indices, ActionListener<AllocateDangledResponse> listener) {
         ClusterState clusterState = clusterService.state();
         DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
         if (masterNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
+            listener.onFailure(new MasterNotDiscoveredException());
             return;
         }
         AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(),
-            indices.toArray(new IndexMetaData[indices.size()]));
+            indices.toArray(new IndexMetadata[indices.size()]));
         transportService.sendRequest(masterNode, ACTION_NAME, request,
             new ActionListenerResponseHandler<>(listener, AllocateDangledResponse::new, ThreadPool.Names.SAME));
     }
@@ -102,59 +95,78 @@ public class LocalAllocateDangledIndices {
                     if (currentState.blocks().disableStatePersistence()) {
                         return currentState;
                     }
-                    MetaData.Builder metaData = MetaData.builder(currentState.metaData());
+                    Metadata.Builder metadata = Metadata.builder(currentState.metadata());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
                     final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
                         .minimumIndexCompatibilityVersion();
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
-                    for (IndexMetaData indexMetaData : request.indices) {
-                        if (indexMetaData.getCreationVersion().before(minIndexCompatibilityVersion)) {
+                    for (IndexMetadata indexMetadata : request.indices) {
+                        if (indexMetadata.getCreationVersion().before(minIndexCompatibilityVersion)) {
+                            logger.warn(
+                                "ignoring dangled index [{}] on node [{}] since it's created version [{}] is not supported by at "
+                                    + "least one node in the cluster minVersion [{}]",
+                                indexMetadata.getIndex(),
+                                request.fromNode,
+                                indexMetadata.getCreationVersion(),
+                                minIndexCompatibilityVersion
+                            );
+                            continue;
+                        }
+                        if (currentState.nodes().getMinNodeVersion().before(indexMetadata.getCreationVersion())) {
                             logger.warn("ignoring dangled index [{}] on node [{}]" +
-                                " since it's created version [{}] is not supported by at least one node in the cluster minVersion [{}]",
-                                indexMetaData.getIndex(), request.fromNode, indexMetaData.getCreationVersion(),
-                                minIndexCompatibilityVersion);
+                                " since its created version [{}] is later than the oldest versioned node in the cluster [{}]",
+                                indexMetadata.getIndex(), request.fromNode, indexMetadata.getCreationVersion(),
+                                currentState.getNodes().getMasterNode().getVersion());
                             continue;
                         }
-                        if (currentState.metaData().hasIndex(indexMetaData.getIndex().getName())) {
+                        if (currentState.metadata().hasIndex(indexMetadata.getIndex().getName())) {
                             continue;
                         }
-                        if (currentState.metaData().hasAlias(indexMetaData.getIndex().getName())) {
+                        if (currentState.metadata().hasAlias(indexMetadata.getIndex().getName())) {
                             logger.warn("ignoring dangled index [{}] on node [{}] due to an existing alias with the same name",
-                                    indexMetaData.getIndex(), request.fromNode);
+                                    indexMetadata.getIndex(), request.fromNode);
+                            continue;
+                        }
+                        if (currentState.metadata().indexGraveyard().containsIndex(indexMetadata.getIndex())) {
+                            logger.warn("ignoring dangled index [{}] on node [{}] since it was recently deleted",
+                                    indexMetadata.getIndex(), request.fromNode);
                             continue;
                         }
                         importNeeded = true;
 
-                        IndexMetaData upgradedIndexMetaData;
+                        IndexMetadata newIndexMetadata;
                         try {
                             // The dangled index might be from an older version, we need to make sure it's compatible
-                            // with the current version and upgrade it if needed.
-                            upgradedIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData,
+                            // with the current version.
+                            newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(indexMetadata,
                                 minIndexCompatibilityVersion);
+                            newIndexMetadata = IndexMetadata.builder(newIndexMetadata).settings(
+                                Settings.builder().put(newIndexMetadata.getSettings()).put(
+                                    IndexMetadata.SETTING_HISTORY_UUID, UUIDs.randomBase64UUID())).build();
                         } catch (Exception ex) {
                             // upgrade failed - adding index as closed
                             logger.warn(() -> new ParameterizedMessage("found dangled index [{}] on node [{}]. This index cannot be " +
-                                "upgraded to the latest version, adding as closed", indexMetaData.getIndex(), request.fromNode), ex);
-                            upgradedIndexMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE)
-                                .version(indexMetaData.getVersion() + 1).build();
+                                "upgraded to the latest version, adding as closed", indexMetadata.getIndex(), request.fromNode), ex);
+                            newIndexMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE)
+                                .version(indexMetadata.getVersion() + 1).build();
                         }
-                        metaData.put(upgradedIndexMetaData, false);
-                        blocks.addBlocks(upgradedIndexMetaData);
-                        if (upgradedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
-                            routingTableBuilder.addAsFromDangling(upgradedIndexMetaData);
+                        metadata.put(newIndexMetadata, false);
+                        blocks.addBlocks(newIndexMetadata);
+                        if (newIndexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
+                            routingTableBuilder.addAsFromDangling(newIndexMetadata);
                         }
-                        sb.append("[").append(upgradedIndexMetaData.getIndex()).append("/").append(upgradedIndexMetaData.getState())
+                        sb.append("[").append(newIndexMetadata.getIndex()).append("/").append(newIndexMetadata.getState())
                             .append("]");
                     }
-                    if (!importNeeded) {
+                    if (importNeeded == false) {
                         return currentState;
                     }
-                    logger.info("auto importing dangled indices {} from [{}]", sb.toString(), request.fromNode);
+                    logger.info("importing dangled indices {} from [{}]", sb.toString(), request.fromNode);
 
                     RoutingTable routingTable = routingTableBuilder.build();
-                    ClusterState updatedState = ClusterState.builder(currentState).metaData(metaData).blocks(blocks)
+                    ClusterState updatedState = ClusterState.builder(currentState).metadata(metadata).blocks(blocks)
                         .routingTable(routingTable).build();
 
                     // now, reroute
@@ -188,18 +200,15 @@ public class LocalAllocateDangledIndices {
     public static class AllocateDangledRequest extends TransportRequest {
 
         DiscoveryNode fromNode;
-        IndexMetaData[] indices;
+        IndexMetadata[] indices;
 
         public AllocateDangledRequest(StreamInput in) throws IOException {
             super(in);
             fromNode = new DiscoveryNode(in);
-            indices = new IndexMetaData[in.readVInt()];
-            for (int i = 0; i < indices.length; i++) {
-                indices[i] = IndexMetaData.readFrom(in);
-            }
+            indices = in.readArray(IndexMetadata::readFrom, IndexMetadata[]::new);
         }
 
-        AllocateDangledRequest(DiscoveryNode fromNode, IndexMetaData[] indices) {
+        AllocateDangledRequest(DiscoveryNode fromNode, IndexMetadata[] indices) {
             this.fromNode = fromNode;
             this.indices = indices;
         }
@@ -208,10 +217,7 @@ public class LocalAllocateDangledIndices {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             fromNode.writeTo(out);
-            out.writeVInt(indices.length);
-            for (IndexMetaData indexMetaData : indices) {
-                indexMetaData.writeTo(out);
-            }
+            out.writeArray(indices);
         }
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
@@ -10,7 +11,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -24,8 +25,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
@@ -34,7 +37,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 
@@ -48,6 +51,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -100,8 +104,11 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             }
         };
 
-        final RealmConfig realm = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ldap1"), Settings.EMPTY,
-                mock(Environment.class), new ThreadContext(Settings.EMPTY));
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
+        final Settings settings = Settings.builder()
+            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build();
+        final RealmConfig realm = new RealmConfig(realmIdentifier, settings,
+                mock(Environment.class), new ThreadContext(settings));
 
         final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData("sasquatch",
@@ -145,7 +152,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
     private SecurityIndexManager.State indexState(boolean isUpToDate, ClusterHealthStatus healthStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), isUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetaData.State.OPEN);
+            Instant.now(), isUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, null, "my_uuid"
+        );
     }
 
     public void testCacheClearOnIndexHealthChange() {
@@ -206,6 +214,20 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         assertEquals(0, numInvalidation.get());
     }
 
+    public void testPutRoleMappingWillValidateTemplateRoleNamesBeforeSave() {
+        final PutRoleMappingRequest putRoleMappingRequest = mock(PutRoleMappingRequest.class);
+        final TemplateRoleName templateRoleName = mock(TemplateRoleName.class);
+        final ScriptService scriptService = mock(ScriptService.class);
+        when(putRoleMappingRequest.getRoleTemplates()).thenReturn(Collections.singletonList(templateRoleName));
+        doAnswer(invocationOnMock -> {
+            throw new IllegalArgumentException();
+        }).when(templateRoleName).validate(scriptService);
+
+        final NativeRoleMappingStore nativeRoleMappingStore =
+            new NativeRoleMappingStore(Settings.EMPTY, mock(Client.class), mock(SecurityIndexManager.class), scriptService);
+        expectThrows(IllegalArgumentException.class, () -> nativeRoleMappingStore.putRoleMapping(putRoleMappingRequest, null));
+    }
+
     private NativeRoleMappingStore buildRoleMappingStoreForInvalidationTesting(AtomicInteger invalidationCounter, boolean attachRealm) {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
 
@@ -223,11 +245,12 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             final ClearRealmCacheRequest request = (ClearRealmCacheRequest) invocationOnMock.getArguments()[1];
             assertThat(request.realms(), Matchers.arrayContaining(realmName));
 
+            @SuppressWarnings("unchecked")
             ActionListener<ClearRealmCacheResponse> listener = (ActionListener<ClearRealmCacheResponse>) invocationOnMock.getArguments()[2];
             invalidationCounter.incrementAndGet();
             listener.onResponse(new ClearRealmCacheResponse(new ClusterName("cluster"), Collections.emptyList(), Collections.emptyList()));
             return null;
-        }).when(client).execute(eq(ClearRealmCacheAction.INSTANCE), any(ClearRealmCacheRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(ClearRealmCacheAction.INSTANCE), any(ClearRealmCacheRequest.class), anyActionListener());
 
         final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, mock(SecurityIndexManager.class),
             mock(ScriptService.class));
@@ -235,7 +258,10 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         if (attachRealm) {
             final Environment env = TestEnvironment.newEnvironment(settings);
             final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("ldap", realmName);
-            final RealmConfig realmConfig = new RealmConfig(identifier, settings, env, threadContext);
+            final RealmConfig realmConfig = new RealmConfig(identifier,
+                Settings.builder().put(settings)
+                    .put(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0).build(),
+                env, threadContext);
             final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm(realmConfig, threadPool) {
                 @Override
                 protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {

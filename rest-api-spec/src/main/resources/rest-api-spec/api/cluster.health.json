@@ -5,6 +5,10 @@
       "description":"Returns basic information about the health of the cluster."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -33,6 +37,7 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],
@@ -96,7 +101,6 @@
           "yellow",
           "red"
         ],
-        "default":null,
         "description":"Wait until cluster is in a specific state"
       }
     }

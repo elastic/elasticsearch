@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
 import org.elasticsearch.xpack.sql.cli.Cli;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.cli.FatalCliException;
-import org.elasticsearch.xpack.sql.client.Version;
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -53,9 +54,9 @@ public class PrintLogoCommand extends AbstractCliCommand {
         }
 
         // print the version centered on the last line
-        char[] whitespaces = new char[(lineLength - Version.CURRENT.version.length()) / 2];
+        char[] whitespaces = new char[(lineLength - ClientVersion.CURRENT.version.length()) / 2];
         Arrays.fill(whitespaces, ' ');
-        terminal.println(new StringBuilder().append(whitespaces).append(Version.CURRENT.version).toString());
+        terminal.println(new StringBuilder().append(whitespaces).append(ClientVersion.CURRENT.version).toString());
         terminal.println();
     }
 

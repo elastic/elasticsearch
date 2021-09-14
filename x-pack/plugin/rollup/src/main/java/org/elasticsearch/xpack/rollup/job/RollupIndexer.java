@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.job;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -26,9 +27,10 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
@@ -48,8 +50,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.rollup.RollupField.formatFieldName;
 
@@ -65,26 +67,31 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
 
     /**
      * Ctr
-     * @param executor Executor to use to fire the first request of a background job.
+     * @param threadPool ThreadPool to use to fire the first request of a background job.
      * @param job The rollup job
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
      */
-    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition) {
-        this(executor, job, initialState, initialPosition, new RollupIndexerJobStats());
+    RollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition) {
+        this(threadPool, job, initialState, initialPosition, new RollupIndexerJobStats());
     }
 
     /**
      * Ctr
-     * @param executor Executor to use to fire the first request of a background job.
+     * @param threadPool ThreadPool to use to fire the first request of a background job.
      * @param job The rollup job
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
      * @param jobStats jobstats instance for collecting stats
      */
-    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
-                  Map<String, Object> initialPosition, RollupIndexerJobStats jobStats) {
-        super(executor, initialState, initialPosition, jobStats);
+    RollupIndexer(
+        ThreadPool threadPool,
+        RollupJob job,
+        AtomicReference<IndexerState> initialState,
+        Map<String, Object> initialPosition,
+        RollupIndexerJobStats jobStats
+    ) {
+        super(threadPool, initialState, initialPosition, jobStats);
         this.job = job;
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
     }
@@ -100,8 +107,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
             // this is needed to exclude buckets that can still receive new documents
             DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
             // if the job has a delay we filter all documents that appear before it
-            long delay = dateHisto.getDelay() != null ?
-                TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis() : 0;
+            long delay = dateHisto.getDelay() != null ? TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis() : 0;
             maxBoundary = dateHisto.createRounding().round(now - delay);
             listener.onResponse(true);
         } catch (Exception e) {
@@ -109,16 +115,14 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         }
     }
 
-    @Override
     protected SearchRequest buildSearchRequest() {
         final Map<String, Object> position = getPosition();
-        SearchSourceBuilder searchSource = new SearchSourceBuilder()
-                .size(0)
-                .trackTotalHits(false)
-                // make sure we always compute complete buckets that appears before the configured delay
-                .query(createBoundaryQuery(position))
-                .aggregation(compositeBuilder.aggregateAfter(position));
-        return new SearchRequest(job.getConfig().getIndexPattern()).source(searchSource);
+        SearchSourceBuilder searchSource = new SearchSourceBuilder().size(0)
+            .trackTotalHits(false)
+            // make sure we always compute complete buckets that appears before the configured delay
+            .query(createBoundaryQuery(position))
+            .aggregation(compositeBuilder.aggregateAfter(position));
+        return new SearchRequest(job.getConfig().getIndexPattern()).allowPartialSearchResults(false).source(searchSource);
     }
 
     @Override
@@ -127,13 +131,20 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
 
         if (response.getBuckets().isEmpty()) {
             // do not reset the position as we want to continue from where we stopped
-            return new IterationResult<>(Collections.emptyList(), getPosition(), true);
+            return new IterationResult<>(Stream.empty(), getPosition(), true);
         }
 
         return new IterationResult<>(
-                IndexerUtils.processBuckets(response, job.getConfig().getRollupIndex(), getStats(),
-                        job.getConfig().getGroupConfig(), job.getConfig().getId()),
-                response.afterKey(), response.getBuckets().isEmpty());
+            IndexerUtils.processBuckets(
+                response,
+                job.getConfig().getRollupIndex(),
+                getStats(),
+                job.getConfig().getGroupConfig(),
+                job.getConfig().getId()
+            ),
+            response.afterKey(),
+            response.getBuckets().isEmpty()
+        );
     }
 
     /**
@@ -152,7 +163,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
 
         final Map<String, Object> metadata = createMetadata(groupConfig);
         if (metadata.isEmpty() == false) {
-            composite.setMetaData(metadata);
+            composite.setMetadata(metadata);
         }
         composite.size(config.getPageSize());
 
@@ -170,17 +181,14 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         assert maxBoundary < Long.MAX_VALUE;
         DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
         String fieldName = dateHisto.getField();
-        String rollupFieldName = fieldName + "."  + DateHistogramAggregationBuilder.NAME;
+        String rollupFieldName = fieldName + "." + DateHistogramAggregationBuilder.NAME;
         long lowerBound = 0L;
         if (position != null) {
             Number value = (Number) position.get(rollupFieldName);
             lowerBound = value.longValue();
         }
         assert lowerBound <= maxBoundary;
-        final RangeQueryBuilder query = new RangeQueryBuilder(fieldName)
-                .gte(lowerBound)
-                .lt(maxBoundary)
-                .format("epoch_millis");
+        final RangeQueryBuilder query = new RangeQueryBuilder(fieldName).gte(lowerBound).lt(maxBoundary).format("epoch_millis");
         return query;
     }
 
@@ -224,7 +232,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         } else if (dateHistogram instanceof DateHistogramGroupConfig.CalendarInterval) {
             dateHistogramBuilder.calendarInterval(dateHistogram.getInterval());
         } else {
-            dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+            throw new IllegalStateException("[date_histogram] must use either [fixed_interval] or [calendar_interval]");
         }
         dateHistogramBuilder.field(dateHistogramField);
         dateHistogramBuilder.timeZone(ZoneId.of(dateHistogram.getTimeZone()));
@@ -272,7 +280,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
                 if (metrics.isEmpty() == false) {
                     final String field = metricConfig.getField();
                     for (String metric : metrics) {
-                        ValuesSourceAggregationBuilder.LeafOnly newBuilder;
+                        ValuesSourceAggregationBuilder.LeafOnly<? extends ValuesSource, ? extends AggregationBuilder> newBuilder;
                         if (metric.equals(MetricConfig.MIN.getPreferredName())) {
                             newBuilder = new MinAggregationBuilder(formatFieldName(field, MinAggregationBuilder.NAME, RollupField.VALUE));
                         } else if (metric.equals(MetricConfig.MAX.getPreferredName())) {
@@ -280,18 +288,21 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
                         } else if (metric.equals(MetricConfig.AVG.getPreferredName())) {
                             // Avgs are sum + count
                             newBuilder = new SumAggregationBuilder(formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.VALUE));
-                            ValuesSourceAggregationBuilder.LeafOnly countBuilder
-                                = new ValueCountAggregationBuilder(
-                                formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.COUNT_FIELD), ValueType.NUMERIC);
+                            ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, ValueCountAggregationBuilder> countBuilder =
+                                new ValueCountAggregationBuilder(
+                                    formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.COUNT_FIELD)
+                                );
                             countBuilder.field(field);
                             builders.add(countBuilder);
                         } else if (metric.equals(MetricConfig.SUM.getPreferredName())) {
                             newBuilder = new SumAggregationBuilder(formatFieldName(field, SumAggregationBuilder.NAME, RollupField.VALUE));
                         } else if (metric.equals(MetricConfig.VALUE_COUNT.getPreferredName())) {
                             // TODO allow non-numeric value_counts.
-                            // Hardcoding this is fine for now since the job validation guarantees that all metric fields are numerics
+                            // I removed the hard coding of NUMERIC as part of cleaning up targetValueType, but I don't think that resolves
+                            // the above to do note -- Tozzi 2019-12-06
                             newBuilder = new ValueCountAggregationBuilder(
-                                formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE), ValueType.NUMERIC);
+                                formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE)
+                            );
                         } else {
                             throw new IllegalArgumentException("Unsupported metric type [" + metric + "]");
                         }
@@ -304,4 +315,3 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         return Collections.unmodifiableList(builders);
     }
 }
-

@@ -31,7 +31,7 @@ public class StackTraceElements {
             return SourceProvider.UNKNOWN_SOURCE;
         }
 
-        Class declaringClass = member.getDeclaringClass();
+        Class<?> declaringClass = member.getDeclaringClass();
 
         String fileName = null;
         int lineNumber = -1;

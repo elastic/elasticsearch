@@ -1,31 +1,35 @@
 [[modules-fielddata]]
-=== Fielddata
+=== Field data cache settings
 
-The field data cache is used mainly when sorting on or computing aggregations
-on a field. It loads all the field values to memory in order to provide fast
-document based access to those values. The field data cache can be
-expensive to build for a field, so its recommended to have enough memory
-to allocate it, and to keep it loaded.
+The field data cache contains <<fielddata-mapping-param, field data>> and <<eager-global-ordinals, global ordinals>>,
+which are both used to support aggregations on certain field types.
+Since these are on-heap data structures, it is important to monitor the cache's use.
 
-The amount of memory used for the field
-data cache can be controlled using `indices.fielddata.cache.size`. Note:
-reloading  the field data which does not fit into your cache will be expensive
-and  perform poorly.
+[discrete]
+[[fielddata-sizing]]
+==== Cache size
+
+The entries in the cache are expensive to build, so the default behavior is
+to keep the cache loaded in memory. The default cache size is unlimited,
+causing the cache to grow until it reaches the limit set by the <<fielddata-circuit-breaker, field data circuit breaker>>. This behavior can be configured.
+
+If the cache size limit is set, the cache will begin clearing the least-recently-updated
+entries in the cache. This setting can automatically avoid the circuit breaker limit,
+at the cost of rebuilding the cache as needed.
+
+If the circuit breaker limit is reached, further requests that increase the cache
+size will be prevented. In this case you should manually <<indices-clearcache, clear the cache>>.
 
 `indices.fielddata.cache.size`::
+(<<static-cluster-setting,Static>>)
+The max size of the field data cache, eg `38%` of node heap space, or an
+absolute value, eg `12GB`. Defaults to unbounded. If you choose to set it,
+it should be smaller than <<fielddata-circuit-breaker>> limit.
 
-    The max size of the field data cache, eg `30%` of node heap space, or an
-    absolute value, eg `12GB`. Defaults to unbounded.  Also see
-    <<fielddata-circuit-breaker>>.
-
-NOTE: These are static settings which must be configured on every data node in
-the cluster.
-
-[float]
+[discrete]
 [[fielddata-monitoring]]
 ==== Monitoring field data
 
 You can monitor memory usage for field data as well as the field data circuit
 breaker using
-<<cluster-nodes-stats,Nodes Stats API>>
-
+the <<cluster-nodes-stats,nodes stats API>> or the <<cat-fielddata,cat fielddata API>>.

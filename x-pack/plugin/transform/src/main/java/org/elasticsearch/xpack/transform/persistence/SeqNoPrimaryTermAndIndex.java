@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.persistence;
@@ -27,7 +28,7 @@ public class SeqNoPrimaryTermAndIndex {
         return new SeqNoPrimaryTermAndIndex(response.getSeqNo(), response.getPrimaryTerm(), response.getIndex());
     }
 
-    SeqNoPrimaryTermAndIndex(long seqNo, long primaryTerm, String index) {
+    public SeqNoPrimaryTermAndIndex(long seqNo, long primaryTerm, String index) {
         this.seqNo = seqNo;
         this.primaryTerm = primaryTerm;
         this.index = index;
@@ -61,9 +62,7 @@ public class SeqNoPrimaryTermAndIndex {
         }
 
         SeqNoPrimaryTermAndIndex other = (SeqNoPrimaryTermAndIndex) obj;
-        return Objects.equals(seqNo, other.seqNo)
-            && Objects.equals(primaryTerm, other.primaryTerm)
-            && Objects.equals(index, other.index);
+        return Objects.equals(seqNo, other.seqNo) && Objects.equals(primaryTerm, other.primaryTerm) && Objects.equals(index, other.index);
     }
 
     @Override

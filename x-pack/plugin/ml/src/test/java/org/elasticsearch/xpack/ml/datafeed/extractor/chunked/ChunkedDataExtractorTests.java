@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.mock.orig.Mockito;
@@ -62,6 +64,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     private class TestDataExtractor extends ChunkedDataExtractor {
 
         private SearchResponse nextResponse;
+        private SearchPhaseExecutionException ex;
 
         TestDataExtractor(long start, long end) {
             super(client, dataExtractorFactory, createContext(start, end), timingStatsReporter);
@@ -74,11 +77,18 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         @Override
         protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
             capturedSearchRequests.add(searchRequestBuilder.request());
+            if (ex != null) {
+                throw ex;
+            }
             return nextResponse;
         }
 
         void setNextResponse(SearchResponse searchResponse) {
             nextResponse = searchResponse;
+        }
+
+        void setNextResponseToError(SearchPhaseExecutionException ex) {
+            this.ex = ex;
         }
     }
 
@@ -149,7 +159,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     public void testExtractionGivenSpecifiedChunkAndAggs() throws IOException {
         chunkSpan = TimeValue.timeValueSeconds(1);
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2300L, true, 1000L);
-        extractor.setNextResponse(createSearchResponse(0L, 1000L, 2200L));
+        // 0 hits with non-empty data is possible with rollups
+        extractor.setNextResponse(createSearchResponse(randomFrom(0L, 2L, 10000L), 1000L, 2200L));
 
         InputStream inputStream1 = mock(InputStream.class);
         InputStream inputStream2 = mock(InputStream.class);
@@ -190,7 +201,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         TestDataExtractor extractor = new TestDataExtractor(100_000L, 450_000L, true, 200L);
 
-        extractor.setNextResponse(createSearchResponse(0L, 100_000L, 400_000L));
+        // 0 hits with non-empty data is possible with rollups
+        extractor.setNextResponse(createSearchResponse(randomFrom(0L, 2L, 10000L), 100_000L, 400_000L));
 
         InputStream inputStream1 = mock(InputStream.class);
         InputStream inputStream2 = mock(InputStream.class);
@@ -485,22 +497,18 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
-    public void testDataSummaryRequestIsNotOk() {
+    public void testDataSummaryRequestIsFailed() {
         chunkSpan = TimeValue.timeValueSeconds(2);
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2300L);
-        extractor.setNextResponse(createErrorResponse());
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
 
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, extractor::next);
+        expectThrows(SearchPhaseExecutionException.class, extractor::next);
     }
 
-    public void testDataSummaryRequestHasShardFailures() {
-        chunkSpan = TimeValue.timeValueSeconds(2);
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 2300L);
-        extractor.setNextResponse(createResponseWithShardFailures());
-
-        assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, extractor::next);
+    public void testNoDataSummaryHasNoData() {
+        ChunkedDataExtractor.DataSummary summary = ChunkedDataExtractor.AggregatedDataSummary.noDataSummary(randomNonNegativeLong());
+        assertFalse(summary.hasData());
     }
 
     private SearchResponse createSearchResponse(long totalHits, long earliestTime, long latestTime) {
@@ -545,27 +553,14 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         return searchResponse;
     }
 
-    private SearchResponse createErrorResponse() {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.INTERNAL_SERVER_ERROR);
-        return searchResponse;
-    }
-
-    private SearchResponse createResponseWithShardFailures() {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.OK);
-        when(searchResponse.getShardFailures()).thenReturn(
-                new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("shard failed"))});
-        return searchResponse;
-    }
-
     private ChunkedDataExtractorContext createContext(long start, long end) {
         return createContext(start, end, false, null);
     }
 
     private ChunkedDataExtractorContext createContext(long start, long end, boolean hasAggregations, Long histogramInterval) {
         return new ChunkedDataExtractorContext(jobId, timeField, indices, query, scrollSize, start, end, chunkSpan,
-                ChunkedDataExtractorFactory.newIdentityTimeAligner(), Collections.emptyMap(), hasAggregations, histogramInterval);
+            ChunkedDataExtractorFactory.newIdentityTimeAligner(), Collections.emptyMap(), hasAggregations, histogramInterval,
+            SearchRequest.DEFAULT_INDICES_OPTIONS, Collections.emptyMap());
     }
 
     private static class StubSubExtractor implements DataExtractor {

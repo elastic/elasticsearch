@@ -42,8 +42,10 @@
 ** <<sql-functions-aggs-percentile-rank>>
 ** <<sql-functions-aggs-skewness>>
 ** <<sql-functions-aggs-stddev-pop>>
+** <<sql-functions-aggs-stddev-samp>>
 ** <<sql-functions-aggs-sum-squares>>
 ** <<sql-functions-aggs-var-pop>>
+** <<sql-functions-aggs-var-samp>>
 * <<sql-functions-grouping>>
 ** <<sql-functions-grouping-histogram>>
 * <<sql-functions-datetime-interval, Date-Time Operators>>
@@ -53,12 +55,17 @@
 ** <<sql-functions-current-timestamp>>
 ** <<sql-functions-datetime-add>>
 ** <<sql-functions-datetime-diff>>
+** <<sql-functions-datetime-dateparse>>
+** <<sql-functions-datetime-datetimeformat>>
+** <<sql-functions-datetime-datetimeparse>>
+** <<sql-functions-datetime-format>>
 ** <<sql-functions-datetime-part>>
 ** <<sql-functions-datetime-trunc>>
 ** <<sql-functions-datetime-day>>
 ** <<sql-functions-datetime-dow>>
 ** <<sql-functions-datetime-doy>>
 ** <<sql-functions-datetime-dayname>>
+** <<sql-functions-datetime-extract>>
 ** <<sql-functions-datetime-hour>>
 ** <<sql-functions-datetime-isodow>>
 ** <<sql-functions-datetime-isoweek>>
@@ -69,10 +76,11 @@
 ** <<sql-functions-now>>
 ** <<sql-functions-datetime-second>>
 ** <<sql-functions-datetime-quarter>>
+** <<sql-functions-datetime-timeparse>>
+** <<sql-functions-datetime-to_char>>
 ** <<sql-functions-today>>
 ** <<sql-functions-datetime-week>>
 ** <<sql-functions-datetime-year>>
-** <<sql-functions-datetime-extract>>
 * <<sql-functions-search>>
 ** <<sql-functions-search-match>>
 ** <<sql-functions-search-query>>
@@ -89,7 +97,7 @@
 ** <<sql-functions-math-log10>>
 ** <<sql-functions-math-pi>>
 ** <<sql-functions-math-power>>
-** <<sql-functions-math-random>> 
+** <<sql-functions-math-random>>
 ** <<sql-functions-math-round>>
 ** <<sql-functions-math-sign>>
 ** <<sql-functions-math-sqrt>>
@@ -126,6 +134,7 @@
 ** <<sql-functions-string-rtrim>>
 ** <<sql-functions-string-space>>
 ** <<sql-functions-string-substring>>
+** <<sql-functions-string-trim>>
 ** <<sql-functions-string-ucase>>
 * <<sql-functions-type-conversion>>
 ** <<sql-functions-type-conversion-cast>>

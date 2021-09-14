@@ -1,26 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -30,7 +17,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -46,8 +32,14 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     private final Script script;
     private final Map<String, String> bucketsPathsMap;
 
-    BucketScriptPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, DocValueFormat formatter,
-            GapPolicy gapPolicy, Map<String, Object> metadata) {
+    BucketScriptPipelineAggregator(
+        String name,
+        Map<String, String> bucketsPathsMap,
+        Script script,
+        DocValueFormat formatter,
+        GapPolicy gapPolicy,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPathsMap.values().toArray(new String[0]), metadata);
         this.bucketsPathsMap = bucketsPathsMap;
         this.script = script;
@@ -55,39 +47,14 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         this.gapPolicy = gapPolicy;
     }
 
-    /**
-     * Read from a stream.
-     */
-    @SuppressWarnings("unchecked")
-    public BucketScriptPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        script = new Script(in);
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-        bucketsPathsMap = (Map<String, String>) in.readGenericValue();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        script.writeTo(out);
-        out.writeNamedWriteable(formatter);
-        gapPolicy.writeTo(out);
-        out.writeGenericValue(bucketsPathsMap);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return BucketScriptPipelineAggregationBuilder.NAME;
-    }
-
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-                (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        BucketAggregationScript.Factory factory =
-            reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
+        BucketAggregationScript.Factory factory = reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -99,7 +66,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                 String varName = entry.getKey();
                 String bucketsPath = entry.getValue();
                 Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
-                if (GapPolicy.SKIP == gapPolicy && (value == null || Double.isNaN(value))) {
+                if (gapPolicy.isSkippable && (value == null || Double.isNaN(value))) {
                     skipBucket = true;
                     break;
                 }
@@ -112,14 +79,16 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                 if (returned == null) {
                     newBuckets.add(bucket);
                 } else {
-                    final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
-                        (p) -> (InternalAggregation) p).collect(Collectors.toList());
+                    final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
+                        .map((p) -> (InternalAggregation) p)
+                        .collect(Collectors.toList());
 
-                    InternalSimpleValue simpleValue = new InternalSimpleValue(name(), returned.doubleValue(),
-                        formatter, new ArrayList<>(), metaData());
+                    InternalSimpleValue simpleValue = new InternalSimpleValue(name(), returned.doubleValue(), formatter, metadata());
                     aggs.add(simpleValue);
-                    InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
-                        bucket);
+                    InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(
+                        InternalAggregations.from(aggs),
+                        bucket
+                    );
                     newBuckets.add(newBucket);
                 }
             }

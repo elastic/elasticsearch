@@ -61,6 +61,13 @@ PUT /_ccr/auto_follow/my_auto_follow_pattern
 
 [source,console]
 --------------------------------------------------
+DELETE /_ccr/auto_follow/my_auto_follow_pattern
+--------------------------------------------------
+// TEST
+// TEARDOWN
+
+[source,console]
+--------------------------------------------------
 POST /_ccr/auto_follow/my_auto_follow_pattern/pause
 --------------------------------------------------
 // TEST

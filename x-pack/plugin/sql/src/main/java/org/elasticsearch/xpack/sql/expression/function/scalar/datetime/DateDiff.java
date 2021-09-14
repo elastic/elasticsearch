@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Nullability;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -23,9 +25,13 @@ import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDate;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
+import static org.elasticsearch.xpack.sql.util.DateUtils.DAY_IN_MILLIS;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class DateDiff extends ThreeArgsDateTimeFunction {
 
@@ -39,15 +45,11 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
         DAYOFYEAR((start, end) -> safeInt(diffInDays(start, end)), "dy", "y"),
         DAY(DAYOFYEAR::diff, "days", "dd", "d"),
         WEEK((start, end) -> {
-            int extraWeek = NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(end) -
-                NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(start) == 0 ? 0 : 1;
-            long diffWeeks = diffInDays(start, end) / 7;
-            if (diffWeeks < 0) {
-                diffWeeks -= extraWeek;
-            } else {
-                diffWeeks += extraWeek;
-            }
-            return safeInt(diffWeeks);
+            long startInDays =  start.toInstant().toEpochMilli() / DAY_IN_MILLIS -
+                    DatePart.Part.WEEKDAY.extract(start.withZoneSameInstant(UTC));
+            long endInDays =  end.toInstant().toEpochMilli() / DAY_IN_MILLIS -
+                    DatePart.Part.WEEKDAY.extract(end.withZoneSameInstant(UTC));
+            return safeInt((endInDays - startInDays) / 7);
         }, "weeks", "wk", "ww"),
         WEEKDAY(DAYOFYEAR::diff,  "weekdays", "dw"),
         HOUR((start, end) -> safeInt(diffInHours(start, end)),  "hours", "hh"),
@@ -114,12 +116,8 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
         }
 
         private static long diffInMinutes(ZonedDateTime start, ZonedDateTime end) {
-            long secondsDiff = diffInSeconds(start, end);
-            if (secondsDiff > 0) {
-                return (long) Math.ceil(secondsDiff / 60.0d);
-            } else {
-                return (long) Math.floor(secondsDiff / 60.0d);
-            }
+            // Truncate first to minutes (ignore any seconds and sub-seconds fields)
+            return (end.toEpochSecond() / 60) - (start.toEpochSecond() / 60);
         }
 
         private static long diffInHours(ZonedDateTime start, ZonedDateTime end) {
@@ -137,7 +135,7 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = isString(first(), sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isString(first(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -160,12 +158,12 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
             }
         }
 
-        resolution = isDate(second(), sourceText(), Expressions.ParamOrdinal.SECOND);
+        resolution = isDate(second(), sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = isDate(third(), sourceText(), Expressions.ParamOrdinal.THIRD);
+        resolution = isDate(third(), sourceText(), THIRD);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -175,7 +173,7 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataTypes.INTEGER;
     }
 
     @Override

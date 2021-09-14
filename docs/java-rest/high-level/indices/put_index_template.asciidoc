@@ -1,0 +1,120 @@
+--
+:api: put-index-template-v2
+:request: PutIndexTemplateV2Request
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Create or update composable index template API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+A +{request}+ specifies the `name` of a template and the index template configuration
+which consists of the `patterns` that control whether the template should be applied
+to the new index, and the optional mappings, settings and aliases configuration.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of the template
+<2> The index template configuration that specifies the index name patterns this template will match
+
+==== Settings
+The settings of the template will be applied to the new index whose name matches the
+template's patterns.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-settings]
+--------------------------------------------------
+<1> Settings for this template
+<2> Configure the settings on the template building block
+<3> Create the IndexTemplateV2 object that configures the index template to apply the defined template to indices matching the patterns
+
+==== Mappings
+The mapping of the template will be applied to the new index whose name matches the
+template's patterns.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-mappings-json]
+--------------------------------------------------
+<1> The mapping, provided as a JSON string
+<2> Configure the mapping on the template building block
+
+==== Aliases
+The aliases of the template will define aliasing to the index whose name matches the
+template's patterns. A placeholder `{index}` can be used in an alias of a template.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-aliases]
+--------------------------------------------------
+<1> The alias to define
+<2> The alias to define with placeholder
+<3> Configure the aliases on the template building block
+
+==== Component templates
+Component templates can be used as building blocks for specifying mappings, settings or aliases
+configurations, but they don't apply to indices themselves. To be applied to an index, the
+component templates must be specified in the `componentTemplates` list of the `IndexTemplateV2`
+index template definition object. The order in which they are specified in the list is the order
+in which the component templates are applied.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-component-template]
+--------------------------------------------------
+<1> The component template used by this index template
+
+==== Priority
+In case multiple templates match an index, the priority of matching templates determines
+the index template which will be applied.
+Index templates with higher priority "win" over index templates with lower priority.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-priority]
+--------------------------------------------------
+<1> The priority of the template
+
+==== Version
+A template can optionally specify a version number which can be used to simplify template
+management by external systems.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-version]
+--------------------------------------------------
+<1> The version number of the template
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-create]
+--------------------------------------------------
+<1> To force to only create a new template; do not overwrite the existing template
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request

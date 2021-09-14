@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher;
 
@@ -27,7 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
@@ -68,7 +69,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isWatcherAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.WATCHER)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -89,6 +90,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
 
     public void testUsageStats() throws Exception {
         doAnswer(mock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<WatcherStatsResponse> listener =
                     (ActionListener<WatcherStatsResponse>) mock.getArguments()[2];
 
@@ -109,7 +111,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             secondNode.setStats(secondCounters);
             nodes.add(secondNode);
 
-            listener.onResponse(new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetaData(false),
+            listener.onResponse(new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetadata(false),
                     nodes, Collections.emptyList()));
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());

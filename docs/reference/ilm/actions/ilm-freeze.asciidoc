@@ -1,0 +1,34 @@
+[role="xpack"]
+[[ilm-freeze]]
+=== Freeze
+
+Phases allowed: cold.
+
+<<freeze-index-api, Freezes>> an index.
+
+deprecated[7.x,"The ILM Freeze action was deprecated in 7.x and will be treated as a no-op in 8.0+."]
+
+[[ilm-freeze-options]]
+==== Options
+
+None.
+
+[[ilm-freeze-ex]]
+==== Example
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "cold": {
+        "actions": {
+          "freeze" : { }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+

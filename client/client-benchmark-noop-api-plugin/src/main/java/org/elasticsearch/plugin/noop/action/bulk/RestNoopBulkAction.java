@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.plugin.noop.action.bulk;
 
@@ -32,12 +21,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -45,11 +34,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestNoopBulkAction extends BaseRestHandler {
 
-    public RestNoopBulkAction(RestController controller) {
-        controller.registerHandler(POST, "/_noop_bulk", this);
-        controller.registerHandler(PUT, "/_noop_bulk", this);
-        controller.registerHandler(POST, "/{index}/_noop_bulk", this);
-        controller.registerHandler(PUT, "/{index}/_noop_bulk", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_noop_bulk"),
+            new Route(PUT, "/_noop_bulk"),
+            new Route(POST, "/{index}/_noop_bulk"),
+            new Route(PUT, "/{index}/_noop_bulk"));
     }
 
     @Override
@@ -63,6 +54,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
         String defaultIndex = request.param("index");
         String defaultRouting = request.param("routing");
         String defaultPipeline = request.param("pipeline");
+        Boolean defaultRequireAlias = request.paramAsBoolean("require_alias", null);
 
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -71,7 +63,8 @@ public class RestNoopBulkAction extends BaseRestHandler {
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultRouting,
-            null, defaultPipeline, true, request.getXContentType());
+            null, defaultPipeline, defaultRequireAlias, true, request.getXContentType(),
+            request.getRestApiVersion());
 
         // short circuit the call to the transport layer
         return channel -> {
@@ -81,7 +74,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
     }
 
     private static class BulkRestBuilderListener extends RestBuilderListener<BulkRequest> {
-        private final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(1, DocWriteRequest.OpType.UPDATE,
+        private final BulkItemResponse ITEM_RESPONSE = BulkItemResponse.success(1, DocWriteRequest.OpType.UPDATE,
             new UpdateResponse(new ShardId("mock", "", 1), "1", 0L, 1L, 1L, DocWriteResponse.Result.CREATED));
 
         private final RestRequest request;

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack;
@@ -12,9 +13,9 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.LicensesMetaData;
+import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.RemoteConnectionInfo;
@@ -45,10 +46,8 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder();
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        builder.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // Let cluster state api return quickly in order to speed up auto follow tests:
         builder.put(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.getKey(), TimeValue.timeValueMillis(100));
@@ -67,16 +66,14 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", address));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        assertBusy(() -> {
-            List<RemoteConnectionInfo> infos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
-            assertThat(infos.size(), equalTo(1));
-            assertThat(infos.get(0).getNumNodesConnected(), equalTo(1));
-        });
+        List<RemoteConnectionInfo> infos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+        assertThat(infos.size(), equalTo(1));
+        assertTrue(infos.get(0).isConnected());
     }
 
     @Before
     public void waitForTrialLicenseToBeGenerated() throws Exception {
-        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metaData().custom(LicensesMetaData.TYPE)));
+        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metadata().custom(LicensesMetadata.TYPE)));
     }
 
     @After

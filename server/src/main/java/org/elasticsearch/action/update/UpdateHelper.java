@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.update;
@@ -26,9 +15,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -99,8 +88,7 @@ public class UpdateHelper {
      * Execute a scripted upsert, where there is an existing upsert document and a script to be executed. The script is executed and a new
      * Tuple of operation and updated {@code _source} is returned.
      */
-    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(IndexRequest upsert, Script script, LongSupplier nowInMillis) {
-        Map<String, Object> upsertDoc = upsert.sourceAsMap();
+    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
         Map<String, Object> ctx = new HashMap<>(3);
         // Tell the script that this is a create and not an update
         ctx.put(ContextFields.OP, UpdateOpType.CREATE.toString());
@@ -126,18 +114,18 @@ public class UpdateHelper {
      * {@code IndexRequest} to be executed on the primary and replicas.
      */
     Result prepareUpsert(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
-            if (request.upsertRequest() == null && !request.docAsUpsert()) {
+            if (request.upsertRequest() == null && request.docAsUpsert() == false) {
                 throw new DocumentMissingException(shardId, request.id());
             }
             IndexRequest indexRequest = request.docAsUpsert() ? request.doc() : request.upsertRequest();
             if (request.scriptedUpsert() && request.script() != null) {
                 // Run the script to perform the create logic
                 IndexRequest upsert = request.upsertRequest();
-                Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(upsert, request.script, nowInMillis);
+                Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(upsert.sourceAsMap(), request.script,
+                    nowInMillis);
                 switch (upsertResult.v1()) {
                     case CREATE:
-                        // Update the index request with the new "_source"
-                        indexRequest.source(upsertResult.v2());
+                        indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
                         break;
                     case NONE:
                         UpdateResponse update = new UpdateResponse(shardId, getResult.getId(),
@@ -189,7 +177,7 @@ public class UpdateHelper {
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
 
-        final boolean noop = !XContentHelper.update(updatedSourceAsMap, currentRequest.sourceAsMap(), detectNoop);
+        final boolean noop = XContentHelper.update(updatedSourceAsMap, currentRequest.sourceAsMap(), detectNoop) == false;
 
         // We can only actually turn the update into a noop if detectNoop is true to preserve backwards compatibility and to handle cases
         // where users repopulating multi-fields or adding synonyms, etc.
@@ -294,7 +282,7 @@ public class UpdateHelper {
             sourceLookup.setSource(source);
             Object value = sourceLookup.filter(request.fetchSource());
             try {
-                final int initialCapacity = Math.min(1024, sourceAsBytes.length());
+                final int initialCapacity = sourceAsBytes != null ? Math.min(1024, sourceAsBytes.length()) : 1024;
                 BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
                 try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
                     builder.value(value);

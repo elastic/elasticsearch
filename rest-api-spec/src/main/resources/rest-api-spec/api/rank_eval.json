@@ -5,6 +5,11 @@
       "description":"Allows to evaluate the quality of ranked search results over a set of typical search queries"
     },
     "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -43,11 +48,20 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],
         "default":"open",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "search_type":{
+        "type":"enum",
+        "options":[
+          "query_then_fetch",
+          "dfs_query_then_fetch"
+        ],
+        "description":"Search operation type"
       }
     },
     "body":{

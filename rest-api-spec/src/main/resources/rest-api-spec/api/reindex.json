@@ -5,6 +5,11 @@
       "description":"Allows to copy documents from one index to another, optionally filtering the source\ndocuments by a query, changing the destination index settings, or fetching the\ndocuments from a remote cluster."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -18,7 +23,7 @@
     "params":{
       "refresh":{
         "type":"boolean",
-        "description":"Should the effected indexes be refreshed?"
+        "description":"Should the affected indexes be refreshed?"
       },
       "timeout":{
         "type":"time",
@@ -45,9 +50,9 @@
         "default":"5m"
       },
       "slices":{
-        "type":"number",
+        "type":"number|string",
         "default":1,
-        "description":"The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks."
+        "description":"The number of slices this task should be divided into. Defaults to 1, meaning the task isn't sliced into subtasks. Can be set to `auto`."
       },
       "max_docs":{
         "type":"number",

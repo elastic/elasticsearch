@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-datafeed]]
-=== Update {dfeeds} API
+= Update {dfeeds} API
 
 [subs="attributes"]
 ++++
@@ -12,112 +12,131 @@ Updates certain properties of a {dfeed}.
 
 
 [[ml-update-datafeed-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/datafeeds/<feed_id>/_update`
 
 
 [[ml-update-datafeed-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
-cluster privileges to use this API. See
-<<security-privileges>>.
-
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-update-datafeed-desc]]
-==== {api-description-title}
+== {api-description-title}
 
-If you update a {dfeed} property, you must stop and start the {dfeed} for the 
+If you update a {dfeed} property, you must stop and start the {dfeed} for the
 change to be applied.
 
 IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
 which roles the user who updated it had at the time of update and runs the query
-using those same roles.
+using those same roles. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, those
+credentials are used instead.
 
 [[ml-update-datafeed-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<feed_id>`::
-  (Required, string) Identifier for the {dfeed}.
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
+[role="child_attributes"]
 [[ml-update-datafeed-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 The following properties can be updated after the {dfeed} is created:
 
 `aggregations`::
-  (Optional, object) If set, the {dfeed} performs aggregation searches. For more
-  information, see <<ml-datafeed-resource>>.
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
 
 `chunking_config`::
-  (Optional, object) Specifies how data searches are split into time chunks. See
-  <<ml-datafeed-chunking-config>>.
-  
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
++
+.Properties of `chunking_config`
+[%collapsible%open]
+====
+`mode`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
+====
+
 `delayed_data_check_config`::
-  (Optional, object) Specifies whether the data feed checks for missing data and 
-  the size of the window. See <<ml-datafeed-delayed-data-check-config>>.  
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
++
+.Properties of `delayed_data_check_config`
+[%collapsible%open]
+====
+`check_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-window]
+
+`enabled`::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-enabled]
+====
 
 `frequency`::
-  (Optional, <<time-units, time units>>) The interval at which scheduled queries 
-  are made while the {dfeed} runs in real time. The default value is either the 
-  bucket span for short bucket spans, or, for longer bucket spans, a sensible 
-  fraction of the bucket span. For example: `150s`.
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=frequency]
 
 `indices`::
-  (Optional, array) An array of index names. Wildcards are supported. For
-  example: `["it_ops_metrics", "server*"]`.
+(Optional, array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
 
-`query`::
-  (Optional, object) The {es} query domain-specific language (DSL). This value
-  corresponds to the query object in an {es} search POST body. All the options
-  that are supported by {es} can be used, as this object is passed verbatim to
-  {es}. By default, this property has the following value:
-  `{"match_all": {"boost": 1}}`.
+`indices_options`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
+
+`max_empty_searches`::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
 +
 --
-WARNING: If you change the query, then the analyzed data will also be changed, 
-therefore the required time to learn might be long and the understandability of 
-the results is unpredictable.
-If you want to make significant changes to the source data, we would recommend 
-you clone it and create a second job containing the amendments. Let both run in 
-parallel and close one when you are satisfied with the results of the other job.
+The special value `-1` unsets this setting.
+--
+
+`query`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query]
++
+--
+WARNING: If you change the query, the analyzed data is also changed. Therefore,
+the required time to learn might be long and the understandability of the
+results is unpredictable. If you want to make significant changes to the source
+data, we would recommend you clone it and create a second job containing the
+amendments. Let both run in parallel and close one when you are satisfied with
+the results of the other job.
+
 --
 
 `query_delay`::
-  (Optional, <<time-units, time units>>) The number of seconds behind real-time 
-  that data is queried. For example, if data from 10:04 a.m. might not be 
-  searchable in {es} until 10:06 a.m., set this property to 120 seconds. The 
-  default value is `60s`.
+(Optional, <<time-units, time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query-delay]
+
+`runtime_mappings`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=runtime-mappings]
 
 `script_fields`::
-  (Optional, object) Specifies scripts that evaluate custom expressions and
-  returns script fields to the {dfeed}. The
-  <<ml-detectorconfig,detector configuration objects>> in a job can contain
-  functions that use these script fields. For more information, see
-  <<request-body-search-script-fields,Script fields>>.
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
 
 `scroll_size`::
-  (Optional, unsigned integer) The `size` parameter that is used in {es}
-  searches. The default value is `1000`.
-
-`max_empty_searches`::
-  (Optional, integer) If a real-time {dfeed} has never seen any data (including
-  during any initial training period) then it will automatically stop itself
-  and close its associated job after this many real-time searches that return
-  no documents. In other words, it will stop after `frequency` times
-  `max_empty_searches` of real-time operation. If not set
-  then a {dfeed} with no end time that sees no data will remain started until
-  it is explicitly stopped. The special value `-1` unsets this setting.
-
-For more information about these properties, see <<ml-datafeed-resource>>.
+(Optional, unsigned integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
 
 [[ml-update-datafeed-example]]
-==== {api-examples-title}
-
-The following example updates the query for the `datafeed-total-requests`
-{dfeed} so that only log entries of error level are analyzed:
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------
@@ -132,9 +151,8 @@ POST _ml/datafeeds/datafeed-total-requests/_update
 --------------------------------------------------
 // TEST[skip:setup:server_metrics_datafeed]
 
-
 When the {dfeed} is updated, you receive the full {dfeed} configuration with
-with the updated values:
+the updated values:
 
 [source,console-result]
 ----

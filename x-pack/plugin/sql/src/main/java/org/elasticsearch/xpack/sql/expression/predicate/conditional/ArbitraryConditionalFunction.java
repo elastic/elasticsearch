@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
 
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Base class for conditional predicates with arbitrary number of arguments

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
@@ -16,15 +17,22 @@ import java.io.IOException;
  */
 public final class SamlLogoutResponse extends ActionResponse {
 
-    private String redirectUrl;
+    private final String requestId;
+    private final String redirectUrl;
 
     public SamlLogoutResponse(StreamInput in) throws IOException {
         super(in);
+        requestId = in.readString();
         redirectUrl = in.readString();
     }
 
-    public SamlLogoutResponse(String redirectUrl) {
+    public SamlLogoutResponse(String requestId, String redirectUrl) {
+        this.requestId = requestId;
         this.redirectUrl = redirectUrl;
+    }
+
+    public String getRequestId() {
+        return requestId;
     }
 
     public String getRedirectUrl() {
@@ -33,7 +41,8 @@ public final class SamlLogoutResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(requestId);
         out.writeString(redirectUrl);
     }
 
-    }
+}

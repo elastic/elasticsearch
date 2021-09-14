@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Accepts 2 arguments of any data type and returns null if they are equal,
@@ -25,8 +26,12 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public class NullIf extends ConditionalFunction {
 
+    private final Expression left, right;
+
     public NullIf(Source source, Expression left, Expression right) {
         super(source, Arrays.asList(left, right));
+        this.left = left;
+        this.right = right;
     }
 
     @Override
@@ -39,9 +44,25 @@ public class NullIf extends ConditionalFunction {
         return new NullIf(source(), newChildren.get(0), newChildren.get(1));
     }
 
+    public Expression left() {
+        return left;
+    }
+
+    public Expression right() {
+        return right;
+    }
+
+    @Override
+    public boolean foldable() {
+        return left.semanticEquals(right) || super.foldable();
+    }
+
     @Override
     public Object fold() {
-        return NullIfProcessor.apply(children().get(0).fold(), children().get(1).fold());
+        if (left.semanticEquals(right)) {
+            return null;
+        }
+        return NullIfProcessor.apply(left.fold(), right.fold());
     }
 
     @Override

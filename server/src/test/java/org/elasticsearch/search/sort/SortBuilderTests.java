@@ -1,20 +1,9 @@
 /*
-x * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+x * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.sort;
@@ -190,19 +179,24 @@ public class SortBuilderTests extends ESTestCase {
         int size = randomIntBetween(1, 5);
         List<SortBuilder<?>> list = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            switch (randomIntBetween(0, 3)) {
+            switch (randomIntBetween(0, 5)) {
             case 0:
                 list.add(new ScoreSortBuilder());
                 break;
             case 1:
-                String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
-                list.add(new FieldSortBuilder(fieldName));
+                list.add(new FieldSortBuilder( randomAlphaOfLengthBetween(1, 10)));
                 break;
             case 2:
-                list.add(GeoDistanceSortBuilderTests.randomGeoDistanceSortBuilder());
+                list.add(SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
                 break;
             case 3:
+                list.add(GeoDistanceSortBuilderTests.randomGeoDistanceSortBuilder());
+                break;
+            case 4:
                 list.add(ScriptSortBuilderTests.randomScriptSortBuilder());
+                break;
+            case 5:
+                list.add(SortBuilders.pitTiebreaker());
                 break;
             default:
                 throw new IllegalStateException("unexpected randomization in tests");

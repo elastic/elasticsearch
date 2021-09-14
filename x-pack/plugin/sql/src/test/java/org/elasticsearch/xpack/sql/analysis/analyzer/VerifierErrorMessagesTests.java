@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.common.time.IsoLocale;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.TestUtils;
-import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Truncate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
@@ -22,35 +25,41 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.type.TypesTests;
-
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
 
-    private SqlParser parser = new SqlParser();
-    private IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
-        TypesTests.loadMapping("mapping-multi-field-with-nested.json")));
+    private final SqlParser parser = new SqlParser();
+    private final IndexResolution indexResolution = IndexResolution.valid(
+        new EsIndex("test", loadMapping("mapping-multi-field-with-nested.json"))
+    );
 
     private String error(String sql) {
         return error(indexResolution, sql);
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
-        assertTrue(e.getMessage().startsWith("Found "));
-        String header = "Found 1 problem(s)\nline ";
-        return e.getMessage().substring(header.length());
+        String message = e.getMessage();
+        assertTrue(message.startsWith("Found "));
+        String pattern = "\nline ";
+        int index = message.indexOf(pattern);
+        return message.substring(index + pattern.length());
     }
 
     private LogicalPlan accept(String sql) {
@@ -59,18 +68,18 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private EsIndex getTestEsIndex() {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
+        Map<String, EsField> mapping = loadMapping("mapping-multi-field-with-nested.json");
         return new EsIndex("test", mapping);
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), resolution, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
     private IndexResolution incompatible() {
-        Map<String, EsField> basicMapping = TypesTests.loadMapping("mapping-basic.json", true);
-        Map<String, EsField> incompatible = TypesTests.loadMapping("mapping-basic-incompatible.json");
+        Map<String, EsField> basicMapping = loadMapping("mapping-basic.json", true);
+        Map<String, EsField> incompatible = loadMapping("mapping-basic-incompatible.json");
 
         assertNotEquals(basicMapping, incompatible);
         IndexResolution resolution = IndexResolverTests.merge(new EsIndex("basic", basicMapping),
@@ -89,6 +98,19 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testMissingIndex() {
         assertEquals("1:17: Unknown index [missing]", error(IndexResolution.notFound("missing"), "SELECT foo FROM missing"));
+    }
+
+    public void testNonBooleanFilter() {
+        Map<String, List<String>> testData = new HashMap<>();
+        testData.put("INTEGER", List.of("int", "int + 1", "ABS(int)", "ASCII(keyword)"));
+        testData.put("KEYWORD", List.of("keyword", "RTRIM(keyword)", "IIF(true, 'true', 'false')"));
+        testData.put("DATETIME", List.of("date", "date + INTERVAL 1 DAY", "NOW()"));
+        for (String typeName : testData.keySet()) {
+            for (String exp : testData.get(typeName)) {
+                assertEquals("1:26: Condition expression needs to be boolean, found [" + typeName + "]",
+                    error("SELECT * FROM test WHERE " + exp));
+            }
+        }
     }
 
     public void testMissingColumn() {
@@ -114,8 +136,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testFieldAliasTypeWithoutHierarchy() {
         Map<String, EsField> mapping = new LinkedHashMap<>();
 
-        mapping.put("field", new EsField("field", DataType.OBJECT,
-                singletonMap("alias", new EsField("alias", DataType.KEYWORD, emptyMap(), true)), false));
+        mapping.put("field", new EsField("field", OBJECT, singletonMap("alias", new EsField("alias", KEYWORD, emptyMap(), true)), false));
 
         IndexResolution resolution = IndexResolution.valid(new EsIndex("test", mapping));
 
@@ -209,11 +230,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", error("SELECT EXTRACT(ABS FROM date) FROM test"));
     }
 
+    public void testDateTruncValidArgs() {
+        accept("SELECT DATE_TRUNC('decade', date) FROM test");
+        accept("SELECT DATE_TRUNC('decades', date) FROM test");
+        accept("SELECT DATETRUNC('day', date) FROM test");
+        accept("SELECT DATETRUNC('days', date) FROM test");
+        accept("SELECT DATE_TRUNC('dd', date) FROM test");
+        accept("SELECT DATE_TRUNC('d', date) FROM test");
+    }
+
     public void testDateTruncInvalidArgs() {
         assertEquals("1:8: first argument of [DATE_TRUNC(int, date)] must be [string], found value [int] type [integer]",
             error("SELECT DATE_TRUNC(int, date) FROM test"));
-        assertEquals("1:8: second argument of [DATE_TRUNC(keyword, keyword)] must be [date or datetime], found value [keyword] " +
-                "type [keyword]", error("SELECT DATE_TRUNC(keyword, keyword) FROM test"));
+        assertEquals("1:8: second argument of [DATE_TRUNC(keyword, keyword)] must be [date, datetime or an interval data type]," +
+            " found value [keyword] type [keyword]", error("SELECT DATE_TRUNC(keyword, keyword) FROM test"));
         assertEquals("1:8: first argument of [DATE_TRUNC('invalid', keyword)] must be one of [MILLENNIUM, CENTURY, DECADE, " + "" +
                 "YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
                 "or their aliases; found value ['invalid']",
@@ -282,15 +312,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT DATE_DIFF('dz', int, date) FROM test"));
     }
 
-    public void testDateTruncValidArgs() {
-        accept("SELECT DATE_TRUNC('decade', date) FROM test");
-        accept("SELECT DATE_TRUNC('decades', date) FROM test");
-        accept("SELECT DATETRUNC('day', date) FROM test");
-        accept("SELECT DATETRUNC('days', date) FROM test");
-        accept("SELECT DATE_TRUNC('dd', date) FROM test");
-        accept("SELECT DATE_TRUNC('d', date) FROM test");
-    }
-
     public void testDatePartInvalidArgs() {
         assertEquals("1:8: first argument of [DATE_PART(int, date)] must be [string], found value [int] type [integer]",
             error("SELECT DATE_PART(int, date) FROM test"));
@@ -315,6 +336,56 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT DATE_PART('dayofyear', date) FROM test");
         accept("SELECT DATE_PART('dy', date) FROM test");
         accept("SELECT DATE_PART('ms', date) FROM test");
+    }
+
+    public void testDateTimeFormatValidArgs() {
+        accept("SELECT DATETIME_FORMAT(date, 'HH:mm:ss.SSS VV') FROM test");
+        accept("SELECT DATETIME_FORMAT(date::date, 'MM/dd/YYYY') FROM test");
+        accept("SELECT DATETIME_FORMAT(date::time, 'HH:mm:ss Z') FROM test");
+    }
+
+    public void testDateTimeFormatInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [DATETIME_FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [DATETIME_FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(date, int) FROM test")
+        );
+    }
+
+    public void testDateTimeParseValidArgs() {
+        accept("SELECT DATETIME_PARSE(keyword, 'MM/dd/uuuu HH:mm:ss') FROM test");
+        accept("SELECT DATETIME_PARSE('04/07/2020 10:20:30 Europe/Berlin', 'MM/dd/uuuu HH:mm:ss VV') FROM test");
+    }
+
+    public void testDateTimeParseInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [DATETIME_PARSE(int, keyword)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_PARSE(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [DATETIME_PARSE(keyword, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_PARSE(keyword, int) FROM test")
+        );
+    }
+
+    public void testFormatValidArgs() {
+        accept("SELECT FORMAT(date, 'HH:mm:ss.fff KK') FROM test");
+        accept("SELECT FORMAT(date::date, 'MM/dd/YYYY') FROM test");
+        accept("SELECT FORMAT(date::time, 'HH:mm:ss Z') FROM test");
+    }
+
+    public void testFormatInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT FORMAT(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT FORMAT(date, int) FROM test")
+        );
     }
 
     public void testValidDateTimeFunctionsOnTime() {
@@ -377,7 +448,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMultipleColumns() {
-        assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
+        // We get only one message back because the messages are grouped by the node that caused the issue
+        assertEquals("1:43: Unknown column [xxx]",
                 error("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));
     }
 
@@ -436,8 +508,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByFieldFromGroupByFunction() {
-        assertEquals("1:54: Cannot use non-grouped column [int], expected [ABS(int)]",
+        assertEquals("1:54: Cannot order by non-grouped column [int], expected [ABS(int)]",
                 error("SELECT ABS(int) FROM test GROUP BY ABS(int) ORDER BY int"));
+        assertEquals("1:91: Cannot order by non-grouped column [c], expected [b] or an aggregate function",
+            error("SELECT b, abs, 2 as c FROM (SELECT bool as b, ABS(int) abs FROM test) GROUP BY b ORDER BY c"));
     }
 
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
@@ -447,12 +521,15 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testGroupByHavingNonGrouped() {
         assertEquals("1:48: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
-                error("SELECT AVG(int) FROM test GROUP BY text HAVING int > 10"));
+            error("SELECT AVG(int) FROM test GROUP BY bool HAVING int > 10"));
+        accept("SELECT AVG(int) FROM test GROUP BY bool HAVING AVG(int) > 2");
     }
 
     public void testGroupByAggregate() {
         assertEquals("1:36: Cannot use an aggregate [AVG] for grouping",
                 error("SELECT AVG(int) FROM test GROUP BY AVG(int)"));
+        assertEquals("1:65: Cannot use an aggregate [AVG] for grouping",
+                error("SELECT ROUND(AVG(int),2), AVG(int), COUNT(*) FROM test GROUP BY AVG(int) ORDER BY AVG(int)"));
     }
 
     public void testStarOnNested() {
@@ -468,11 +545,50 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByOnNested() {
         assertEquals("1:38: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
                 error("SELECT dep.dep_id FROM test GROUP BY dep.dep_id"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
+                error("SELECT dep.dep_id AS a FROM test GROUP BY a"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
+                error("SELECT dep.dep_id AS a FROM test GROUP BY 1"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id, dep.start_date]",
+                error("SELECT dep.dep_id AS a, dep.start_date AS b FROM test GROUP BY 1, 2"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id, dep.start_date]",
+                error("SELECT dep.dep_id AS a, dep.start_date AS b FROM test GROUP BY a, b"));
     }
 
     public void testHavingOnNested() {
         assertEquals("1:51: HAVING isn't (yet) compatible with nested fields [dep.start_date]",
                 error("SELECT int FROM test GROUP BY int HAVING AVG(YEAR(dep.start_date)) > 1980"));
+        assertEquals("1:22: HAVING isn't (yet) compatible with nested fields [dep.start_date]",
+                error("SELECT int, AVG(YEAR(dep.start_date)) AS average FROM test GROUP BY int HAVING average > 1980"));
+        assertEquals("1:22: HAVING isn't (yet) compatible with nested fields [dep.start_date, dep.end_date]",
+                error("SELECT int, AVG(YEAR(dep.start_date)) AS a, MAX(MONTH(dep.end_date)) AS b " +
+                      "FROM test GROUP BY int " +
+                      "HAVING a > 1980 AND b < 10"));
+    }
+
+    public void testWhereOnNested() {
+        assertEquals("1:33: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT int FROM test WHERE YEAR(dep.start_date) + 10 > 0"));
+        assertEquals("1:13: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT YEAR(dep.start_date) + 10 AS a FROM test WHERE int > 10 AND (int < 3 OR NOT (a > 5))"));
+        accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL)");
+        accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL) " +
+               "OR NOT(dep.start_date >= '2020-01-01')");
+        String operator = randomFrom("<", "<=");
+        assertEquals("1:46: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.location]",
+            error("SELECT geo_shape FROM test " +
+                "WHERE ST_Distance(dep.location, ST_WKTToSQL('point (10 20)')) " + operator + " 25"));
+    }
+
+    public void testOrderByOnNested() {
+        assertEquals("1:36: ORDER BY isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT int FROM test ORDER BY YEAR(dep.start_date) + 10"));
+        assertEquals("1:13: ORDER BY isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT YEAR(dep.start_date) + 10  FROM test ORDER BY 1"));
+        assertEquals("1:13: ORDER BY isn't (yet) compatible with scalar functions on nested fields " +
+                        "[dep.start_date, dep.end_date]",
+                error("SELECT YEAR(dep.start_date) + 10 AS a, MONTH(dep.end_date) - 10 as b FROM test ORDER BY 1, 2"));
+        accept("SELECT int FROM test ORDER BY dep.start_date, dep.end_date");
     }
 
     public void testGroupByScalarFunctionWithAggOnTarget() {
@@ -481,21 +597,35 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testUnsupportedType() {
-        assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:8: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT unsupported FROM test"));
     }
 
     public void testUnsupportedStarExpansion() {
-        assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:8: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT unsupported.* FROM test"));
     }
 
     public void testUnsupportedTypeInFilter() {
-        assertEquals("1:26: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:26: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT * FROM test WHERE unsupported > 1"));
     }
 
-    public void testTermEqualitOnInexact() {
+    public void testValidRootFieldWithUnsupportedChildren() {
+        accept("SELECT x FROM test");
+    }
+
+    public void testUnsupportedTypeInHierarchy() {
+        assertEquals("1:8: Cannot use field [x.y.z.w] with unsupported type [foobar] in hierarchy (field [y])",
+                error("SELECT x.y.z.w FROM test"));
+        assertEquals("1:8: Cannot use field [x.y.z.v] with unsupported type [foobar] in hierarchy (field [y])",
+                error("SELECT x.y.z.v FROM test"));
+        assertEquals("1:8: Cannot use field [x.y.z] with unsupported type [foobar] in hierarchy (field [y])",
+                error("SELECT x.y.z.* FROM test"));
+        assertEquals("1:8: Cannot use field [x.y] with unsupported type [foobar]", error("SELECT x.y FROM test"));
+    }
+
+    public void testTermEqualityOnInexact() {
         assertEquals("1:26: [text = 'value'] cannot operate on first argument field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text = 'value'"));
@@ -508,12 +638,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testUnsupportedTypeInFunction() {
-        assertEquals("1:12: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:12: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT ABS(unsupported) FROM test"));
     }
 
     public void testUnsupportedTypeInOrder() {
-        assertEquals("1:29: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:29: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT * FROM test ORDER BY unsupported"));
     }
 
@@ -545,6 +675,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT int FROM test GROUP BY int ORDER BY SCORE()"));
     }
 
+    public void testGroupByWithRepeatedAliases() {
+        accept("SELECT int as x, keyword as x, max(date) as a FROM test GROUP BY 1, 2");
+        accept("SELECT int as x, keyword as x, max(date) as a FROM test GROUP BY int, keyword");
+    }
+
     public void testHavingOnColumn() {
         assertEquals("1:42: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
                 error("SELECT int FROM test GROUP BY int HAVING int > 2"));
@@ -555,18 +690,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT int FROM test GROUP BY int HAVING 2 < ABS(int)"));
     }
 
-    public void testInWithDifferentDataTypes() {
-        assertEquals("1:8: 2nd argument of [1 IN (2, '3', 4)] must be [integer], found value ['3'] type [keyword]",
-            error("SELECT 1 IN (2, '3', 4)"));
-    }
-
-    public void testInWithDifferentDataTypesFromLeftValue() {
-        assertEquals("1:8: 1st argument of [1 IN ('foo', 'bar')] must be [integer], found value ['foo'] type [keyword]",
-            error("SELECT 1 IN ('foo', 'bar')"));
+    public void testInWithIncompatibleDataTypes() {
+        assertEquals("1:8: 1st argument of ['2000-02-02T00:00:00Z'::date IN ('02:02:02Z'::time)] must be [date], " +
+                "found value ['02:02:02Z'::time] type [time]",
+            error("SELECT '2000-02-02T00:00:00Z'::date IN ('02:02:02Z'::time)"));
     }
 
     public void testInWithFieldInListOfValues() {
-        assertEquals("1:26: Comparisons against variables are not (currently) supported; offender [int] in [int IN (1, int)]",
+        assertEquals("1:26: Comparisons against fields are not (currently) supported; offender [int] in [int IN (1, int)]",
             error("SELECT * FROM test WHERE int IN (1, int)"));
     }
 
@@ -587,7 +718,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInvalidTypeForStringFunction_WithOneArgNumeric() {
-        String functionName = randomFrom(Arrays.asList(Char.class, Space.class)).getSimpleName().toUpperCase(IsoLocale.ROOT);
+        String functionName = randomFrom(Arrays.asList(Char.class, Space.class)).getSimpleName().toUpperCase(Locale.ROOT);
         assertEquals("1:8: argument of [" + functionName + "('foo')] must be [integer], found value ['foo'] type [keyword]",
             error("SELECT " + functionName + "('foo')"));
         assertEquals("1:8: argument of [" + functionName + "(1.2)] must be [integer], found value [1.2] type [double]",
@@ -612,14 +743,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInvalidTypeForStringFunction_WithTwoArgs() {
-        assertEquals("1:8: first argument of [CONCAT] must be [string], found value [1] type [integer]",
+        assertEquals("1:8: first argument of [CONCAT(1, 'bar')] must be [string], found value [1] type [integer]",
             error("SELECT CONCAT(1, 'bar')"));
-        assertEquals("1:8: second argument of [CONCAT] must be [string], found value [2] type [integer]",
+        assertEquals("1:8: second argument of [CONCAT('foo', 2)] must be [string], found value [2] type [integer]",
             error("SELECT CONCAT('foo', 2)"));
     }
 
     public void testInvalidTypeForNumericFunction_WithTwoArgs() {
-        String functionName = randomFrom(Arrays.asList(Round.class, Truncate.class)).getSimpleName().toUpperCase(IsoLocale.ROOT);
+        String functionName = randomFrom(Arrays.asList(Round.class, Truncate.class)).getSimpleName().toUpperCase(Locale.ROOT);
         assertEquals("1:8: first argument of [" + functionName + "('foo', 2)] must be [numeric], found value ['foo'] type [keyword]",
             error("SELECT " + functionName + "('foo', 2)"));
         assertEquals("1:8: second argument of [" + functionName + "(1.2, 'bar')] must be [integer], found value ['bar'] type [keyword]",
@@ -694,6 +825,19 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:26: [text RLIKE 'foo'] cannot operate on field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text RLIKE 'foo'"));
+    }
+
+    public void testMatchAndQueryFunctionsNotAllowedInSelect() {
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo') FROM test"));
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo') AS fullTextSearch FROM test"));
+        assertEquals("1:38: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT int > 10 AND (bool = false OR QUERY('foo*')) AS fullTextSearch FROM test"));
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause\n" +
+                "line 1:28: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo'), MATCH(text, 'bar') FROM test"));
+        accept("SELECT * FROM test WHERE MATCH(text, 'foo')");
     }
 
     public void testAllowCorrectFieldsInIncompatibleMappings() {
@@ -777,7 +921,24 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testAggsInWhere() {
         assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
-                error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+            error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+    }
+
+    public void testHavingInAggs() {
+        assertEquals("1:29: [int] field must appear in the GROUP BY clause or in an aggregate function",
+            error("SELECT int FROM test HAVING MAX(int) = 0"));
+
+        assertEquals("1:35: [int] field must appear in the GROUP BY clause or in an aggregate function",
+                error("SELECT int FROM test HAVING int = count(1)"));
+    }
+
+    public void testHavingAsWhere() {
+        // TODO: this query works, though it normally shouldn't; a check about it could only be enforced if the Filter would be qualified
+        // (WHERE vs HAVING). Otoh, this "extra flexibility" shouldn't be harmful atp.
+        accept("SELECT int FROM test HAVING int = 1");
+        accept("SELECT int FROM test HAVING SIN(int) + 5 > 5.5");
+        // HAVING's expression being AND'ed to WHERE's
+        accept("SELECT int FROM test WHERE int > 3 HAVING POWER(int, 2) < 100");
     }
 
     public void testHistogramInFilter() {
@@ -855,36 +1016,118 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT PERCENTILE(int, ABS(int)) FROM test"));
     }
 
+    public void testErrorMessageForPercentileWithWrongMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE(int, 50, 2)] must be [string], found value [2] type [integer]",
+            error("SELECT PERCENTILE(int, 50, 2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithNullMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE(int, 50, null)] must be one of [tdigest, hdr], received [null]",
+            error("SELECT PERCENTILE(int, 50, null) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithHDRRequiresInt() {
+        assertEquals("1:8: fourth argument of [PERCENTILE(int, 50, 'hdr', 2.2)] must be [integer], found value [2.2] type [double]",
+            error("SELECT PERCENTILE(int, 50, 'hdr', 2.2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithWrongMethod() {
+        assertEquals("1:8: third argument of [PERCENTILE(int, 50, 'notExistingMethod', 5)] must be " +
+                "one of [tdigest, hdr], received [notExistingMethod]",
+            error("SELECT PERCENTILE(int, 50, 'notExistingMethod', 5) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithWrongMethodParameterType() {
+        assertEquals("1:8: fourth argument of [PERCENTILE(int, 50, 'tdigest', '5')] must be [numeric], found value ['5'] type [keyword]",
+            error("SELECT PERCENTILE(int, 50, 'tdigest', '5') FROM test"));
+    }
+
     public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
         assertEquals("1:8: second argument of [PERCENTILE_RANK(int, ABS(int))] must be a constant, received [ABS(int)]",
             error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
     }
 
+    public void testErrorMessageForPercentileRankWithWrongMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, 2)] must be [string], found value [2] type [integer]",
+            error("SELECT PERCENTILE_RANK(int, 50, 2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithNullMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, null)] must be one of [tdigest, hdr], received [null]",
+            error("SELECT PERCENTILE_RANK(int, 50, null) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithHDRRequiresInt() {
+        assertEquals("1:8: fourth argument of [PERCENTILE_RANK(int, 50, 'hdr', 2.2)] must be [integer], found value [2.2] type [double]",
+            error("SELECT PERCENTILE_RANK(int, 50, 'hdr', 2.2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithWrongMethod() {
+        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, 'notExistingMethod', 5)] must be " +
+                "one of [tdigest, hdr], received [notExistingMethod]",
+            error("SELECT PERCENTILE_RANK(int, 50, 'notExistingMethod', 5) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithWrongMethodParameterType() {
+        assertEquals("1:8: fourth argument of [PERCENTILE_RANK(int, 50, 'tdigest', '5')] must be [numeric], " +
+                "found value ['5'] type [keyword]",
+            error("SELECT PERCENTILE_RANK(int, 50, 'tdigest', '5') FROM test"));
+    }
+
     public void testTopHitsFirstArgConstant() {
-        assertEquals("1:8: first argument of [FIRST('foo', int)] must be a table column, found constant ['foo']",
-            error("SELECT FIRST('foo', int) FROM test"));
+        String topHitsFunction = randomTopHitsFunction();
+        assertEquals("1:8: first argument of [" + topHitsFunction + "('foo', int)] must be a table column, found constant ['foo']",
+            error("SELECT " + topHitsFunction + "('foo', int) FROM test"));
     }
 
     public void testTopHitsSecondArgConstant() {
-        assertEquals("1:8: second argument of [LAST(int, 10)] must be a table column, found constant [10]",
-            error("SELECT LAST(int, 10) FROM test"));
+        String topHitsFunction = randomTopHitsFunction();
+        assertEquals("1:8: second argument of [" + topHitsFunction + "(int, 10)] must be a table column, found constant [10]",
+            error("SELECT " + topHitsFunction + "(int, 10) FROM test"));
     }
 
     public void testTopHitsFirstArgTextWithNoKeyword() {
-        assertEquals("1:8: [FIRST(text)] cannot operate on first argument field of data type [text]: " +
+        String topHitsFunction = randomTopHitsFunction();
+        assertEquals("1:8: [" + topHitsFunction + "(text)] cannot operate on first argument field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
-            error("SELECT FIRST(text) FROM test"));
+            error("SELECT " + topHitsFunction + "(text) FROM test"));
     }
 
     public void testTopHitsSecondArgTextWithNoKeyword() {
-        assertEquals("1:8: [LAST(keyword, text)] cannot operate on second argument field of data type [text]: " +
+        String topHitsFunction = randomTopHitsFunction();
+        assertEquals("1:8: [" + topHitsFunction + "(keyword, text)] cannot operate on second argument field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
-            error("SELECT LAST(keyword, text) FROM test"));
+            error("SELECT " + topHitsFunction + "(keyword, text) FROM test"));
+    }
+
+    public void testTopHitsByHavingUnsupported() {
+        String topHitsFunction = randomTopHitsFunction();
+        int column = 31 + topHitsFunction.length();
+        assertEquals("1:" + column + ": filtering is unsupported for function [" + topHitsFunction + "(int)]",
+                error("SELECT " + topHitsFunction + "(int) FROM test HAVING " + topHitsFunction + "(int) > 10"));
     }
 
     public void testTopHitsGroupByHavingUnsupported() {
-        assertEquals("1:50: HAVING filter is unsupported for function [FIRST(int)]",
-            error("SELECT FIRST(int) FROM test GROUP BY text HAVING FIRST(int) > 10"));
+        String topHitsFunction = randomTopHitsFunction();
+        int column = 45 + topHitsFunction.length();
+        assertEquals("1:" + column + ": filtering is unsupported for function [" + topHitsFunction + "(int)]",
+            error("SELECT " + topHitsFunction + "(int) FROM test GROUP BY text HAVING " + topHitsFunction + "(int) > 10"));
+    }
+
+    public void testTopHitsHavingWithSubqueryUnsupported() {
+        String filter = randomFrom("WHERE", "HAVING");
+        int column = 99 + filter.length();
+        assertEquals("1:" + column + ": filtering is unsupported for functions [FIRST(int), LAST(int)]",
+                error("SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT FIRST(int) AS f, LAST(int) AS l FROM test))) " +
+                        filter + " f > 10 or l < 10"));
+    }
+
+    public void testTopHitsGroupByHavingWithSubqueryUnsupported() {
+        String filter = randomFrom("WHERE", "HAVING");
+        int column = 113 + filter.length();
+        assertEquals("1:" + column + ": filtering is unsupported for functions [FIRST(int), LAST(int)]",
+                error("SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT FIRST(int) AS f, LAST(int) AS l FROM test GROUP BY bool))) " +
+                        filter + " f > 10 or l < 10"));
     }
 
     public void testMinOnInexactUnsupported() {
@@ -921,27 +1164,36 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Unknown column [tni]", error("SELECT tni AS i FROM test WHERE i > 10 GROUP BY i"));
     }
 
+    public void testProjectUnresolvedAliasWithSameNameInFilter() {
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test WHERE i > 10 GROUP BY i"));
+    }
+
+    public void testProjectUnresolvedAliasWithSameNameInOrderBy() {
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test ORDER BY i"));
+    }
+
     public void testGeoShapeInWhereClause() {
-        assertEquals("1:49: geo shapes cannot be used for filtering",
-            error("SELECT ST_AsWKT(shape) FROM test WHERE ST_AsWKT(shape) = 'point (10 20)'"));
+        assertEquals("1:53: geo shapes cannot be used for filtering",
+            error("SELECT ST_AsWKT(geo_shape) FROM test WHERE ST_AsWKT(geo_shape) = 'point (10 20)'"));
 
         // We get only one message back because the messages are grouped by the node that caused the issue
-        assertEquals("1:46: geo shapes cannot be used for filtering",
-            error("SELECT MAX(ST_X(shape)) FROM test WHERE ST_Y(shape) > 10 GROUP BY ST_GEOMETRYTYPE(shape) ORDER BY ST_ASWKT(shape)"));
+        assertEquals("1:50: geo shapes cannot be used for filtering",
+            error("SELECT MAX(ST_X(geo_shape)) FROM test WHERE ST_Y(geo_shape) > 10 " +
+                "GROUP BY ST_GEOMETRYTYPE(geo_shape) ORDER BY ST_ASWKT(geo_shape)"));
     }
 
     public void testGeoShapeInGroupBy() {
-        assertEquals("1:44: geo shapes cannot be used in grouping",
-            error("SELECT ST_X(shape) FROM test GROUP BY ST_X(shape)"));
+        assertEquals("1:48: geo shapes cannot be used in grouping",
+            error("SELECT ST_X(geo_shape) FROM test GROUP BY ST_X(geo_shape)"));
     }
 
     public void testGeoShapeInOrderBy() {
-        assertEquals("1:44: geo shapes cannot be used for sorting",
-            error("SELECT ST_X(shape) FROM test ORDER BY ST_Z(shape)"));
+        assertEquals("1:48: geo shapes cannot be used for sorting",
+            error("SELECT ST_X(geo_shape) FROM test ORDER BY ST_Z(geo_shape)"));
     }
 
     public void testGeoShapeInSelect() {
-        accept("SELECT ST_X(shape) FROM test");
+        accept("SELECT ST_X(geo_shape) FROM test");
     }
 
     //
@@ -996,5 +1248,134 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testPivotValuesWithMultipleDifferencesThanColumn() {
         assertEquals("1:81: Literal ['bla'] of type [keyword] does not match type [boolean] of PIVOT column [bool]",
                 error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR bool IN ('bla', true))"));
+    }
+
+    public void testErrorMessageForMatrixStatsWithScalars() {
+        assertEquals("1:17: [KURTOSIS()] cannot be used on top of operators or scalars",
+                error("SELECT KURTOSIS(ABS(int * 10.123)) FROM test"));
+        assertEquals("1:17: [SKEWNESS()] cannot be used on top of operators or scalars",
+                error("SELECT SKEWNESS(ABS(int * 10.123)) FROM test"));
+    }
+
+    public void testCastOnInexact() {
+        // inexact with underlying keyword
+        assertEquals("1:36: [some.string] of data type [text] cannot be used for [CAST()] inside the WHERE clause",
+                error("SELECT * FROM test WHERE NOT (CAST(some.string AS string) = 'foo') OR true"));
+        // inexact without underlying keyword (text only)
+        assertEquals("1:36: [text] of data type [text] cannot be used for [CAST()] inside the WHERE clause",
+                error("SELECT * FROM test WHERE NOT (CAST(text AS string) = 'foo') OR true"));
+    }
+
+    public void testBinaryFieldWithDocValues() {
+        accept("SELECT binary_stored FROM test WHERE binary_stored IS NOT NULL");
+        accept("SELECT binary_stored FROM test GROUP BY binary_stored HAVING count(binary_stored) > 1");
+        accept("SELECT count(binary_stored) FROM test HAVING count(binary_stored) > 1");
+        accept("SELECT binary_stored FROM test ORDER BY binary_stored");
+    }
+
+    public void testBinaryFieldWithNoDocValues() {
+        assertEquals("1:31: Binary field [binary] cannot be used for filtering unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test WHERE binary IS NOT NULL"));
+        assertEquals("1:34: Binary field [binary] cannot be used in aggregations unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test GROUP BY binary"));
+        assertEquals("1:45: Binary field [binary] cannot be used for filtering unless it has the doc_values setting enabled",
+            error("SELECT count(binary) FROM test HAVING count(binary) > 1"));
+        assertEquals("1:34: Binary field [binary] cannot be used for ordering unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test ORDER BY binary"));
+    }
+
+    public void testDistinctIsNotSupported() {
+        assertEquals("1:8: SELECT DISTINCT is not yet supported", error("SELECT DISTINCT int FROM test"));
+    }
+
+    public void testExistsIsNotSupported() {
+        assertEquals("1:33: EXISTS is not yet supported", error("SELECT test.int FROM test WHERE EXISTS (SELECT 1)"));
+    }
+
+    public void testScoreCannotBeUsedInExpressions() {
+        assertEquals("1:12: [SCORE()] cannot be used in expressions, does not support further processing",
+            error("SELECT SIN(SCORE()) FROM test"));
+    }
+
+    public void testScoreIsNotInHaving() {
+        assertEquals("1:54: HAVING filter is unsupported for function [SCORE()]\n" +
+                "line 1:54: [SCORE()] cannot be used in expressions, does not support further processing",
+            error("SELECT bool, AVG(int) FROM test GROUP BY bool HAVING SCORE() > 0.5"));
+    }
+
+    public void testScoreCannotBeUsedForGrouping() {
+        assertEquals("1:42: Cannot use [SCORE()] for grouping",
+            error("SELECT bool, AVG(int) FROM test GROUP BY SCORE()"));
+    }
+
+    public void testScoreCannotBeAnAggregateFunction() {
+        assertEquals("1:14: Cannot use non-grouped column [SCORE()], expected [bool]",
+            error("SELECT bool, SCORE() FROM test GROUP BY bool"));
+    }
+
+    public void testScalarFunctionInAggregateAndGrouping() {
+        accept("SELECT bool, SQRT(int) FROM test GROUP BY bool, SQRT(int)");
+        accept("SELECT bool, SQRT(int) FROM test GROUP BY bool, int");
+    }
+
+    public void testFunctionInAggregateAndGroupingAsReference() {
+        accept("SELECT b, s FROM (SELECT bool b, int, SQRT(int) s FROM test) GROUP BY b, SQRT(int)");
+    }
+
+    public void testLiteralAsAggregate() {
+        accept("SELECT bool, AVG(int), 2 as lit FROM test GROUP BY bool");
+    }
+
+    public void testShapeInWhereClause() {
+        assertEquals("1:49: shapes cannot be used for filtering",
+            error("SELECT ST_AsWKT(shape) FROM test WHERE ST_AsWKT(shape) = 'point (10 20)'"));
+        assertEquals("1:46: shapes cannot be used for filtering",
+            error("SELECT MAX(ST_X(shape)) FROM test WHERE ST_Y(shape) > 10 GROUP BY ST_GEOMETRYTYPE(shape) ORDER BY ST_ASWKT(shape)"));
+    }
+
+    public void testShapeInGroupBy() {
+        assertEquals("1:44: shapes cannot be used in grouping",
+            error("SELECT ST_X(shape) FROM test GROUP BY ST_X(shape)"));
+    }
+
+    public void testShapeInOrderBy() {
+        assertEquals("1:44: shapes cannot be used for sorting",
+            error("SELECT ST_X(shape) FROM test ORDER BY ST_Z(shape)"));
+    }
+
+    public void testShapeInSelect() {
+        accept("SELECT ST_X(shape) FROM test");
+    }
+
+    public void testSubselectWhereOnGroupBy() {
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE b = false");
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2) WHERE b = false");
+    }
+
+    public void testSubselectWhereOnAggregate() {
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE a > 10");
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE a > 10 AND b = FALSE");
+    }
+
+    public void testSubselectWithOrderWhereOnAggregate() {
+        accept("SELECT * FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool ORDER BY bool) WHERE a > 10");
+    }
+
+    public void testNestedAggregate() {
+        Consumer<String> checkMsg = (String sql) -> {
+            var actual = error(sql);
+            assertTrue(actual, actual.contains("Nested aggregations in sub-selects are not supported."));
+        };
+
+        checkMsg.accept("SELECT SUM(c) FROM (SELECT COUNT(*) c FROM test)");
+        checkMsg.accept("SELECT COUNT(*) FROM (SELECT SUM(int) c FROM test)");
+        checkMsg.accept("SELECT i FROM (SELECT int i FROM test GROUP BY i) GROUP BY i");
+        checkMsg.accept("SELECT c FROM (SELECT SUM(int) c FROM test) GROUP BY c HAVING COUNT(*) > 10");
+        checkMsg.accept("SELECT COUNT(*) FROM (SELECT int i FROM test GROUP BY i)");
+        checkMsg.accept("SELECT a.i, COUNT(a.c) FROM (SELECT int i, COUNT(int) c FROM test GROUP BY int) a GROUP BY c");
+    }
+
+    private String randomTopHitsFunction() {
+        return randomFrom(Arrays.asList(First.class, Last.class)).getSimpleName().toUpperCase(Locale.ROOT);
     }
 }

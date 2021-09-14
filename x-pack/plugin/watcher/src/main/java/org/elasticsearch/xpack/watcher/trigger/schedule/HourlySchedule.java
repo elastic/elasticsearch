@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -68,7 +69,7 @@ public class HourlySchedule extends CronnableSchedule {
             if (i != 0) {
                 sb.append(",");
             }
-            if (!validMinute(minutes[i])) {
+            if (validMinute(minutes[i]) == false) {
                 throw illegalArgument("invalid hourly minute [{}]. minute must be between 0 and 59 incl.", minutes[i]);
             }
             sb.append(minutes[i]);

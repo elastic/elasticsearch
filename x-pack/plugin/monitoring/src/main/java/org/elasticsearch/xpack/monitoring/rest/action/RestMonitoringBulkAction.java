@@ -1,21 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.rest.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -25,12 +23,12 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -39,26 +37,25 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
     public static final String INTERVAL = "interval";
-    private static final Logger logger = LogManager.getLogger(RestMonitoringBulkAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-    private final Map<MonitoredSystem, List<String>> supportedApiVersions;
 
-    public RestMonitoringBulkAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(POST, "/_monitoring/bulk", this,
-            POST, "/_xpack/monitoring/_bulk", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, "/_monitoring/bulk", this,
-            PUT, "/_xpack/monitoring/_bulk", deprecationLogger);
+    private static final List<String> ALL_VERSIONS = asList(
+        MonitoringTemplateUtils.TEMPLATE_VERSION,
+        MonitoringTemplateUtils.OLD_TEMPLATE_VERSION
+    );
 
-        final List<String> allVersions = Arrays.asList(
-                MonitoringTemplateUtils.TEMPLATE_VERSION,
-                MonitoringTemplateUtils.OLD_TEMPLATE_VERSION
+    private static final Map<MonitoredSystem, List<String>> SUPPORTED_API_VERSIONS = Map.of(
+        MonitoredSystem.KIBANA, ALL_VERSIONS,
+        MonitoredSystem.LOGSTASH, ALL_VERSIONS,
+        MonitoredSystem.BEATS, ALL_VERSIONS);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(POST, "/_monitoring/bulk")
+                .replaces(POST, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_monitoring/bulk")
+                .replaces(PUT, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build()
         );
-
-        supportedApiVersions = Map.of(
-                MonitoredSystem.KIBANA, allVersions,
-                MonitoredSystem.LOGSTASH, allVersions,
-                MonitoredSystem.BEATS, allVersions);
     }
 
     @Override
@@ -116,7 +113,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
      * @return true if supported, false otherwise
      */
     private boolean isSupportedSystemVersion(final MonitoredSystem system, final String version) {
-        final List<String> monitoredSystem = supportedApiVersions.getOrDefault(system, emptyList());
+        final List<String> monitoredSystem = SUPPORTED_API_VERSIONS.getOrDefault(system, emptyList());
         return monitoredSystem.contains(version);
     }
 

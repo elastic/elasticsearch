@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -9,10 +10,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -20,24 +19,20 @@ import java.util.Collections;
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollowerIndexStep> {
 
-    public void testCloseFollowingIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+    private static IndexMetadata getIndexMetadata() {
+        return IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+    }
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+    public void testCloseFollowingIndex() throws Exception {
+        IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
             CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
@@ -48,73 +43,66 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed[0] = complete;
-            }
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
+    }
 
-            @Override
-            public void onFailure(Exception e) {
-                failure[0] = e;
-            }
-        });
-        assertThat(completed[0], is(true));
-        assertThat(failure[0], nullValue());
+    public void testRequestNotAcknowledged() {
+        IndexMetadata indexMetadata = getIndexMetadata();
+
+        Mockito.doAnswer(invocation -> {
+            CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
+            assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
+            @SuppressWarnings("unchecked")
+            ActionListener<CloseIndexResponse> listener = (ActionListener<CloseIndexResponse>) invocation.getArguments()[1];
+            listener.onResponse(new CloseIndexResponse(false, false, Collections.emptyList()));
+            return null;
+        }).when(indicesClient).close(Mockito.any(), Mockito.any());
+
+        CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
+        Exception e = expectThrows(Exception.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        assertThat(e.getMessage(), is("close index request failed to be acknowledged"));
     }
 
     public void testCloseFollowingIndexFailed() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        IndexMetadata indexMetadata = getIndexMetadata();
 
         // Mock pause follow api call:
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
         Exception error = new RuntimeException();
         Mockito.doAnswer(invocation -> {
             CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
             assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
-            ActionListener listener = (ActionListener) invocation.getArguments()[1];
+            ActionListener<?>listener = (ActionListener<?>) invocation.getArguments()[1];
             listener.onFailure(error);
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed[0] = complete;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failure[0] = e;
-            }
-        });
-        assertThat(completed[0], nullValue());
-        assertThat(failure[0], sameInstance(error));
+        assertSame(error, expectThrows(Exception.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
         Mockito.verify(indicesClient).close(Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(indicesClient);
+    }
+
+    public void testCloseFollowerIndexIsNoopForAlreadyClosedIndex() throws Exception {
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .state(IndexMetadata.State.CLOSE)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
+        Mockito.verifyZeroInteractions(client);
     }
 
     @Override
     protected CloseFollowerIndexStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new CloseFollowerIndexStep(stepKey, nextStepKey, Mockito.mock(Client.class));
+        return new CloseFollowerIndexStep(stepKey, nextStepKey, client);
     }
 
     @Override

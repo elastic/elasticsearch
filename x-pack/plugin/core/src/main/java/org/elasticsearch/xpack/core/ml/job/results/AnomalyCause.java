@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,6 +41,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
     public static final ParseField TYPICAL = new ParseField("typical");
     public static final ParseField ACTUAL = new ParseField("actual");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
+    public static final ParseField GEO_RESULTS = new ParseField("geo_results");
 
     /**
      * Metric Results
@@ -67,6 +70,9 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         parser.declareString(AnomalyCause::setOverFieldValue, OVER_FIELD_VALUE);
         parser.declareObjectArray(AnomalyCause::setInfluencers, ignoreUnknownFields ? Influence.LENIENT_PARSER : Influence.STRICT_PARSER,
                 INFLUENCERS);
+        parser.declareObject(AnomalyCause::setGeoResults,
+            ignoreUnknownFields ? GeoResults.LENIENT_PARSER : GeoResults.STRICT_PARSER,
+            GEO_RESULTS);
 
         return parser;
     }
@@ -81,6 +87,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
     private String functionDescription;
     private List<Double> typical;
     private List<Double> actual;
+    private GeoResults geoResults;
 
     private String fieldName;
 
@@ -114,6 +121,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         if (in.readBoolean()) {
             influencers = in.readList(Influence::new);
         }
+        geoResults = in.readOptionalWriteable(GeoResults::new);
     }
 
     @Override
@@ -144,6 +152,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         if (hasInfluencers) {
             out.writeList(influencers);
         }
+        out.writeOptionalWriteable(geoResults);
     }
 
     @Override
@@ -189,10 +198,12 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         if (influencers != null) {
             builder.field(INFLUENCERS.getPreferredName(), influencers);
         }
+        if (geoResults != null) {
+            builder.field(GEO_RESULTS.getPreferredName(), geoResults);
+        }
         builder.endObject();
         return builder;
     }
-
 
     public double getProbability() {
         return probability;
@@ -307,6 +318,14 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         this.influencers = influencers;
     }
 
+    public GeoResults getGeoResults() {
+        return geoResults;
+    }
+
+    public void setGeoResults(GeoResults geoResults) {
+        this.geoResults = geoResults;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(probability,
@@ -322,7 +341,8 @@ public class AnomalyCause implements ToXContentObject, Writeable {
                 overFieldValue,
                 partitionFieldName,
                 partitionFieldValue,
-                influencers);
+                influencers,
+                geoResults);
     }
 
     @Override
@@ -350,8 +370,13 @@ public class AnomalyCause implements ToXContentObject, Writeable {
                 Objects.equals(this.partitionFieldValue, that.partitionFieldValue) &&
                 Objects.equals(this.overFieldName, that.overFieldName) &&
                 Objects.equals(this.overFieldValue, that.overFieldValue) &&
+                Objects.equals(this.geoResults, that.geoResults) &&
                 Objects.equals(this.influencers, that.influencers);
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
 
 }

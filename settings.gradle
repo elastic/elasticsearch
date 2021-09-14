@@ -1,13 +1,19 @@
-String dirName = rootProject.projectDir.name
-rootProject.name = dirName
+plugins {
+  id "com.gradle.enterprise" version "3.6.4"
+}
+
+includeBuild "build-conventions"
+includeBuild "build-tools"
+includeBuild "build-tools-internal"
+
+rootProject.name = "elasticsearch"
 
 List projects = [
-  'build-tools',
-  'build-tools:reaper',
   'rest-api-spec',
   'docs',
   'client:rest',
   'client:rest-high-level',
+  'client:rest-high-level:qa:ssl-enabled',
   'client:sniffer',
   'client:transport',
   'client:test',
@@ -15,31 +21,26 @@ List projects = [
   'client:benchmark',
   'benchmarks',
   'distribution:archives:integ-test-zip',
-  'distribution:archives:oss-windows-zip',
   'distribution:archives:windows-zip',
-  'distribution:archives:oss-no-jdk-windows-zip',
-  'distribution:archives:no-jdk-windows-zip',
-  'distribution:archives:oss-darwin-tar',
   'distribution:archives:darwin-tar',
-  'distribution:archives:oss-no-jdk-darwin-tar',
-  'distribution:archives:no-jdk-darwin-tar',
-  'distribution:archives:oss-linux-tar',
+  'distribution:archives:darwin-aarch64-tar',
+  'distribution:archives:linux-aarch64-tar',
   'distribution:archives:linux-tar',
-  'distribution:archives:oss-no-jdk-linux-tar',
-  'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
-  'distribution:docker:oss-docker-build-context',
-  'distribution:docker:docker-build-context',
-  'distribution:docker:oss-docker-export',
+  'distribution:docker:cloud-docker-export',
+  'distribution:docker:cloud-docker-aarch64-export',
+  'distribution:docker:cloud-ess-docker-export',
+  'distribution:docker:cloud-ess-docker-aarch64-export',
+  'distribution:docker:docker-aarch64-export',
   'distribution:docker:docker-export',
-  'distribution:packages:oss-deb',
+  'distribution:docker:ironbank-docker-aarch64-export',
+  'distribution:docker:ironbank-docker-export',
+  'distribution:docker:ubi-docker-aarch64-export',
+  'distribution:docker:ubi-docker-export',
+  'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
-  'distribution:packages:oss-no-jdk-deb',
-  'distribution:packages:no-jdk-deb',
-  'distribution:packages:oss-rpm',
+  'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
-  'distribution:packages:oss-no-jdk-rpm',
-  'distribution:packages:no-jdk-rpm',
   'distribution:bwc:bugfix',
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
@@ -48,21 +49,29 @@ List projects = [
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
+  'distribution:tools:geoip-cli',
   'server',
   'server:cli',
   'test:framework',
+  'test:fixtures:azure-fixture',
+  'test:fixtures:gcs-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
+  'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
+  'test:fixtures:s3-fixture',
+  'test:fixtures:geoip-fixture',
+  'test:fixtures:url-fixture',
+  'test:fixtures:nginx-fixture',
   'test:logger-usage'
 ]
 
 /**
-  * Iterates over sub directories, looking for build.gradle, and adds a project if found
-  * for that dir with the given path prefix. Note that this requires each level
-  * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
-  * all files/directories in the source tree to find all projects.
-  */
+ * Iterates over sub directories, looking for build.gradle, and adds a project if found
+ * for that dir with the given path prefix. Note that this requires each level
+ * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
+ * all files/directories in the source tree to find all projects.
+ */
 void addSubProjects(String path, File dir) {
   if (dir.isDirectory() == false) return;
   if (dir.name == 'buildSrc') return;
@@ -72,12 +81,12 @@ void addSubProjects(String path, File dir) {
   final String projectName = "${path}:${dir.name}"
   include projectName
   if (path.isEmpty() || path.startsWith(':example-plugins')) {
-      project(projectName).projectDir = dir
-    }
-    for (File subdir : dir.listFiles()) {
-      addSubProjects(projectName, subdir)
-    }
+    project(projectName).projectDir = dir
   }
+  for (File subdir : dir.listFiles()) {
+    addSubProjects(projectName, subdir)
+  }
+}
 
 
 // include example plugins first, so adding plugin dirs below won't muck with :example-plugins
@@ -93,22 +102,21 @@ addSubProjects('', new File(rootProject.projectDir, 'libs'))
 addSubProjects('', new File(rootProject.projectDir, 'modules'))
 addSubProjects('', new File(rootProject.projectDir, 'plugins'))
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
+addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
-
-List startTasks = gradle.startParameter.taskNames
-
 
 include projects.toArray(new String[0])
 
-project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
-project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'buildSrc/reaper')
-
 project(":libs").children.each { libsProject ->
-    libsProject.name = "elasticsearch-${libsProject.name}"
+  libsProject.name = "elasticsearch-${libsProject.name}"
+}
+
+project(":test:external-modules").children.each { testProject ->
+  testProject.name = "test-${testProject.name}"
 }
 
 // look for extra plugins for elasticsearch
-File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
+File extraProjects = new File(rootProject.projectDir.parentFile, "${rootProject.projectDir.name}-extra")
 if (extraProjects.exists()) {
   for (File extraProjectDir : extraProjects.listFiles()) {
     addSubProjects('', extraProjectDir)

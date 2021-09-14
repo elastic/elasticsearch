@@ -1,0 +1,39 @@
+--
+:api: simulate-index-template
+:request: SimulateIndexTemplateRequest
+:response: SimulateIndexTemplateResponse
+--
+
+[id="{upid}-{api}"]
+=== Simulate Index Template API
+
+[id="{upid}-{api}-request"]
+==== Simulate Index Template Request
+
+A +{request}+ specifies the `indexName` to simulate matching against the
+templates in the system.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of the index
+<2> Optionally, defines a new template
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Simulate Index Template Response
+
+The returned +{response}+ includes a resolved `Template` object containing
+the resolved settings, mappings and aliases of the index template that matched
+and would be applied to the index with the provided name (if any). It will
+also return a `Map` of index templates (both legacy and composable) names and their
+corresponding index patterns:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Resolved template configuration that would be applied when creating the index with the provided name
+<2> Overlapping index templates and their corresponding index patterns

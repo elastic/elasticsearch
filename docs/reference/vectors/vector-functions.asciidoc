@@ -3,32 +3,33 @@
 [[vector-functions]]
 ===== Functions for vector fields
 
-experimental[]
-
-These functions are used for
-for <<dense-vector,`dense_vector`>>  and
-<<sparse-vector,`sparse_vector`>> fields.
-
 NOTE: During vector functions' calculation, all matched documents are
-linearly scanned. Thus, expect the query time grow linearly 
+linearly scanned. Thus, expect the query time grow linearly
 with the number of matched documents. For this reason, we recommend
 to limit the number of matched documents with a `query` parameter.
 
-Let's create an index with the following mapping and index a couple
+This is the list of available vector functions and vector access methods:
+
+1. `cosineSimilarity` – calculates cosine similarity
+2. `dotProduct` – calculates dot product
+3. `l1norm` – calculates L^1^ distance
+4. `l2norm` - calculates L^2^ distance
+5. `doc[<field>].vectorValue` – returns a vector's value as an array of floats
+6. `doc[<field>].magnitude` – returns a vector's magnitude
+
+
+Let's create an index with a `dense_vector` mapping and index a couple
 of documents into it.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
       "my_dense_vector": {
         "type": "dense_vector",
         "dims": 3
-      },
-      "my_sparse_vector" : {
-        "type" : "sparse_vector"
       },
       "status" : {
         "type" : "keyword"
@@ -37,29 +38,29 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_dense_vector": [0.5, 10, 6],
-  "my_sparse_vector": {"2": 1.5, "15" : 2, "50": -1.1, "4545": 1.1},
   "status" : "published"
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "my_dense_vector": [-0.5, 10, 10],
-  "my_sparse_vector": {"2": 2.5, "10" : 1.3, "55": -2.3, "113": 1.6},
   "status" : "published"
 }
+
+POST my-index-000001/_refresh
 
 --------------------------------------------------
 // TESTSETUP
 
-For dense_vector fields, `cosineSimilarity` calculates the measure of
+The `cosineSimilarity` function calculates the measure of
 cosine similarity between a given query vector and document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -73,7 +74,7 @@ GET my_index/_search
         }
       },
       "script": {
-        "source": "cosineSimilarity(params.query_vector, doc['my_dense_vector']) + 1.0", <2>
+        "source": "cosineSimilarity(params.query_vector, 'my_dense_vector') + 1.0", <2>
         "params": {
           "query_vector": [4, 3.4, -0.2]  <3>
         }
@@ -90,41 +91,12 @@ GET my_index/_search
 NOTE: If a document's dense vector field has a number of dimensions
 different from the query's vector, an error will be thrown.
 
-Similarly, for sparse_vector fields, `cosineSimilaritySparse` calculates cosine similarity
-between a given query vector and document vectors.
-
-[source,console]
---------------------------------------------------
-GET my_index/_search
-{
-  "query": {
-    "script_score": {
-      "query" : {
-        "bool" : {
-          "filter" : {
-            "term" : {
-              "status" : "published"
-            }
-          }
-        }
-      },
-      "script": {
-        "source": "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector']) + 1.0",
-        "params": {
-          "query_vector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-
-For dense_vector fields, `dotProduct` calculates the measure of
+The `dotProduct` function calculates the measure of
 dot product between a given query vector and document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -139,7 +111,7 @@ GET my_index/_search
       },
       "script": {
         "source": """
-          double value = dotProduct(params.query_vector, doc['my_dense_vector']);
+          double value = dotProduct(params.query_vector, 'my_dense_vector');
           return sigmoid(1, Math.E, -value); <1>
         """,
         "params": {
@@ -153,45 +125,13 @@ GET my_index/_search
 
 <1> Using the standard sigmoid function prevents scores from being negative.
 
-Similarly, for sparse_vector fields, `dotProductSparse` calculates dot product
-between a given query vector and document vectors.
-
-[source,console]
---------------------------------------------------
-GET my_index/_search
-{
-  "query": {
-    "script_score": {
-      "query" : {
-        "bool" : {
-          "filter" : {
-            "term" : {
-              "status" : "published"
-            }
-          }
-        }
-      },
-      "script": {
-        "source": """
-          double value = dotProductSparse(params.query_vector, doc['my_sparse_vector']);
-          return sigmoid(1, Math.E, -value);
-        """,
-         "params": {
-          "query_vector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-
-For dense_vector fields, `l1norm` calculates L^1^ distance
+The `l1norm` function calculates L^1^ distance
 (Manhattan distance) between a given query vector and
 document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -205,7 +145,7 @@ GET my_index/_search
         }
       },
       "script": {
-        "source": "1 / (1 + l1norm(params.queryVector, doc['my_dense_vector']))", <1>
+        "source": "1 / (1 + l1norm(params.queryVector, 'my_dense_vector'))", <1>
         "params": {
           "queryVector": [4, 3.4, -0.2]
         }
@@ -224,42 +164,13 @@ we reversed the output from `l1norm` and `l2norm`. Also, to avoid
 division by 0 when a document vector matches the query exactly,
 we added `1` in the denominator.
 
-For sparse_vector fields, `l1normSparse` calculates L^1^ distance
-between a given query vector and document vectors.
-
-[source,console]
---------------------------------------------------
-GET my_index/_search
-{
-  "query": {
-    "script_score": {
-      "query" : {
-        "bool" : {
-          "filter" : {
-            "term" : {
-              "status" : "published"
-            }
-          }
-        }
-      },
-      "script": {
-        "source": "1 / (1 + l1normSparse(params.queryVector, doc['my_sparse_vector']))",
-        "params": {
-          "queryVector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-
-For dense_vector fields, `l2norm` calculates L^2^ distance
+The `l2norm` function calculates L^2^ distance
 (Euclidean distance) between a given query vector and
 document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -273,38 +184,9 @@ GET my_index/_search
         }
       },
       "script": {
-        "source": "1 / (1 + l2norm(params.queryVector, doc['my_dense_vector']))",
+        "source": "1 / (1 + l2norm(params.queryVector, 'my_dense_vector'))",
         "params": {
           "queryVector": [4, 3.4, -0.2]
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-
-Similarly, for sparse_vector fields, `l2normSparse` calculates L^2^ distance
-between a given query vector and document vectors.
-
-[source,console]
---------------------------------------------------
-GET my_index/_search
-{
-  "query": {
-    "script_score": {
-      "query" : {
-        "bool" : {
-          "filter" : {
-            "term" : {
-              "status" : "published"
-            }
-          }
-        }
-      },
-      "script": {
-        "source": "1 / (1 + l2normSparse(params.queryVector, doc['my_sparse_vector']))",
-        "params": {
-          "queryVector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
         }
       }
     }
@@ -320,6 +202,54 @@ You can check if a document has a value for the field `my_vector` by
 
 [source,js]
 --------------------------------------------------
-"source": "doc['my_vector'].size() == 0 ? 0 : cosineSimilarity(params.queryVector, doc['my_vector'])"
+"source": "doc['my_vector'].size() == 0 ? 0 : cosineSimilarity(params.queryVector, 'my_vector')"
 --------------------------------------------------
 // NOTCONSOLE
+
+The recommended way to access dense vectors is through `cosineSimilarity`,
+`dotProduct`, `l1norm` or `l2norm` functions. But for custom use cases,
+you can access dense vectors's values directly through the following functions:
+
+- `doc[<field>].vectorValue` – returns a vector's value as an array of floats
+
+- `doc[<field>].magnitude` – returns a vector's magnitude as a float
+(for vectors created prior to version 7.5 the magnitude is not stored.
+So this function calculates it anew every time it is called).
+
+For example, the script below implements a cosine similarity using these
+two functions:
+
+[source,console]
+--------------------------------------------------
+GET my-index-000001/_search
+{
+  "query": {
+    "script_score": {
+      "query" : {
+        "bool" : {
+          "filter" : {
+            "term" : {
+              "status" : "published"
+            }
+          }
+        }
+      },
+      "script": {
+        "source": """
+          float[] v = doc['my_dense_vector'].vectorValue;
+          float vm = doc['my_dense_vector'].magnitude;
+          float dotProduct = 0;
+          for (int i = 0; i < v.length; i++) {
+            dotProduct += v[i] * params.queryVector[i];
+          }
+          return dotProduct / (vm * (float) params.queryVectorMag);
+        """,
+        "params": {
+          "queryVector": [4, 3.4, -0.2],
+          "queryVectorMag": 5.25357
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.time.ZoneId;
 import java.util.Arrays;
@@ -18,7 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public abstract class ThreeArgsDateTimeFunction extends ScalarFunction {
 
@@ -53,9 +54,6 @@ public abstract class ThreeArgsDateTimeFunction extends ScalarFunction {
 
     @Override
     public final ThreeArgsDateTimeFunction replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
@@ -112,7 +110,7 @@ public abstract class ThreeArgsDateTimeFunction extends ScalarFunction {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         ThreeArgsDateTimeFunction that = (ThreeArgsDateTimeFunction) o;

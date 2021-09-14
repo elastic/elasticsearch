@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
@@ -52,14 +41,18 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         return buckets;
     }
 
-    private static ObjectParser<ParsedAutoDateHistogram, Void> PARSER =
-            new ObjectParser<>(ParsedAutoDateHistogram.class.getSimpleName(), true, ParsedAutoDateHistogram::new);
+    private static final ObjectParser<ParsedAutoDateHistogram, Void> PARSER = new ObjectParser<>(
+        ParsedAutoDateHistogram.class.getSimpleName(),
+        true,
+        ParsedAutoDateHistogram::new
+    );
     static {
-        declareMultiBucketAggregationFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
-        PARSER.declareString((parsed, value) -> parsed.interval = value,
-            new ParseField("interval"));
+        declareMultiBucketAggregationFields(
+            PARSER,
+            parser -> ParsedBucket.fromXContent(parser, false),
+            parser -> ParsedBucket.fromXContent(parser, true)
+        );
+        PARSER.declareString((parsed, value) -> parsed.interval = value, new ParseField("interval"));
     }
 
     public static ParsedAutoDateHistogram fromXContent(XContentParser parser, String name) throws IOException {
@@ -74,7 +67,6 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         builder.field("interval", getInterval());
         return builder;
     }
-
 
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
 

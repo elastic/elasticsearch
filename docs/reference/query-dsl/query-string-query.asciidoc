@@ -4,6 +4,9 @@
 <titleabbrev>Query string</titleabbrev>
 ++++
 
+TIP: This page contains information about the `query_string` query type. For
+information about running a search query in {es}, see <<search-your-data>>.
+
 Returns documents based on a provided query string, using a parser with a strict
 syntax.
 
@@ -42,12 +45,12 @@ whitespace as an operator, `new york city` is passed as-is to the analyzer.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "query" : "(new york city) OR (big apple)",
-            "default_field" : "content"
-        }
+  "query": {
+    "query_string": {
+      "query": "(new york city) OR (big apple)",
+      "default_field": "content"
     }
+  }
 }
 --------------------------------------------------
 
@@ -64,21 +67,31 @@ GET /_search
 the query string.
 
 Defaults to the `index.query.default_field` index setting, which has a default
-value of `*`. The `*` value extracts all fields that are eligible to term
-queries and filters the metadata fields. All extracted fields are then combined
-to build a query if no `prefix` is specified.
+value of `*`. The `*` value extracts all fields that are eligible for term
+queries and filters the metadata fields. All extracted fields are then
+combined to build a query if no `prefix` is specified.
 
-WARNING: There is a limit on the number of fields that can be queried at once.
+Searching across all eligible fields does not include <<nested,nested
+documents>>. Use a <<query-dsl-nested-query,`nested` query>> to search those
+documents.
+
+[[WARNING]]
+====
+For mappings with a large number of fields, searching across all eligible fields
+could be expensive.
+
+There is a limit on the number of fields times terms that can be queried at once.
 It is defined by the `indices.query.bool.max_clause_count`
-<<search-settings,search setting>>, which defaults to 1024.
+<<search-settings,search setting>>, which defaults to 4096.
+====
 --
 
 `allow_leading_wildcard`::
-(Optional, boolean) If `true`, the wildcard characters `*` and `?` are allowed
+(Optional, Boolean) If `true`, the wildcard characters `*` and `?` are allowed
 as the first character of the query string. Defaults to `true`.
 
 `analyze_wildcard`::
-(Optional, boolean) If `true`, the query attempts to analyze wildcard terms in
+(Optional, Boolean) If `true`, the query attempts to analyze wildcard terms in
 the query string. Defaults to `false`.
 
 `analyzer`::
@@ -88,7 +101,7 @@ query string into tokens. Defaults to the
 `default_field`. If no analyzer is mapped, the index's default analyzer is used.
 
 `auto_generate_synonyms_phrase_query`::
-(Optional, boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
+(Optional, Boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
 queries are automatically created for multi-term synonyms. Defaults to `true`.
 See <<query-string-synonyms>> for an example.
 
@@ -119,7 +132,7 @@ AND of AND Hungary`.
 --
 
 `enable_position_increments`::
-(Optional, boolean) If `true`, enable position increments in queries constructed
+(Optional, Boolean) If `true`, enable position increments in queries constructed
 from a `query_string` search. Defaults to `true`.
 
 `fields`::
@@ -132,8 +145,8 @@ You can use this parameter query to search across multiple fields. See
 --
 
 `fuzziness`::
-(Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
-for valid values and more information.
+(Optional, string) Maximum edit distance allowed for fuzzy matching. For fuzzy
+syntax, see <<query-string-fuzziness>>.
 
 `fuzzy_max_expansions`::
 (Optional, integer) Maximum number of terms to which the query expands for fuzzy
@@ -144,18 +157,18 @@ matching. Defaults to `50`.
 matching. Defaults to `0`.
 
 `fuzzy_transpositions`::
-(Optional, boolean) If `true`, edits for fuzzy matching include
+(Optional, Boolean) If `true`, edits for fuzzy matching include
 transpositions of two adjacent characters (ab → ba). Defaults to `true`.
 
 `lenient`::
-(Optional, boolean) If `true`, format-based errors, such as providing a text
+(Optional, Boolean) If `true`, format-based errors, such as providing a text
 value for a <<number,numeric>> field, are ignored. Defaults to `false`.
 
 `max_determinized_states`::
 +
 --
 (Optional, integer) Maximum number of
-https://en.wikipedia.org/wiki/Deterministic_finite_automaton[automaton states]
+{wikipedia}/Deterministic_finite_automaton[automaton states]
 required for the query. Default is `10000`.
 
 {es} uses https://lucene.apache.org/core/[Apache Lucene] internally to parse
@@ -207,9 +220,9 @@ information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 +
 --
 (Optional, string)
-https://en.wikipedia.org/wiki/List_of_UTC_time_offsets[Coordinated Universal
+{wikipedia}/List_of_UTC_time_offsets[Coordinated Universal
 Time (UTC) offset] or
-https://en.wikipedia.org/wiki/List_of_tz_database_time_zones[IANA time zone]
+{wikipedia}/List_of_tz_database_time_zones[IANA time zone]
 used to convert `date` values in the query string to UTC.
 
 Valid values are ISO 8601 UTC offsets, such as `+01:00` or -`08:00`, and IANA
@@ -255,12 +268,12 @@ For example, the following query
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["content", "name"],
-            "query" : "this AND that"
-        }
+  "query": {
+    "query_string": {
+      "fields": [ "content", "name" ],
+      "query": "this AND that"
     }
+  }
 }
 --------------------------------------------------
 
@@ -271,11 +284,11 @@ matches the same words as
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "query": "(content:this OR name:this) AND (content:that OR name:that)"
-        }
+  "query": {
+    "query_string": {
+      "query": "(content:this OR name:this) AND (content:that OR name:that)"
     }
+  }
 }
 --------------------------------------------------
 
@@ -287,13 +300,13 @@ For example (the `name` is boosted by 5 using `^5` notation):
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["content", "name^5"],
-            "query" : "this AND that OR thus",
-            "tie_breaker" : 0
-        }
+  "query": {
+    "query_string" : {
+      "fields" : ["content", "name^5"],
+      "query" : "this AND that OR thus",
+      "tie_breaker" : 0
     }
+  }
 }
 --------------------------------------------------
 
@@ -306,12 +319,12 @@ search on all "city" fields:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["city.*"],
-            "query" : "this AND that OR thus"
-        }
+  "query": {
+    "query_string" : {
+      "fields" : ["city.*"],
+      "query" : "this AND that OR thus"
     }
+  }
 }
 --------------------------------------------------
 
@@ -323,11 +336,11 @@ string itself (properly escaping the `*` sign), for example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "query" : "city.\\*:(this AND that OR thus)"
-        }
+  "query": {
+    "query_string" : {
+      "query" : "city.\\*:(this AND that OR thus)"
     }
+  }
 }
 --------------------------------------------------
 
@@ -342,12 +355,12 @@ introduced fields included). For example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["content", "name.*^5"],
-            "query" : "this AND that OR thus"
-        }
+  "query": {
+    "query_string" : {
+      "fields" : ["content", "name.*^5"],
+      "query" : "this AND that OR thus"
     }
+  }
 }
 --------------------------------------------------
 
@@ -436,15 +449,15 @@ many "should" clauses in the resulting query should match.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title"
-            ],
-            "query": "this that thus",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title"
+      ],
+      "query": "this that thus",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
 
@@ -462,16 +475,16 @@ in the single field `title`.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title",
-                "content"
-            ],
-            "query": "this that thus",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title",
+        "content"
+      ],
+      "query": "this that thus",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
 
@@ -486,16 +499,16 @@ that matches documents with the disjunction max over the fields `title` and
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title",
-                "content"
-            ],
-            "query": "this OR that OR thus",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title",
+        "content"
+      ],
+      "query": "this OR that OR thus",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
 
@@ -518,17 +531,17 @@ analyzer are grouped together when the input is analyzed.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title",
-                "content"
-            ],
-            "query": "this OR that OR thus",
-            "type": "cross_fields",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title",
+        "content"
+      ],
+      "query": "this OR that OR thus",
+      "type": "cross_fields",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
 
@@ -537,3 +550,8 @@ The example above creates a boolean query:
 `(blended(terms:[field2:this, field1:this]) blended(terms:[field2:that, field1:that]) blended(terms:[field2:thus, field1:thus]))~2`
 
 that matches documents with at least two of the three per-term blended queries.
+
+===== Allow expensive queries
+Query string query can be internally be transformed to a <<query-dsl-prefix-query, `prefix query`>> which means
+that if the prefix queries are disabled as explained <<prefix-query-allow-expensive-queries, here>> the query will not be
+executed and an exception will be thrown.

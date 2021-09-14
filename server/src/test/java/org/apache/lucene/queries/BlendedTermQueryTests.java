@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.apache.lucene.queries;
 
@@ -42,6 +31,9 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -253,5 +245,73 @@ public class BlendedTermQueryTests extends ESTestCase {
         reader.close();
         w.close();
         dir.close();
+    }
+
+    public void testEqualsAndHash() {
+        String[] fields = new String[1 + random().nextInt(10)];
+        for (int i = 0; i < fields.length; i++) {
+            fields[i] = randomRealisticUnicodeOfLengthBetween(1, 10);
+        }
+        String term = randomRealisticUnicodeOfLengthBetween(1, 10);
+        Term[] terms = toTerms(fields, term);
+        float tieBreaker = randomFloat();
+        final float[] boosts;
+        if (randomBoolean()) {
+            boosts = new float[terms.length];
+            for (int i = 0; i < terms.length; i++) {
+                boosts[i] = randomFloat();
+            }
+        } else {
+            boosts = null;
+        }
+
+        BlendedTermQuery original = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, tieBreaker);
+        CopyFunction<BlendedTermQuery> copyFunction = org -> {
+            Term[] termsCopy = new Term[terms.length];
+            System.arraycopy(terms, 0, termsCopy, 0, terms.length);
+
+            float[] boostsCopy = null;
+            if (boosts != null) {
+                boostsCopy = new float[boosts.length];
+                System.arraycopy(boosts, 0, boostsCopy, 0, terms.length);
+            }
+            if (randomBoolean() && terms.length > 1) {
+                // if we swap two elements, the resulting query should still be regarded as equal
+                int swapPos = randomIntBetween(1, terms.length - 1);
+
+                Term swpTerm = termsCopy[0];
+                termsCopy[0] = termsCopy[swapPos];
+                termsCopy[swapPos] = swpTerm;
+
+                if (boosts != null) {
+                    float swpBoost = boostsCopy[0];
+                    boostsCopy[0] = boostsCopy[swapPos];
+                    boostsCopy[swapPos] = swpBoost;
+                }
+            }
+            return BlendedTermQuery.dismaxBlendedQuery(termsCopy, boostsCopy, tieBreaker);
+        };
+        MutateFunction<BlendedTermQuery> mutateFunction = org -> {
+            if (randomBoolean()) {
+                Term[] termsCopy = new Term[terms.length];
+                System.arraycopy(terms, 0, termsCopy, 0, terms.length);
+                termsCopy[randomIntBetween(0, terms.length - 1)] = new Term(randomAlphaOfLength(10), randomAlphaOfLength(10));
+                return BlendedTermQuery.dismaxBlendedQuery(termsCopy, boosts, tieBreaker);
+            } else {
+                float[] boostsCopy = null;
+                if (boosts != null) {
+                    boostsCopy = new float[boosts.length];
+                    System.arraycopy(boosts, 0, boostsCopy, 0, terms.length);
+                    boostsCopy[randomIntBetween(0, terms.length - 1)] = randomFloat();
+                } else {
+                    boostsCopy = new float[terms.length];
+                    for (int i = 0; i < terms.length; i++) {
+                        boostsCopy[i] = randomFloat();
+                    }
+                }
+                return BlendedTermQuery.dismaxBlendedQuery(terms, boostsCopy, tieBreaker);
+            }
+        };
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(original, copyFunction, mutateFunction );
     }
 }

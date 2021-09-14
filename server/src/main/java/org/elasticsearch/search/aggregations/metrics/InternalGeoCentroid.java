@@ -1,33 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,8 +30,9 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     private final long count;
 
     public static long encodeLatLon(double lat, double lon) {
-        return (Integer.toUnsignedLong(GeoEncodingUtils.encodeLatitude(lat)) << 32) |
-                    Integer.toUnsignedLong(GeoEncodingUtils.encodeLongitude(lon));
+        return (Integer.toUnsignedLong(GeoEncodingUtils.encodeLatitude(lat)) << 32) | Integer.toUnsignedLong(
+            GeoEncodingUtils.encodeLongitude(lon)
+        );
     }
 
     public static double decodeLatitude(long encodedLatLon) {
@@ -54,9 +43,8 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         return GeoEncodingUtils.decodeLongitude((int) (encodedLatLon & 0xFFFFFFFFL));
     }
 
-    InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
-            pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalGeoCentroid(String name, GeoPoint centroid, long count, Map<String, Object> metadata) {
+        super(name, metadata);
         assert (centroid == null) == (count == 0);
         this.centroid = centroid;
         assert count >= 0;
@@ -114,10 +102,10 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     @Override
-    public InternalGeoCentroid doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalGeoCentroid reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double lonSum = Double.NaN;
         double latSum = Double.NaN;
-        int totalCount = 0;
+        long totalCount = 0;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoCentroid centroidAgg = (InternalGeoCentroid) aggregation;
             if (centroidAgg.count > 0) {
@@ -131,8 +119,13 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
                 }
             }
         }
-        final GeoPoint result = (Double.isNaN(lonSum)) ? null : new GeoPoint(latSum/totalCount, lonSum/totalCount);
-        return new InternalGeoCentroid(name, result, totalCount, pipelineAggregators(), getMetaData());
+        final GeoPoint result = (Double.isNaN(lonSum)) ? null : new GeoPoint(latSum / totalCount, lonSum / totalCount);
+        return new InternalGeoCentroid(name, result, totalCount, getMetadata());
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return false;
     }
 
     @Override
@@ -185,8 +178,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         InternalGeoCentroid that = (InternalGeoCentroid) obj;
-        return count == that.count &&
-                Objects.equals(centroid, that.centroid);
+        return count == that.count && Objects.equals(centroid, that.centroid);
     }
 
     @Override
@@ -196,9 +188,6 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
 
     @Override
     public String toString() {
-        return "InternalGeoCentroid{" +
-                "centroid=" + centroid +
-                ", count=" + count +
-                '}';
+        return "InternalGeoCentroid{" + "centroid=" + centroid + ", count=" + count + '}';
     }
 }

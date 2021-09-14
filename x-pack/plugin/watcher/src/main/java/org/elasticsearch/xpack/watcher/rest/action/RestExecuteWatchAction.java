@@ -1,28 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchAction;
@@ -32,11 +31,11 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.IGNORE_CONDITION;
@@ -44,28 +43,24 @@ import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction
 
 public class RestExecuteWatchAction extends BaseRestHandler implements RestRequestFilter {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestExecuteWatchAction.class));
-
-    private static final List<String> RESERVED_FIELD_NAMES = Arrays.asList(WatchField.TRIGGER.getPreferredName(),
+    private static final List<String> RESERVED_FIELD_NAMES = asList(WatchField.TRIGGER.getPreferredName(),
             WatchField.INPUT.getPreferredName(), WatchField.CONDITION.getPreferredName(),
             WatchField.ACTIONS.getPreferredName(), WatchField.TRANSFORM.getPreferredName(),
             WatchField.THROTTLE_PERIOD.getPreferredName(), WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(),
             WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName());
 
-    public RestExecuteWatchAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_execute", this,
-            POST, "/_xpack/watcher/watch/{id}/_execute", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_execute", this,
-            PUT, "/_xpack/watcher/watch/{id}/_execute", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/_execute", this,
-            POST, "/_xpack/watcher/watch/_execute", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/_execute", this,
-            PUT, "/_xpack/watcher/watch/_execute", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(POST, "/_watcher/watch/{id}/_execute")
+                .replaces(POST, "/_xpack/watcher/watch/{id}/_execute", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/{id}/_execute")
+                .replaces(PUT, "/_xpack/watcher/watch/{id}/_execute", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_watcher/watch/_execute")
+                .replaces(POST, "/_xpack/watcher/watch/_execute", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/_execute")
+                .replaces(PUT, "/_xpack/watcher/watch/_execute", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

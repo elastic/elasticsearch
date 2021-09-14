@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.engine;
@@ -47,6 +36,7 @@ final class CombinedDocValues {
     long docVersion(int segmentDocId) throws IOException {
         assert versionDV.docID() < segmentDocId;
         if (versionDV.advanceExact(segmentDocId) == false) {
+            assert false : "DocValues for field [" + VersionFieldMapper.NAME + "] is not found";
             throw new IllegalStateException("DocValues for field [" + VersionFieldMapper.NAME + "] is not found");
         }
         return versionDV.longValue();
@@ -55,19 +45,18 @@ final class CombinedDocValues {
     long docSeqNo(int segmentDocId) throws IOException {
         assert seqNoDV.docID() < segmentDocId;
         if (seqNoDV.advanceExact(segmentDocId) == false) {
+            assert false : "DocValues for field [" + SeqNoFieldMapper.NAME + "] is not found";
             throw new IllegalStateException("DocValues for field [" + SeqNoFieldMapper.NAME + "] is not found");
         }
         return seqNoDV.longValue();
     }
 
     long docPrimaryTerm(int segmentDocId) throws IOException {
-        if (primaryTermDV == null) {
-            return -1L;
-        }
+        // We exclude non-root nested documents when querying changes, every returned document must have primary term.
         assert primaryTermDV.docID() < segmentDocId;
-        // Use -1 for docs which don't have primary term. The caller considers those docs as nested docs.
         if (primaryTermDV.advanceExact(segmentDocId) == false) {
-            return -1;
+            assert false : "DocValues for field [" + SeqNoFieldMapper.PRIMARY_TERM_NAME + "] is not found";
+            throw new IllegalStateException("DocValues for field [" + SeqNoFieldMapper.PRIMARY_TERM_NAME + "] is not found");
         }
         return primaryTermDV.longValue();
     }

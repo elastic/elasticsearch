@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -13,10 +14,8 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -43,7 +42,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
     protected WaitForNoFollowersStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new WaitForNoFollowersStep(stepKey, nextStepKey, mock(Client.class));
+        return new WaitForNoFollowersStep(stepKey, nextStepKey, client);
     }
 
     @Override
@@ -71,17 +70,17 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         String indexName = randomAlphaOfLengthBetween(5,10);
 
         int numberOfShards = randomIntBetween(1, 100);
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
 
-        mockIndexStatsCall(step.getClient(), indexName, randomIndexStats(false, numberOfShards));
+        mockIndexStatsCall(indexName, randomIndexStats(false, numberOfShards));
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
                 conditionMetHolder.set(conditionMet);
@@ -92,7 +91,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             public void onFailure(Exception e) {
                 fail("onFailure should not be called in this test, called with exception: " + e.getMessage());
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertTrue(conditionMetHolder.get());
         assertNull(stepInfoHolder.get());
@@ -104,17 +103,17 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         String indexName = randomAlphaOfLengthBetween(5,10);
 
         int numberOfShards = randomIntBetween(1, 100);
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
 
-        mockIndexStatsCall(step.getClient(), indexName, randomIndexStats(true, numberOfShards));
+        mockIndexStatsCall(indexName, randomIndexStats(true, numberOfShards));
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
                 conditionMetHolder.set(conditionMet);
@@ -125,7 +124,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             public void onFailure(Exception e) {
                 fail("onFailure should not be called in this test, called with exception: " + e.getMessage());
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertFalse(conditionMetHolder.get());
         assertThat(Strings.toString(stepInfoHolder.get()),
@@ -138,7 +137,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         String indexName = randomAlphaOfLengthBetween(5,10);
 
         int numberOfShards = randomIntBetween(1, 100);
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(randomIntBetween(1, 10))
@@ -147,11 +146,11 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         ShardStats sStats = new ShardStats(null, mockShardPath(), null, null, null, null);
         ShardStats[] shardStats = new ShardStats[1];
         shardStats[0] = sStats;
-        mockIndexStatsCall(step.getClient(), indexName, new IndexStats(indexName, "uuid", shardStats));
+        mockIndexStatsCall(indexName, new IndexStats(indexName, "uuid", shardStats));
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
                 conditionMetHolder.set(conditionMet);
@@ -162,7 +161,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             public void onFailure(Exception e) {
                 fail("onFailure should not be called in this test, called with exception: " + e.getMessage());
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertTrue(conditionMetHolder.get());
         assertNull(stepInfoHolder.get());
@@ -174,7 +173,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         String indexName = randomAlphaOfLengthBetween(5,10);
 
         int numberOfShards = randomIntBetween(1, 100);
-        IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(randomIntBetween(1, 10))
@@ -182,11 +181,6 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         final Exception expectedException = new RuntimeException(randomAlphaOfLength(5));
 
-        Client client = step.getClient();
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
         Mockito.doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) invocationOnMock.getArguments()[1];
@@ -195,7 +189,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         }).when(indicesClient).stats(any(), any());
 
         final SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
                 fail("onResponse should not be called in this test, called with conditionMet: " + conditionMet
@@ -206,16 +200,12 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             public void onFailure(Exception e) {
                 exceptionHolder.set(e);
             }
-        });
+        }, MASTER_TIMEOUT);
 
         assertThat(exceptionHolder.get(), equalTo(expectedException));
     }
 
-    private void mockIndexStatsCall(Client client, String expectedIndexName, IndexStats indexStats) {
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+    private void mockIndexStatsCall(String expectedIndexName, IndexStats indexStats) {
         Mockito.doAnswer(invocationOnMock -> {
             IndicesStatsRequest request = (IndicesStatsRequest) invocationOnMock.getArguments()[0];
             assertThat(request.indices().length, equalTo(1));
@@ -247,8 +237,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             null,
             null,
             null,
-            randomRetentionLeaseStats(isLeaderIndex)
-        );
+            randomRetentionLeaseStats(isLeaderIndex));
     }
 
     private RetentionLeaseStats randomRetentionLeaseStats(boolean isLeaderIndex) {

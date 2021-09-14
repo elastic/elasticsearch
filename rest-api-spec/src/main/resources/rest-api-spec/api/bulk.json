@@ -5,6 +5,11 @@
       "description":"Allows to perform multiple index/update/delete operations in a single request."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/x-ndjson"]
+    },
     "url":{
       "paths":[
         {
@@ -58,7 +63,7 @@
           "false",
           "wait_for"
         ],
-        "description":"If `true` then refresh the effected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes."
+        "description":"If `true` then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes."
       },
       "routing":{
         "type":"string",
@@ -87,6 +92,10 @@
       "pipeline":{
         "type":"string",
         "description":"The pipeline id to preprocess incoming documents with"
+      },
+      "require_alias": {
+        "type": "boolean",
+        "description": "Sets require_alias for all incoming documents. Defaults to unset (false)"
       }
     },
     "body":{

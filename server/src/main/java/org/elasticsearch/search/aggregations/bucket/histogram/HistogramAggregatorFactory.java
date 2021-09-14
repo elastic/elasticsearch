@@ -1,34 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,44 +27,52 @@ import java.util.Map;
  * Constructs the per-shard aggregator instance for histogram aggregation.  Selects the numeric or range field implementation based on the
  * field type.
  */
-public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final HistogramAggregatorSupplier aggregatorSupplier;
     private final double interval, offset;
     private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
-    private final double minBound, maxBound;
+    private final DoubleBounds extendedBounds;
+    private final DoubleBounds hardBounds;
 
-    @Override
-    protected ValuesSource resolveMissingAny(Object missing) {
-        if (missing instanceof Number) {
-            return ValuesSource.Numeric.EMPTY;
-        }
-        throw new IllegalArgumentException("Only numeric missing values are supported for histogram aggregation, found ["
-            + missing + "]");
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(HistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, RangeHistogramAggregator::new, true);
+
+        builder.register(
+            HistogramAggregationBuilder.REGISTRY_KEY,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            NumericHistogramAggregator::new,
+            true
+        );
     }
 
-    public HistogramAggregatorFactory(String name,
-                                        ValuesSourceConfig<ValuesSource> config,
-                                        double interval,
-                                        double offset,
-                                        BucketOrder order,
-                                        boolean keyed,
-                                        long minDocCount,
-                                        double minBound,
-                                        double maxBound,
-                                        QueryShardContext queryShardContext,
-                                        AggregatorFactory parent,
-                                        AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+    public HistogramAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        double interval,
+        double offset,
+        BucketOrder order,
+        boolean keyed,
+        long minDocCount,
+        DoubleBounds extendedBounds,
+        DoubleBounds hardBounds,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        HistogramAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.interval = interval;
         this.offset = offset;
         this.order = order;
         this.keyed = keyed;
         this.minDocCount = minDocCount;
-        this.minBound = minBound;
-        this.maxBound = maxBound;
+        this.extendedBounds = extendedBounds;
+        this.hardBounds = hardBounds;
     }
 
     public long minDocCount() {
@@ -83,40 +80,43 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, searchContext, parent);
-        }
-        if (valuesSource instanceof ValuesSource.Numeric) {
-            return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-                (ValuesSource.Numeric) valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
-        } else if (valuesSource instanceof ValuesSource.Range) {
-            ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
-            if (rangeValueSource.rangeType().isNumeric() == false) {
-                throw new IllegalArgumentException("Expected numeric range type but found non-numeric range ["
-                    + rangeValueSource.rangeType().name + "]");
-            }
-            return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-                (ValuesSource.Range) valuesSource, config.format(), searchContext, parent, pipelineAggregators,
-                metaData);
-        }
-        else {
-            throw new IllegalArgumentException("Expected one of [Numeric, Range] values source, found ["
-                + valuesSource.toString() + "]");
-        }
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(
+            name,
+            factories,
+            interval,
+            offset,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            config,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            null, config.format(), searchContext, parent, pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NumericHistogramAggregator(
+            name,
+            factories,
+            interval,
+            offset,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            config,
+            context,
+            parent,
+            CardinalityUpperBound.NONE,
+            metadata
+        );
     }
 }

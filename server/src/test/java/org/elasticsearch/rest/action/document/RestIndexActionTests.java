@@ -1,64 +1,57 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
+import org.elasticsearch.rest.action.document.RestIndexAction.CreateHandler;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RestIndexActionTests extends RestActionTestCase {
 
-    private RestIndexAction action;
+    final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
+
     private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>();
 
     @Before
     public void setUpAction() {
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenAnswer(invocationOnMock -> clusterStateSupplier.get());
-        action = new RestIndexAction(controller(), clusterService);
+        controller().registerHandler(new RestIndexAction());
+        controller().registerHandler(new CreateHandler());
+        controller().registerHandler(new AutoIdHandler(() -> clusterStateSupplier.get().nodes()));
     }
 
     public void testCreateOpTypeValidation() {
-        RestIndexAction.CreateHandler create = action.new CreateHandler();
+        RestIndexAction.CreateHandler create = new CreateHandler();
 
         String opType = randomFrom("CREATE", null);
         create.validateOpType(opType);
@@ -78,6 +71,13 @@ public class RestIndexActionTests extends RestActionTestCase {
     }
 
     private void checkAutoIdOpType(Version minClusterVersion, DocWriteRequest.OpType expectedOpType) {
+        SetOnce<Boolean> executeCalled = new SetOnce<>();
+        verifyingClient.setExecuteVerifier((actionType, request) -> {
+            assertThat(request, instanceOf(IndexRequest.class));
+            assertThat(((IndexRequest) request).opType(), equalTo(expectedOpType));
+            executeCalled.set(true);
+            return new IndexResponse(new ShardId("test", "test", 0), "id", 0, 0, 0, true);
+        });
         RestRequest autoIdRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_doc")
@@ -88,9 +88,36 @@ public class RestIndexActionTests extends RestActionTestCase {
                 .add(new DiscoveryNode("test", buildNewFakeTransportAddress(), minClusterVersion))
                 .build()).build());
         dispatchRequest(autoIdRequest);
-        ArgumentCaptor<IndexRequest> argumentCaptor = ArgumentCaptor.forClass(IndexRequest.class);
-        verify(nodeClient).index(argumentCaptor.capture(), any(ActionListener.class));
-        IndexRequest indexRequest = argumentCaptor.getValue();
-        assertEquals(expectedOpType, indexRequest.opType());
+        assertThat(executeCalled.get(), equalTo(true));
+    }
+
+    public void testTypeInPath() {
+        // using CompatibleRestIndexAction
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+            .withPath("/some_index/some_type/some_id")
+            .build();
+        dispatchRequest(deprecatedRequest);
+        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    public void testCreateWithTypeInPath() {
+        // using CompatibleCreateHandler
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+            .withPath("/some_index/some_type/some_id/_create")
+            .build();
+        dispatchRequest(deprecatedRequest);
+        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    public void testAutoIdWithType() {
+        // using CompatibleAutoIdHandler
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+            .withPath("/some_index/some_type/")
+            .build();
+        dispatchRequest(deprecatedRequest);
+        assertWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

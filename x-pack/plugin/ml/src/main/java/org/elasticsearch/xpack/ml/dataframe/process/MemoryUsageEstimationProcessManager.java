@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
@@ -9,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -57,10 +58,16 @@ public class MemoryUsageEstimationProcessManager {
                                                DataFrameDataExtractorFactory dataExtractorFactory) {
         DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
         DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
-        Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
         if (dataSummary.rows == 0) {
-            return new MemoryUsageEstimationResult(ByteSizeValue.ZERO, ByteSizeValue.ZERO);
+            throw ExceptionsHelper.badRequestException(
+                "[{}] Unable to estimate memory usage as no documents in the source indices [{}] contained all the fields selected for "
+                    + "analysis. If you are relying on automatic field selection then there are currently mapped fields that do not exist "
+                    + "in any indexed documents, and you will have to switch to explicit field selection and include only fields that "
+                    + "exist in indexed documents.",
+                jobId,
+                Strings.arrayToCommaDelimitedString(config.getSource().getIndex()));
         }
+        Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
         AnalyticsProcessConfig processConfig =
             new AnalyticsProcessConfig(
                 jobId,
@@ -68,16 +75,17 @@ public class MemoryUsageEstimationProcessManager {
                 dataSummary.cols,
                 // For memory estimation the model memory limit here should be set high enough not to trigger an error when C++ code
                 // compares the limit to the result of estimation.
-                new ByteSizeValue(1, ByteSizeUnit.PB),
+                ByteSizeValue.ofPb(1),
                 1,
                 "",
                 categoricalFields,
-                config.getAnalysis());
+                config.getAnalysis(),
+                dataExtractorFactory.getExtractedFields());
         AnalyticsProcess<MemoryUsageEstimationResult> process =
             processFactory.createAnalyticsProcess(
                 config,
                 processConfig,
-                null,
+                false,
                 executorServiceForProcess,
                 // The handler passed here will never be called as AbstractNativeProcess.detectCrash method returns early when
                 // (processInStream == null) which is the case for MemoryUsageEstimationProcess.
@@ -91,11 +99,10 @@ public class MemoryUsageEstimationProcessManager {
                     jobId, e.getMessage(), process.readError()).getFormattedMessage();
             throw ExceptionsHelper.serverError(errorMsg, e);
         } finally {
-            process.consumeAndCloseOutputStream();
             try {
-                LOGGER.info("[{}] Closing process", jobId);
+                LOGGER.debug("[{}] Closing process", jobId);
                 process.close();
-                LOGGER.info("[{}] Closed process", jobId);
+                LOGGER.debug("[{}] Closed process", jobId);
             } catch (Exception e) {
                 String errorMsg =
                     new ParameterizedMessage(

@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.NodesResponseHeader;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -40,21 +29,21 @@ public class WatcherStatsResponse {
     private final NodesResponseHeader header;
     private final String clusterName;
 
-    private final WatcherMetaData watcherMetaData;
+    private final WatcherMetadata watcherMetadata;
 
-    public WatcherStatsResponse(NodesResponseHeader header, String clusterName, WatcherMetaData watcherMetaData, List<Node> nodes) {
+    public WatcherStatsResponse(NodesResponseHeader header, String clusterName, WatcherMetadata watcherMetadata, List<Node> nodes) {
         this.nodes = nodes;
         this.header = header;
         this.clusterName = clusterName;
-        this.watcherMetaData = watcherMetaData;
+        this.watcherMetadata = watcherMetadata;
     }
 
     /**
      * @return the status of the requested watch. If an action was
      * successfully acknowledged, this will be reflected in its status.
      */
-    public WatcherMetaData getWatcherMetaData() {
-        return watcherMetaData;
+    public WatcherMetadata getWatcherMetadata() {
+        return watcherMetadata;
     }
 
     /**
@@ -82,9 +71,9 @@ public class WatcherStatsResponse {
     }
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<WatcherStatsResponse, Void> PARSER =
+    private static final ConstructingObjectParser<WatcherStatsResponse, Void> PARSER =
         new ConstructingObjectParser<>("watcher_stats_response", true,
-            a -> new WatcherStatsResponse((NodesResponseHeader) a[0], (String) a[1], new WatcherMetaData((boolean) a[2]),
+            a -> new WatcherStatsResponse((NodesResponseHeader) a[0], (String) a[1], new WatcherMetadata((boolean) a[2]),
                 (List<Node>) a[3]));
 
     static {
@@ -107,13 +96,13 @@ public class WatcherStatsResponse {
         return Objects.equals(nodes, that.nodes) &&
             Objects.equals(header, that.header) &&
             Objects.equals(clusterName, that.clusterName) &&
-            Objects.equals(watcherMetaData, that.watcherMetaData);
+            Objects.equals(watcherMetadata, that.watcherMetadata);
     }
 
     @Override
     public int hashCode() {
 
-        return Objects.hash(nodes, header, clusterName, watcherMetaData);
+        return Objects.hash(nodes, header, clusterName, watcherMetadata);
     }
 
     public static class Node {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -48,7 +37,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-
 public class AvgBucketAggregatorTests extends AggregatorTestCase {
     private static final String DATE_FIELD = "date";
     private static final String VALUE_FIELD = "value";
@@ -63,7 +51,8 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
         "2015-06-24T13:47:43",
         "2015-11-13T16:14:34",
         "2016-03-04T17:09:50",
-        "2017-12-12T22:55:46");
+        "2017-12-12T22:55:46"
+    );
 
     /**
      * Test for issue #30608.  Under the following circumstances:
@@ -77,19 +66,17 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
      * it is fixed.
      *
      * Note: we have this test inside of the `avg_bucket` package so that we can get access to the package-private
-     * `doReduce()` needed for testing this
+     * `reduce()` needed for testing this
      */
     public void testSameAggNames() throws IOException {
         Query query = new MatchAllDocsQuery();
 
         AvgAggregationBuilder avgBuilder = new AvgAggregationBuilder("foo").field(VALUE_FIELD);
-        DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo")
-            .calendarInterval(DateHistogramInterval.YEAR)
+        DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo").calendarInterval(DateHistogramInterval.YEAR)
             .field(DATE_FIELD)
             .subAggregation(new AvgAggregationBuilder("foo").field(VALUE_FIELD));
 
-        AvgBucketPipelineAggregationBuilder avgBucketBuilder
-            = new AvgBucketPipelineAggregationBuilder("the_avg_bucket", "histo>foo");
+        AvgBucketPipelineAggregationBuilder avgBucketBuilder = new AvgBucketPipelineAggregationBuilder("the_avg_bucket", "histo>foo");
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -111,19 +98,12 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.Builder builder = new DateFieldMapper.Builder("histo");
-                DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(DATE_FIELD);
+                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
 
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                valueFieldType.setName(VALUE_FIELD);
-                valueFieldType.setHasDocValues(true);
+                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
 
-                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000,
-                    new MappedFieldType[]{fieldType, valueFieldType});
-                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000,
-                    new MappedFieldType[]{fieldType, valueFieldType});
+                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000, new MappedFieldType[] { fieldType, valueFieldType });
+                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000, new MappedFieldType[] { fieldType, valueFieldType });
             }
 
             // Finally, reduce the pipeline agg
@@ -134,7 +114,7 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             reducedAggs.add(histogramResult);
             reducedAggs.add(avgResult);
             Aggregations aggregations = new Aggregations(reducedAggs);
-            InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator)avgBucketAgg).doReduce(aggregations, null);
+            InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator) avgBucketAgg).doReduce(aggregations, null);
             assertNotNull(pipelineResult);
         }
     }

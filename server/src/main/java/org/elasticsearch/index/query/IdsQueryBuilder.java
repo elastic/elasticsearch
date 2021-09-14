@@ -1,33 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -115,8 +102,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         builder.endObject();
     }
 
-    private static ObjectParser<IdsQueryBuilder, Void> PARSER = new ObjectParser<>(NAME,
-            () -> new IdsQueryBuilder());
+    private static final ObjectParser<IdsQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, IdsQueryBuilder::new);
 
     static {
         PARSER.declareStringArray(fromList(String.class, IdsQueryBuilder::addIds), IdsQueryBuilder.VALUES_FIELD);
@@ -138,16 +124,25 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
-        if (idField == null) {
-            return new MatchNoDocsQuery("No mappings");
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (ids.isEmpty()) {
+            return new MatchNoneQueryBuilder();
         }
-        if (this.ids.isEmpty()) {
-             return Queries.newMatchNoDocsQuery("Missing ids in \"" + this.getName() + "\" query.");
-        } else {
-            return idField.termsQuery(new ArrayList<>(ids), context);
+        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
+        if (context != null && context.hasMappings() == false) {
+            // no mappings yet
+            return new MatchNoneQueryBuilder();
         }
+        return super.doRewrite(queryRewriteContext);
+    }
+
+    @Override
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
+        if (idField == null || ids.isEmpty()) {
+            throw new IllegalStateException("Rewrite first");
+        }
+        return idField.termsQuery(new ArrayList<>(ids), context);
     }
 
     @Override

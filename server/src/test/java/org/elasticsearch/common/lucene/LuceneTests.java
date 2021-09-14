@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.lucene;
 
@@ -24,9 +13,11 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -36,10 +27,15 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
@@ -52,8 +48,8 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -61,6 +57,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorS
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -420,6 +417,101 @@ public class LuceneTests extends ESTestCase {
         dir.close();
     }
 
+    private static class UnsupportedQuery extends Query {
+
+        @Override
+        public String toString(String field) {
+            return "Unsupported";
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof UnsupportedQuery;
+        }
+
+        @Override
+        public int hashCode() {
+            return 42;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new Weight(this) {
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+
+                @Override
+                public void extractTerms(Set<Term> terms) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Scorer scorer(LeafReaderContext context) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    return new ScorerSupplier() {
+
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public long cost() {
+                            return context.reader().maxDoc();
+                        }
+
+                    };
+                }
+
+            };
+        }
+
+    }
+
+    public void testAsSequentialBitsUsesRandomAccess() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new KeywordAnalyzer()))) {
+                Document doc = new Document();
+                doc.add(new NumericDocValuesField("foo", 5L));
+                // we need more than 8 documents because doc values are artificially penalized by IndexOrDocValuesQuery
+                for (int i = 0; i < 10; ++i) {
+                    w.addDocument(doc);
+                }
+                w.forceMerge(1);
+                try (IndexReader reader = DirectoryReader.open(w)) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    searcher.setQueryCache(null);
+                    Query query = new IndexOrDocValuesQuery(
+                            new UnsupportedQuery(), NumericDocValuesField.newSlowRangeQuery("foo", 3L, 5L));
+                    Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
+
+                    // Random access by default
+                    ScorerSupplier scorerSupplier = weight.scorerSupplier(reader.leaves().get(0));
+                    Bits bits = Lucene.asSequentialAccessBits(reader.maxDoc(), scorerSupplier);
+                    assertNotNull(bits);
+                    assertTrue(bits.get(0));
+
+                    // Moves to sequential access if Bits#get is called more than the number of matches
+                    ScorerSupplier scorerSupplier2 = weight.scorerSupplier(reader.leaves().get(0));
+                    expectThrows(UnsupportedOperationException.class,
+                            () -> Lucene.asSequentialAccessBits(reader.maxDoc(), scorerSupplier2, reader.maxDoc()));
+                }
+            }
+        }
+    }
+
     /**
      * Test that the "unmap hack" is detected as supported by lucene.
      * This works around the following bug: https://bugs.openjdk.java.net/browse/JDK-4724038
@@ -588,7 +680,7 @@ public class LuceneTests extends ESTestCase {
         switch(randomIntBetween(0, 3)) {
             case 0:
                 comparatorSource = new LongValuesComparatorSource(null, randomBoolean() ? randomLong() : null,
-                    randomFrom(MultiValueMode.values()), null);
+                    randomFrom(MultiValueMode.values()), null, null);
                 break;
             case 1:
                 comparatorSource = new DoubleValuesComparatorSource(null, randomBoolean() ? randomDouble() : null,
@@ -614,7 +706,7 @@ public class LuceneTests extends ESTestCase {
 
     private static Tuple<SortField, SortField> randomCustomSortField() {
         String field = randomAlphaOfLengthBetween(3, 10);
-        switch(randomIntBetween(0, 2)) {
+        switch(randomIntBetween(0, 3)) {
             case 0: {
                 SortField sortField = LatLonDocValuesField.newDistanceSort(field, 0, 0);
                 SortField expected = new SortField(field, SortField.Type.DOUBLE);
@@ -638,6 +730,11 @@ public class LuceneTests extends ESTestCase {
                     sortField.setMissingValue(missingValue);
                     expected.setMissingValue(missingValue);
                 }
+                return Tuple.tuple(sortField, expected);
+            }
+            case 3: {
+                ShardDocSortField sortField = new ShardDocSortField(randomIntBetween(0, 100), randomBoolean());
+                SortField expected = new SortField(ShardDocSortField.NAME, SortField.Type.LONG, sortField.getReverse());
                 return Tuple.tuple(sortField, expected);
             }
             default:

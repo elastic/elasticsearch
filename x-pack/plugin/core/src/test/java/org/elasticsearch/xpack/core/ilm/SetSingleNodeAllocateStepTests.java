@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -31,13 +30,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.hamcrest.Matchers;
-import org.junit.Before;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,13 +48,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSingleNodeAllocateStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
 
     @Override
     protected SetSingleNodeAllocateStep createRandomInstance() {
@@ -98,15 +85,15 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertArrayEquals(expectedIndices, request.indices());
         assertThat(request.settings().get(settingsKey), anyOf(acceptableValues.stream().map(e -> equalTo(e)).collect(Collectors.toList())));
         if (assertOnlyKeyInSettings) {
-            assertEquals(1, request.settings().size());
+            assertEquals(2, request.settings().size());
         }
     }
 
-    public void testPerformActionNoAttrs() throws IOException {
+    public void testPerformActionNoAttrs() throws Exception {
         final int numNodes = randomIntBetween(1, 20);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
-        Index index = indexMetaData.getIndex();
+        Index index = indexMetadata.getIndex();
         Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
@@ -120,10 +107,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             validNodeIds.add(nodeId);
         }
 
-        assertNodeSelected(indexMetaData, index, validNodeIds, nodes);
+        assertNodeSelected(indexMetadata, index, validNodeIds, nodes);
     }
 
-    public void testPerformActionAttrsAllNodesValid() throws IOException {
+    public void testPerformActionAttrsAllNodesValid() throws Exception {
         int numAttrs = randomIntBetween(1, 10);
         final int numNodes = randomIntBetween(1, 20);
         String[][] validAttrs = new String[numAttrs][2];
@@ -132,11 +119,11 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         }
         Settings.Builder indexSettings = settings(Version.CURRENT);
         for (String[] attr : validAttrs) {
-            indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr[0], attr[1]);
+            indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr[0], attr[1]);
         }
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
-        Index index = indexMetaData.getIndex();
+        Index index = indexMetadata.getIndex();
         Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
@@ -151,18 +138,18 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             validNodeIds.add(nodeId);
         }
 
-        assertNodeSelected(indexMetaData, index, validNodeIds, nodes);
+        assertNodeSelected(indexMetadata, index, validNodeIds, nodes);
     }
 
-    public void testPerformActionAttrsSomeNodesValid() throws IOException {
+    public void testPerformActionAttrsSomeNodesValid() throws Exception {
         final int numNodes = randomIntBetween(1, 20);
         String[] validAttr = new String[] { "box_type", "valid" };
         String[] invalidAttr = new String[] { "box_type", "not_valid" };
         Settings.Builder indexSettings = settings(Version.CURRENT);
-        indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
+        indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
-        Index index = indexMetaData.getIndex();
+        Index index = indexMetadata.getIndex();
         Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + validAttr[0], validAttr[1]).build();
         Settings invalidNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + invalidAttr[0], invalidAttr[1]).build();
@@ -183,7 +170,39 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                     nodeId));
         }
 
-        assertNodeSelected(indexMetaData, index, validNodeIds, nodes);
+        assertNodeSelected(indexMetadata, index, validNodeIds, nodes);
+    }
+
+    public void testPerformActionWithClusterExcludeFilters() throws IOException {
+        Settings.Builder indexSettings = settings(Version.CURRENT);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 1)).build();
+        Index index = indexMetadata.getIndex();
+
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+        String nodeId = "node_id_0";
+        int nodePort = 9300;
+        Builder nodeSettingsBuilder = Settings.builder();
+        nodes.add(DiscoveryNode.createLocal(nodeSettingsBuilder.build(), new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
+            nodeId));
+
+        Settings clusterSettings = Settings.builder()
+            .put("cluster.routing.allocation.exclude._id", "node_id_0")
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder().fPut(index.getName(),
+            indexMetadata);
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().indices(indices.build()).transientSettings(clusterSettings))
+            .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+
+        SetSingleNodeAllocateStep step = createRandomInstance();
+
+        expectThrows(NoNodeAvailableException.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+
+        Mockito.verifyZeroInteractions(client);
     }
 
     public void testPerformActionAttrsNoNodesValid() {
@@ -191,10 +210,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         String[] validAttr = new String[] { "box_type", "valid" };
         String[] invalidAttr = new String[] { "box_type", "not_valid" };
         Settings.Builder indexSettings = settings(Version.CURRENT);
-        indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
+        indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
-        Index index = indexMetaData.getIndex();
+        Index index = indexMetadata.getIndex();
         Settings invalidNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + invalidAttr[0], invalidAttr[1]).build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numNodes; i++) {
@@ -206,7 +225,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                     nodeId));
         }
 
-        assertNoValidNode(indexMetaData, index, nodes);
+        assertNoValidNode(indexMetadata, index, nodes);
     }
 
     public void testPerformActionAttrsRequestFails() {
@@ -219,12 +238,12 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         }
         Settings.Builder indexSettings = settings(Version.CURRENT);
         validAttributes.forEach((k, v) -> {
-            indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
+            indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
 
         });
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
-        Index index = indexMetaData.getIndex();
+        Index index = indexMetadata.getIndex();
         Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
@@ -239,53 +258,29 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             validNodeIds.add(nodeId);
         }
 
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
-            indexMetaData);
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder().fPut(index.getName(),
+            indexMetadata);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices.build()))
             .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
         SetSingleNodeAllocateStep step = createRandomInstance();
         Exception exception = new RuntimeException();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-                assertSettingsRequestContainsValueFrom(request,
-                    IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", validNodeIds, true,
-                    indexMetaData.getIndex().getName());
-                listener.onFailure(exception);
-                return null;
-            }
-
+        Mockito.doAnswer(invocation -> {
+            UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            assertSettingsRequestContainsValueFrom(request,
+                IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", validNodeIds, true,
+                indexMetadata.getIndex().getName());
+            listener.onFailure(exception);
+            return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertSame(exception, e);
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertEquals(true, exceptionThrown.get());
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
+            f -> step.performAction(indexMetadata, clusterState, null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -297,15 +292,15 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final int numNodes = randomIntBetween(1, 20);
         String[][] validAttrs = new String[numAttrs][2];
         for (int i = 0; i < numAttrs; i++) {
-            validAttrs[i] = new String[] { randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
+            validAttrs[i] = new String[] { "na_" + randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
         }
         Settings.Builder indexSettings = settings(Version.CURRENT);
         for (String[] attr : validAttrs) {
-            indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr[0], attr[1]);
+            indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr[0], attr[1]);
         }
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, numNodes - 1)).build();
-        Index index = indexMetaData.getIndex();
+        Index index = indexMetadata.getIndex();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numNodes; i++) {
@@ -318,43 +313,29 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             nodes.add(DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
         }
 
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
-                indexMetaData);
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder().fPut(index.getName(),
+                indexMetadata);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices.build()))
                 .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, Matchers.instanceOf(IndexNotFoundException.class));
-                assertEquals(indexMetaData.getIndex(), ((IndexNotFoundException) e).getIndex());
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertEquals(true, exceptionThrown.get());
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        assertEquals(indexMetadata.getIndex(), e.getIndex());
 
         Mockito.verifyZeroInteractions(client);
     }
 
-    public void testPerformActionSomeShardsOnlyOnNewNodes() {
+    public void testPerformActionSomeShardsOnlyOnNewNodes() throws Exception {
         final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
         final int numOldNodes = numNodes - numNewNodes;
 
         final int numberOfShards = randomIntBetween(1, 5);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(oldVersion))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(oldVersion))
             .numberOfShards(numberOfShards).numberOfReplicas(randomIntBetween(0, numNewNodes - 1)).build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
 
@@ -395,10 +376,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         nodeIds.addAll(oldNodeIds);
 
         DiscoveryNodes discoveryNodes = nodes.build();
-        IndexRoutingTable.Builder indexRoutingTable = createRoutingTableWithOneShardOnSubset(indexMetaData, newNodeIds, nodeIds);
+        IndexRoutingTable.Builder indexRoutingTable = createRoutingTableWithOneShardOnSubset(indexMetadata, newNodeIds, nodeIds);
 
         // Since one shard is already on only new nodes, we should always pick a new node
-        assertNodeSelected(indexMetaData, indexMetaData.getIndex(), newNodeIds, discoveryNodes, indexRoutingTable.build());
+        assertNodeSelected(indexMetadata, indexMetadata.getIndex(), newNodeIds, discoveryNodes, indexRoutingTable.build());
     }
 
     public void testPerformActionSomeShardsOnlyOnNewNodesButNewNodesInvalidAttrs() {
@@ -411,8 +392,8 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final String validAttr = "valid";
         final String invalidAttr = "not_valid";
         Settings.Builder indexSettings = settings(oldVersion);
-        indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attribute, validAttr);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
+        indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attribute, validAttr);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
             .numberOfShards(numberOfShards).numberOfReplicas(randomIntBetween(0, numNewNodes - 1)).build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
 
@@ -456,12 +437,12 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         nodeIds.addAll(oldNodeIds);
 
         DiscoveryNodes discoveryNodes = nodes.build();
-        IndexRoutingTable.Builder indexRoutingTable = createRoutingTableWithOneShardOnSubset(indexMetaData, newNodeIds, nodeIds);
+        IndexRoutingTable.Builder indexRoutingTable = createRoutingTableWithOneShardOnSubset(indexMetadata, newNodeIds, nodeIds);
 
-        assertNoValidNode(indexMetaData, indexMetaData.getIndex(), discoveryNodes, indexRoutingTable.build());
+        assertNoValidNode(indexMetadata, indexMetadata.getIndex(), discoveryNodes, indexRoutingTable.build());
     }
 
-    public void testPerformActionNewShardsExistButWithInvalidAttributes() {
+    public void testPerformActionNewShardsExistButWithInvalidAttributes() throws Exception {
         final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
@@ -471,8 +452,8 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final String validAttr = "valid";
         final String invalidAttr = "not_valid";
         Settings.Builder indexSettings = settings(oldVersion);
-        indexSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attribute, validAttr);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
+        indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attribute, validAttr);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
             .numberOfShards(numberOfShards).numberOfReplicas(randomIntBetween(0, numOldNodes - 1)).build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
 
@@ -516,122 +497,82 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         nodeIds.addAll(oldNodeIds);
 
         DiscoveryNodes discoveryNodes = nodes.build();
-        IndexRoutingTable.Builder indexRoutingTable = createRoutingTableWithOneShardOnSubset(indexMetaData, oldNodeIds, oldNodeIds);
+        IndexRoutingTable.Builder indexRoutingTable = createRoutingTableWithOneShardOnSubset(indexMetadata, oldNodeIds, oldNodeIds);
 
-        assertNodeSelected(indexMetaData, indexMetaData.getIndex(), oldNodeIds, discoveryNodes, indexRoutingTable.build());
+        assertNodeSelected(indexMetadata, indexMetadata.getIndex(), oldNodeIds, discoveryNodes, indexRoutingTable.build());
     }
 
-    private void assertNodeSelected(IndexMetaData indexMetaData, Index index,
-                                    Set<String> validNodeIds, DiscoveryNodes.Builder nodes) throws IOException {
+    private void assertNodeSelected(IndexMetadata indexMetadata, Index index,
+                                    Set<String> validNodeIds, DiscoveryNodes.Builder nodes) throws Exception {
         DiscoveryNodes discoveryNodes = nodes.build();
-        IndexRoutingTable.Builder indexRoutingTable = createRoutingTable(indexMetaData, index, discoveryNodes);
-        assertNodeSelected(indexMetaData, index, validNodeIds, discoveryNodes, indexRoutingTable.build());
+        IndexRoutingTable.Builder indexRoutingTable = createRoutingTable(indexMetadata, index, discoveryNodes);
+        assertNodeSelected(indexMetadata, index, validNodeIds, discoveryNodes, indexRoutingTable.build());
     }
 
-    private void assertNodeSelected(IndexMetaData indexMetaData, Index index, Set<String> validNodeIds, DiscoveryNodes nodes,
-                                    IndexRoutingTable indexRoutingTable) {
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
-            indexMetaData);
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
+    private void assertNodeSelected(IndexMetadata indexMetadata, Index index, Set<String> validNodeIds, DiscoveryNodes nodes,
+                                    IndexRoutingTable indexRoutingTable) throws Exception {
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder().fPut(index.getName(),
+            indexMetadata);
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices.build()))
             .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
-        Mockito.doAnswer(new Answer<Void>() {
-
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-                assertSettingsRequestContainsValueFrom(request,
-                    IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", validNodeIds, true,
-                    indexMetaData.getIndex().getName());
-                listener.onResponse(new AcknowledgedResponse(true));
-                return null;
-            }
-
+        Mockito.doAnswer(invocation -> {
+            UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            assertSettingsRequestContainsValueFrom(request,
+                IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", validNodeIds, true,
+                indexMetadata.getIndex().getName());
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-
-        step.performAction(indexMetaData, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(true, actionCompleted.get());
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 
-    private void assertNoValidNode(IndexMetaData indexMetaData, Index index, DiscoveryNodes.Builder nodes) {
+    private void assertNoValidNode(IndexMetadata indexMetadata, Index index, DiscoveryNodes.Builder nodes) {
         DiscoveryNodes discoveryNodes = nodes.build();
-        IndexRoutingTable.Builder indexRoutingTable = createRoutingTable(indexMetaData, index, discoveryNodes);
+        IndexRoutingTable.Builder indexRoutingTable = createRoutingTable(indexMetadata, index, discoveryNodes);
 
-        assertNoValidNode(indexMetaData, index, discoveryNodes, indexRoutingTable.build());
+        assertNoValidNode(indexMetadata, index, discoveryNodes, indexRoutingTable.build());
     }
 
-    private void assertNoValidNode(IndexMetaData indexMetaData, Index index, DiscoveryNodes nodes, IndexRoutingTable indexRoutingTable) {
+    private void assertNoValidNode(IndexMetadata indexMetadata, Index index, DiscoveryNodes nodes, IndexRoutingTable indexRoutingTable) {
 
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData>builder().fPut(index.getName(),
-            indexMetaData);
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder().fPut(index.getName(),
+            indexMetadata);
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices.build()))
             .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-
-        step.performAction(indexMetaData, clusterState, null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(false, actionCompleted.get());
+        expectThrows(NoNodeAvailableException.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
 
         Mockito.verifyZeroInteractions(client);
     }
 
-    private IndexRoutingTable.Builder createRoutingTable(IndexMetaData indexMetaData, Index index, DiscoveryNodes discoveryNodes) {
-        assertThat(indexMetaData.getNumberOfReplicas(), lessThanOrEqualTo(discoveryNodes.getSize() - 1));
+    private IndexRoutingTable.Builder createRoutingTable(IndexMetadata indexMetadata, Index index, DiscoveryNodes discoveryNodes) {
+        assertThat(indexMetadata.getNumberOfReplicas(), lessThanOrEqualTo(discoveryNodes.getSize() - 1));
         List<String> nodeIds = new ArrayList<>();
         for (DiscoveryNode node : discoveryNodes) {
             nodeIds.add(node.getId());
         }
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
-        for (int primary = 0; primary < indexMetaData.getNumberOfShards(); primary++) {
+        for (int primary = 0; primary < indexMetadata.getNumberOfShards(); primary++) {
             Set<String> nodesThisShardCanBePutOn = new HashSet<>(nodeIds);
             String currentNode = randomFrom(nodesThisShardCanBePutOn);
             nodesThisShardCanBePutOn.remove(currentNode);
             indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(index, primary), currentNode,
                 true, ShardRoutingState.STARTED));
-            for (int replica = 0; replica < indexMetaData.getNumberOfReplicas(); replica++) {
+            for (int replica = 0; replica < indexMetadata.getNumberOfReplicas(); replica++) {
                 assertThat("not enough nodes to allocate all initial shards", nodesThisShardCanBePutOn.size(), greaterThan(0));
                 String replicaNode = randomFrom(nodesThisShardCanBePutOn);
                 nodesThisShardCanBePutOn.remove(replicaNode);
@@ -642,12 +583,12 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         return indexRoutingTable;
     }
 
-    private IndexRoutingTable.Builder createRoutingTableWithOneShardOnSubset(IndexMetaData indexMetaData, Set<String> subset,
+    private IndexRoutingTable.Builder createRoutingTableWithOneShardOnSubset(IndexMetadata indexMetadata, Set<String> subset,
                                                                              Set<String> allNodeIds) {
-        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetaData.getIndex());
-        final int numberOfShards = indexMetaData.getNumberOfShards();
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
+        final int numberOfShards = indexMetadata.getNumberOfShards();
         final int shardOnlyOnNewNodes = randomIntBetween(0, numberOfShards - 1);
-        for (int primary = 0; primary < indexMetaData.getNumberOfShards(); primary++) {
+        for (int primary = 0; primary < indexMetadata.getNumberOfShards(); primary++) {
             Set<String> nodesThisShardCanBePutOn;
             if (primary == shardOnlyOnNewNodes) {
                 // This shard should only be allocated to new nodes
@@ -657,13 +598,13 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             }
             String currentNode = randomFrom(nodesThisShardCanBePutOn);
             nodesThisShardCanBePutOn.remove(currentNode);
-            indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(indexMetaData.getIndex(), primary), currentNode,
+            indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(indexMetadata.getIndex(), primary), currentNode,
                 true, ShardRoutingState.STARTED));
-            for (int replica = 0; replica < indexMetaData.getNumberOfReplicas(); replica++) {
+            for (int replica = 0; replica < indexMetadata.getNumberOfReplicas(); replica++) {
                 assertThat("not enough nodes to allocate all initial shards", nodesThisShardCanBePutOn.size(), greaterThan(0));
                 String replicaNode = randomFrom(nodesThisShardCanBePutOn);
                 nodesThisShardCanBePutOn.remove(replicaNode);
-                indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(indexMetaData.getIndex(), primary), replicaNode,
+                indexRoutingTable.addShard(TestShardRouting.newShardRouting(new ShardId(indexMetadata.getIndex(), primary), replicaNode,
                     false, ShardRoutingState.STARTED));
             }
         }

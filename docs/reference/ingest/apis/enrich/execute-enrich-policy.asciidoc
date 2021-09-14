@@ -6,7 +6,7 @@
 <titleabbrev>Execute enrich policy</titleabbrev>
 ++++
 
-Executes an existing enrich policy.
+Executes an existing <<enrich-policy,enrich policy>>.
 
 ////
 
@@ -14,23 +14,23 @@ Executes an existing enrich policy.
 ----
 PUT /users/_doc/1?refresh
 {
-    "email": "mardy.brown@asciidocsmith.com",
-    "first_name": "Mardy",
-    "last_name": "Brown",
-    "city": "New Orleans",
-    "county": "Orleans",
-    "state": "LA",
-    "zip": 70116,
-    "web": "mardy.asciidocsmith.com"
+  "email": "mardy.brown@asciidocsmith.com",
+  "first_name": "Mardy",
+  "last_name": "Brown",
+  "city": "New Orleans",
+  "county": "Orleans",
+  "state": "LA",
+  "zip": 70116,
+  "web": "mardy.asciidocsmith.com"
 }
 
 PUT /_enrich/policy/my-policy
 {
-    "match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
-    }
+  "match": {
+    "indices": "users",
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+  }
 }
 ----
 // TESTSETUP
@@ -87,7 +87,7 @@ Avoid using enrich indices for other purposes.
 Once created, you cannot update 
 or index documents to an enrich index.
 Instead, update your source indices
-and execute the enrich policy again.
+and <<execute-enrich-policy-api,execute>> the enrich policy again.
 This creates a new enrich index from your updated source indices
 and deletes the previous enrich index.
 // end::update-enrich-index[]
@@ -102,10 +102,10 @@ it may take a while to return a response.
 (Required, string)
 Enrich policy to execute.
 
-[[execute-enrich-policy-api-request-body]]
-==== {api-request-body-title}
+[[execute-enrich-policy-api-query-params]]
+==== {api-query-parms-title}
 
 `wait_for_completion`::
-(Required, boolean)
+(Required, Boolean)
 If `true`, the request blocks other enrich policy execution requests until
 complete. Defaults to `true`.

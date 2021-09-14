@@ -5,6 +5,10 @@
       "description":"Returns an index template."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -28,10 +32,6 @@
       ]
     },
     "params":{
-      "include_type_name":{
-        "type":"boolean",
-        "description":"Whether a type should be returned in the body of the mappings."
-      },
       "flat_settings":{
         "type":"boolean",
         "description":"Return settings in flat format (default: false)"

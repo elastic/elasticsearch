@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
@@ -19,25 +19,19 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
@@ -46,17 +40,14 @@ import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
-import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -67,181 +58,20 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class JobResultsProviderTests extends ESTestCase {
-    private static final String CLUSTER_NAME = "myCluster";
-
-    @SuppressWarnings("unchecked")
-    public void testCreateJobResultsIndex() {
-        String resultsIndexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-        QueryBuilder jobFilter = QueryBuilders.termQuery("job_id", "foo");
-
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-        ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
-        clientBuilder.createIndexRequest(captor, resultsIndexName);
-        clientBuilder.prepareAlias(resultsIndexName, AnomalyDetectorsIndex.jobResultsAliasedName("foo"), jobFilter);
-        clientBuilder.prepareAlias(resultsIndexName, AnomalyDetectorsIndex.resultsWriteAlias("foo"));
-
-        Job.Builder job = buildJobBuilder("foo");
-        JobResultsProvider provider = createProvider(clientBuilder.build());
-        AtomicReference<Boolean> resultHolder = new AtomicReference<>();
-
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().indices(ImmutableOpenMap.of()))
-                .build();
-
-        ClusterService clusterService = mock(ClusterService.class);
-
-        doAnswer(invocationOnMock -> {
-            AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocationOnMock.getArguments()[1];
-            task.execute(cs);
-            return null;
-        }).when(clusterService).submitStateUpdateTask(eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
-
-        provider.createJobResultIndex(job.build(), cs, new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean aBoolean) {
-                CreateIndexRequest request = captor.getValue();
-                assertNotNull(request);
-                assertEquals(resultsIndexName, request.index());
-                clientBuilder.verifyIndexCreated(resultsIndexName);
-                resultHolder.set(aBoolean);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e.toString());
-            }
-        });
-
-        assertNotNull(resultHolder.get());
-        assertTrue(resultHolder.get());
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testCreateJobWithExistingIndex() {
-        QueryBuilder jobFilter = QueryBuilders.termQuery("job_id", "foo");
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-        clientBuilder.prepareAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo"),
-                AnomalyDetectorsIndex.jobResultsAliasedName("foo123"), jobFilter);
-        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class), Result.TYPE.getPreferredName());
-
-        GetMappingsResponse getMappingsResponse = mock(GetMappingsResponse.class);
-
-        ImmutableOpenMap<String, MappingMetaData> mappings =
-                ImmutableOpenMap.<String, MappingMetaData>builder()
-                        .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), null).build();
-        when(getMappingsResponse.mappings()).thenReturn(mappings);
-        clientBuilder.prepareGetMapping(getMappingsResponse);
-
-        Job.Builder job = buildJobBuilder("foo123");
-        job.setResultsIndexName("foo");
-        JobResultsProvider provider = createProvider(clientBuilder.build());
-
-        Index index = mock(Index.class);
-        when(index.getName()).thenReturn(AnomalyDetectorsIndex.jobResultsAliasedName("foo"));
-        IndexMetaData indexMetaData = mock(IndexMetaData.class);
-        when(indexMetaData.getIndex()).thenReturn(index);
-
-        ImmutableOpenMap<String, AliasMetaData> aliases = ImmutableOpenMap.of();
-        when(indexMetaData.getAliases()).thenReturn(aliases);
-
-        ImmutableOpenMap<String, IndexMetaData> indexMap = ImmutableOpenMap.<String, IndexMetaData>builder()
-                .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), indexMetaData).build();
-
-        ClusterState cs2 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().indices(indexMap)).build();
-
-        ClusterService clusterService = mock(ClusterService.class);
-
-        doAnswer(invocationOnMock -> {
-            AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocationOnMock.getArguments()[1];
-            task.execute(cs2);
-            return null;
-        }).when(clusterService).submitStateUpdateTask(eq("put-job-foo123"), any(AckedClusterStateUpdateTask.class));
-
-        doAnswer(invocationOnMock -> {
-            AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocationOnMock.getArguments()[1];
-            task.execute(cs2);
-            return null;
-        }).when(clusterService).submitStateUpdateTask(eq("index-aliases"), any(AckedClusterStateUpdateTask.class));
-
-        provider.createJobResultIndex(job.build(), cs2, new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean aBoolean) {
-                assertTrue(aBoolean);
-                verify(clientBuilder.build().admin().indices(), times(1)).preparePutMapping(any());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e.toString());
-            }
-        });
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testCreateJobRelatedIndicies_createsAliasBecauseIndexNameIsSet() {
-        String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar";
-        String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
-        String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias("foo");
-        QueryBuilder jobFilter = QueryBuilders.termQuery("job_id", "foo");
-
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-        ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
-        clientBuilder.createIndexRequest(captor, indexName);
-        clientBuilder.prepareAlias(indexName, readAliasName, jobFilter);
-        clientBuilder.prepareAlias(indexName, writeAliasName);
-        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class), Result.TYPE.getPreferredName());
-
-        Job.Builder job = buildJobBuilder("foo");
-        job.setResultsIndexName("bar");
-        Client client = clientBuilder.build();
-        JobResultsProvider provider = createProvider(client);
-
-        ImmutableOpenMap<String, IndexMetaData> indexMap = ImmutableOpenMap.<String, IndexMetaData>builder().build();
-
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().indices(indexMap)).build();
-
-        ClusterService clusterService = mock(ClusterService.class);
-
-        doAnswer(invocationOnMock -> {
-            AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocationOnMock.getArguments()[1];
-            task.execute(cs);
-            return null;
-        }).when(clusterService).submitStateUpdateTask(eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
-
-        provider.createJobResultIndex(job.build(), cs, new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean aBoolean) {
-                verify(client.admin().indices(), times(1)).prepareAliases();
-                verify(client.admin().indices().prepareAliases(), times(1)).addAlias(indexName, readAliasName, jobFilter);
-                verify(client.admin().indices().prepareAliases(), times(1)).addAlias(indexName, writeAliasName);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e.toString());
-            }
-        });
-    }
 
     public void testBuckets_OneBucketNoInterim() throws IOException {
         String jobId = "TestJobIdentification";
@@ -263,10 +93,9 @@ public class JobResultsProviderTests extends ESTestCase {
 
         BucketsQueryBuilder bq = new BucketsQueryBuilder().from(from).size(size).anomalyScoreThreshold(1.0);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Bucket>[] holder = new QueryPage[1];
-        provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
-        QueryPage<Bucket> buckets = holder[0];
+        SetOnce<QueryPage<Bucket>> holder = new SetOnce<>();
+        provider.buckets(jobId, bq, holder::set, e -> {throw new RuntimeException(e);}, client);
+        QueryPage<Bucket> buckets = holder.get();
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
@@ -297,10 +126,9 @@ public class JobResultsProviderTests extends ESTestCase {
         BucketsQueryBuilder bq = new BucketsQueryBuilder().from(from).size(size).anomalyScoreThreshold(5.1)
                 .includeInterim(true);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Bucket>[] holder = new QueryPage[1];
-        provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
-        QueryPage<Bucket> buckets = holder[0];
+        SetOnce<QueryPage<Bucket>> holder = new SetOnce<>();
+        provider.buckets(jobId, bq, holder::set, e -> {throw new RuntimeException(e);}, client);
+        QueryPage<Bucket> buckets = holder.get();
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
@@ -333,10 +161,9 @@ public class JobResultsProviderTests extends ESTestCase {
         bq.anomalyScoreThreshold(5.1);
         bq.includeInterim(true);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Bucket>[] holder = new QueryPage[1];
-        provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
-        QueryPage<Bucket> buckets = holder[0];
+        SetOnce<QueryPage<Bucket>> holder = new SetOnce<>();
+        provider.buckets(jobId, bq, holder::set, e -> {throw new RuntimeException(e);}, client);
+        QueryPage<Bucket> buckets = holder.get();
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
@@ -346,7 +173,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
     public void testBucket_NoBucketNoExpand() throws IOException {
         String jobId = "TestJobIdentification";
-        Long timestamp = 98765432123456789L;
+        long timestamp = 98765432123456789L;
         List<Map<String, Object>> source = new ArrayList<>();
 
         SearchResponse response = createSearchResponse(source);
@@ -379,11 +206,10 @@ public class JobResultsProviderTests extends ESTestCase {
         BucketsQueryBuilder bq = new BucketsQueryBuilder();
         bq.timestamp(Long.toString(now.getTime()));
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Bucket>[] bucketHolder = new QueryPage[1];
-        provider.buckets(jobId, bq, q -> bucketHolder[0] = q, e -> {}, client);
-        assertThat(bucketHolder[0].count(), equalTo(1L));
-        Bucket b = bucketHolder[0].results().get(0);
+        SetOnce<QueryPage<Bucket>> bucketHolder = new SetOnce<>();
+        provider.buckets(jobId, bq, bucketHolder::set, e -> {}, client);
+        assertThat(bucketHolder.get().count(), equalTo(1L));
+        Bucket b = bucketHolder.get().results().get(0);
         assertEquals(now, b.getTimestamp());
     }
 
@@ -420,10 +246,9 @@ public class JobResultsProviderTests extends ESTestCase {
                 .epochEnd(String.valueOf(now.getTime())).includeInterim(true).sortField(sortfield)
                 .recordScore(2.2);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
-        provider.records(jobId, rqb, page -> holder[0] = page, RuntimeException::new, client);
-        QueryPage<AnomalyRecord> recordPage = holder[0];
+        SetOnce<QueryPage<AnomalyRecord>> holder = new SetOnce<>();
+        provider.records(jobId, rqb, holder::set, e -> { throw new RuntimeException(e); }, client);
+        QueryPage<AnomalyRecord> recordPage = holder.get();
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
         assertEquals(22.4, records.get(0).getTypical().get(0), 0.000001);
@@ -473,10 +298,9 @@ public class JobResultsProviderTests extends ESTestCase {
         rqb.sortField(sortfield);
         rqb.recordScore(2.2);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
-        provider.records(jobId, rqb, page -> holder[0] = page, RuntimeException::new, client);
-        QueryPage<AnomalyRecord> recordPage = holder[0];
+        SetOnce<QueryPage<AnomalyRecord>> holder = new SetOnce<>();
+        provider.records(jobId, rqb, holder::set, e -> { throw new RuntimeException(e); }, client);
+        QueryPage<AnomalyRecord> recordPage = holder.get();
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
         assertEquals(22.4, records.get(0).getTypical().get(0), 0.000001);
@@ -518,11 +342,10 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(qb -> {}, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
-        provider.bucketRecords(jobId, bucket, from, size, true, sortfield, true, page -> holder[0] = page, RuntimeException::new,
-                client);
-        QueryPage<AnomalyRecord> recordPage = holder[0];
+        SetOnce<QueryPage<AnomalyRecord>> holder = new SetOnce<>();
+        provider.bucketRecords(jobId, bucket, from, size, true, sortfield, true, holder::set,
+                e -> { throw new RuntimeException(e); }, client);
+        QueryPage<AnomalyRecord> recordPage = holder.get();
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
 
@@ -556,7 +379,7 @@ public class JobResultsProviderTests extends ESTestCase {
         JobResultsProvider provider = createProvider(client);
 
         Integer[] holder = new Integer[1];
-        provider.expandBucket(jobId, false, bucket, records -> holder[0] = records, RuntimeException::new, client);
+        provider.expandBucket(jobId, false, bucket, records -> holder[0] = records, e -> { throw new RuntimeException(e); }, client);
         int records = holder[0];
         assertEquals(400L, records);
     }
@@ -579,11 +402,10 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(q -> {}, response);
 
         JobResultsProvider provider = createProvider(client);
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
-        provider.categoryDefinitions(jobId, null, false, from, size, r -> holder[0] = r,
-                e -> {throw new RuntimeException(e);}, client);
-        QueryPage<CategoryDefinition> categoryDefinitions = holder[0];
+        SetOnce<QueryPage<CategoryDefinition>> holder = new SetOnce<>();
+        provider.categoryDefinitions(jobId, null, null, false, from, size, holder::set,
+                e -> { throw new RuntimeException(e); }, client);
+        QueryPage<CategoryDefinition> categoryDefinitions = holder.get();
         assertEquals(1L, categoryDefinitions.count());
         assertEquals(terms, categoryDefinitions.results().get(0).getTerms());
     }
@@ -601,11 +423,10 @@ public class JobResultsProviderTests extends ESTestCase {
         SearchResponse response = createSearchResponse(Collections.singletonList(source));
         Client client = getMockedClient(q -> {}, response);
         JobResultsProvider provider = createProvider(client);
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
-        provider.categoryDefinitions(jobId, categoryId, false, null, null,
-                r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
-        QueryPage<CategoryDefinition> categoryDefinitions = holder[0];
+        SetOnce<QueryPage<CategoryDefinition>> holder = new SetOnce<>();
+        provider.categoryDefinitions(jobId, categoryId, null, false, null, null,
+            holder::set, e -> { throw new RuntimeException(e); }, client);
+        QueryPage<CategoryDefinition> categoryDefinitions = holder.get();
         assertEquals(1L, categoryDefinitions.count());
         assertEquals(terms, categoryDefinitions.results().get(0).getTerms());
     }
@@ -643,11 +464,10 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(q -> qbHolder[0] = q, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Influencer>[] holder = new QueryPage[1];
+        SetOnce<QueryPage<Influencer>> holder = new SetOnce<>();
         InfluencersQuery query = new InfluencersQueryBuilder().from(from).size(size).includeInterim(false).build();
-        provider.influencers(jobId, query, page -> holder[0] = page, RuntimeException::new, client);
-        QueryPage<Influencer> page = holder[0];
+        provider.influencers(jobId, query, holder::set, e -> { throw new RuntimeException(e); }, client);
+        QueryPage<Influencer> page = holder.get();
         assertEquals(2L, page.count());
 
         String queryString = qbHolder[0].toString();
@@ -703,12 +523,11 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(q -> qbHolder[0] = q, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Influencer>[] holder = new QueryPage[1];
+        SetOnce<QueryPage<Influencer>> holder = new SetOnce<>();
         InfluencersQuery query = new InfluencersQueryBuilder().from(from).size(size).start("0").end("0").sortField("sort")
                 .sortDescending(true).influencerScoreThreshold(0.0).includeInterim(true).build();
-        provider.influencers(jobId, query, page -> holder[0] = page, RuntimeException::new, client);
-        QueryPage<Influencer> page = holder[0];
+        provider.influencers(jobId, query, holder::set, e -> { throw new RuntimeException(e); }, client);
+        QueryPage<Influencer> page = holder.get();
         assertEquals(2L, page.count());
 
         String queryString = qbHolder[0].toString();
@@ -758,10 +577,9 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(qb -> {}, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<ModelSnapshot>[] holder = new QueryPage[1];
-        provider.modelSnapshots(jobId, from, size, r -> holder[0] = r, RuntimeException::new);
-        QueryPage<ModelSnapshot> page = holder[0];
+        SetOnce<QueryPage<ModelSnapshot>> holder = new SetOnce<>();
+        provider.modelSnapshots(jobId, from, size, holder::set, e -> { throw new RuntimeException(e); });
+        QueryPage<ModelSnapshot> page = holder.get();
         assertEquals(2L, page.count());
         List<ModelSnapshot> snapshots = page.results();
 
@@ -779,7 +597,7 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals(6, snapshots.get(1).getSnapshotDocCount());
     }
 
-    public void testViolatedFieldCountLimit() throws Exception {
+    public void testViolatedFieldCountLimit() {
         Map<String, Object> mapping = new HashMap<>();
 
         int i = 0;
@@ -787,32 +605,32 @@ public class JobResultsProviderTests extends ESTestCase {
             mapping.put("field" + i, Collections.singletonMap("type", "string"));
         }
 
-        IndexMetaData indexMetaData1 = new IndexMetaData.Builder("index1")
+        IndexMetadata indexMetadata1 = new IndexMetadata.Builder("index1")
                 .settings(Settings.builder()
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .putMapping(new MappingMetadata("type1", Collections.singletonMap("properties", mapping)))
                 .build();
-        boolean result = JobResultsProvider.violatedFieldCountLimit(0, 10, indexMetaData1.mapping());
+        boolean result = JobResultsProvider.violatedFieldCountLimit(0, 10, indexMetadata1.mapping());
         assertFalse(result);
 
-        result = JobResultsProvider.violatedFieldCountLimit(1, 10, indexMetaData1.mapping());
+        result = JobResultsProvider.violatedFieldCountLimit(1, 10, indexMetadata1.mapping());
         assertTrue(result);
 
         for (; i < 20; i++) {
             mapping.put("field" + i, Collections.singletonMap("type", "string"));
         }
 
-        IndexMetaData indexMetaData2 = new IndexMetaData.Builder("index1")
+        IndexMetadata indexMetadata2 = new IndexMetadata.Builder("index1")
                 .settings(Settings.builder()
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .putMapping(new MappingMetadata("type1", Collections.singletonMap("properties", mapping)))
                 .build();
 
-        result = JobResultsProvider.violatedFieldCountLimit(0, 19, indexMetaData2.mapping());
+        result = JobResultsProvider.violatedFieldCountLimit(0, 19, indexMetadata2.mapping());
         assertTrue(result);
     }
 
@@ -838,7 +656,7 @@ public class JobResultsProviderTests extends ESTestCase {
     public void testTimingStats_Ok() throws IOException {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
         List<Map<String, Object>> source =
-            Arrays.asList(
+            Collections.singletonList(
                 Map.of(
                     Job.ID.getPreferredName(), "foo",
                     TimingStats.BUCKET_COUNT.getPreferredName(), 7,
@@ -862,7 +680,7 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.timingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0, 777.0, context))),
-            e -> { throw new AssertionError(); });
+            e -> { throw new AssertionError("Failure getting timing stats", e); });
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
@@ -883,7 +701,7 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.timingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new TimingStats("foo"))),
-            e -> { throw new AssertionError(); });
+            e -> { throw new AssertionError("Failure getting timing stats", e); });
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
@@ -897,15 +715,16 @@ public class JobResultsProviderTests extends ESTestCase {
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats(
             List.of(),
-            statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
-            e -> { throw new AssertionError(); });
+            ActionListener.wrap(
+                statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
+                e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }));
 
         verifyZeroInteractions(client);
     }
 
     public void testDatafeedTimingStats_MultipleDocumentsAtOnce() throws IOException {
         List<Map<String, Object>> sourceFoo =
-            Arrays.asList(
+            Collections.singletonList(
                 Map.of(
                     Job.ID.getPreferredName(), "foo",
                     DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6,
@@ -916,7 +735,7 @@ public class JobResultsProviderTests extends ESTestCase {
                         ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(100000600),
                         ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 60.0)));
         List<Map<String, Object>> sourceBar =
-            Arrays.asList(
+            Collections.singletonList(
                 Map.of(
                     Job.ID.getPreferredName(), "bar",
                     DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 7,
@@ -960,14 +779,16 @@ public class JobResultsProviderTests extends ESTestCase {
             new ExponentialAverageCalculationContext(700.0, Instant.ofEpochMilli(100000700), 70.0);
         provider.datafeedTimingStats(
             List.of("foo", "bar"),
-            statsByJobId ->
-                assertThat(
-                    statsByJobId,
-                    equalTo(
-                        Map.of(
-                            "foo", new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo),
-                            "bar", new DatafeedTimingStats("bar", 7, 77, 777.0, contextBar)))),
-            e -> { throw new AssertionError(); });
+            ActionListener.wrap(
+                statsByJobId ->
+                    assertThat(
+                        statsByJobId,
+                        equalTo(
+                            Map.of(
+                                "foo", new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo),
+                                "bar", new DatafeedTimingStats("bar", 7, 77, 777.0, contextBar)))),
+                e -> fail(e.getMessage())
+            ));
 
         verify(client).threadPool();
         verify(client).prepareMultiSearch();
@@ -980,7 +801,7 @@ public class JobResultsProviderTests extends ESTestCase {
     public void testDatafeedTimingStats_Ok() throws IOException {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
         List<Map<String, Object>> source =
-            Arrays.asList(
+            Collections.singletonList(
                 Map.of(
                     Job.ID.getPreferredName(), "foo",
                     DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6,
@@ -1002,7 +823,7 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.datafeedTimingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo))),
-            e -> { throw new AssertionError(); });
+            e -> { throw new AssertionError("Failure getting datafeed timing stats", e); });
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
@@ -1023,7 +844,7 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.datafeedTimingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo"))),
-            e -> { throw new AssertionError(); });
+            e -> { throw new AssertionError("Failure getting datafeed timing stats", e); });
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
@@ -1031,8 +852,33 @@ public class JobResultsProviderTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testCreateTermFieldsMapping() throws IOException {
+
+        XContentBuilder termFieldsMapping = JsonXContent.contentBuilder();
+        JobResultsProvider.createTermFieldsMapping(termFieldsMapping, Arrays.asList("apple", "strawberry",
+                AnomalyRecord.BUCKET_SPAN.getPreferredName()));
+
+        XContentParser parser = createParser(termFieldsMapping);
+        Map<String, Object> properties = (Map<String, Object>) parser.map().get("properties");
+
+        Map<String, Object> instanceMapping = (Map<String, Object>) properties.get("apple");
+        assertNotNull(instanceMapping);
+        String dataType = (String)instanceMapping.get("type");
+        assertEquals("keyword", dataType);
+
+        instanceMapping = (Map<String, Object>) properties.get("strawberry");
+        assertNotNull(instanceMapping);
+        dataType = (String)instanceMapping.get("type");
+        assertEquals("keyword", dataType);
+
+        // check no mapping for the reserved field
+        instanceMapping = (Map<String, Object>) properties.get(AnomalyRecord.BUCKET_SPAN.getPreferredName());
+        assertNull(instanceMapping);
+    }
+
     private JobResultsProvider createProvider(Client client) {
-        return new JobResultsProvider(client, Settings.EMPTY);
+        return new JobResultsProvider(client, Settings.EMPTY, TestIndexNameExpressionResolver.newInstance());
     }
 
     private static SearchResponse createSearchResponse(List<Map<String, Object>> source) throws IOException {
@@ -1046,7 +892,7 @@ public class JobResultsProviderTests extends ESTestCase {
             fields.put("field_1", new DocumentField("field_1", Collections.singletonList("foo")));
             fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
 
-            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), fields)
+            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), fields, Collections.emptyMap())
                     .sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(_source)));
 
             list.add(hit);

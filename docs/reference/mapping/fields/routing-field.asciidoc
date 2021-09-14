@@ -2,23 +2,28 @@
 === `_routing` field
 
 A document is routed to a particular shard in an index using the following
-formula:
+formulas:
+    
+    routing_factor = num_routing_shards / num_primary_shards
+    shard_num = (hash(_routing) % num_routing_shards) / routing_factor
 
-    shard_num = hash(_routing) % num_primary_shards
+`num_routing_shards` is the value of the
+<<index-number-of-routing-shards,`index.number_of_routing_shards`>> index
+setting. `num_primary_shards` is the value of the
+<<index-number-of-shards,`index.number_of_shards`>> index setting.
 
-The default value used for `_routing` is the document's <<mapping-id-field,`_id`>>.
-
+The default `_routing` value is the document's <<mapping-id-field,`_id`>>.
 Custom routing patterns can be implemented by specifying a custom `routing`
-value per document.  For instance:
+value per document. For instance:
 
 [source,console]
 ------------------------------
-PUT my_index/_doc/1?routing=user1&refresh=true <1>
+PUT my-index-000001/_doc/1?routing=user1&refresh=true <1>
 {
   "title": "This is a document"
 }
 
-GET my_index/_doc/1?routing=user1 <2>
+GET my-index-000001/_doc/1?routing=user1 <2>
 ------------------------------
 // TESTSETUP
 
@@ -31,7 +36,7 @@ The value of the `_routing` field is accessible in queries:
 
 [source,console]
 --------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "terms": {
@@ -43,15 +48,18 @@ GET my_index/_search
 
 <1> Querying on the `_routing` field (also see the <<query-dsl-ids-query,`ids` query>>)
 
+NOTE: Data streams do not support custom routing. Instead, target the
+appropriate backing index for the stream.
+
 ==== Searching with custom routing
 
-Custom routing can reduce the impact of searches.  Instead of having to fan
+Custom routing can reduce the impact of searches. Instead of having to fan
 out a search request to all the shards in an index, the request can be sent to
 just the shard that matches the specific routing value (or values):
 
 [source,console]
 ------------------------------
-GET my_index/_search?routing=user1,user2 <1>
+GET my-index-000001/_search?routing=user1,user2 <1>
 {
   "query": {
     "match": {
@@ -71,12 +79,12 @@ whenever <<docs-index_,indexing>>, <<docs-get,getting>>,
 <<docs-delete,deleting>>, or <<docs-update,updating>> a document.
 
 Forgetting the routing value can lead to a document being indexed on more than
-one shard.  As a safeguard, the `_routing` field can be configured to make a
+one shard. As a safeguard, the `_routing` field can be configured to make a
 custom `routing` value required for all CRUD operations:
 
 [source,console]
 ------------------------------
-PUT my_index2
+PUT my-index-000002
 {
   "mappings": {
     "_routing": {
@@ -85,14 +93,14 @@ PUT my_index2
   }
 }
 
-PUT my_index2/_doc/1 <2>
+PUT my-index-000002/_doc/1 <2>
 {
   "text": "No routing value provided"
 }
 ------------------------------
 // TEST[catch:bad_request]
 
-<1> Routing is required for `_doc` documents.
+<1> Routing is required for all documents.
 <2> This index request throws a `routing_missing_exception`.
 
 ==== Unique IDs with custom routing
@@ -115,9 +123,10 @@ This is done by providing the index level setting <<routing-partition-size,`inde
 As the partition size increases, the more evenly distributed the data will become at the
 expense of having to search more shards per request.
 
-When this setting is present, the formula for calculating the shard becomes:
+When this setting is present, the formulas for calculating the shard become:
 
-    shard_num = (hash(_routing) + hash(_id) % routing_partition_size) % num_primary_shards
+    routing_value = hash(_routing) + hash(_id) % routing_partition_size
+    shard_num = (routing_value % num_routing_shards) / routing_factor
 
 That is, the `_routing` field is used to calculate a set of shards within the index and then the
 `_id` is used to pick a shard within that set.

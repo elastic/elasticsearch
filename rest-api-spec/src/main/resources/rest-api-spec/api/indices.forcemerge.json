@@ -5,6 +5,10 @@
       "description":"Performs the force merge operation on one or more indices."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -45,6 +49,7 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],

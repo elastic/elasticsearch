@@ -1,38 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.env;
 
 import joptsimple.OptionParser;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import joptsimple.OptionSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
 
 public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
-    private static final Logger logger = LogManager.getLogger(OverrideNodeVersionCommand.class);
-
     private static final String TOO_NEW_MESSAGE =
         DELIMITER +
             "\n" +
@@ -71,28 +57,27 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
-        final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
-        final NodeMetaData nodeMetaData
-            = new NodeMetaData.NodeMetaDataStateFormat(true).loadLatestState(logger, namedXContentRegistry, nodePaths);
-        if (nodeMetaData == null) {
+    protected void processNodePaths(Terminal terminal, Path dataPath, OptionSet options, Environment env) throws IOException {
+        final Path nodePath = createNodePath(dataPath).path;
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePath);
+        if (nodeMetadata == null) {
             throw new ElasticsearchException(NO_METADATA_MESSAGE);
         }
 
         try {
-            nodeMetaData.upgradeToCurrentVersion();
-            throw new ElasticsearchException("found [" + nodeMetaData + "] which is compatible with current version [" + Version.CURRENT
+            nodeMetadata.upgradeToCurrentVersion();
+            throw new ElasticsearchException("found [" + nodeMetadata + "] which is compatible with current version [" + Version.CURRENT
                 + "], so there is no need to override the version checks");
         } catch (IllegalStateException e) {
             // ok, means the version change is not supported
         }
 
-        confirm(terminal, (nodeMetaData.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE)
-            .replace("V_OLD", nodeMetaData.nodeVersion().toString())
-            .replace("V_NEW", nodeMetaData.nodeVersion().toString())
+        confirm(terminal, (nodeMetadata.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE)
+            .replace("V_OLD", nodeMetadata.nodeVersion().toString())
+            .replace("V_NEW", nodeMetadata.nodeVersion().toString())
             .replace("V_CUR", Version.CURRENT.toString()));
 
-        NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(nodeMetaData.nodeId(), Version.CURRENT), nodePaths);
+        PersistedClusterStateService.overrideVersion(Version.CURRENT, dataPath);
 
         terminal.println(SUCCESS_MESSAGE);
     }

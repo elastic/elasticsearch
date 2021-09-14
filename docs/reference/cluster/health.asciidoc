@@ -1,19 +1,29 @@
 [[cluster-health]]
-=== Cluster Health
+=== Cluster health API
+++++
+<titleabbrev>Cluster health</titleabbrev>
+++++
 
 Returns the health status of a cluster.
 
 [[cluster-health-api-request]]
 ==== {api-request-title}
 
-`GET _cluster/health/<index>`
+`GET /_cluster/health/<target>`
+
+[[cluster-health-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-health-api-desc]]
 ==== {api-description-title}
 
 The cluster health API returns a simple status on the health of the 
-cluster. The API can also be executed against one or more indices to get just 
-the specified indices health.
+cluster. You can also use the API to get the health status of only specified
+data streams and indices. For data streams, the API retrieves the health status
+of the stream's backing indices.
 
 The cluster health status is: `green`, `yellow` or `red`. On the shard level, a 
 `red` status indicates that the specific shard is not allocated in the cluster, 
@@ -36,7 +46,13 @@ GET /_cluster/health?wait_for_status=yellow&timeout=50s
 [[cluster-health-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [[cluster-health-api-query-params]]
 ==== {api-query-parms-title}
@@ -45,9 +61,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
     (Optional, string) Can be one of `cluster`, `indices` or `shards`. Controls 
     the details level of the health information returned. Defaults to `cluster`.
     
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
     
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `wait_for_active_shards`::
     (Optional, string) A number controlling to how many active shards to wait 
@@ -60,12 +76,12 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     priority are processed.
 
 `wait_for_no_initializing_shards`::
-    (Optional, boolean) A boolean value which controls whether to wait (until 
+    (Optional, Boolean) A boolean value which controls whether to wait (until 
     the timeout provided) for the cluster to have no shard initializations. 
     Defaults to false, which means it will not wait for initializing shards.
 
 `wait_for_no_relocating_shards`::
-    (Optional, boolean) A boolean value which controls whether to wait (until 
+    (Optional, Boolean) A boolean value which controls whether to wait (until 
     the timeout provided) for the cluster to have no shard relocations. Defaults 
     to false, which means it will not wait for relocating shards.
 
@@ -88,10 +104,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     (string) The name of the cluster.
 
 `status`::
-    (string) The health status of the cluster.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 
 `timed_out`::
-    (boolean) If `false` the response returned within the period of 
+    (Boolean) If `false` the response returned within the period of 
     time that is specified by the `timeout` parameter (`30s` by default).
 
 `number_of_nodes`::
@@ -174,6 +190,6 @@ The following is an example of getting the cluster health at the
 
 [source,console]
 --------------------------------------------------
-GET /_cluster/health/twitter?level=shards
+GET /_cluster/health/my-index-000001?level=shards
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]

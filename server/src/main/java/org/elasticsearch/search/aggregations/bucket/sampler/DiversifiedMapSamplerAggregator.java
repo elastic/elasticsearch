@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
@@ -26,19 +15,18 @@ import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -48,11 +36,19 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
     private int maxDocsPerValue;
     private BytesRefHash bucketOrds;
 
-    DiversifiedMapSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
-            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
-            ValuesSource valuesSource, int maxDocsPerValue) throws IOException {
-        super(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
-        this.valuesSource = valuesSource;
+    DiversifiedMapSamplerAggregator(
+        String name,
+        int shardSize,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata,
+        ValuesSourceConfig valuesSourceConfig,
+        int maxDocsPerValue
+    ) throws IOException {
+        super(name, shardSize, factories, context, parent, metadata);
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = valuesSourceConfig.getValuesSource();
         this.maxDocsPerValue = maxDocsPerValue;
         // Need to use super class shardSize since it is limited to maxDoc
         bucketOrds = new BytesRefHash(this.shardSize, context.bigArrays());
@@ -65,7 +61,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
     }
 
     @Override
-    public DeferringBucketCollector getDeferringCollector() {
+    public DeferringBucketCollector buildDeferringCollector() {
         bdd = new DiverseDocsDeferringCollector(this::addRequestCircuitBreakerBytes);
         return bdd;
     }
@@ -78,13 +74,13 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
         DiverseDocsDeferringCollector(Consumer<Long> circuitBreakerConsumer) {
-            super(shardSize, context.bigArrays(), circuitBreakerConsumer);
+            super(shardSize, bigArrays(), circuitBreakerConsumer);
         }
 
         @Override
         protected TopDocsCollector<ScoreDocKey> createTopDocsCollector(int size) {
             // Make sure we do not allow size > maxDoc, to prevent accidental OOM
-            int minMaxDocsPerValue = Math.min(maxDocsPerValue, context.searcher().getIndexReader().maxDoc());
+            int minMaxDocsPerValue = Math.min(maxDocsPerValue, searcher().getIndexReader().maxDoc());
             return new ValuesDiversifiedTopDocsCollector(size, minMaxDocsPerValue);
         }
 
@@ -119,8 +115,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
                         docID = target;
                         if (values.advanceExact(target)) {
                             if (values.docValueCount() > 1) {
-                                throw new IllegalArgumentException(
-                                        "Sample diversifying key must be a single valued-field");
+                                throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                             }
                             return true;
                         } else {

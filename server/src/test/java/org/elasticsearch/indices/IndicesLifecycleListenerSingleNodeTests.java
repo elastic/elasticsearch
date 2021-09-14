@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -43,8 +32,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -56,7 +45,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         ensureGreen();
         Index idx = resolveIndex("test");
-        IndexMetaData metaData = indicesService.indexService(idx).getMetaData();
+        IndexMetadata metadata = indicesService.indexService(idx).getMetadata();
         ShardRouting shardRouting = indicesService.indexService(idx).getShard(0).routingEntry();
         final AtomicInteger counter = new AtomicInteger(1);
         IndexEventListener countingListener = new IndexEventListener() {
@@ -76,7 +65,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             }
 
             @Override
-            public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
+            public void beforeIndexShardCreated(ShardRouting shardRouting, Settings indexSettings) {
                 assertEquals(3, counter.get());
                 counter.incrementAndGet();
             }
@@ -122,7 +111,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         };
         indicesService.removeIndex(idx, DELETED, "simon says");
         try {
-            IndexService index = indicesService.createIndex(metaData, Arrays.asList(countingListener));
+            IndexService index = indicesService.createIndex(metadata, Arrays.asList(countingListener), false);
             assertEquals(3, counter.get());
             idx = index.index();
             ShardRouting newRouting = shardRouting;
@@ -137,7 +126,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             final DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
                     emptyMap(), emptySet(), Version.CURRENT);
             shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
-            shard.recoverFromStore();
+            IndexShardTestCase.recoverFromStore(shard);
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(6, counter.get());

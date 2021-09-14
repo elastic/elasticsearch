@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
@@ -22,6 +23,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -59,7 +62,9 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
             return new EnrichPolicy(
                 randomFrom(EnrichPolicy.SUPPORTED_POLICY_TYPES),
                 randomBoolean() ? querySource : null,
-                Arrays.asList(generateRandomStringArray(8, 4, false, false)),
+                Arrays.stream(generateRandomStringArray(8, 4, false, false))
+                    .map(s -> s.toLowerCase(Locale.ROOT))
+                    .collect(Collectors.toList()),
                 randomAlphaOfLength(4),
                 Arrays.asList(generateRandomStringArray(8, 4, false, false))
             );

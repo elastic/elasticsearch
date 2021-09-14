@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
@@ -44,11 +45,11 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
             this.restStatus = restStatus;
         }
 
-        boolean isBasicStarted() {
+        public boolean isBasicStarted() {
             return isBasicStarted;
         }
 
-        String getErrorMessage() {
+        public String getErrorMessage() {
             return errorMessage;
         }
 
@@ -134,11 +135,19 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
         return status.restStatus;
     }
 
+    public String getAcknowledgeMessage() {
+        return acknowledgeMessage;
+    }
+
+    public Map<String, String[]> getAcknowledgeMessages() {
+        return acknowledgeMessages;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         PostStartBasicResponse that = (PostStartBasicResponse) o;
 
         return status == that.status &&

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed.extractor;
 
@@ -75,24 +76,19 @@ public class ExtractorUtilsTests extends ESTestCase {
     public void testGetHistogramIntervalMillis_GivenDateHistogramWithInvalidTimeZone() {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
-                .interval(300000L).timeZone(ZoneId.of("CET")).subAggregation(maxTime);
+                .fixedInterval(new DateHistogramInterval(300000 + "ms")).timeZone(ZoneId.of("CET")).subAggregation(maxTime);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> ExtractorUtils.getHistogramIntervalMillis(dateHistogram));
 
         assertThat(e.getMessage(), equalTo("ML requires date_histogram.time_zone to be UTC"));
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] " +
-            "or [calendar_interval] in the future.");
     }
 
     public void testGetHistogramIntervalMillis_GivenUtcTimeZonesDeprecated() {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         ZoneId zone = randomFrom(ZoneOffset.UTC, ZoneId.of("UTC"));
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
-            .interval(300000L).timeZone(zone).subAggregation(maxTime);
+            .fixedInterval(new DateHistogramInterval(300000L + "ms")).timeZone(zone).subAggregation(maxTime);
         assertThat(ExtractorUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
-
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] " +
-            "or [calendar_interval] in the future.");
     }
 
     public void testGetHistogramIntervalMillis_GivenUtcTimeZones() {

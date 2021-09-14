@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
@@ -22,14 +23,14 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
+import org.elasticsearch.xpack.ql.type.Schema;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.type.Schema;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,7 +47,7 @@ import java.util.function.Supplier;
  */
 public class CompositeAggCursor implements Cursor {
 
-    private final Logger log = LogManager.getLogger(getClass());
+    private static final Logger log = LogManager.getLogger(CompositeAggCursor.class);
 
     public static final String NAME = "c";
 
@@ -118,7 +119,7 @@ public class CompositeAggCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
+    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         SearchSourceBuilder q;
         try {
             q = deserializeQuery(registry, nextQuery);
@@ -134,24 +135,19 @@ public class CompositeAggCursor implements Cursor {
 
         SearchRequest request = Querier.prepareRequest(client, query, cfg.pageTimeout(), includeFrozen, indices);
 
-        client.search(request, new ActionListener<>() {
+        client.search(request, new ActionListener.Delegating<>(listener) {
             @Override
             public void onResponse(SearchResponse response) {
                 handle(response, request.source(),
                         makeRowSet(response),
                         makeCursor(),
                         () -> client.search(request, this),
-                        listener,
+                        delegate,
                         Schema.EMPTY);
-            }
-
-            @Override
-            public void onFailure(Exception ex) {
-                listener.onFailure(ex);
             }
         });
     }
-    
+
     protected Supplier<CompositeAggRowSet> makeRowSet(SearchResponse response) {
         return () -> new CompositeAggRowSet(extractors, mask, response, limit);
     }
@@ -166,7 +162,10 @@ public class CompositeAggCursor implements Cursor {
             Runnable retry,
             ActionListener<Page> listener,
             Schema schema) {
-        
+
+        if (log.isTraceEnabled()) {
+            Querier.logSearchResponse(response, log);
+        }
         // there are some results
         if (response.getAggregations().asList().isEmpty() == false) {
             // retry
@@ -199,11 +198,14 @@ public class CompositeAggCursor implements Cursor {
             listener.onResponse(Page.last(Rows.empty(schema)));
         }
     }
-    
+
     private static boolean shouldRetryDueToEmptyPage(SearchResponse response) {
         CompositeAggregation composite = getComposite(response);
         // if there are no buckets but a next page, go fetch it instead of sending an empty response to the client
-        return composite != null && composite.getBuckets().isEmpty() && composite.afterKey() != null && !composite.afterKey().isEmpty();
+        return composite != null
+            && composite.getBuckets().isEmpty()
+            && composite.afterKey() != null
+            && composite.afterKey().isEmpty() == false;
     }
 
     static CompositeAggregation getComposite(SearchResponse response) {
@@ -265,7 +267,7 @@ public class CompositeAggCursor implements Cursor {
 
 
     @Override
-    public void clear(Configuration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 

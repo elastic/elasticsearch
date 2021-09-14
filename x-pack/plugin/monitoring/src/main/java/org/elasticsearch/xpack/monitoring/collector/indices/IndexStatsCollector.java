@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
@@ -10,11 +11,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
@@ -23,6 +24,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
 
 /**
  * Collector for indices and singular index statistics.
@@ -54,7 +57,7 @@ public class IndexStatsCollector extends Collector {
     @Override
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
                                                   final long interval,
-                                                  final ClusterState clusterState) throws Exception {
+                                                  final ClusterState clusterState) {
         final List<MonitoringDoc> results = new ArrayList<>();
         final IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats()
                 .setIndices(getCollectionIndices())
@@ -70,11 +73,15 @@ public class IndexStatsCollector extends Collector {
                 .setRefresh(true)
                 .setQueryCache(true)
                 .setRequestCache(true)
-                .get(getCollectionTimeout());
+                .setBulk(true)
+                .setTimeout(getCollectionTimeout())
+                .get();
+
+        ensureNoTimeouts(getCollectionTimeout(), indicesStatsResponse);
 
         final long timestamp = timestamp();
         final String clusterUuid = clusterUuid(clusterState);
-        final MetaData metadata = clusterState.metaData();
+        final Metadata metadata = clusterState.metadata();
         final RoutingTable routingTable = clusterState.routingTable();
 
         // Filters the indices stats to only return the statistics for the indices known by the collector's

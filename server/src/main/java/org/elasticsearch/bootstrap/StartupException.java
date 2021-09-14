@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -111,7 +100,17 @@ final class StartupException extends RuntimeException {
         // if its a guice exception, the whole thing really will not be in the log, its megabytes.
         // refer to the hack in bootstrap, where we don't log it
         if (originalCause instanceof CreationException == false) {
-            consumer.accept("Refer to the log for complete error details.");
+            final String basePath = System.getProperty("es.logs.base_path");
+            // It's possible to fail before logging has been configured, in which case there's no point
+            // suggested that the user look in the log file.
+            if (basePath != null) {
+                final String logPath = System.getProperty("es.logs.base_path")
+                    + System.getProperty("file.separator")
+                    + System.getProperty("es.logs.cluster_name")
+                    + ".log";
+
+                consumer.accept("For complete error details, refer to the log at " + logPath);
+            }
         }
     }
 

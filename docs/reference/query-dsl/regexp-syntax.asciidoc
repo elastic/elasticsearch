@@ -1,7 +1,7 @@
 [[regexp-syntax]]
 == Regular expression syntax
 
-A https://en.wikipedia.org/wiki/Regular_expression[regular expression] is a way to
+A {wikipedia}/Regular_expression[regular expression] is a way to
 match patterns in data using placeholder characters, called operators.
 
 {es} supports regular expressions in the following queries:
@@ -12,7 +12,7 @@ match patterns in data using placeholder characters, called operators.
 {es} uses https://lucene.apache.org/core/[Apache Lucene]'s regular expression
 engine to parse these queries.
 
-[float]
+[discrete]
 [[regexp-reserved-characters]]
 === Reserved characters
 Lucene's regular expression engine supports all Unicode characters. However, the
@@ -39,12 +39,12 @@ backslash or surround it with double quotes. For example:
 ....
     
 
-[float]
+[discrete]
 [[regexp-standard-operators]]
 === Standard operators
 
 Lucene's regular expression engine does not use the
-https://en.wikipedia.org/wiki/Perl_Compatible_Regular_Expressions[Perl
+{wikipedia}/Perl_Compatible_Regular_Expressions[Perl
 Compatible Regular Expressions (PCRE)] library, but it does support the
 following standard operators.
 
@@ -75,7 +75,7 @@ abc?     # matches 'ab' and 'abc'
 Repeat the preceding character one or more times. For example:
 
 ....
-ab+     # matches 'abb', 'abbb', 'abbbb', etc.
+ab+     # matches 'ab', 'abb', 'abbb', etc.
 ....
 --
 
@@ -85,7 +85,7 @@ ab+     # matches 'abb', 'abbb', 'abbbb', etc.
 Repeat the preceding character zero or more times. For example:
 
 ....
-ab*     # matches 'ab', 'abb', 'abbb', 'abbbb', etc.
+ab*     # matches 'a', 'ab', 'abb', 'abbb', etc.
 ....
 --
 
@@ -152,7 +152,7 @@ example:
 ....
 --
 
-[float]
+[discrete]
 [[regexp-optional-operators]]
 === Optional operators
 
@@ -162,7 +162,7 @@ Lucene's regular expression engine.
 To enable multiple operators, use a `|` separator. For example, a `flags` value
 of `COMPLEMENT|INTERVAL` enables the `COMPLEMENT` and `INTERVAL` operators.
 
-[float]
+[discrete]
 ==== Valid values 
 
 `ALL` (Default)::
@@ -216,7 +216,7 @@ You can combine the `@` operator with `&` and `~` operators to create an
 ....
 --
 
-[float]
+[discrete]
 [[regexp-unsupported-operators]]
 === Unsupported operators
 Lucene's regular expression engine does not support anchor operators, such as

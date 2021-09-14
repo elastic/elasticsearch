@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml.section;
 
@@ -29,6 +18,7 @@ import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -169,5 +159,54 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         o = expectedValue.get("foo");
         assertThat(o, instanceOf(String.class));
         assertThat(o.toString(), equalTo("bar"));
+    }
+
+    public void testCloseTo() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: { value: 42.2, error: 0.001 } }"
+        );
+
+        CloseToAssertion closeToAssertion = CloseToAssertion.parse(parser);
+
+        assertThat(closeToAssertion, notNullValue());
+        assertThat(closeToAssertion.getField(), equalTo("field"));
+        assertThat(closeToAssertion.getExpectedValue(), instanceOf(Double.class));
+        assertThat((Double) closeToAssertion.getExpectedValue(), equalTo(42.2));
+        assertThat(closeToAssertion.getError(), equalTo(0.001));
+        closeToAssertion.doAssert(42.2 + randomDoubleBetween(-0.001, 0.001, false), closeToAssertion.getExpectedValue());
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> closeToAssertion.doAssert(
+                42.2 + (randomBoolean() ? 1 : -1) * randomDoubleBetween(0.001001, 10, false),
+                closeToAssertion.getExpectedValue()
+            )
+        );
+        assertThat(e.getMessage(), containsString("Expected: a numeric value within <0.001> of <42.2>"));
+    }
+
+    public void testInvalidCloseTo() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: 42 }"
+        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("expected a map with value and error but got Integer"));
+
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: {  } }"
+        );
+        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("expected a map with value and error but got a map with 0 fields"));
+
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: { foo: 13, value: 15 } }"
+        );
+        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("error is missing or not a number"));
+
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: { foo: 13, bar: 15 } }"
+        );
+        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("value is missing or not a number"));
     }
 }

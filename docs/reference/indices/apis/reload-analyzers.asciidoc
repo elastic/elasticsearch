@@ -2,28 +2,40 @@
 [testenv="basic"]
 [[indices-reload-analyzers]]
 == Reload search analyzers API
-++++
-<titleabbrev>Reload search analyzers</titleabbrev>
-++++
-
-experimental::[]
 
 Reloads an index's <<search-analyzer,search analyzers>> and their resources.
+For data streams, the API reloads search analyzers and resources for the
+stream's backing indices.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_reload_search_analyzers
+POST /my-index-000001/_reload_search_analyzers
+POST /my-index-000001/_cache/clear?request=true
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
+
+IMPORTANT: After reloading the search analyzers you should clear the request
+           cache to make sure it doesn't contain responses derived from the
+           previous versions of the analyzer.
+// the need for this is tracked in https://github.com/elastic/elasticsearch/issues/66722
+
+
 
 [discrete]
 [[indices-reload-analyzers-api-request]]
 === {api-request-title}
 
-`POST /<index>/_reload_search_analyzers`
+`POST /<target>/_reload_search_analyzers`
 
-`GET /<index>/_reload_search_analyzers`
+`GET /<target>/_reload_search_analyzers`
 
+[discrete]
+[[indices-reload-analyzers-api-prereqs]]
+=== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
 
 [discrete]
 [[indices-reload-analyzers-api-desc]]
@@ -65,23 +77,24 @@ in the future.
 [[indices-reload-analyzers-api-path-params]]
 === {api-path-parms-title}
 
-`<index>`::
-(Required, string)
-Comma-separated list or wildcard expression of index names
-used to limit the request.
-
+`<target>`::
+(Required, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, use `*` or `_all`.
 
 [discrete]
 [[indices-reload-analyzers-api-query-params]]
 === {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 
 [discrete]
@@ -96,36 +109,36 @@ NOTE: Using the following analyzer as an index analyzer results in an error.
 
 [source,console]
 --------------------------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "my_synonyms" : {
-                        "tokenizer" : "whitespace",
-                        "filter" : ["synonym"]
-                    }
-                },
-                "filter" : {
-                    "synonym" : {
-                        "type" : "synonym_graph",
-                        "synonyms_path" : "analysis/synonym.txt", <1>
-                        "updateable" : true <2>
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_synonyms": {
+            "tokenizer": "whitespace",
+            "filter": [ "synonym" ]
+          }
+        },
+        "filter": {
+          "synonym": {
+            "type": "synonym_graph",
+            "synonyms_path": "analysis/synonym.txt",  <1>
+            "updateable": true                        <2>
+          }
         }
-    },
-    "mappings": {
-        "properties": {
-            "text": {
-                "type": "text",
-                "analyzer" : "standard",
-                "search_analyzer": "my_synonyms" <3>
-            }
-        }
+      }
     }
+  },
+  "mappings": {
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "standard",
+        "search_analyzer": "my_synonyms"              <3>
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -140,7 +153,7 @@ and pick up the file changes.
 
 [source,console]
 --------------------------------------------------
-POST /my_index/_reload_search_analyzers
+POST /my-index-000001/_reload_search_analyzers
 --------------------------------------------------
 // TEST[continued]
 
@@ -149,25 +162,25 @@ The API returns the following response.
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards" : {
-        "total" : 2,
-        "successful" : 2,
-        "failed" : 0
-    },
-    "reload_details" : [
-        {
-            "index" : "my_index",
-            "reloaded_analyzers" : [
-                "my_synonyms" 
-            ],
-            "reloaded_node_ids" : [
-                "mfdqTXn_T7SGr2Ho2KT8uw"
-            ]
-        }
-    ]
+  "_shards": {
+    "total": 2,
+    "successful": 2,
+    "failed": 0
+  },
+  "reload_details": [
+    {
+      "index": "my-index-000001",
+      "reloaded_analyzers": [
+        "my_synonyms"
+      ],
+      "reloaded_node_ids": [
+        "mfdqTXn_T7SGr2Ho2KT8uw"
+      ]
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]
-// TESTRESPONSE[s/"total" : 2/"total" : $body._shards.total/]
-// TESTRESPONSE[s/"successful" : 2/"successful" : $body._shards.successful/]
+// TESTRESPONSE[s/"total": 2/"total": $body._shards.total/]
+// TESTRESPONSE[s/"successful": 2/"successful": $body._shards.successful/]
 // TESTRESPONSE[s/mfdqTXn_T7SGr2Ho2KT8uw/$body.reload_details.0.reloaded_node_ids.0/]

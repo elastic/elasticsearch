@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery;
@@ -32,10 +21,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
@@ -51,11 +40,11 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     // connection timeout for probes
     public static final Setting<TimeValue> PROBE_CONNECT_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.probe.connect_timeout",
-            TimeValue.timeValueMillis(3000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueSeconds(30), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
     // handshake timeout for probes
     public static final Setting<TimeValue> PROBE_HANDSHAKE_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.probe.handshake_timeout",
-            TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueSeconds(30), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final TransportService transportService;
     private final TimeValue probeConnectTimeout;
@@ -68,13 +57,14 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     }
 
     @Override
-    public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
+    public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<ProbeConnectionResult> listener) {
         transportService.getThreadPool().generic().execute(new ActionRunnable<>(listener) {
             private final AbstractRunnable thisConnectionAttempt = this;
 
             @Override
             protected void doRun() {
-                // TODO if transportService is already connected to this address then skip the handshaking
+                // We could skip this if the transportService were already connected to the given address, but the savings would be minimal
+                // so we open a new connection anyway.
 
                 final DiscoveryNode targetNode = new DiscoveryNode("", transportAddress.toString(),
                     UUIDs.randomBase64UUID(Randomness.get()), // generated deterministically for reproducible tests
@@ -84,12 +74,12 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                 logger.trace("[{}] opening probe connection", thisConnectionAttempt);
                 transportService.openConnection(targetNode,
                     ConnectionProfile.buildSingleChannelProfile(Type.REG, probeConnectTimeout, probeHandshakeTimeout,
-                        TimeValue.MINUS_ONE, null), ActionListener.delegateFailure(listener, (l, connection) -> {
+                        TimeValue.MINUS_ONE, null, null), listener.delegateFailure((l, connection) -> {
                         logger.trace("[{}] opened probe connection", thisConnectionAttempt);
 
                         // use NotifyOnceListener to make sure the following line does not result in onFailure being called when
                         // the connection is closed in the onResponse handler
-                        transportService.handshake(connection, probeHandshakeTimeout.millis(), new NotifyOnceListener<>() {
+                        transportService.handshake(connection, probeHandshakeTimeout, new NotifyOnceListener<>() {
 
                             @Override
                             protected void innerOnResponse(DiscoveryNode remoteNode) {
@@ -99,17 +89,30 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                     IOUtils.closeWhileHandlingException(connection);
 
                                     if (remoteNode.equals(transportService.getLocalNode())) {
-                                        // TODO cache this result for some time? forever?
                                         listener.onFailure(new ConnectTransportException(remoteNode, "local node found"));
                                     } else if (remoteNode.isMasterNode() == false) {
-                                        // TODO cache this result for some time?
                                         listener.onFailure(new ConnectTransportException(remoteNode, "non-master-eligible node found"));
                                     } else {
-                                        transportService.connectToNode(remoteNode, ActionListener.delegateFailure(listener,
-                                            (l, ignored) -> {
-                                                logger.trace("[{}] full connection successful: {}", thisConnectionAttempt, remoteNode);
-                                                listener.onResponse(remoteNode);
-                                            }));
+                                        transportService.connectToNode(remoteNode, new ActionListener<>() {
+                                            @Override
+                                            public void onResponse(Releasable connectionReleasable) {
+                                                logger.trace("[{}] completed full connection with [{}]", thisConnectionAttempt, remoteNode);
+                                                listener.onResponse(new ProbeConnectionResult(remoteNode, connectionReleasable));
+                                            }
+
+                                            @Override
+                                            public void onFailure(Exception e) {
+                                                // we opened a connection and successfully performed a handshake, so we're definitely
+                                                // talking to a master-eligible node with a matching cluster name and a good version, but
+                                                // the attempt to open a full connection to its publish address failed; a common reason is
+                                                // that the remote node is listening on 0.0.0.0 but has made an inappropriate choice for its
+                                                // publish address.
+                                                logger.warn(new ParameterizedMessage(
+                                                    "[{}] completed handshake with [{}] but followup connection failed",
+                                                    thisConnectionAttempt, remoteNode), e);
+                                                listener.onFailure(e);
+                                            }
+                                        });
                                     }
                                 } catch (Exception e) {
                                     listener.onFailure(e);

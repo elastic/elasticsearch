@@ -1,0 +1,492 @@
+{
+  "_doc" : {
+    "_meta" : {
+      "version" : "${xpack.ml.version}"
+    },
+    "dynamic_templates" : [
+      {
+        "strings_as_keywords" : {
+          "match" : "*",
+          "mapping" : {
+            "type" : "keyword"
+          }
+        }
+      }
+    ],
+    "properties" : {
+      "aggregations" : {
+        "type" : "object",
+        "enabled" : false
+      },
+      "allow_lazy_open" : {
+        "type" : "keyword"
+      },
+      "allow_lazy_start" : {
+        "type" : "keyword"
+      },
+      "analysis" : {
+        "properties" : {
+          "classification" : {
+            "properties" : {
+              "alpha" : {
+                "type" : "double"
+              },
+              "dependent_variable" : {
+                "type" : "keyword"
+              },
+              "downsample_factor" : {
+                "type" : "double"
+              },
+              "early_stopping_enabled" : {
+                "type": "boolean"
+              },
+              "eta" : {
+                "type" : "double"
+              },
+              "eta_growth_rate_per_tree" : {
+                "type" : "double"
+              },
+              "feature_bag_fraction" : {
+                "type" : "double"
+              },
+              "feature_processors": {
+                "enabled": false
+              },
+              "gamma" : {
+                "type" : "double"
+              },
+              "lambda" : {
+                "type" : "double"
+              },
+              "max_optimization_rounds_per_hyperparameter" : {
+                "type" : "integer"
+              },
+              "max_trees" : {
+                "type" : "integer"
+              },
+              "class_assignment_objective" : {
+                "type" : "keyword"
+              },
+              "num_top_classes" : {
+                "type" : "integer"
+              },
+              "num_top_feature_importance_values" : {
+                "type" : "integer"
+              },
+              "prediction_field_name" : {
+                "type" : "keyword"
+              },
+              "randomize_seed" : {
+                "type" : "keyword"
+              },
+              "soft_tree_depth_limit" : {
+                "type" : "double"
+              },
+              "soft_tree_depth_tolerance" : {
+                "type" : "double"
+              },
+              "training_percent" : {
+                "type" : "double"
+              }
+            }
+          },
+          "outlier_detection" : {
+            "properties" : {
+              "compute_feature_influence" : {
+                "type" : "keyword"
+              },
+              "feature_influence_threshold" : {
+                "type" : "double"
+              },
+              "method" : {
+                "type" : "keyword"
+              },
+              "outlier_fraction" : {
+                "type" : "keyword"
+              },
+              "n_neighbors" : {
+                "type" : "integer"
+              },
+              "standardization_enabled" : {
+                "type" : "keyword"
+              }
+            }
+          },
+          "regression" : {
+            "properties" : {
+              "alpha" : {
+                "type" : "double"
+              },
+              "dependent_variable" : {
+                "type" : "keyword"
+              },
+              "downsample_factor" : {
+                "type" : "double"
+              },
+              "early_stopping_enabled" : {
+                "type": "boolean"
+              },
+              "eta" : {
+                "type" : "double"
+              },
+              "eta_growth_rate_per_tree" : {
+                "type" : "double"
+              },
+              "feature_bag_fraction" : {
+                "type" : "double"
+              },
+              "feature_processors": {
+                "enabled": false
+              },
+              "gamma" : {
+                "type" : "double"
+              },
+              "lambda" : {
+                "type" : "double"
+              },
+              "loss_function" : {
+                "type" : "keyword"
+              },
+              "loss_function_parameter" : {
+                "type" : "double"
+              },
+              "max_optimization_rounds_per_hyperparameter" : {
+                "type" : "integer"
+              },
+              "max_trees" : {
+                "type" : "integer"
+              },
+              "num_top_feature_importance_values" : {
+                "type" : "integer"
+              },
+              "prediction_field_name" : {
+                "type" : "keyword"
+              },
+              "randomize_seed" : {
+                "type" : "keyword"
+              },
+              "soft_tree_depth_limit" : {
+                "type" : "double"
+              },
+              "soft_tree_depth_tolerance" : {
+                "type" : "double"
+              },
+              "training_percent" : {
+                "type" : "double"
+              }
+            }
+          }
+        }
+      },
+      "analysis_config" : {
+        "properties" : {
+          "model_prune_window" : {
+            "type" : "keyword"
+          },
+          "bucket_span" : {
+            "type" : "keyword"
+          },
+          "categorization_analyzer" : {
+            "type" : "object",
+            "enabled" : false
+          },
+          "categorization_field_name" : {
+            "type" : "keyword"
+          },
+          "categorization_filters" : {
+            "type" : "keyword"
+          },
+          "detectors" : {
+            "properties" : {
+              "by_field_name" : {
+                "type" : "keyword"
+              },
+              "custom_rules" : {
+                "type" : "nested",
+                "properties" : {
+                  "actions" : {
+                    "type" : "keyword"
+                  },
+                  "conditions" : {
+                    "type" : "nested",
+                    "properties" : {
+                      "applies_to" : {
+                        "type" : "keyword"
+                      },
+                      "operator" : {
+                        "type" : "keyword"
+                      },
+                      "value" : {
+                        "type" : "double"
+                      }
+                    }
+                  },
+                  "scope" : {
+                    "type" : "object",
+                    "enabled" : false
+                  }
+                }
+              },
+              "detector_description" : {
+                "type" : "text"
+              },
+              "detector_index" : {
+                "type" : "integer"
+              },
+              "exclude_frequent" : {
+                "type" : "keyword"
+              },
+              "field_name" : {
+                "type" : "keyword"
+              },
+              "function" : {
+                "type" : "keyword"
+              },
+              "over_field_name" : {
+                "type" : "keyword"
+              },
+              "partition_field_name" : {
+                "type" : "keyword"
+              },
+              "use_null" : {
+                "type" : "boolean"
+              }
+            }
+          },
+          "influencers" : {
+            "type" : "keyword"
+          },
+          "latency" : {
+            "type" : "keyword"
+          },
+          "multivariate_by_fields" : {
+            "type" : "boolean"
+          },
+          "per_partition_categorization" : {
+            "properties" : {
+              "enabled" : {
+                "type" : "boolean"
+              },
+              "stop_on_warn" : {
+                "type" : "boolean"
+              }
+            }
+          },
+          "summary_count_field_name" : {
+            "type" : "keyword"
+          }
+        }
+      },
+      "analysis_limits" : {
+        "properties" : {
+          "categorization_examples_limit" : {
+            "type" : "long"
+          },
+          "model_memory_limit" : {
+            "type" : "keyword"
+          }
+        }
+      },
+      "analyzed_fields" : {
+        "type" : "object",
+        "enabled" : false
+      },
+      "background_persist_interval" : {
+        "type" : "keyword"
+      },
+      "blocked": {
+        "properties": {
+          "reason": {
+            "type": "keyword"
+          },
+          "task_id": {
+            "type": "keyword"
+          }
+        }
+      },
+      "chunking_config" : {
+        "properties" : {
+          "mode" : {
+            "type" : "keyword"
+          },
+          "time_span" : {
+            "type" : "keyword"
+          }
+        }
+      },
+      "config_type" : {
+        "type" : "keyword"
+      },
+      "create_time" : {
+        "type" : "date"
+      },
+      "custom_settings" : {
+        "type" : "object",
+        "enabled" : false
+      },
+      "daily_model_snapshot_retention_after_days" : {
+        "type" : "long"
+      },
+      "data_description" : {
+        "properties" : {
+          "field_delimiter" : {
+            "type" : "keyword"
+          },
+          "format" : {
+            "type" : "keyword"
+          },
+          "quote_character" : {
+            "type" : "keyword"
+          },
+          "time_field" : {
+            "type" : "keyword"
+          },
+          "time_format" : {
+            "type" : "keyword"
+          }
+        }
+      },
+      "datafeed_id" : {
+        "type" : "keyword"
+      },
+      "delayed_data_check_config" : {
+        "properties" : {
+          "check_window" : {
+            "type" : "keyword"
+          },
+          "enabled" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "deleting" : {
+        "type" : "keyword"
+      },
+      "description" : {
+        "type" : "text"
+      },
+      "dest" : {
+        "properties" : {
+          "index" : {
+            "type" : "keyword"
+          },
+          "results_field" : {
+            "type" : "keyword"
+          }
+        }
+      },
+      "finished_time" : {
+        "type" : "date"
+      },
+      "frequency" : {
+        "type" : "keyword"
+      },
+      "groups" : {
+        "type" : "keyword"
+      },
+      "headers" : {
+        "type" : "object",
+        "enabled" : false
+      },
+      "id" : {
+        "type" : "keyword"
+      },
+      "indices" : {
+        "type" : "keyword"
+      },
+      "indices_options": {
+        "type" : "object",
+        "enabled" : false
+      },
+      "job_id" : {
+        "type" : "keyword"
+      },
+      "job_type" : {
+        "type" : "keyword"
+      },
+      "job_version" : {
+        "type" : "keyword"
+      },
+      "max_empty_searches" : {
+        "type" : "keyword"
+      },
+      "max_num_threads" : {
+        "type" : "integer"
+      },
+      "model_memory_limit": {
+        "type" : "keyword"
+      },
+      "model_plot_config" : {
+        "properties" : {
+          "enabled" : {
+            "type" : "boolean"
+          },
+          "terms" : {
+            "type" : "keyword"
+          },
+          "annotations_enabled" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "model_snapshot_id" : {
+        "type" : "keyword"
+      },
+      "model_snapshot_min_version" : {
+        "type" : "keyword"
+      },
+      "model_snapshot_retention_days" : {
+        "type" : "long"
+      },
+      "query" : {
+        "type" : "object",
+        "enabled" : false
+      },
+      "query_delay" : {
+        "type" : "keyword"
+      },
+      "renormalization_window_days" : {
+        "type" : "long"
+      },
+      "results_index_name" : {
+        "type" : "keyword"
+      },
+      "results_retention_days" : {
+        "type" : "long"
+      },
+      "runtime_mappings" : {
+        "type" : "object",
+        "enabled" : false
+      },
+      "script_fields" : {
+        "type" : "object",
+        "enabled" : false
+      },
+      "scroll_size" : {
+        "type" : "long"
+      },
+      "source" : {
+        "properties" : {
+          "_source" : {
+            "type" : "object",
+            "enabled" : false
+          },
+          "index" : {
+            "type" : "keyword"
+          },
+          "query" : {
+            "type" : "object",
+            "enabled" : false
+          },
+          "runtime_mappings" : {
+            "type" : "object",
+            "enabled" : false
+          }
+        }
+      },
+      "version" : {
+        "type" : "keyword"
+      }
+    }
+  }
+}

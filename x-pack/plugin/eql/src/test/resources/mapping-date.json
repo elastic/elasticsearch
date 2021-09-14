@@ -1,0 +1,28 @@
+{
+    "properties" : {
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "@timestamp" : {
+            "type" : "date"
+        },
+        "date" : {
+            "type" : "date"
+        },
+        "date_with_format" : {
+            "type" : "date",
+            "format" : "yyyy-MM-dd"
+        },
+        "date_with_multi_format" : {
+            "type" : "date",
+            "format" : "yyyy-MM-dd || basic_time || year"
+        },
+        "date_nanos_field" : {
+            "type" : "date_nanos"
+        }
+    }
+}

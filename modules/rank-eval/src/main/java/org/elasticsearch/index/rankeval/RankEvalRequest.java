@@ -1,28 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,6 +33,8 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
     private IndicesOptions indicesOptions  = SearchRequest.DEFAULT_INDICES_OPTIONS;
     private String[] indices = Strings.EMPTY_ARRAY;
 
+    private SearchType searchType = SearchType.DEFAULT;
+
     public RankEvalRequest(RankEvalSpec rankingEvaluationSpec, String[] indices) {
         this.rankingEvaluationSpec = Objects.requireNonNull(rankingEvaluationSpec, "ranking evaluation specification must not be null");
         indices(indices);
@@ -52,6 +45,9 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         rankingEvaluationSpec = new RankEvalSpec(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            searchType = SearchType.fromId(in.readByte());
+        }
     }
 
     RankEvalRequest() {
@@ -111,12 +107,29 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
     }
 
+    /**
+     * The search type to execute, defaults to {@link SearchType#DEFAULT}.
+     */
+    public void searchType(SearchType searchType) {
+        this.searchType = Objects.requireNonNull(searchType, "searchType must not be null");
+    }
+
+    /**
+     * The type of search to execute.
+     */
+    public SearchType searchType() {
+        return searchType;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         rankingEvaluationSpec.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeByte(searchType.id());
+        }
     }
 
     @Override
@@ -130,11 +143,12 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         RankEvalRequest that = (RankEvalRequest) o;
         return Objects.equals(indicesOptions, that.indicesOptions) &&
                 Arrays.equals(indices, that.indices) &&
-                Objects.equals(rankingEvaluationSpec, that.rankingEvaluationSpec);
+                Objects.equals(rankingEvaluationSpec, that.rankingEvaluationSpec) &&
+                Objects.equals(searchType, that.searchType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indicesOptions, Arrays.hashCode(indices), rankingEvaluationSpec);
+        return Objects.hash(indicesOptions, Arrays.hashCode(indices), rankingEvaluationSpec, searchType);
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.query;
@@ -52,7 +41,7 @@ import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.action.search.MaxScoreCollector;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -99,6 +88,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
     }
 
     static class EmptyTopDocsCollectorContext extends TopDocsCollectorContext {
+        private final Sort sort;
         private final Collector collector;
         private final Supplier<TotalHits> hitCountSupplier;
 
@@ -109,9 +99,13 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
          * @param trackTotalHitsUpTo True if the total number of hits should be tracked
          * @param hasFilterCollector True if the collector chain contains a filter
          */
-        private EmptyTopDocsCollectorContext(IndexReader reader, Query query,
-                                             int trackTotalHitsUpTo, boolean hasFilterCollector) throws IOException {
+        private EmptyTopDocsCollectorContext(IndexReader reader,
+                                             Query query,
+                                             @Nullable SortAndFormats sortAndFormats,
+                                             int trackTotalHitsUpTo,
+                                             boolean hasFilterCollector) throws IOException {
             super(REASON_SEARCH_COUNT, 0);
+            this.sort = sortAndFormats == null ? null : sortAndFormats.sort;
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 this.collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 0, false);
                 // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
@@ -119,7 +113,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             } else {
                 TotalHitCountCollector hitCountCollector = new TotalHitCountCollector();
                 // implicit total hit counts are valid only when there is no filter collector in the chain
-                int hitCount =  hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
+                int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
                 if (hitCount == -1) {
                     if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
                         this.collector = hitCountCollector;
@@ -147,7 +141,13 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         @Override
         void postProcess(QuerySearchResult result) {
             final TotalHits totalHitCount = hitCountSupplier.get();
-            result.topDocs(new TopDocsAndMaxScore(new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS), Float.NaN), null);
+            final TopDocs topDocs;
+            if (sort != null) {
+                topDocs = new TopFieldDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS, sort.getSort());
+            } else {
+                topDocs = new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS);
+            }
+            result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), null);
         }
     }
 
@@ -166,13 +166,14 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         private CollapsingTopDocsCollectorContext(CollapseContext collapseContext,
                                                   @Nullable SortAndFormats sortAndFormats,
                                                   int numHits,
-                                                  boolean trackMaxScore) {
+                                                  boolean trackMaxScore,
+                                                  @Nullable FieldDoc after) {
             super(REASON_SEARCH_TOP_HITS, numHits);
             assert numHits > 0;
             assert collapseContext != null;
             Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
             this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
-            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits);
+            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, after);
 
             MaxScoreCollector maxScoreCollector;
             if (trackMaxScore) {
@@ -414,14 +415,15 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
      * @param hasFilterCollector True if the collector chain contains at least one collector that can filters document.
      */
     static TopDocsCollectorContext createTopDocsCollectorContext(SearchContext searchContext,
-                                                                 IndexReader reader,
                                                                  boolean hasFilterCollector) throws IOException {
+        final IndexReader reader = searchContext.searcher().getIndexReader();
         final Query query = searchContext.query();
         // top collectors don't like a size of 0
         final int totalNumDocs = Math.max(1, reader.numDocs());
         if (searchContext.size() == 0) {
             // no matter what the value of from is
-            return new EmptyTopDocsCollectorContext(reader, query, searchContext.trackTotalHitsUpTo(), hasFilterCollector);
+            return new EmptyTopDocsCollectorContext(reader, query, searchContext.sort(),
+                searchContext.trackTotalHitsUpTo(), hasFilterCollector);
         } else if (searchContext.scrollContext() != null) {
             // we can disable the tracking of total hits after the initial scroll query
             // since the total hits is preserved in the scroll context.
@@ -435,7 +437,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         } else if (searchContext.collapse() != null) {
             boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-            return new CollapsingTopDocsCollectorContext(searchContext.collapse(), searchContext.sort(), numDocs, trackScores);
+            return new CollapsingTopDocsCollectorContext(searchContext.collapse(), searchContext.sort(),
+                numDocs, trackScores, searchContext.searchAfter());
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
@@ -45,7 +34,11 @@ import org.elasticsearch.client.transform.UpdateTransformResponse;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.NodeAttributes;
 import org.elasticsearch.client.transform.transforms.QueryConfig;
+import org.elasticsearch.client.transform.transforms.RetentionPolicyConfig;
+import org.elasticsearch.client.transform.transforms.SettingsConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
+import org.elasticsearch.client.transform.transforms.SyncConfig;
+import org.elasticsearch.client.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
@@ -56,7 +49,7 @@ import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -80,13 +73,12 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
     @After
     public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
-            highLevelClient().transform().stopTransform(
-                    new StopTransformRequest(transformId, Boolean.TRUE, TimeValue.timeValueSeconds(20)), RequestOptions.DEFAULT);
+            highLevelClient().transform()
+                .stopTransform(new StopTransformRequest(transformId, true, TimeValue.timeValueSeconds(20), false), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
-            highLevelClient().transform().deleteTransform(
-                    new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
+            highLevelClient().transform().deleteTransform(new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
         }
 
         transformsToClean = new ArrayList<>();
@@ -97,18 +89,18 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject()
-                .startObject("properties")
-                .startObject("timestamp")
-                .field("type", "date")
-                .endObject()
-                .startObject("user_id")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("stars")
-                .field("type", "integer")
-                .endObject()
-                .endObject()
-                .endObject();
+            .startObject("properties")
+            .startObject("timestamp")
+            .field("type", "date")
+            .endObject()
+            .startObject("user_id")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("stars")
+            .field("type", "integer")
+            .endObject()
+            .endObject()
+            .endObject();
 
         CreateIndexRequest request = new CreateIndexRequest(indexName);
         request.mapping(builder);
@@ -134,6 +126,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setIndex("pivot-destination")
             .setPipeline("my-pipeline").build();
         // end::put-transform-dest-config
+        destConfig = DestConfig.builder().setIndex("pivot-destination").build();
         // tag::put-transform-group-config
         GroupConfig groupConfig = GroupConfig.builder()
             .groupBy("reviewer", // <1>
@@ -150,9 +143,25 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         PivotConfig pivotConfig = PivotConfig.builder()
             .setGroups(groupConfig) // <1>
             .setAggregationConfig(aggConfig) // <2>
-            .setMaxPageSearchSize(1000) // <3>
             .build();
         // end::put-transform-pivot-config
+        // tag::put-transform-settings-config
+        SettingsConfig settings = SettingsConfig.builder()
+            .setMaxPageSearchSize(1000) // <1>
+            .build();
+        // end::put-transform-settings-config
+        // tag::put-transform-retention-policy-config
+        RetentionPolicyConfig retentionPolicy = TimeRetentionPolicyConfig.builder()
+            .setField("time-field") // <1>
+            .setMaxAge(TimeValue.timeValueDays(30)) // <2>
+            .build();
+        // end::put-transform-retention-policy-config
+        // tag::put-transform-sync-config
+        SyncConfig syncConfig = TimeSyncConfig.builder()
+            .setField("time-field") // <1>
+            .setDelay(TimeValue.timeValueSeconds(30)) // <2>
+            .build();
+        // end::put-transform-sync-config
         // tag::put-transform-config
         TransformConfig transformConfig = TransformConfig
             .builder()
@@ -162,6 +171,9 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setFrequency(TimeValue.timeValueSeconds(15)) // <4>
             .setPivotConfig(pivotConfig) // <5>
             .setDescription("This is my test transform") // <6>
+            .setSettings(settings) // <7>
+            .setRetentionPolicyConfig(retentionPolicy) // <8>
+            .setSyncConfig(syncConfig) // <9>
             .build();
         // end::put-transform-config
 
@@ -224,8 +236,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
 
         RestHighLevelClient client = highLevelClient();
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
-            TermsGroupSource.builder().setField("user_id").build()).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
@@ -236,7 +247,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             .setSource(SourceConfig.builder().setIndex("source-data").setQueryConfig(queryConfig).build())
             .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
-            .setSyncConfig(new TimeSyncConfig("time-field", TimeValue.timeValueSeconds(120)))
+            .setSyncConfig(TimeSyncConfig.builder().setField("time-field").setDelay(TimeValue.timeValueSeconds(120)).build())
             .build();
 
         client.transform().putTransform(new PutTransformRequest(transformConfig), RequestOptions.DEFAULT);
@@ -252,9 +263,15 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setIndex("pivot-dest")
                 .build()) // <2>
             .setFrequency(TimeValue.timeValueSeconds(15)) // <3>
-            .setSyncConfig(new TimeSyncConfig("time-field",
-                TimeValue.timeValueSeconds(120))) // <4>
+            .setSyncConfig(TimeSyncConfig.builder()
+                .setField("time-field")
+                .setDelay(TimeValue.timeValueSeconds(120))
+                .build()) // <4>
             .setDescription("This is my updated transform") // <5>
+            .setRetentionPolicyConfig(TimeRetentionPolicyConfig.builder()
+                .setField("time-field")
+                .setMaxAge(TimeValue.timeValueDays(30))
+                .build()) // <6>
             .build();
         // end::update-transform-config
 
@@ -275,11 +292,10 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             response.getTransformConfiguration();
         // end::update-transform-execute
 
-        assertThat(updatedConfig.getDescription(), equalTo("This is my updated transform"));
+            assertThat(updatedConfig.getDescription(), equalTo("This is my updated transform"));
         }
         {
-        UpdateTransformRequest request = new UpdateTransformRequest(update,
-            "my-transform-to-update");
+            UpdateTransformRequest request = new UpdateTransformRequest(update, "my-transform-to-update");
 
         // tag::update-transform-execute-listener
         ActionListener<UpdateTransformResponse> listener =
@@ -296,16 +312,16 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             };
         // end::update-transform-execute-listener
 
-        // Replace the empty listener by a blocking listener in test
-        final CountDownLatch latch = new CountDownLatch(1);
-        listener = new LatchedActionListener<>(listener, latch);
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
 
         // tag::update-transform-execute-async
         client.transform().updateTransformAsync(
             request, RequestOptions.DEFAULT, listener); // <1>
         // end::update-transform-execute-async
 
-        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 
@@ -315,8 +331,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
-            TermsGroupSource.builder().setField("user_id").build()).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
@@ -435,8 +450,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
 
         RestHighLevelClient client = highLevelClient();
 
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
-            TermsGroupSource.builder().setField("user_id").build()).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
@@ -444,19 +458,13 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
 
         TransformConfig transformConfig1 = TransformConfig.builder()
             .setId("mega-transform")
-            .setSource(SourceConfig.builder()
-                .setIndex("source-data")
-                .setQuery(new MatchAllQueryBuilder())
-                .build())
+            .setSource(SourceConfig.builder().setIndex("source-data").setQuery(new MatchAllQueryBuilder()).build())
             .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
             .build();
         TransformConfig transformConfig2 = TransformConfig.builder()
             .setId("mega-transform2")
-            .setSource(SourceConfig.builder()
-                .setIndex("source-data")
-                .setQuery(new MatchAllQueryBuilder())
-                .build())
+            .setSource(SourceConfig.builder().setIndex("source-data").setQuery(new MatchAllQueryBuilder()).build())
             .setDest(DestConfig.builder().setIndex("pivot-dest2").build())
             .setPivotConfig(pivotConfig)
             .build();
@@ -516,8 +524,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
-            TermsGroupSource.builder().setField("user_id").build()).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
@@ -580,8 +587,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
 
         RestHighLevelClient client = highLevelClient();
 
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
-            TermsGroupSource.builder().setField("user_id").build()).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
@@ -590,10 +596,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         String id = "statisitcal-transform";
         TransformConfig transformConfig = TransformConfig.builder()
             .setId(id)
-            .setSource(SourceConfig.builder()
-                .setIndex("source-data")
-                .setQuery(new MatchAllQueryBuilder())
-                .build())
+            .setSource(SourceConfig.builder().setIndex("source-data").setQuery(new MatchAllQueryBuilder()).build())
             .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
             .build();
@@ -667,24 +670,18 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-
     public void testGetDataFrameTransform() throws IOException, InterruptedException {
         createIndex("source-data");
 
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
-            TermsGroupSource.builder().setField("user_id").build()).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
         PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
 
-
         TransformConfig putTransformConfig = TransformConfig.builder()
             .setId("mega-transform")
-            .setSource(SourceConfig.builder()
-                .setIndex("source-data")
-                .setQuery(new MatchAllQueryBuilder())
-                .build())
+            .setSource(SourceConfig.builder().setIndex("source-data").setQuery(new MatchAllQueryBuilder()).build())
             .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
             .build();
@@ -702,6 +699,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-transform-request-options
             request.setPageParams(new PageParams(0, 100)); // <1>
             request.setAllowNoMatch(true); // <2>
+            request.setExcludeGenerated(false); // <3>
             // end::get-transform-request-options
 
             // tag::get-transform-execute

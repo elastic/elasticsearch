@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -53,8 +42,10 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
             KeyedFilter[] filters = new KeyedFilter[size];
             int i = 0;
             for (String key : randomUnique(() -> randomAlphaOfLengthBetween(1, 20), size)) {
-                filters[i++] = new KeyedFilter(key,
-                        QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
+                filters[i++] = new KeyedFilter(
+                    key,
+                    QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
+                );
             }
             factory = new FiltersAggregationBuilder(randomAlphaOfLengthBetween(1, 20), filters);
         } else {
@@ -78,8 +69,9 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
      * Also check the list passed in is not modified by this but rather copied
      */
     public void testFiltersSortedByKey() {
-        KeyedFilter[] original = new KeyedFilter[]{new KeyedFilter("bbb", new MatchNoneQueryBuilder()),
-                new KeyedFilter("aaa", new MatchNoneQueryBuilder())};
+        KeyedFilter[] original = new KeyedFilter[] {
+            new KeyedFilter("bbb", new MatchNoneQueryBuilder()),
+            new KeyedFilter("aaa", new MatchNoneQueryBuilder()) };
         FiltersAggregationBuilder builder;
         builder = new FiltersAggregationBuilder("my-agg", original);
         assertEquals("aaa", builder.filters().get(0).key());
@@ -92,9 +84,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
     public void testOtherBucket() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.startObject();
-        builder.startArray("filters")
-            .startObject().startObject("term").field("field", "foo").endObject().endObject()
-            .endArray();
+        builder.startArray("filters").startObject().startObject("term").field("field", "foo").endObject().endObject().endArray();
         builder.endObject();
         try (XContentParser parser = createParser(shuffleXContent(builder))) {
             parser.nextToken();
@@ -104,9 +94,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
 
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject();
-            builder.startArray("filters")
-                .startObject().startObject("term").field("field", "foo").endObject().endObject()
-                .endArray();
+            builder.startArray("filters").startObject().startObject("term").field("field", "foo").endObject().endObject().endArray();
             builder.field("other_bucket_key", "some_key");
             builder.endObject();
         }
@@ -118,9 +106,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
 
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject();
-            builder.startArray("filters")
-                .startObject().startObject("term").field("field", "foo").endObject().endObject()
-                .endArray();
+            builder.startArray("filters").startObject().startObject("term").field("field", "foo").endObject().endObject().endArray();
             builder.field("other_bucket", false);
             builder.field("other_bucket_key", "some_key");
             builder.endObject();
@@ -136,7 +122,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
     public void testRewrite() throws IOException {
         // test non-keyed filter that doesn't rewrite
         AggregationBuilder original = new FiltersAggregationBuilder("my-agg", new MatchAllQueryBuilder());
-        original.setMetaData(Collections.singletonMap(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20)));
+        original.setMetadata(Collections.singletonMap(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20)));
         AggregationBuilder rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
         assertSame(original, rewritten);
 
@@ -152,12 +138,12 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertFalse(((FiltersAggregationBuilder) rewritten).isKeyed());
 
         // test keyed filter that doesn't rewrite
-        original = new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter",  new MatchAllQueryBuilder()));
+        original = new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter", new MatchAllQueryBuilder()));
         rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
         assertSame(original, rewritten);
 
         // test non-keyed filter that does rewrite
-        original = new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter",  new BoolQueryBuilder()));
+        original = new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter", new BoolQueryBuilder()));
         rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
         assertNotSame(original, rewritten);
         assertThat(rewritten, instanceOf(FiltersAggregationBuilder.class));
@@ -168,10 +154,8 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertTrue(((FiltersAggregationBuilder) rewritten).isKeyed());
 
         // test sub-agg filter that does rewrite
-        original = new TermsAggregationBuilder("terms", ValueType.BOOLEAN)
-            .subAggregation(
-                new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter",  new BoolQueryBuilder()))
-            );
+        original = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.BOOLEAN)
+            .subAggregation(new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter", new BoolQueryBuilder())));
         rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
         assertNotSame(original, rewritten);
         assertNotEquals(original, rewritten);
@@ -181,8 +165,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertThat(subAgg, instanceOf(FiltersAggregationBuilder.class));
         assertNotSame(original.getSubAggregations().iterator().next(), subAgg);
         assertEquals("my-agg", subAgg.getName());
-        assertSame(rewritten,
-            rewritten.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L)));
+        assertSame(rewritten, rewritten.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L)));
     }
 
     public void testRewritePreservesOtherBucket() throws IOException {
@@ -190,8 +173,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         originalFilters.otherBucket(randomBoolean());
         originalFilters.otherBucketKey(randomAlphaOfLength(10));
 
-        AggregationBuilder rewritten = originalFilters.rewrite(new QueryRewriteContext(xContentRegistry(),
-            null, null, () -> 0L));
+        AggregationBuilder rewritten = originalFilters.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
         assertThat(rewritten, instanceOf(FiltersAggregationBuilder.class));
 
         FiltersAggregationBuilder rewrittenFilters = (FiltersAggregationBuilder) rewritten;
@@ -207,8 +189,10 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
             builder.endObject();
             XContentParser parser = createParser(shuffleXContent(builder));
             parser.nextToken();
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> FiltersAggregationBuilder.parse("agg_name", parser));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> FiltersAggregationBuilder.parse("agg_name", parser)
+            );
             assertThat(e.getMessage(), equalTo("[filters] cannot be empty."));
         }
 
@@ -219,8 +203,10 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
             builder.endObject();
             XContentParser parser = createParser(shuffleXContent(builder));
             parser.nextToken();
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> FiltersAggregationBuilder.parse("agg_name", parser));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> FiltersAggregationBuilder.parse("agg_name", parser)
+            );
             assertThat(e.getMessage(), equalTo("[filters] cannot be empty."));
         }
     }

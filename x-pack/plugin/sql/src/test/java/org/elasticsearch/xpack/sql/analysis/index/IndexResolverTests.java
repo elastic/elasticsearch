@@ -1,33 +1,47 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.analysis.index;
 
-import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.type.InvalidMappedField;
-import org.elasticsearch.xpack.sql.type.KeywordEsField;
-import org.elasticsearch.xpack.sql.type.TypesTests;
-
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Stream;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.type.InvalidMappedField;
+import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
+
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
+import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class IndexResolverTests extends ESTestCase {
 
     public void testMergeSameMapping() throws Exception {
-        Map<String, EsField> oneMapping = TypesTests.loadMapping("mapping-basic.json", true);
-        Map<String, EsField> sameMapping = TypesTests.loadMapping("mapping-basic.json", true);
+        Map<String, EsField> oneMapping = loadMapping("mapping-basic.json", true);
+        Map<String, EsField> sameMapping = loadMapping("mapping-basic.json", true);
         assertNotSame(oneMapping, sameMapping);
         assertEquals(oneMapping, sameMapping);
 
@@ -38,8 +52,8 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     public void testMergeCompatibleMapping() throws Exception {
-        Map<String, EsField> basicMapping = TypesTests.loadMapping("mapping-basic.json", true);
-        Map<String, EsField> numericMapping = TypesTests.loadMapping("mapping-numeric.json", true);
+        Map<String, EsField> basicMapping = loadMapping("mapping-basic.json", true);
+        Map<String, EsField> numericMapping = loadMapping("mapping-numeric.json", true);
 
         assertNotEquals(basicMapping, numericMapping);
 
@@ -50,8 +64,8 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     public void testMergeIncompatibleTypes() throws Exception {
-        Map<String, EsField> basicMapping = TypesTests.loadMapping("mapping-basic.json", true);
-        Map<String, EsField> incompatible = TypesTests.loadMapping("mapping-basic-incompatible.json");
+        Map<String, EsField> basicMapping = loadMapping("mapping-basic.json", true);
+        Map<String, EsField> incompatible = loadMapping("mapping-basic-incompatible.json");
 
         assertNotEquals(basicMapping, incompatible);
 
@@ -71,8 +85,8 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     public void testMergeIncompatibleCapabilities() throws Exception {
-        Map<String, EsField> basicMapping = TypesTests.loadMapping("mapping-basic.json", true);
-        Map<String, EsField> incompatible = TypesTests.loadMapping("mapping-basic-nodocvalues.json", true);
+        Map<String, EsField> basicMapping = loadMapping("mapping-basic.json", true);
+        Map<String, EsField> incompatible = loadMapping("mapping-basic-nodocvalues.json", true);
 
         assertNotEquals(basicMapping, incompatible);
 
@@ -89,7 +103,7 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     public void testMultiLevelObjectMappings() throws Exception {
-        Map<String, EsField> dottedMapping = TypesTests.loadMapping("mapping-dotted-field.json", true);
+        Map<String, EsField> dottedMapping = loadMapping("mapping-dotted-field.json", true);
 
         IndexResolution resolution = merge(new EsIndex("a", dottedMapping));
 
@@ -98,31 +112,121 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     public void testMultiLevelNestedMappings() throws Exception {
-        Map<String, EsField> nestedMapping = TypesTests.loadMapping("mapping-nested.json", true);
-        
+        Map<String, EsField> nestedMapping = loadMapping("mapping-nested.json", true);
+
         IndexResolution resolution = merge(new EsIndex("a", nestedMapping));
 
         assertTrue(resolution.isValid());
         assertEqualsMaps(nestedMapping, resolution.get().mapping());
     }
-    
+
     public void testMetaFieldsAreIgnored() throws Exception {
         Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
-        addFieldCaps(fieldCaps, "_version", "_version", false, false);
-        addFieldCaps(fieldCaps, "_meta_field", "integer", true, true);
-        addFieldCaps(fieldCaps, "_size", "integer", true, true);
+        addFieldCaps(fieldCaps, "_version", "_version", true, false, false);
+        addFieldCaps(fieldCaps, "_not_meta_field", "integer", false, true, true);
+        addFieldCaps(fieldCaps, "_size", "integer", true, true, true);
+        addFieldCaps(fieldCaps, "_doc_count", "long", true, false, false);
         addFieldCaps(fieldCaps, "text", "keyword", true, true);
-        
+
         String wildcard = "*";
-        IndexResolution resolution = IndexResolver.mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
         assertTrue(resolution.isValid());
 
         EsIndex esIndex = resolution.get();
         assertEquals(wildcard, esIndex.name());
         assertNull(esIndex.mapping().get("_version"));
         assertNull(esIndex.mapping().get("_size"));
-        assertEquals(DataType.INTEGER, esIndex.mapping().get("_meta_field").getDataType());
-        assertEquals(DataType.KEYWORD, esIndex.mapping().get("text").getDataType());
+        assertNull(esIndex.mapping().get("_doc_count"));
+        assertEquals(INTEGER, esIndex.mapping().get("_not_meta_field").getDataType());
+        assertEquals(KEYWORD, esIndex.mapping().get("text").getDataType());
+    }
+
+    public void testFlattenedHiddenSubfield() throws Exception {
+        Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+        addFieldCaps(fieldCaps, "some_field", "flattened", false, false);
+        addFieldCaps(fieldCaps, "some_field._keyed", "flattened", false, false);
+        addFieldCaps(fieldCaps, "another_field", "object", true, false);
+        addFieldCaps(fieldCaps, "another_field._keyed", "keyword", true, false);
+        addFieldCaps(fieldCaps, "nested_field", "object", false, false);
+        addFieldCaps(fieldCaps, "nested_field.sub_field", "flattened", true, true);
+        addFieldCaps(fieldCaps, "nested_field.sub_field._keyed", "flattened", true, true);
+        addFieldCaps(fieldCaps, "text", "keyword", true, true);
+
+        String wildcard = "*";
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        assertTrue(resolution.isValid());
+
+        EsIndex esIndex = resolution.get();
+        assertEquals(wildcard, esIndex.name());
+        assertEquals(UNSUPPORTED, esIndex.mapping().get("some_field").getDataType());
+        assertEquals(UNSUPPORTED, esIndex.mapping().get("some_field").getProperties().get("_keyed").getDataType());
+        assertEquals(OBJECT, esIndex.mapping().get("nested_field").getDataType());
+        assertEquals(UNSUPPORTED, esIndex.mapping().get("nested_field").getProperties().get("sub_field").getDataType());
+        assertEquals(UNSUPPORTED,
+                esIndex.mapping().get("nested_field").getProperties().get("sub_field").getProperties().get("_keyed").getDataType());
+        assertEquals(KEYWORD, esIndex.mapping().get("text").getDataType());
+        assertEquals(OBJECT, esIndex.mapping().get("another_field").getDataType());
+        assertEquals(KEYWORD, esIndex.mapping().get("another_field").getProperties().get("_keyed").getDataType());
+    }
+
+    public void testPropagateUnsupportedTypeToSubFields() throws Exception {
+        // generate a field type having the name of the format "foobar43"
+        String esFieldType = randomAlphaOfLengthBetween(5, 10) + randomIntBetween(-100, 100);
+        Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+        addFieldCaps(fieldCaps, "a", "text", false, false);
+        addFieldCaps(fieldCaps, "a.b", esFieldType, false, false);
+        addFieldCaps(fieldCaps, "a.b.c", "object", true, false);
+        addFieldCaps(fieldCaps, "a.b.c.d", "keyword", true, false);
+        addFieldCaps(fieldCaps, "a.b.c.e", "foo", true, true);
+
+        String wildcard = "*";
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        assertTrue(resolution.isValid());
+
+        EsIndex esIndex = resolution.get();
+        assertEquals(wildcard, esIndex.name());
+        assertEquals(TEXT, esIndex.mapping().get("a").getDataType());
+        assertEquals(UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getDataType());
+        assertEquals(UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getProperties().get("c").getDataType());
+        assertEquals(UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getProperties().get("c")
+                .getProperties().get("d").getDataType());
+        assertEquals(UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getProperties().get("c")
+                .getProperties().get("e").getDataType());
+    }
+
+    public void testRandomMappingFieldTypeMappedAsUnsupported() throws Exception {
+        // generate a field type having the name of the format "foobar43"
+        String esFieldType = randomAlphaOfLengthBetween(5, 10) + randomIntBetween(-100, 100);
+
+        Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
+        addFieldCaps(fieldCaps, "some_field", esFieldType, false, false);
+        addFieldCaps(fieldCaps, "another_field", "object", true, false);
+        addFieldCaps(fieldCaps, "another_field._foo", esFieldType, true, false);
+        addFieldCaps(fieldCaps, "nested_field", "object", false, false);
+        addFieldCaps(fieldCaps, "nested_field.sub_field1", esFieldType, true, true);
+        addFieldCaps(fieldCaps, "nested_field.sub_field1.bar", esFieldType, true, true);
+        addFieldCaps(fieldCaps, "nested_field.sub_field2", esFieldType, true, true);
+        // even if this is of a supported type, because it belongs to an UNSUPPORTED type parent, it should also be UNSUPPORTED
+        addFieldCaps(fieldCaps, "nested_field.sub_field2.bar", "keyword", true, true);
+        addFieldCaps(fieldCaps, "text", "keyword", true, true);
+
+        String wildcard = "*";
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        assertTrue(resolution.isValid());
+
+        EsIndex esIndex = resolution.get();
+        assertEquals(wildcard, esIndex.name());
+        assertEquals(UNSUPPORTED, esIndex.mapping().get("some_field").getDataType());
+        assertEquals(OBJECT, esIndex.mapping().get("nested_field").getDataType());
+        assertEquals(UNSUPPORTED, esIndex.mapping().get("nested_field").getProperties().get("sub_field1").getDataType());
+        assertEquals(UNSUPPORTED,
+                esIndex.mapping().get("nested_field").getProperties().get("sub_field1").getProperties().get("bar").getDataType());
+        assertEquals(UNSUPPORTED, esIndex.mapping().get("nested_field").getProperties().get("sub_field2").getDataType());
+        assertEquals(UNSUPPORTED,
+                esIndex.mapping().get("nested_field").getProperties().get("sub_field2").getProperties().get("bar").getDataType());
+        assertEquals(KEYWORD, esIndex.mapping().get("text").getDataType());
+        assertEquals(OBJECT, esIndex.mapping().get("another_field").getDataType());
+        assertEquals(UNSUPPORTED, esIndex.mapping().get("another_field").getProperties().get("_foo").getDataType());
     }
 
     public void testMergeIncompatibleCapabilitiesOfObjectFields() throws Exception {
@@ -143,13 +247,15 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, fieldName + ".keyword", "keyword", true, true);
 
         Map<String, FieldCapabilities> multi = new HashMap<>();
-        multi.put("long", new FieldCapabilities(fieldName, "long", true, true, new String[] { "one-index" }, null, null));
-        multi.put("text", new FieldCapabilities(fieldName, "text", true, false, new String[] { "another-index" }, null, null));
+        multi.put("long", new FieldCapabilities(fieldName, "long", false, true, true, new String[] { "one-index" }, null, null,
+                Collections.emptyMap()));
+        multi.put("text", new FieldCapabilities(fieldName, "text", false, true, false, new String[] { "another-index" }, null, null,
+                Collections.emptyMap()));
         fieldCaps.put(fieldName, multi);
 
 
         String wildcard = "*";
-        IndexResolution resolution = IndexResolver.mergedMappings(wildcard, new String[] { "one-index" }, fieldCaps);
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "one-index" }, fieldCaps);
 
         assertTrue(resolution.isValid());
 
@@ -167,8 +273,8 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     public void testSeparateSameMappingDifferentIndices() throws Exception {
-        Map<String, EsField> oneMapping = TypesTests.loadMapping("mapping-basic.json", true);
-        Map<String, EsField> sameMapping = TypesTests.loadMapping("mapping-basic.json", true);
+        Map<String, EsField> oneMapping = loadMapping("mapping-basic.json", true);
+        Map<String, EsField> sameMapping = loadMapping("mapping-basic.json", true);
         assertNotSame(oneMapping, sameMapping);
         assertEquals(oneMapping, sameMapping);
 
@@ -180,8 +286,8 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     public void testSeparateIncompatibleTypes() throws Exception {
-        Map<String, EsField> basicMapping = TypesTests.loadMapping("mapping-basic.json", true);
-        Map<String, EsField> incompatible = TypesTests.loadMapping("mapping-basic-incompatible.json");
+        Map<String, EsField> basicMapping = loadMapping("mapping-basic.json", true);
+        Map<String, EsField> incompatible = loadMapping("mapping-basic-incompatible.json");
 
         assertNotEquals(basicMapping, incompatible);
 
@@ -196,7 +302,7 @@ public class IndexResolverTests extends ESTestCase {
     public void testMultipleCompatibleIndicesWithDifferentFields() {
         int indicesCount = randomIntBetween(2, 15);
         EsIndex[] expectedIndices = new EsIndex[indicesCount];
-        
+
         // each index will have one field with different name than all others
         for (int i = 0; i < indicesCount; i++) {
             Map<String, EsField> mapping = new HashMap<>(1);
@@ -204,7 +310,7 @@ public class IndexResolverTests extends ESTestCase {
             mapping.put(fieldName, new KeywordEsField(fieldName));
             expectedIndices[i] = new EsIndex("index" + (i + 1), mapping);
         }
-        
+
         List<EsIndex> actualIndices = separate(expectedIndices);
         assertEquals(indicesCount, actualIndices.size());
         for (int i = 0; i < indicesCount; i++) {
@@ -214,16 +320,17 @@ public class IndexResolverTests extends ESTestCase {
 
     public void testIndexWithNoMapping() {
         Map<String, Map<String, FieldCapabilities>> versionFC = singletonMap("_version",
-                singletonMap("_index", new FieldCapabilities("_version", "_version", false, false)));
-        assertTrue(IndexResolver.mergedMappings("*", new String[] { "empty" }, versionFC).isValid());
+                singletonMap("_index", new FieldCapabilities("_version", "_version", true, false, false,
+                        null, null, null, Collections.emptyMap())));
+        assertTrue(mergedMappings("*", new String[] { "empty" }, versionFC).isValid());
     }
 
     public static IndexResolution merge(EsIndex... indices) {
-        return IndexResolver.mergedMappings("*", Stream.of(indices).map(EsIndex::name).toArray(String[]::new), fromMappings(indices));
+        return mergedMappings("*", Stream.of(indices).map(EsIndex::name).toArray(String[]::new), fromMappings(indices));
     }
 
     public static List<EsIndex> separate(EsIndex... indices) {
-        return IndexResolver.separateMappings("*", null, Stream.of(indices).map(EsIndex::name).toArray(String[]::new),
+        return separateMappings(null, Stream.of(indices).map(EsIndex::name).toArray(String[]::new),
                 fromMappings(indices));
     }
 
@@ -244,7 +351,7 @@ public class IndexResolverTests extends ESTestCase {
             if (entry.getValue().size() > 1) {
                 for (EsIndex index : indices) {
                     EsField field = index.mapping().get(fieldName);
-                    UpdateableFieldCapabilities fieldCaps = (UpdateableFieldCapabilities) caps.get(field.getDataType().typeName);
+                    UpdateableFieldCapabilities fieldCaps = (UpdateableFieldCapabilities) caps.get(field.getDataType().esType());
                     fieldCaps.indices.add(index.name());
                 }
                 //TODO: what about nonAgg/SearchIndices?
@@ -253,7 +360,7 @@ public class IndexResolverTests extends ESTestCase {
 
         return merged;
     }
-    
+
     private static void addFieldCaps(String parent, EsField field, String indexName, Map<String, Map<String, FieldCapabilities>> merged) {
         String fieldName = parent != null ? parent + "." + field.getName() : field.getName();
         Map<String, FieldCapabilities> map = merged.get(fieldName);
@@ -261,12 +368,12 @@ public class IndexResolverTests extends ESTestCase {
             map = new HashMap<>();
             merged.put(fieldName, map);
         }
-        FieldCapabilities caps = map.computeIfAbsent(field.getDataType().typeName,
+        FieldCapabilities caps = map.computeIfAbsent(field.getDataType().esType(),
                 esType -> new UpdateableFieldCapabilities(fieldName, esType,
                         isSearchable(field.getDataType()),
                         isAggregatable(field.getDataType())));
 
-        if (!field.isAggregatable()) {
+        if (field.isAggregatable() == false) {
             ((UpdateableFieldCapabilities) caps).nonAggregatableIndices.add(indexName);
         }
 
@@ -276,11 +383,11 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     private static boolean isSearchable(DataType type) {
-        return type.isPrimitive();
+        return isPrimitive(type);
     }
 
     private static boolean isAggregatable(DataType type) {
-        return type.isNumeric() || type == DataType.KEYWORD || type == DataType.DATETIME;
+        return type.isNumeric() || type == KEYWORD || isDateTime(type);
     }
 
     private static class UpdateableFieldCapabilities extends FieldCapabilities {
@@ -289,7 +396,7 @@ public class IndexResolverTests extends ESTestCase {
         List<String> nonAggregatableIndices = new ArrayList<>();
 
         UpdateableFieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable) {
-            super(name, type, isSearchable, isAggregatable);
+            super(name, type, false, isSearchable, isAggregatable, null, null, null, Collections.emptyMap());
         }
 
         @Override
@@ -319,11 +426,36 @@ public class IndexResolverTests extends ESTestCase {
             assertEquals(format("Key [{}] has different values", entry.getKey()), entry.getValue(), rv);
         }
     }
-    
-    private void addFieldCaps(Map<String, Map<String, FieldCapabilities>> fieldCaps, String name, String type, boolean isSearchable,
-            boolean isAggregatable) {
+
+    private void addFieldCaps(Map<String, Map<String, FieldCapabilities>> fieldCaps,
+                              String name,
+                              String type,
+                              boolean isSearchable,
+                              boolean isAggregatable) {
+        addFieldCaps(fieldCaps, name, type, false, isSearchable, isAggregatable);
+    }
+
+    private void addFieldCaps(Map<String, Map<String, FieldCapabilities>> fieldCaps,
+                                      String name,
+                                      String type,
+                                      boolean isMetadataField,
+                                      boolean isSearchable,
+                                      boolean isAggregatable) {
         Map<String, FieldCapabilities> cap = new HashMap<>();
-        cap.put(name, new FieldCapabilities(name, type, isSearchable, isAggregatable));
+        cap.put(type, new FieldCapabilities(name, type, isMetadataField,
+            isSearchable, isAggregatable, null, null, null, Collections.emptyMap()));
         fieldCaps.put(name, cap);
+    }
+
+    private static IndexResolution mergedMappings(String indexPattern, String[] indexNames,
+            Map<String, Map<String, FieldCapabilities>> fieldCaps) {
+        return IndexResolver.mergedMappings(SqlDataTypeRegistry.INSTANCE, indexPattern,
+            new FieldCapabilitiesResponse(indexNames, fieldCaps));
+    }
+
+    private static List<EsIndex> separateMappings(String javaRegex, String[] indexNames,
+            Map<String, Map<String, FieldCapabilities>> fieldCaps) {
+        return IndexResolver.separateMappings(SqlDataTypeRegistry.INSTANCE, javaRegex,
+            new FieldCapabilitiesResponse(indexNames, fieldCaps), null);
     }
 }

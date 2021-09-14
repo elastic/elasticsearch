@@ -1,34 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
+import org.junit.Assert;
+import org.junit.BeforeClass;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -37,18 +31,73 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.core.IsEqual.equalTo;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
     @Override
     protected boolean enableWarningsCheck() {
         return false;
     }
+    @BeforeClass
+    public static void checkJvmProperties(){
+        assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers")))
+            : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
+    }
+
+    public void testIncorrectFormat() {
+        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time||epoch_millis");
+        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time");
+    }
+
+    public void testMinMillis() {
+        String jodaFormatted = Joda.forPattern("strict_date_optional_time").formatMillis(Long.MIN_VALUE);
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatMillis(Long.MIN_VALUE);
+        Assert.assertEquals(jodaFormatted, javaFormatted);
+    }
+    public void testYearParsing() {
+        //this one is considered a year
+        assertSameDate("1234", "strict_date_optional_time||epoch_millis");
+        //this one is considered a 12345milliseconds since epoch
+        assertSameDate("12345", "strict_date_optional_time||epoch_millis");
+    }
+
+    public void testTimezoneParsing() {
+        /** this testcase won't work in joda. See comment in {@link #testPartialTimeParsing()}
+         *  assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+         */
+        assertSameDateAs("2016-11-30T00+01", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T00+0100", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T00+01:00", "strict_date_optional_time", "strict_date_optional_time");
+    }
+
+    public void testPartialTimeParsing() {
+         /*
+         This does not work in Joda as it reports 2016-11-30T01:00:00Z
+         because StrictDateOptionalTime confuses +01 with an hour (which is a signed fixed length digit)
+         assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+         ES java.time implementation does not suffer from this,
+         but we intentionally not allow parsing timezone without an time part as it is not allowed in iso8601
+  */
+        assertJavaTimeParseException("2016-11-30T+01","strict_date_optional_time");
+
+        assertSameDateAs("2016-11-30T12+01", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00+01", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00+01", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00.000+01", "strict_date_optional_time", "strict_date_optional_time");
+
+        //without timezone
+        assertSameDateAs("2016-11-30T", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00", "strict_date_optional_time", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00.000", "strict_date_optional_time", "strict_date_optional_time");
+    }
+
     // date_optional part of a parser names "strict_date_optional_time" or "date_optional"time
     // means that date part can be partially parsed.
-    public void testPartialParsing() {
+    public void testPartialDateParsing() {
         assertSameDateAs("2001", "strict_date_optional_time_nanos", "strict_date_optional_time");
         assertSameDateAs("2001-01", "strict_date_optional_time_nanos", "strict_date_optional_time");
         assertSameDateAs("2001-01-01", "strict_date_optional_time_nanos", "strict_date_optional_time");
@@ -72,7 +121,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     public void testCompositeDateMathParsing(){
         //in all these examples the second pattern will be used
         assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertDateMathEquals("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
     }
 
@@ -167,19 +216,17 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("Nov 24 01:29:01 -0800", "MMM dd HH:mm:ss Z");
     }
 
-    // this test requires tests to run with -Djava.locale.providers=COMPAT in order to work
-//    public void testCustomLocales() {
-//
-//        // also ensure that locale based dates are the same
-//        assertSameDate("Di., 05 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Mi., 06 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Do., 07 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Fr., 08 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//
-//        DateTime dateTimeNow = DateTime.now(DateTimeZone.UTC);
-//        ZonedDateTime javaTimeNow = Instant.ofEpochMilli(dateTimeNow.getMillis()).atZone(ZoneOffset.UTC);
-//        assertSamePrinterOutput("E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"), javaTimeNow, dateTimeNow);
-//    }
+    public void testCustomLocales() {
+        // also ensure that locale based dates are the same
+        assertSameDate("Di, 05 Dez 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+        assertSameDate("Mi, 06 Dez 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+        assertSameDate("Do, 07 Dez 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+        assertSameDate("Fr, 08 Dez 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
+
+        DateTime dateTimeNow = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime javaTimeNow = Instant.ofEpochMilli(dateTimeNow.getMillis()).atZone(ZoneOffset.UTC);
+        assertSamePrinterOutput("E, d MMM yyyy HH:mm:ss Z", javaTimeNow, dateTimeNow, LocaleUtils.parse("de"));
+    }
 
     public void testDuellingFormatsValidParsing() {
         assertSameDate("1522332219", "epoch_second");
@@ -454,17 +501,17 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("1", "year");
         assertSameDate("-2000", "year");
 
-        assertSameDate("2012-12", "yearMonth");
-        assertSameDate("1-1", "yearMonth");
+        assertSameDate("2012-12", "year_month");
+        assertSameDate("1-1", "year_month");
 
-        assertSameDate("2012-12-31", "yearMonthDay");
-        assertSameDate("1-12-31", "yearMonthDay");
-        assertSameDate("2012-1-31", "yearMonthDay");
-        assertSameDate("2012-12-1", "yearMonthDay");
+        assertSameDate("2012-12-31", "year_month_day");
+        assertSameDate("1-12-31", "year_month_day");
+        assertSameDate("2012-1-31", "year_month_day");
+        assertSameDate("2012-12-1", "year_month_day");
 
-        assertSameDate("2018", "week_year");
-        assertSameDate("1", "week_year");
-        assertSameDate("2017", "week_year");
+        assertSameDate("2018", "weekyear");
+        assertSameDate("1", "weekyear");
+        assertSameDate("2017", "weekyear");
 
         assertSameDate("2018-W29", "weekyear_week");
         assertSameDate("2018-W1", "weekyear_week");
@@ -476,7 +523,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     public void testCompositeParsing(){
         //in all these examples the second pattern will be used
         assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertSameDate("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertSameDate("2014-06-06T12:01:02.123", "strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
     }
 
@@ -700,88 +747,14 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
         ZonedDateTime javaDate = ZonedDateTime.of(year, month, day, hour, minute, second, 0, ZoneOffset.UTC);
         DateTime jodaDate = new DateTime(year, month, day, hour, minute, second, DateTimeZone.UTC);
-        assertSamePrinterOutput("epoch_second", javaDate, jodaDate);
 
-        assertSamePrinterOutput("basicDate", javaDate, jodaDate);
-        assertSamePrinterOutput("basicDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("basicDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("basicOrdinalDate", javaDate, jodaDate);
-        assertSamePrinterOutput("basicOrdinalDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("basicOrdinalDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("basicTime", javaDate, jodaDate);
-        assertSamePrinterOutput("basicTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("basicTTime", javaDate, jodaDate);
-        assertSamePrinterOutput("basicTTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("basicWeekDate", javaDate, jodaDate);
-        assertSamePrinterOutput("basicWeekDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("basicWeekDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("date", javaDate, jodaDate);
-        assertSamePrinterOutput("dateHour", javaDate, jodaDate);
-        assertSamePrinterOutput("dateHourMinute", javaDate, jodaDate);
-        assertSamePrinterOutput("dateHourMinuteSecond", javaDate, jodaDate);
-        assertSamePrinterOutput("dateHourMinuteSecondFraction", javaDate, jodaDate);
-        assertSamePrinterOutput("dateHourMinuteSecondMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("dateOptionalTime", javaDate, jodaDate);
-        assertSamePrinterOutput("dateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("dateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("hour", javaDate, jodaDate);
-        assertSamePrinterOutput("hourMinute", javaDate, jodaDate);
-        assertSamePrinterOutput("hourMinuteSecond", javaDate, jodaDate);
-        assertSamePrinterOutput("hourMinuteSecondFraction", javaDate, jodaDate);
-        assertSamePrinterOutput("hourMinuteSecondMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("ordinalDate", javaDate, jodaDate);
-        assertSamePrinterOutput("ordinalDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("ordinalDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("time", javaDate, jodaDate);
-        assertSamePrinterOutput("timeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("tTime", javaDate, jodaDate);
-        assertSamePrinterOutput("tTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("weekDate", javaDate, jodaDate);
-        assertSamePrinterOutput("weekDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("weekDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("weekyear", javaDate, jodaDate);
-        assertSamePrinterOutput("weekyearWeek", javaDate, jodaDate);
-        assertSamePrinterOutput("weekyearWeekDay", javaDate, jodaDate);
-        assertSamePrinterOutput("year", javaDate, jodaDate);
-        assertSamePrinterOutput("yearMonth", javaDate, jodaDate);
-        assertSamePrinterOutput("yearMonthDay", javaDate, jodaDate);
-
-        assertSamePrinterOutput("epoch_millis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictBasicWeekDate", javaDate, jodaDate);
-        assertSamePrinterOutput("strictBasicWeekDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictBasicWeekDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDate", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateHour", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateHourMinute", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateHourMinuteSecond", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateHourMinuteSecondFraction", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateHourMinuteSecondMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateOptionalTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictHour", javaDate, jodaDate);
-        assertSamePrinterOutput("strictHourMinute", javaDate, jodaDate);
-        assertSamePrinterOutput("strictHourMinuteSecond", javaDate, jodaDate);
-        assertSamePrinterOutput("strictHourMinuteSecondFraction", javaDate, jodaDate);
-        assertSamePrinterOutput("strictHourMinuteSecondMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictOrdinalDate", javaDate, jodaDate);
-        assertSamePrinterOutput("strictOrdinalDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictOrdinalDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictTTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictTTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekDate", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekDateTime", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekDateTimeNoMillis", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekyear", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekyearWeek", javaDate, jodaDate);
-        assertSamePrinterOutput("strictWeekyearWeekDay", javaDate, jodaDate);
-        assertSamePrinterOutput("strictYear", javaDate, jodaDate);
-        assertSamePrinterOutput("strictYearMonth", javaDate, jodaDate);
-        assertSamePrinterOutput("strictYearMonthDay", javaDate, jodaDate);
-        assertSamePrinterOutput("strict_date_optional_time", javaDate, jodaDate);
-        assertSamePrinterOutput("epoch_millis", javaDate, jodaDate);
+        for (FormatNames format : FormatNames.values()) {
+            if (format == FormatNames.ISO8601 || format == FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS) {
+                // Nanos aren't supported by joda
+                continue;
+            }
+            assertSamePrinterOutput(format.getName(), javaDate, jodaDate);
+        }
     }
 
     public void testSamePrinterOutputWithTimeZone() {
@@ -817,7 +790,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
             assertSameDate("2018-128", format, jodaFormatter, javaFormatter);
         }
         {
-            String format = "strictDateOptionalTime||dd-MM-yyyy";
+            String format = "strict_date_optional_time||dd-MM-yyyy";
             DateFormatter jodaFormatter = Joda.forPattern(format);
             DateFormatter javaFormatter = DateFormatter.forPattern(format);
             assertSameDate("31-01-2014", format, jodaFormatter, javaFormatter);
@@ -859,9 +832,28 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {
+        DateFormatter dateFormatter = DateFormatter.forPattern(format);
+        JodaDateFormatter jodaDateFormatter = Joda.forPattern(format);
+
+        assertSamePrinterOutput(format, javaDate, jodaDate, dateFormatter, jodaDateFormatter);
+    }
+
+    private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate, Locale locale) {
+        DateFormatter dateFormatter = DateFormatter.forPattern(format).withLocale(locale);
+        DateFormatter jodaDateFormatter = Joda.forPattern(format).withLocale(locale);
+
+        assertSamePrinterOutput(format, javaDate, jodaDate, dateFormatter, jodaDateFormatter);
+    }
+
+    private void assertSamePrinterOutput(String format,
+                                         ZonedDateTime javaDate,
+                                         DateTime jodaDate,
+                                         DateFormatter dateFormatter,
+                                         DateFormatter jodaDateFormatter) {
+        String javaTimeOut = dateFormatter.format(javaDate);
+        String jodaTimeOut = jodaDateFormatter.formatJoda(jodaDate);
+
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
-        String javaTimeOut = DateFormatter.forPattern(format).format(javaDate);
-        String jodaTimeOut = Joda.forPattern(format).formatJoda(jodaDate);
 
         if (JavaVersion.current().getVersion().get(0) == 8 && javaTimeOut.endsWith(".0")
             && (format.equals("epoch_second") || format.equals("epoch_millis"))) {
@@ -877,6 +869,12 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     private void assertSameDate(String input, String format) {
         DateFormatter jodaFormatter = Joda.forPattern(format);
         DateFormatter javaFormatter = DateFormatter.forPattern(format);
+        assertSameDate(input, format, jodaFormatter, javaFormatter);
+    }
+
+    private void assertSameDate(String input, String format, Locale locale) {
+        DateFormatter jodaFormatter = Joda.forPattern(format).withLocale(locale);
+        DateFormatter javaFormatter = DateFormatter.forPattern(format).withLocale(locale);
         assertSameDate(input, format, jodaFormatter, javaFormatter);
     }
 

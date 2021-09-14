@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,16 +41,17 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
-        public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+        @Deprecated
+        public static final String ALLOW_NO_DATAFEEDS = "allow_no_datafeeds";
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", ALLOW_NO_DATAFEEDS);
 
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
             PARSER.declareString((request, val) ->
                     request.setStopTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareBoolean(Request::setForce, FORCE);
-            PARSER.declareBoolean(Request::setAllowNoDatafeeds, ALLOW_NO_DATAFEEDS);
+            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
         }
 
         public static Request fromXContent(XContentParser parser) {
@@ -70,7 +70,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
         private String[] resolvedStartedDatafeedIds = new String[] {};
         private TimeValue stopTimeout = DEFAULT_TIMEOUT;
         private boolean force = false;
-        private boolean allowNoDatafeeds = true;
+        private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
@@ -85,7 +85,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             resolvedStartedDatafeedIds = in.readStringArray();
             stopTimeout = in.readTimeValue();
             force = in.readBoolean();
-            allowNoDatafeeds = in.readBoolean();
+            allowNoMatch = in.readBoolean();
         }
 
         public String getDatafeedId() {
@@ -96,7 +96,9 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             return resolvedStartedDatafeedIds;
         }
 
+        // This is used internally - the transport action sets it, not the user
         public void setResolvedStartedDatafeedIds(String[] resolvedStartedDatafeedIds) {
+            assert resolvedStartedDatafeedIds != null;
             this.resolvedStartedDatafeedIds = resolvedStartedDatafeedIds;
         }
 
@@ -104,24 +106,27 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             return stopTimeout;
         }
 
-        public void setStopTimeout(TimeValue stopTimeout) {
+        public Request setStopTimeout(TimeValue stopTimeout) {
             this.stopTimeout = ExceptionsHelper.requireNonNull(stopTimeout, TIMEOUT.getPreferredName());
+            return this;
         }
 
         public boolean isForce() {
             return force;
         }
 
-        public void setForce(boolean force) {
+        public Request setForce(boolean force) {
             this.force = force;
+            return this;
         }
 
-        public boolean allowNoDatafeeds() {
-            return allowNoDatafeeds;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-            this.allowNoDatafeeds = allowNoDatafeeds;
+        public Request setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
+            return this;
         }
 
         @Override
@@ -147,12 +152,12 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             out.writeStringArray(resolvedStartedDatafeedIds);
             out.writeTimeValue(stopTimeout);
             out.writeBoolean(force);
-            out.writeBoolean(allowNoDatafeeds);
+            out.writeBoolean(allowNoMatch);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, stopTimeout, force, allowNoDatafeeds);
+            return Objects.hash(datafeedId, stopTimeout, force, allowNoMatch);
         }
 
         @Override
@@ -161,7 +166,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
             builder.field(TIMEOUT.getPreferredName(), stopTimeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
-            builder.field(ALLOW_NO_DATAFEEDS.getPreferredName(), allowNoDatafeeds);
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.endObject();
             return builder;
         }
@@ -178,7 +183,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             return Objects.equals(datafeedId, other.datafeedId) &&
                     Objects.equals(stopTimeout, other.stopTimeout) &&
                     Objects.equals(force, other.force) &&
-                    Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
+                    Objects.equals(allowNoMatch, other.allowNoMatch);
         }
     }
 
@@ -207,12 +212,4 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
         }
 
     }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, StopDatafeedAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

@@ -1,0 +1,23 @@
+{
+    "properties" : {
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "@timestamp" : {
+            "type" : "date"
+        },
+        "serial_event_id" : {
+            "type" : "long"
+        },
+        "parent_child" : {
+            "type" : "join",
+            "relations" : {
+                "question" : "answer"
+            }
+        }
+    }
+}

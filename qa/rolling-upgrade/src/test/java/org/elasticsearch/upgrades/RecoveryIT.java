@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.upgrades;
 
@@ -24,15 +13,15 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.hamcrest.Matchers;
 
@@ -43,7 +32,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -54,10 +42,11 @@ import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocat
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * In depth testing of the recovery mechanism during a rolling restart.
@@ -70,8 +59,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String index = "index_history_uuid";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
                 // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -138,8 +127,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         switch (CLUSTER_TYPE) {
             case OLD:
                 Settings.Builder settings = Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     // if the node with the replica is the first to be restarted, while a replica is still recovering
                     // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                     // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -217,13 +206,14 @@ public class RecoveryIT extends AbstractRollingTestCase {
         switch (CLUSTER_TYPE) {
             case OLD:
                 Settings.Builder settings = Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     // if the node with the replica is the first to be restarted, while a replica is still recovering
                     // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                     // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                     // before timing out
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                    .put("index.routing.allocation.include._tier_preference", "")
                     .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
                 createIndex(index, settings.build());
                 indexDocs(index, 0, 10);
@@ -237,9 +227,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
                 // remove the replica and guaranteed the primary is placed on the old node
                 updateIndexSettings(index, Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null)
                     .put("index.routing.allocation.include._id", oldNode)
+                    .putNull("index.routing.allocation.include._tier_preference")
                 );
                 ensureGreen(index); // wait for the primary to be assigned
                 ensureNoInitializingShards(); // wait for all other shard activity to finish
@@ -252,7 +243,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     String xpath = "routing_table.indices." + index + ".shards.0.node";
                     @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
                     assertNotNull(state.toString(), assignedNodes);
-                    assertThat(state.toString(), newNode, isIn(assignedNodes));
+                    assertThat(state.toString(), newNode, in(assignedNodes));
                 }, 60, TimeUnit.SECONDS);
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
@@ -260,8 +251,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 break;
             case UPGRADED:
                 updateIndexSettings(index, Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     .put("index.routing.allocation.include._id", (String)null)
+                    .putNull("index.routing.allocation.include._tier_preference")
                 );
                 asyncIndexDocs(index, 60, 45).get();
                 ensureGreen(index);
@@ -278,22 +270,25 @@ public class RecoveryIT extends AbstractRollingTestCase {
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
+        if (randomBoolean()) {
+            flush(index, randomBoolean());
+        }
     }
 
-    public void testRecoveryWithSoftDeletes() throws Exception {
-        final String index = "recover_with_soft_deletes";
+    public void testRecovery() throws Exception {
+        final String index = "test_recovery";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
                 // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-            if (randomBoolean()) {
-                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
             int numDocs = randomInt(10);
@@ -313,6 +308,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 }
             }
         }
+        if (randomBoolean()) {
+            flush(index, randomBoolean());
+        }
         ensureGreen(index);
     }
 
@@ -320,11 +318,13 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String index = "recover_and_create_leases_in_promotion";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(1, 2)) // triggers nontrivial promotion
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(1, 2)) // triggers nontrivial promotion
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
-                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
             createIndex(index, settings.build());
             int numDocs = randomInt(10);
             indexDocs(index, 0, numDocs);
@@ -333,9 +333,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             }
         }
         ensureGreen(index);
-        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            assertBusy(() -> RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index));
-        }
+        ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
     }
 
     public void testRetentionLeasesEstablishedWhenRelocatingPrimary() throws Exception {
@@ -343,11 +341,13 @@ public class RecoveryIT extends AbstractRollingTestCase {
         switch (CLUSTER_TYPE) {
             case OLD:
                 Settings.Builder settings = Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
-                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+                if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                    settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+                }
                 createIndex(index, settings.build());
                 int numDocs = randomInt(10);
                 indexDocs(index, 0, numDocs);
@@ -376,16 +376,14 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     final Request putSettingsRequest = new Request("PUT", "/" + index + "/_settings");
                     putSettingsRequest.setJsonEntity("{\"index.routing.allocation.exclude._name\":\"" + oldNodeName + "\"}");
                     assertOK(client().performRequest(putSettingsRequest));
-                    ensureGreen(index);
-                    assertBusy(() -> RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index));
-                } else {
-                    ensureGreen(index);
                 }
+                ensureGreen(index);
+                ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
                 break;
 
             case UPGRADED:
                 ensureGreen(index);
-                assertBusy(() -> RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index));
+                ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
                 break;
         }
     }
@@ -399,8 +397,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String indexName = "closed_index_created_on_old";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createIndex(indexName, Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
                 // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -435,8 +433,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         if (indexExists(indexName) == false) {
             createIndex(indexName, Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                 .build());
             ensureGreen(indexName);
             closeIndex(indexName);
@@ -459,8 +457,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String indexName = "closed_index_replica_allocation";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createIndex(indexName, Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "120s")
                 .put("index.routing.allocation.include._name", CLUSTER_NAME + "-0")
@@ -486,10 +484,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 switch (CLUSTER_TYPE) {
                     case OLD: break;
                     case MIXED:
-                        assertNoFileBasedRecovery(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
+                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
                         break;
                     case UPGRADED:
-                        assertNoFileBasedRecovery(indexName, s -> s.startsWith(CLUSTER_NAME));
+                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME));
                         break;
                 }
             }
@@ -511,28 +509,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
     }
 
     /**
-     * Returns the minimum node version among all nodes of the cluster
-     */
-    private static Version minimumNodeVersion() throws IOException {
-        final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version");
-
-        final Response response = client().performRequest(request);
-        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
-
-        Version minVersion = null;
-        for (Map.Entry<String, Object> node : nodes.entrySet()) {
-            @SuppressWarnings("unchecked")
-            Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
-            if (minVersion == null || minVersion.after(nodeVersion)) {
-                minVersion = nodeVersion;
-            }
-        }
-        assertNotNull(minVersion);
-        return minVersion;
-    }
-
-    /**
      * Asserts that an index is closed in the cluster state. If `checkRoutingTable` is true, it also asserts
      * that the index has started shards.
      */
@@ -546,7 +522,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         final Map<String, ?> blocks = (Map<String, Object>) XContentMapValues.extractValue("blocks.indices." + index, state);
         assertThat(blocks, notNullValue());
-        assertThat(blocks.containsKey(String.valueOf(MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID)), is(true));
+        assertThat(blocks.containsKey(String.valueOf(MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID)), is(true));
 
         final Map<String, ?> settings = (Map<String, Object>) XContentMapValues.extractValue("settings", metadata);
         assertThat(settings, notNullValue());
@@ -566,7 +542,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 assertThat(shards.size(), equalTo(numberOfReplicas + 1));
                 for (Map<String, ?> shard : shards) {
                     assertThat(XContentMapValues.extractValue("shard", shard), equalTo(i));
-                    assertThat(XContentMapValues.extractValue("state", shard), equalTo("STARTED"));
+                    assertThat((String) XContentMapValues.extractValue("state", shard),
+                        oneOf("STARTED", "RELOCATING", "RELOCATED"));
                     assertThat(XContentMapValues.extractValue("index", shard), equalTo(index));
                 }
             }
@@ -576,47 +553,13 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    private void syncedFlush(String index) throws Exception {
-        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-        assertBusy(() -> {
-            try {
-                Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
-                Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                assertThat(result.get("failed"), equalTo(0));
-            } catch (ResponseException ex) {
-                throw new AssertionError(ex); // cause assert busy to retry
-            }
-        });
-        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
-        ensureGlobalCheckpointSynced(index);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void ensureGlobalCheckpointSynced(String index) throws Exception {
-        assertBusy(() -> {
-            Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
-            List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
-            shardStats.stream()
-                .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
-                .filter(Objects::nonNull)
-                .forEach(seqNoStat -> {
-                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
-                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
-                    long maxSeqNo = ((Number) XContentMapValues.extractValue("max_seq_no", seqNoStat)).longValue();
-                    assertThat(shardStats.toString(), localCheckpoint, equalTo(maxSeqNo));
-                    assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
-                });
-        }, 60, TimeUnit.SECONDS);
-    }
-
     /** Ensure that we can always execute update requests regardless of the version of cluster */
     public void testUpdateDoc() throws Exception {
         final String index = "test_update_doc";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
             createIndex(index, settings.build());
             indexDocs(index, 0, 100);
         }
@@ -641,11 +584,11 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
         }
         if (randomBoolean()) {
-            syncedFlush(index);
+            flush(index, randomBoolean());
         }
     }
 
-    private void assertNoFileBasedRecovery(String indexName, Predicate<String> targetNode) throws IOException {
+    private void assertNoopRecoveries(String indexName, Predicate<String> targetNode) throws IOException {
         Map<String, Object> recoveries = entityAsMap(client()
             .performRequest(new Request("GET", indexName + "/_recovery?detailed=true")));
 
@@ -675,5 +618,112 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         assertTrue("must find replica", foundReplica);
+    }
+
+    /**
+     * Tests that with or without soft-deletes, we should perform an operation-based recovery if there were some
+     * but not too many uncommitted documents (i.e., less than 10% of committed documents or the extra translog)
+     * before we upgrade each node. This is important when we move from translog based to retention leases based
+     * peer recoveries.
+     */
+    public void testOperationBasedRecovery() throws Exception {
+        final String index = "test_operation_based_recovery";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
+            createIndex(index, settings.build(), mappings);
+            ensureGreen(index);
+            indexDocs(index, 0, randomIntBetween(100, 200));
+            flush(index, randomBoolean());
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+            // uncommitted docs must be less than 10% of committed docs (see IndexSetting#FILE_BASED_RECOVERY_THRESHOLD_SETTING).
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
+        } else {
+            ensureGreen(index);
+            assertNoFileBasedRecovery(index, nodeName ->
+                   CLUSTER_TYPE == ClusterType.UPGRADED
+                || nodeName.startsWith(CLUSTER_NAME + "-0")
+                || (nodeName.startsWith(CLUSTER_NAME + "-1") && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false));
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+        }
+    }
+
+    /**
+     * Verifies that once all shard copies on the new version, we should turn off the translog retention for indices with soft-deletes.
+     */
+    public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
+        final String index = "turn_off_translog_retention";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(index, Settings.builder()
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 2))
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+            ensureGreen(index);
+            indexDocs(index, 0, randomIntBetween(100, 200));
+            flush(index, randomBoolean());
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 100));
+        }
+        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            ensureGreen(index);
+            flush(index, true);
+            assertEmptyTranslog(index);
+        }
+    }
+
+    public void testAutoExpandIndicesDuringRollingUpgrade() throws Exception {
+        final String indexName = "test-auto-expand-filtering";
+        final Version minimumNodeVersion = minimumNodeVersion();
+
+        Response response = client().performRequest(new Request("GET", "_nodes"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
+        List<String> nodes = new ArrayList<>(nodeMap.keySet());
+
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(indexName, Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                .build());
+            ensureGreen(indexName);
+            updateIndexSettings(indexName,
+                Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2))));
+        }
+
+        ensureGreen(indexName);
+
+        final int numberOfReplicas = Integer.parseInt(
+            getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString());
+        if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
+            assertEquals(nodes.size() - 2, numberOfReplicas);
+        } else {
+            assertEquals(nodes.size() - 1, numberOfReplicas);
+        }
+    }
+
+    public void testSoftDeletesDisabledWarning() throws Exception {
+        final String indexName = "test_soft_deletes_disabled_warning";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            boolean softDeletesEnabled = true;
+            Settings.Builder settings = Settings.builder();
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                softDeletesEnabled = randomBoolean();
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled);
+            }
+            Request request = new Request("PUT", "/" + indexName);
+            request.setJsonEntity("{\"settings\": " + Strings.toString(settings.build()) + "}");
+            if (softDeletesEnabled == false) {
+                expectSoftDeletesWarning(request, indexName);
+            }
+            client().performRequest(request);
+        }
+        ensureGreen(indexName);
+        indexDocs(indexName, randomInt(100), randomInt(100));
     }
 }

@@ -1,0 +1,41 @@
+{
+  "rollup.stop_job":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-stop-job.html",
+      "description":"Stops an existing, started rollup job."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_rollup/job/{id}/_stop",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the job to stop"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "wait_for_completion":{
+        "type":"boolean",
+        "required":false,
+        "description":"True if the API should block until the job has fully stopped, false if should be executed async. Defaults to false."
+      },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Block for (at maximum) the specified duration while waiting for the job to stop.  Defaults to 30s."
+      }
+    }
+  }
+}

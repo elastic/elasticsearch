@@ -5,22 +5,30 @@
 ++++
 
 
-Returns information about ongoing and completed shard recoveries.
+Returns information about ongoing and completed shard recoveries for one or more
+indices. For data streams, the API returns information for the stream's backing
+indices.
 
 [source,console]
 ----
-GET /twitter/_recovery
+GET /my-index-000001/_recovery
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-recovery-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_recovery`
+`GET /<target>/_recovery`
 
 `GET /_recovery`
 
+[[index-recovery-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-indices,index privilege>> for the target data stream,
+index, or alias.
 
 [[index-recovery-api-desc]]
 ==== {api-description-title}
@@ -34,26 +42,32 @@ of syncing a replica shard from a primary shard.
 Upon completion,
 the replica shard is available for search.
 
-include::{docdir}/glossary.asciidoc[tag=recovery-triggers]
+Recovery automatically occurs during the following processes:
+
+* Node startup or failure. This type of recovery is called a local store
+  recovery.
+* Primary shard replication.
+* Relocation of a shard to a different node in the same cluster.
+* <<snapshots-restore-snapshot,Snapshot restoration>>.
 
 // end::shard-recovery-desc[]
 
 [[index-recovery-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
-+
-Use a value of `_all` to retrieve information for all indices in the cluster.
-
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[index-recovery-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=active-only]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=active-only]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
 
 
 [[index-recovery-api-response-body]]
@@ -77,11 +91,10 @@ This type of recovery is called a local store recovery.
 
 `SNAPSHOT`::
 The recovery is related to
-a <<restore-snapshot,snapshot restoration>>.
+a <<snapshots-restore-snapshot,snapshot restoration>>.
 
 `REPLICA`::
-The recovery is related to
-a <<glossary-replica-shard,primary shard replication>>.
+The recovery is related to a primary shard replication.
 
 `RELOCATING`::
 The recovery is related to
@@ -165,7 +178,7 @@ Statistics about time to open and start the index.
 
 
 [[index-recovery-api-multi-ex]]
-===== Get recovery information for several indices
+===== Get recovery information for several data streams and indices
 
 [source,console]
 --------------------------------------------------
@@ -175,7 +188,7 @@ GET index1,index2/_recovery?human
 
 
 [[index-recovery-api-all-ex]]
-===== Get segment information for all indices
+===== Get segment information for all data streams and indices in a cluster
 
 //////////////////////////
 Here we create a repository and snapshot index1 in
@@ -267,6 +280,8 @@ The API returns the following response:
           "reused_in_bytes" : 0,
           "recovered" : "65.7mb",
           "recovered_in_bytes" : 68891939,
+          "recovered_from_snapshot" : "0b",
+          "recovered_from_snapshot_in_bytes" : 0,
           "percent" : "87.1%"
         },
         "files" : {
@@ -367,6 +382,8 @@ The API returns the following response:
           "reused_in_bytes" : 26001617,
           "recovered" : "0b",
           "recovered_in_bytes" : 0,
+          "recovered_from_snapshot" : "0b",
+          "recovered_from_snapshot_in_bytes" : 0,
           "percent" : "100.0%"
         },
         "files" : {
@@ -381,11 +398,13 @@ The API returns the following response:
           }, {
             "name" : "_0.cfs",
             "length" : 135306,
-            "recovered" : 135306
+            "recovered" : 135306,
+            "recovered_from_snapshot": 0
           }, {
             "name" : "segments_2",
             "length" : 251,
-            "recovered" : 251
+            "recovered" : 251,
+            "recovered_from_snapshot": 0
           }
           ]
         },

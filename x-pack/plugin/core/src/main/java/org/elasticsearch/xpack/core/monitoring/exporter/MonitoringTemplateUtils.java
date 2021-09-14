@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.monitoring.exporter;
 
@@ -17,19 +18,21 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 public final class MonitoringTemplateUtils {
 
     private static final String TEMPLATE_FILE = "/monitoring-%s.json";
-    private static final String TEMPLATE_VERSION_PROPERTY = Pattern.quote("${monitoring.template.version}");
+    private static final String TEMPLATE_VERSION_PROPERTY = "monitoring.template.version";
 
     /**
      * The last version of X-Pack that updated the templates and pipelines.
      * <p>
      * It may be possible for this to diverge between templates and pipelines, but for now they're the same.
+     *
+     * Note that the templates were last updated in 7.11.0, but the versions were not updated, meaning that upgrades
+     * to 7.11.0 would not have updated the templates. See https://github.com/elastic/elasticsearch/pull/69317.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_7_0_0.id;
+    public static final int LAST_UPDATED_VERSION = Version.V_7_14_0.id;
 
     /**
      * Current version of templates used in their name to differentiate from breaking changes (separate from product version).

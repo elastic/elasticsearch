@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -13,13 +14,15 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,21 +46,25 @@ public class SegmentCountStep extends AsyncWaitStep {
         this.maxNumSegments = maxNumSegments;
     }
 
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
     public int getMaxNumSegments() {
         return maxNumSegments;
     }
 
     @Override
-    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
-        getClient().admin().indices().segments(new IndicesSegmentsRequest(indexMetaData.getIndex().getName()),
+    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
+        getClient().admin().indices().segments(new IndicesSegmentsRequest(index.getName()),
             ActionListener.wrap(response -> {
-                IndexSegments idxSegments = response.getIndices().get(indexMetaData.getIndex().getName());
+                IndexSegments idxSegments = response.getIndices().get(index.getName());
                 if (idxSegments == null || (response.getShardFailures() != null && response.getShardFailures().length > 0)) {
                     final DefaultShardOperationFailedException[] failures = response.getShardFailures();
                     logger.info("[{}] retrieval of segment counts after force merge did not succeed, " +
-                            "there were {} shard failures. " +
-                            "failures: {}",
-                        indexMetaData.getIndex().getName(),
+                            "there were {} shard failures. failures: {}",
+                        index.getName(),
                         response.getFailedShards(),
                         failures == null ? "n/a" : Strings.collectionToDelimitedString(Arrays.stream(failures)
                             .map(Strings::toString)
@@ -72,7 +79,7 @@ public class SegmentCountStep extends AsyncWaitStep {
                         Map<ShardRouting, Integer> unmergedShardCounts = unmergedShards.stream()
                             .collect(Collectors.toMap(ShardSegments::getShardRouting, ss -> ss.getSegments().size()));
                         logger.info("[{}] best effort force merge to [{}] segments did not succeed for {} shards: {}",
-                            indexMetaData.getIndex().getName(), maxNumSegments, unmergedShards.size(), unmergedShardCounts);
+                            index.getName(), maxNumSegments, unmergedShards.size(), unmergedShardCounts);
                     }
                     // Force merging is best effort, so always return true that the condition has been met.
                     listener.onResponse(true, new Info(unmergedShards.size()));

@@ -1,5 +1,5 @@
 [[indices-get-template]]
-=== Get index template API
+=== Get index template API [[getting-templates]]
 ++++
 <titleabbrev>Get index template</titleabbrev>
 ++++
@@ -7,46 +7,59 @@
 Returns information about one or more index templates.
 
 ////
+
 [source,console]
 --------------------------------------------------
-PUT _template/template_1
+PUT /_index_template/template_1
 {
- "index_patterns" : ["te*"],
-  "settings": {
-    "number_of_shards": 1
+  "index_patterns" : ["te*"],
+  "priority" : 1,
+  "template": {
+    "settings" : {
+      "number_of_shards" : 2
+    }
   }
 }
 --------------------------------------------------
 // TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _index_template/template_*
+--------------------------------------------------
+// TEARDOWN
+
 ////
 
 [source,console]
 --------------------------------------------------
-GET /_template/template_1
+GET /_index_template/template_1
 --------------------------------------------------
-
 
 [[get-template-api-request]]
 ==== {api-request-title}
 
-`GET /_template/<index-template>`
+`GET /_index_template/<index-template>`
 
+[[get-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[get-template-api-path-params]]
 ==== {api-path-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-template]
 +
-To return all index templates, omit this parameter
-or use a value of `_all` or `*`.
+To retrieve all index templates, omit this parameter or use a value of `*`.
 
 
 [[get-template-api-query-params]]
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 
@@ -57,21 +70,12 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ==== {api-examples-title}
 
 
-[[get-template-api-multiple-ex]]
-===== Get multiple index templates
-
-[source,console]
---------------------------------------------------
-GET /_template/template_1,template_2
---------------------------------------------------
-
-
 [[get-template-api-wildcard-ex]]
 ===== Get index templates using a wildcard expression
 
 [source,console]
 --------------------------------------------------
-GET /_template/temp*
+GET /_index_template/temp*
 --------------------------------------------------
 
 
@@ -80,5 +84,5 @@ GET /_template/temp*
 
 [source,console]
 --------------------------------------------------
-GET /_template
+GET /_index_template
 --------------------------------------------------

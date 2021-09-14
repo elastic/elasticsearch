@@ -1,103 +1,98 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
+import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.transforms.common.AbstractCompositeAggFunction;
+import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class Pivot {
-    public static final int DEFAULT_INITIAL_PAGE_SIZE = 500;
-    public static final int TEST_QUERY_PAGE_SIZE = 50;
-
-    private static final String COMPOSITE_AGGREGATION_NAME = "_transform";
+/**
+ * The pivot transform function. This continually searches and pivots results according to the passed {@link PivotConfig}
+ */
+public class Pivot extends AbstractCompositeAggFunction {
     private static final Logger logger = LogManager.getLogger(Pivot.class);
 
     private final PivotConfig config;
-    private final boolean supportsIncrementalBucketUpdate;
+    private final SettingsConfig settings;
+    private final Version version;
 
-    // objects for re-using
-    private final CompositeAggregationBuilder cachedCompositeAggregation;
-
-    public Pivot(PivotConfig config) {
+    /**
+     * Create a new Pivot function
+     * @param config A {@link PivotConfig} describing the function parameters
+     * @param settings Any miscellaneous settings for the function
+     * @param version The version of the transform
+     */
+    public Pivot(PivotConfig config, SettingsConfig settings, Version version, Set<String> runtimeFields) {
+        super(createCompositeAggregation(config, runtimeFields));
         this.config = config;
-        this.cachedCompositeAggregation = createCompositeAggregation(config);
-
-        boolean supportsIncrementalBucketUpdate = false;
-        for(Entry<String, SingleGroupSource> entry: config.getGroupConfig().getGroups().entrySet()) {
-            supportsIncrementalBucketUpdate |= entry.getValue().supportsIncrementalBucketUpdate();
-        }
-
-        this.supportsIncrementalBucketUpdate = supportsIncrementalBucketUpdate;
+        this.settings = settings;
+        this.version = version == null ? Version.CURRENT : version;
     }
 
-    public void validateConfig() {
+    @Override
+    public void validateConfig(ActionListener<Boolean> listener) {
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
-            if (Aggregations.isSupportedByTransform(agg.getType()) == false) {
-                throw new ElasticsearchStatusException("Unsupported aggregation type [" + agg.getType() + "]", RestStatus.BAD_REQUEST);
+            if (TransformAggregations.isSupportedByTransform(agg.getType()) == false) {
+                listener.onFailure(
+                    new ValidationException().addValidationError(
+                        new ParameterizedMessage("Unsupported aggregation type [{}]", agg.getType()).getFormattedMessage()
+                    )
+                );
+                return;
             }
         }
+        listener.onResponse(true);
     }
 
-    public void validateQuery(Client client, SourceConfig sourceConfig, final ActionListener<Boolean> listener) {
-        SearchRequest searchRequest = buildSearchRequest(sourceConfig, null, TEST_QUERY_PAGE_SIZE);
-
-        client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
-            if (response == null) {
-                listener.onFailure(new ElasticsearchStatusException("Unexpected null response from test query",
-                    RestStatus.SERVICE_UNAVAILABLE));
-                return;
-            }
-            if (response.status() != RestStatus.OK) {
-                listener.onFailure(new ElasticsearchStatusException("Unexpected status from response of test query: " + response.status(),
-                    response.status()));
-                return;
-            }
-            listener.onResponse(true);
-        }, e -> listener.onFailure(new ElasticsearchStatusException("Failed to test query", RestStatus.SERVICE_UNAVAILABLE, e))));
+    @Override
+    public List<String> getPerformanceCriticalFields() {
+        return config.getGroupConfig().getGroups().values().stream().map(SingleGroupSource::getField).collect(toList());
     }
 
+    @Override
     public void deduceMappings(Client client, SourceConfig sourceConfig, final ActionListener<Map<String, String>> listener) {
-        SchemaUtil.deduceMappings(client, config, sourceConfig.getIndex(), listener);
+        SchemaUtil.deduceMappings(client, config, sourceConfig.getIndex(), sourceConfig.getRuntimeMappings(), listener);
     }
 
     /**
@@ -108,138 +103,109 @@ public class Pivot {
      * per page the page size is a multiplier for the costs of aggregating bucket.
      *
      * The user may set a maximum in the {@link PivotConfig#getMaxPageSearchSize()}, but if that is not provided,
-     *    the default {@link Pivot#DEFAULT_INITIAL_PAGE_SIZE} is used.
+     *    the default {@link Transform#DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE} is used.
      *
      * In future we might inspect the configuration and base the initial size on the aggregations used.
      *
      * @return the page size
      */
+    @Override
     public int getInitialPageSize() {
-        return config.getMaxPageSearchSize() == null ? DEFAULT_INITIAL_PAGE_SIZE : config.getMaxPageSearchSize();
+        return config.getMaxPageSearchSize() == null ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE : config.getMaxPageSearchSize();
     }
 
-    public SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {
-        QueryBuilder queryBuilder = sourceConfig.getQueryConfig().getQuery();
-
-        SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex());
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.aggregation(buildAggregation(position, pageSize));
-        sourceBuilder.size(0);
-        sourceBuilder.query(queryBuilder);
-        searchRequest.source(sourceBuilder);
-        searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        return searchRequest;
+    @Override
+    public ChangeCollector buildChangeCollector(String synchronizationField) {
+        return CompositeBucketsChangeCollector.buildChangeCollector(config.getGroupConfig().getGroups(), synchronizationField);
     }
 
-    public AggregationBuilder buildAggregation(Map<String, Object> position, int pageSize) {
-        cachedCompositeAggregation.aggregateAfter(position);
-        cachedCompositeAggregation.size(pageSize);
-
-        return cachedCompositeAggregation;
+    @Override
+    protected Map<String, Object> documentTransformationFunction(Map<String, Object> document) {
+        return DocumentConversionUtils.removeInternalFields(document);
     }
 
-    public CompositeAggregationBuilder buildIncrementalBucketUpdateAggregation(int pageSize) {
+    @Override
+    protected Stream<Map<String, Object>> extractResults(
+        CompositeAggregation agg,
+        Map<String, String> fieldTypeMap,
+        TransformIndexerStats transformIndexerStats,
+        TransformProgress transformProgress
+    ) {
+        // defines how dates are written, if not specified in settings
+        // < 7.11 as epoch millis
+        // >= 7.11 as string
+        // note: it depends on the version when the transform has been created, not the version of the code
+        boolean datesAsEpoch = settings.getDatesAsEpochMillis() != null ? settings.getDatesAsEpochMillis()
+            : version.onOrAfter(Version.V_7_11_0) ? false
+            : true;
 
-        CompositeAggregationBuilder compositeAgg = createCompositeAggregationSources(config, true);
-        compositeAgg.size(pageSize);
-
-        return compositeAgg;
-    }
-
-    public Map<String, Set<String>> initialIncrementalBucketUpdateMap() {
-
-        Map<String, Set<String>> changedBuckets = new HashMap<>();
-        for(Entry<String, SingleGroupSource> entry: config.getGroupConfig().getGroups().entrySet()) {
-            if (entry.getValue().supportsIncrementalBucketUpdate()) {
-                changedBuckets.put(entry.getKey(), new HashSet<>());
-            }
-        }
-
-        return changedBuckets;
-    }
-
-    public boolean supportsIncrementalBucketUpdate() {
-        return supportsIncrementalBucketUpdate;
-    }
-
-    public Stream<Map<String, Object>> extractResults(CompositeAggregation agg,
-                                                      Map<String, String> fieldTypeMap,
-                                                      TransformIndexerStats transformIndexerStats) {
-
-        GroupConfig groups = config.getGroupConfig();
-        Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
-        Collection<PipelineAggregationBuilder> pipelineAggregationBuilders = config.getAggregationConfig().getPipelineAggregatorFactories();
-
-        return AggregationResultUtils.extractCompositeAggregationResults(agg,
-            groups,
-            aggregationBuilders,
-            pipelineAggregationBuilders,
+        return AggregationResultUtils.extractCompositeAggregationResults(
+            agg,
+            config.getGroupConfig(),
+            config.getAggregationConfig().getAggregatorFactories(),
+            config.getAggregationConfig().getPipelineAggregatorFactories(),
             fieldTypeMap,
-            transformIndexerStats);
+            transformIndexerStats,
+            transformProgress,
+            datesAsEpoch
+        );
     }
 
-    public QueryBuilder filterBuckets(Map<String, Set<String>> changedBuckets) {
+    @Override
+    public SearchSourceBuilder buildSearchQueryForInitialProgress(SearchSourceBuilder searchSourceBuilder) {
+        BoolQueryBuilder existsClauses = QueryBuilders.boolQuery();
 
-        if (changedBuckets == null || changedBuckets.isEmpty()) {
-            return null;
-        }
-
-        if (config.getGroupConfig().getGroups().size() == 1) {
-            Entry<String, SingleGroupSource> entry = config.getGroupConfig().getGroups().entrySet().iterator().next();
-            // it should not be possible to get into this code path
-            assert (entry.getValue().supportsIncrementalBucketUpdate());
-
-            logger.trace("filter by bucket: " + entry.getKey() + "/" + entry.getValue().getField());
-            if (changedBuckets.containsKey(entry.getKey())) {
-                return entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBuckets.get(entry.getKey()));
-            } else {
-                // should never happen
-                throw new RuntimeException("Could not find bucket value for key " + entry.getKey());
+        config.getGroupConfig().getGroups().values().forEach(src -> {
+            if (src.getMissingBucket() == false && src.getField() != null) {
+                existsClauses.must(QueryBuilders.existsQuery(src.getField()));
             }
-        }
+        });
 
-        // else: more than 1 group by, need to nest it
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
-        for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
-            if (entry.getValue().supportsIncrementalBucketUpdate() == false) {
-                continue;
-            }
-
-            if (changedBuckets.containsKey(entry.getKey())) {
-                QueryBuilder sourceQueryFilter = entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBuckets.get(entry.getKey()));
-                // the source might not define an filter optimization
-                if (sourceQueryFilter != null) {
-                    filteredQuery.filter(sourceQueryFilter);
-                }
-            } else {
-                // should never happen
-                throw new RuntimeException("Could not find bucket value for key " + entry.getKey());
-            }
-
-        }
-
-        return filteredQuery;
+        return searchSourceBuilder.query(existsClauses).size(0).trackTotalHits(true);
     }
 
-    private static CompositeAggregationBuilder createCompositeAggregation(PivotConfig config) {
-        final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config, false);
+    private static CompositeAggregationBuilder createCompositeAggregation(PivotConfig config, Set<String> runtimeFields) {
+        final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config, runtimeFields);
 
-        config.getAggregationConfig().getAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
-        config.getAggregationConfig().getPipelineAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
+        config.getAggregationConfig().getAggregatorFactories().forEach(compositeAggregation::subAggregation);
+        config.getAggregationConfig().getPipelineAggregatorFactories().forEach(compositeAggregation::subAggregation);
 
         return compositeAggregation;
     }
 
-    private static CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config, boolean forChangeDetection) {
+    private static CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config, Set<String> runtimeFields) {
         CompositeAggregationBuilder compositeAggregation;
 
+        Collection<Entry<String, SingleGroupSource>> groups = GroupByOptimizer.reorderGroups(
+            config.getGroupConfig().getGroups(),
+            runtimeFields
+        );
+
         try (XContentBuilder builder = jsonBuilder()) {
-            config.toCompositeAggXContent(builder, forChangeDetection);
-            XContentParser parser = builder.generator().contentType().xContent().createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-            compositeAggregation = CompositeAggregationBuilder.parse(COMPOSITE_AGGREGATION_NAME, parser);
+            builder.startObject();
+            builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
+            builder.startArray();
+
+            for (Entry<String, SingleGroupSource> groupBy : groups) {
+                builder.startObject();
+                builder.startObject(groupBy.getKey());
+                builder.field(groupBy.getValue().getType().value(), groupBy.getValue());
+                builder.endObject();
+                builder.endObject();
+            }
+
+            builder.endArray();
+            builder.endObject(); // sources
+            XContentParser parser = builder.generator()
+                .contentType()
+                .xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
+            compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
         } catch (IOException e) {
-            throw new RuntimeException(TransformMessages.TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, e);
+            throw new RuntimeException(
+                TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "pivot"),
+                e
+            );
         }
         return compositeAggregation;
     }

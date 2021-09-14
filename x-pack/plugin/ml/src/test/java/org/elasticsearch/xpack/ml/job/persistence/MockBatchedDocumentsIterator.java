@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 
 import java.util.Deque;
 import java.util.List;
@@ -25,7 +28,7 @@ public class MockBatchedDocumentsIterator<T> extends BatchedResultsIterator<T> {
     private Boolean requireIncludeInterim;
 
     public MockBatchedDocumentsIterator(List<Deque<Result<T>>> batches, String resultType) {
-        super(mock(Client.class), "foo", resultType);
+        super(MockOriginSettingClient.mockOriginSettingClient(mock(Client.class), ClientHelper.ML_ORIGIN), "foo", resultType);
         this.batches = batches;
         index = 0;
         wasTimeRangeCalled = false;
@@ -49,7 +52,7 @@ public class MockBatchedDocumentsIterator<T> extends BatchedResultsIterator<T> {
             throw new IllegalStateException("Required include interim value [" + requireIncludeInterim + "]; actual was ["
                     + includeInterim + "]");
         }
-        if ((!wasTimeRangeCalled) || !hasNext()) {
+        if (wasTimeRangeCalled == false || hasNext() == false) {
             throw new NoSuchElementException();
         }
         return batches.get(index++);

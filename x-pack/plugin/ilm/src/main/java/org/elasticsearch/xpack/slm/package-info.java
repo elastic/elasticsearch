@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 /**
- * This is the Snapshot Lifecycle Management (SLM) main package. SLM is part of the wider ILM feature, reusing quite a bit of the
- * functionality for itself in some places, which is why the two features are contained in the same plugin.
+ * This is the Snapshot Lifecycle Management (SLM) main package. SLM is part of the wider ILM feature, which is why the two features are
+ * contained in the same plugin. However SLM is enabled, configured and run independently of ILM.
  *
  * This package contains the {@link org.elasticsearch.xpack.slm.SnapshotLifecycleService} and
  * {@link org.elasticsearch.xpack.slm.SnapshotLifecycleTask}, as well as the Rest and Transport actions for the
@@ -18,7 +19,7 @@
  * <p>{@link org.elasticsearch.xpack.slm.SnapshotLifecycleService} maintains an internal
  * {@link org.elasticsearch.xpack.core.scheduler.SchedulerEngine SchedulerEngine} that handles scheduling snapshots. The service
  * executes on the currently elected master node. It listens to the cluster state, detecting new policies to schedule, and unscheduling
- * policies when they are deleted or if ILM is stopped. The bulk of this scheduling management is handled within
+ * policies when they are deleted or if SLM is stopped. The bulk of this scheduling management is handled within
  * {@link org.elasticsearch.xpack.slm.SnapshotLifecycleService#maybeScheduleSnapshot(SnapshotLifecyclePolicyMetadata)}
  * which is executed on all snapshot policies each update.
  *

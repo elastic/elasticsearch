@@ -1,0 +1,318 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test1
+          body:
+              mappings:
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  geo:
+                    type:     geo_point
+                  misc:
+                    type:     text
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : text
+                        index: false
+                      nested2:
+                        type: float
+                        doc_values: false
+                  level1:
+                    type: nested
+                    properties:
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
+
+  - do:
+        indices.create:
+          index: test2
+          body:
+              mappings:
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  date:
+                    type:     date
+                  geo:
+                    type:     geo_point
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : text
+                        index: true
+                      nested2:
+                        type: float
+                        doc_values: true
+                  level1:
+                    type: nested
+                    properties:
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
+  - do:
+        indices.create:
+          index: test3
+          body:
+              mappings:
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     long
+                  date:
+                    type:     date
+                  geo:
+                    type:     keyword
+                  object:
+                    type: nested
+                    properties:
+                      nested1 :
+                        type : long
+                        index: false
+                      nested2:
+                        type: keyword
+                        doc_values: false
+                  level1:
+                    type: object
+                    properties:
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
+
+---
+"Get simple field caps":
+
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: [text, keyword, number, date, geo]
+
+  - match: {fields.text.text.searchable:                true}
+  - match: {fields.text.text.aggregatable:              false}
+  - is_false: fields.text.text.indices
+  - is_false: fields.text.text.non_searchable_indices
+  - is_false: fields.text.text.non_aggregatable_indices
+  - match: {fields.keyword.keyword.searchable:          true}
+  - match: {fields.keyword.keyword.aggregatable:        true}
+  - is_false: fields.text.keyword.indices
+  - is_false: fields.text.keyword.non_searchable_indices
+  - is_false: fields.text.keyword.non_aggregatable_indices
+  - match: {fields.number.double.searchable:            true}
+  - match: {fields.number.double.aggregatable:          true}
+  - match: {fields.number.double.indices:               ["test1", "test2"]}
+  - is_false: fields.number.double.non_searchable_indices
+  - is_false: fields.number.double.non_aggregatable_indices
+  - match: {fields.number.long.searchable:              true}
+  - match: {fields.number.long.aggregatable:            true}
+  - match: {fields.number.long.indices:                 ["test3"]}
+  - is_false: fields.number.long.non_searchable_indices
+  - is_false: fields.number.long.non_aggregatable_indices
+  - match: {fields.date.date.searchable:                true}
+  - match: {fields.date.date.aggregatable:              true}
+  - is_false: fields.date.date.indices
+  - is_false: fields.date.date.non_searchable_indices
+  - is_false: fields.date.date.non_aggregatable_indices
+  - match: {fields.geo.geo_point.searchable:            true}
+  - match: {fields.geo.geo_point.aggregatable:          true}
+  - match: {fields.geo.geo_point.indices:               ["test1", "test2"]}
+  - is_false: fields.geo.geo_point.non_searchable_indices
+  - is_false: fields.geo.geo_point.non_aggregatable_indices
+  - match: {fields.geo.keyword.searchable:              true}
+  - match: {fields.geo.keyword.aggregatable:            true}
+  - match: {fields.geo.keyword.indices:                 ["test3"]}
+  - is_false: fields.geo.keyword.non_searchable_indices
+  - is_false: fields.geo.keyword.on_aggregatable_indices
+---
+"Get date_nanos field caps":
+
+  - do:
+        indices.create:
+          index: test_nanos
+          body:
+              mappings:
+                properties:
+                  date_nanos:
+                    type:     date_nanos
+
+  - do:
+      field_caps:
+        index: 'test_nanos'
+        fields: [date_nanos]
+
+  - match: {fields.date_nanos.date_nanos.searchable:                true}
+  - match: {fields.date_nanos.date_nanos.aggregatable:              true}
+  - is_false: fields.date_nanos.date_nanos.indices
+  - is_false: fields.date_nanos.date_nanos.non_searchable_indices
+  - is_false: fields.date_nanos.date_nanos.non_aggregatable_indices
+
+---
+"Get leaves field caps":
+
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: object*
+
+  - match: {fields.object\.nested1.long.searchable:                       false}
+  - match: {fields.object\.nested1.long.aggregatable:                     true}
+  - match: {fields.object\.nested1.long.indices:                          ["test3"]}
+  - is_false: fields.object\.nested1.long.non_searchable_indices
+  - is_false: fields.object\.nested1.long.non_aggregatable_indices
+  - match: {fields.object\.nested1.text.searchable:                       false}
+  - match: {fields.object\.nested1.text.aggregatable:                     false}
+  - match: {fields.object\.nested1.text.indices:                          ["test1", "test2"]}
+  - match: {fields.object\.nested1.text.non_searchable_indices:           ["test1"]}
+  - is_false: fields.object\.nested1.text.non_aggregatable_indices
+  - match: {fields.object\.nested2.float.searchable:                      true}
+  - match: {fields.object\.nested2.float.aggregatable:                    false}
+  - match: {fields.object\.nested2.float.indices:                         ["test1", "test2"]}
+  - match: {fields.object\.nested2.float.non_aggregatable_indices:        ["test1"]}
+  - is_false: fields.object\.nested2.float.non_searchable_indices
+  - match: {fields.object\.nested2.keyword.searchable:                    true}
+  - match: {fields.object\.nested2.keyword.aggregatable:                  false}
+  - match: {fields.object\.nested2.keyword.indices:                       ["test3"]}
+  - is_false: fields.object\.nested2.keyword.non_aggregatable_indices
+  - is_false: fields.object\.nested2.keyword.non_searchable_indices
+---
+"Get object and nested field caps":
+
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: object*,level1*
+
+  - match: {fields.object.object.indices:                                 ["test1", "test2"]}
+  - match: {fields.object.object.searchable:                              false}
+  - match: {fields.object.object.aggregatable:                            false}
+  - is_false: fields.object.object.non_aggregatable_indices
+  - is_false: fields.object.object.non_searchable_indices
+  - match: {fields.object.nested.indices:                                 ["test3"]}
+  - match: {fields.object.nested.searchable:                              false}
+  - match: {fields.object.nested.aggregatable:                            false}
+  - is_false: fields.object.nested.non_aggregatable_indices
+  - is_false: fields.object.nested.non_searchable_indices
+  - match: {fields.level1.nested.indices:                                 ["test1", "test2"]}
+  - match: {fields.level1.nested.searchable:                              false}
+  - match: {fields.level1.nested.aggregatable:                            false}
+  - is_false: fields.level1.nested.non_aggregatable_indices
+  - is_false: fields.level1.nested.non_searchable_indices
+  - match: {fields.level1.object.indices:                                 ["test3"]}
+  - match: {fields.level1.object.searchable:                              false}
+  - match: {fields.level1.object.aggregatable:                            false}
+  - is_false: fields.level1.object.non_aggregatable_indices
+  - is_false: fields.level1.object.non_searchable_indices
+  - match: {fields.level1\.level2.object.searchable:                      false}
+  - match: {fields.level1\.level2.object.aggregatable:                    false}
+  - is_false: fields.level1\.level2.object.indices
+  - is_false: fields.level1\.level2.object.non_aggregatable_indices
+  - is_false: fields.level1\.level2.object.non_searchable_indices
+  - match: {fields.level1\.level2\.leaf1.text.searchable:                 false}
+  - match: {fields.level1\.level2\.leaf1.text.aggregatable:               false}
+  - is_false: fields.level1\.level2\.leaf1.text.indices
+  - is_false: fields.level1\.level2\.leaf1.text.non_aggregatable_indices
+  - is_false: fields.level1\.level2\.leaf1.text..non_searchable_indices
+---
+"Get prefix field caps":
+
+  - do:
+      field_caps:
+        index: _all
+        fields: "n*"
+  - match: {fields.number.double.searchable:            true}
+  - match: {fields.number.double.aggregatable:          true}
+  - match: {fields.number.double.indices:               ["test1", "test2"]}
+  - is_false: fields.number.double.non_searchable_indices
+  - is_false: fields.number.double.non_aggregatable_indices
+  - match: {fields.number.long.searchable:              true}
+  - match: {fields.number.long.aggregatable:            true}
+  - match: {fields.number.long.indices:                 ["test3"]}
+  - is_false: fields.number.long.non_searchable_indices
+  - is_false: fields.number.long.non_aggregatable_indices
+
+---
+"Mix in non-existing field field caps":
+
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: [text, keyword, no_such_field, number, geo]
+
+  - match: {fields.text.text.searchable:                true}
+  - match: {fields.text.text.aggregatable:              false}
+  - is_false: fields.text.text.indices
+  - is_false: fields.text.text.non_searchable_indices
+  - is_false: fields.text.text.non_aggregatable_indices
+  - match: {fields.keyword.keyword.searchable:          true}
+  - match: {fields.keyword.keyword.aggregatable:        true}
+  - is_false: fields.text.keyword.indices
+  - is_false: fields.text.keyword.non_searchable_indices
+  - is_false: fields.text.keyword.non_aggregatable_indices
+  - match: {fields.number.double.searchable:            true}
+  - match: {fields.number.double.aggregatable:          true}
+  - match: {fields.number.double.indices:               ["test1", "test2"]}
+  - is_false: fields.number.double.non_searchable_indices
+  - is_false: fields.number.double.non_aggregatable_indices
+  - match: {fields.number.long.searchable:              true}
+  - match: {fields.number.long.aggregatable:            true}
+  - match: {fields.number.long.indices:                 ["test3"]}
+  - is_false: fields.number.long.non_searchable_indices
+  - is_false: fields.number.long.non_aggregatable_indices
+  - match: {fields.geo.geo_point.searchable:            true}
+  - match: {fields.geo.geo_point.aggregatable:          true}
+  - match: {fields.geo.geo_point.indices:               ["test1", "test2"]}
+  - is_false: fields.geo.geo_point.non_searchable_indices
+  - is_false: fields.geo.geo_point.non_aggregatable_indices
+  - match: {fields.geo.keyword.searchable:              true}
+  - match: {fields.geo.keyword.aggregatable:            true}
+  - match: {fields.geo.keyword.indices:                 ["test3"]}
+  - is_false: fields.geo.keyword.non_searchable_indices
+  - is_false: fields.geo.keyword.on_aggregatable_indices
+
+---
+"Field caps with include_unmapped":
+  - skip:
+      version: " - 7.1.99"
+      reason: include_unmapped has been added in 7.2.0
+
+  - do:
+      field_caps:
+        include_unmapped: true
+        index: 'test1,test2,test3'
+        fields: [text, misc]
+
+  - match: {fields.text.text.searchable:                true}
+  - match: {fields.text.text.aggregatable:              false}
+  - is_false: fields.text.text.indices
+  - is_false: fields.text.text.non_searchable_indices
+  - is_false: fields.text.text.non_aggregatable_indices
+  - match: {fields.misc.text.searchable:                true}
+  - match: {fields.misc.text.aggregatable:              false}
+  - match: {fields.misc.text.indices:                   ["test1"]}
+  - match: {fields.misc.unmapped.searchable:            false}
+  - match: {fields.misc.unmapped.aggregatable:          false}
+  - match: {fields.misc.unmapped.indices:               ["test2", "test3"]}

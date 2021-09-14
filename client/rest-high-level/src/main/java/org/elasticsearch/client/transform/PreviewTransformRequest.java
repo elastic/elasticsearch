@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.transform;
@@ -32,10 +21,21 @@ import java.util.Optional;
 
 public class PreviewTransformRequest implements ToXContentObject, Validatable {
 
+    private final String transformId;
     private final TransformConfig config;
 
+    public PreviewTransformRequest(String transformId) {
+        this.transformId = Objects.requireNonNull(transformId);
+        this.config = null;
+    }
+
     public PreviewTransformRequest(TransformConfig config) {
-        this.config = config;
+        this.transformId = null;
+        this.config = Objects.requireNonNull(config);
+    }
+
+    public String getTransformId() {
+        return transformId;
     }
 
     public TransformConfig getConfig() {
@@ -44,16 +44,20 @@ public class PreviewTransformRequest implements ToXContentObject, Validatable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        return config.toXContent(builder, params);
+        if (this.config != null) {
+            return this.config.toXContent(builder, params);
+        } else {
+            return builder
+                .startObject()
+                .field(TransformConfig.ID.getPreferredName(), this.transformId)
+                .endObject();
+        }
     }
 
     @Override
     public Optional<ValidationException> validate() {
         ValidationException validationException = new ValidationException();
-        if (config == null) {
-            validationException.addValidationError("preview requires a non-null transform config");
-            return Optional.of(validationException);
-        } else {
+        if (config != null) {
             if (config.getSource() == null) {
                 validationException.addValidationError("transform source cannot be null");
             }
@@ -68,7 +72,7 @@ public class PreviewTransformRequest implements ToXContentObject, Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(config);
+        return Objects.hash(transformId, config);
     }
 
     @Override
@@ -80,6 +84,7 @@ public class PreviewTransformRequest implements ToXContentObject, Validatable {
             return false;
         }
         PreviewTransformRequest other = (PreviewTransformRequest) obj;
-        return Objects.equals(config, other.config);
+        return Objects.equals(transformId, other.transformId)
+            && Objects.equals(config, other.config);
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -40,7 +29,7 @@ public class IngestStatsTests extends ESTestCase {
         Map<String, List<IngestStats.ProcessorStat>> processorStats = createProcessorStats(pipelineStats);
         IngestStats ingestStats = new IngestStats(totalStats, pipelineStats, processorStats);
         IngestStats serializedStats = serialize(ingestStats);
-        assertIngestStats(ingestStats, serializedStats, true);
+        assertIngestStats(ingestStats, serializedStats, true, true);
     }
 
     private List<IngestStats.PipelineStat> createPipelineStats() {
@@ -52,9 +41,10 @@ public class IngestStatsTests extends ESTestCase {
 
     private Map<String, List<IngestStats.ProcessorStat>> createProcessorStats(List<IngestStats.PipelineStat> pipelineStats){
         assert(pipelineStats.size() >= 2);
-        IngestStats.ProcessorStat processor1Stat = new IngestStats.ProcessorStat("processor1", new IngestStats.Stats(1, 1, 1, 1));
-        IngestStats.ProcessorStat processor2Stat = new IngestStats.ProcessorStat("processor2", new IngestStats.Stats(2, 2, 2, 2));
-        IngestStats.ProcessorStat processor3Stat = new IngestStats.ProcessorStat("processor3", new IngestStats.Stats(47, 97, 197, 297));
+        IngestStats.ProcessorStat processor1Stat = new IngestStats.ProcessorStat("processor1", "type", new IngestStats.Stats(1, 1, 1, 1));
+        IngestStats.ProcessorStat processor2Stat = new IngestStats.ProcessorStat("processor2", "type", new IngestStats.Stats(2, 2, 2, 2));
+        IngestStats.ProcessorStat processor3Stat = new IngestStats.ProcessorStat("processor3", "type",
+            new IngestStats.Stats(47, 97, 197, 297));
         //pipeline1 -> processor1,processor2; pipeline2 -> processor3
         return MapBuilder.<String, List<IngestStats.ProcessorStat>>newMapBuilder()
             .put(pipelineStats.get(0).getPipelineId(), Stream.of(processor1Stat, processor2Stat).collect(Collectors.toList()))
@@ -69,7 +59,8 @@ public class IngestStatsTests extends ESTestCase {
         return new IngestStats(in);
     }
 
-    private void assertIngestStats(IngestStats ingestStats, IngestStats serializedStats, boolean expectProcessors){
+    private void assertIngestStats(IngestStats ingestStats, IngestStats serializedStats, boolean expectProcessors,
+                                   boolean expectProcessorTypes){
         assertNotSame(ingestStats, serializedStats);
         assertNotSame(ingestStats.getTotalStats(), serializedStats.getTotalStats());
         assertNotSame(ingestStats.getPipelineStats(), serializedStats.getPipelineStats());
@@ -91,6 +82,11 @@ public class IngestStatsTests extends ESTestCase {
                     for (IngestStats.ProcessorStat serializedProcessorStat : serializedProcessorStats) {
                         IngestStats.ProcessorStat ps = it.next();
                         assertEquals(ps.getName(), serializedProcessorStat.getName());
+                        if (expectProcessorTypes) {
+                            assertEquals(ps.getType(), serializedProcessorStat.getType());
+                        } else {
+                            assertEquals("_NOT_AVAILABLE", serializedProcessorStat.getType());
+                        }
                         assertStats(ps.getStats(), serializedProcessorStat.getStats());
                     }
                     assertFalse(it.hasNext());

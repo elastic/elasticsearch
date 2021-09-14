@@ -1,5 +1,8 @@
 [[analysis-synonym-tokenfilter]]
-=== Synonym Token Filter
+=== Synonym token filter
+++++
+<titleabbrev>Synonym</titleabbrev>
+++++
 
 The `synonym` token filter allows to easily handle synonyms during the
 analysis process. Synonyms are configured using a configuration file.
@@ -9,24 +12,24 @@ Here is an example:
 --------------------------------------------------
 PUT /test_index
 {
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "synonym" : {
-                        "tokenizer" : "whitespace",
-                        "filter" : ["synonym"]
-                    }
-                },
-                "filter" : {
-                    "synonym" : {
-                        "type" : "synonym",
-                        "synonyms_path" : "analysis/synonym.txt"
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "synonym": {
+            "tokenizer": "whitespace",
+            "filter": [ "synonym" ]
+          }
+        },
+        "filter": {
+          "synonym": {
+            "type": "synonym",
+            "synonyms_path": "analysis/synonym.txt"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -34,7 +37,7 @@ The above configures a `synonym` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
 `synonym` analyzer is then configured with the filter.
 
-This filter tokenize synonyms with whatever tokenizer and token filters
+This filter tokenizes synonyms with whatever tokenizer and token filters
 appear before it in the chain.
 
 Additional settings are:
@@ -48,41 +51,41 @@ to note that only those synonym rules which cannot get parsed are ignored. For i
 --------------------------------------------------
 PUT /test_index
 {
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "synonym" : {
-                        "tokenizer" : "standard",
-                        "filter" : ["my_stop", "synonym"]
-                    }
-                },
-                "filter" : {
-                    "my_stop": {
-                        "type" : "stop",
-                        "stopwords": ["bar"]
-                    },
-                    "synonym" : {
-                        "type" : "synonym",
-                        "lenient": true,
-                        "synonyms" : ["foo, bar => baz"]
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "synonym": {
+            "tokenizer": "standard",
+            "filter": [ "my_stop", "synonym" ]
+          }
+        },
+        "filter": {
+          "my_stop": {
+            "type": "stop",
+            "stopwords": [ "bar" ]
+          },
+          "synonym": {
+            "type": "synonym",
+            "lenient": true,
+            "synonyms": [ "foo, bar => baz" ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
 With the above request the word `bar` gets skipped but a mapping `foo => baz` is still added. However, if the mapping
-being added was "foo, baz => bar" nothing would get added to the synonym list. This is because the target word for the
+being added was `foo, baz => bar` nothing would get added to the synonym list. This is because the target word for the
 mapping is itself eliminated because it was a stop word. Similarly, if the mapping was "bar, foo, baz" and `expand` was
 set to `false` no mapping would get added as when `expand=false` the target mapping is the first word. However, if
 `expand=true` then the mappings added would be equivalent to `foo, baz => foo, baz` i.e, all mappings other than the
 stop word.
 
 
-[float]
+[discrete]
 [[synonym-tokenizer-ignore_case-deprecated]]
 ==== `tokenizer` and `ignore_case` are deprecated
 
@@ -92,7 +95,7 @@ The `ignore_case` parameter works with `tokenizer` parameter only.
 
 Two synonym formats are supported: Solr, WordNet.
 
-[float]
+[discrete]
 ==== Solr synonyms
 
 The following is a sample format of the file:
@@ -109,54 +112,54 @@ configuration file (note use of `synonyms` instead of `synonyms_path`):
 --------------------------------------------------
 PUT /test_index
 {
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "filter" : {
-                    "synonym" : {
-                        "type" : "synonym",
-                        "synonyms" : [
-                            "i-pod, i pod => ipod",
-                            "universe, cosmos"
-                        ]
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "filter": {
+          "synonym": {
+            "type": "synonym",
+            "synonyms": [
+              "i-pod, i pod => ipod",
+              "universe, cosmos"
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
 However, it is recommended to define large synonyms set in a file using
 `synonyms_path`, because specifying them inline increases cluster size unnecessarily.
 
-[float]
+[discrete]
 ==== WordNet synonyms
 
-Synonyms based on http://wordnet.princeton.edu/[WordNet] format can be
+Synonyms based on https://wordnet.princeton.edu/[WordNet] format can be
 declared using `format`:
 
 [source,console]
 --------------------------------------------------
 PUT /test_index
 {
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "filter" : {
-                    "synonym" : {
-                        "type" : "synonym",
-                        "format" : "wordnet",
-                        "synonyms" : [
-                            "s(100000001,1,'abstain',v,1,0).",
-                            "s(100000001,2,'refrain',v,1,0).",
-                            "s(100000001,3,'desist',v,1,0)."
-                        ]
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "filter": {
+          "synonym": {
+            "type": "synonym",
+            "format": "wordnet",
+            "synonyms": [
+              "s(100000001,1,'abstain',v,1,0).",
+              "s(100000001,2,'refrain',v,1,0).",
+              "s(100000001,3,'desist',v,1,0)."
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -167,13 +170,13 @@ as well.
 === Parsing synonym files
 
 Elasticsearch will use the token filters preceding the synonym filter
-in a tokenizer chain to parse the entries in a synonym file.  So, for example, if a
+in a tokenizer chain to parse the entries in a synonym file. So, for example, if a
 synonym filter is placed after a stemmer, then the stemmer will also be applied
-to the synonym entries.  Because entries in the synonym map cannot have stacked
-positions, some token filters may cause issues here.  Token filters that produce
+to the synonym entries. Because entries in the synonym map cannot have stacked
+positions, some token filters may cause issues here. Token filters that produce
 multiple versions of a token may choose which version of the token to emit when
 parsing synonyms, e.g. `asciifolding` will only produce the folded version of the
-token.  Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
+token. Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
 error.
 
 If you need to build analyzers that include both multi-token filters and synonym

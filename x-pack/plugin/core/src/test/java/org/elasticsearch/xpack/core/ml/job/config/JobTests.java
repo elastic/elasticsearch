@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
@@ -10,10 +11,14 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -21,12 +26,16 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,7 +72,19 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     @Override
     protected Job createTestInstance() {
-        return createRandomizedJob();
+        return createRandomizedJob(new DatafeedConfig.Builder().setIndices(Arrays.asList("airline_data")));
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @Override
@@ -76,12 +97,25 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         return Job.STRICT_PARSER.apply(parser, null).build();
     }
 
+    public void testToXContentForInternalStorage() throws IOException {
+        Job config = createRandomizedJob(new DatafeedConfig.Builder().setIndices(Arrays.asList("airline_data")));
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
+
+        BytesReference serializedJob = XContentHelper.toXContent(config, XContentType.JSON, params, false);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, serializedJob.streamInput());
+
+        Job parsedConfig = Job.LENIENT_PARSER.apply(parser, null).build();
+        // When we are writing for internal storage, we do not include the datafeed config
+        assertThat(parsedConfig.getDatafeedConfig().isPresent(), is(false));
+    }
+
     public void testFutureConfigParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_JOB);
         XContentParseException e = expectThrows(XContentParseException.class,
                 () -> Job.STRICT_PARSER.apply(parser, null).build());
-        assertEquals("[4:5] [job_details] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
+        assertEquals("[4:5] [job_details] unknown field [tomorrows_technology_today]", e.getMessage());
     }
 
     public void testFutureMetadataParse() throws IOException {
@@ -105,7 +139,8 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNull(job.getModelPlotConfig());
         assertNull(job.getRenormalizationWindowDays());
         assertNull(job.getBackgroundPersistInterval());
-        assertThat(job.getModelSnapshotRetentionDays(), equalTo(1L));
+        assertThat(job.getModelSnapshotRetentionDays(), equalTo(10L));
+        assertNull(job.getDailyModelSnapshotRetentionAfterDays());
         assertNull(job.getResultsRetentionDays());
         assertNotNull(job.allInputFields());
         assertFalse(job.allInputFields().isEmpty());
@@ -167,7 +202,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         Job job1 = builder.build();
         builder.setId("bar");
         Job job2 = builder.build();
-        assertFalse(job1.equals(job2));
+        assertNotEquals(job1, job2);
     }
 
     public void testEquals_GivenDifferentRenormalizationWindowDays() {
@@ -182,7 +217,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         jobDetails2.setRenormalizationWindowDays(4L);
         jobDetails2.setAnalysisConfig(createAnalysisConfig());
         jobDetails2.setCreateTime(date);
-        assertFalse(jobDetails1.build().equals(jobDetails2.build()));
+        assertNotEquals(jobDetails1.build(), jobDetails2.build());
     }
 
     public void testEquals_GivenDifferentBackgroundPersistInterval() {
@@ -197,7 +232,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         jobDetails2.setBackgroundPersistInterval(TimeValue.timeValueSeconds(8000L));
         jobDetails2.setAnalysisConfig(createAnalysisConfig());
         jobDetails2.setCreateTime(date);
-        assertFalse(jobDetails1.build().equals(jobDetails2.build()));
+        assertNotEquals(jobDetails1.build(), jobDetails2.build());
     }
 
     public void testEquals_GivenDifferentModelSnapshotRetentionDays() {
@@ -212,7 +247,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         jobDetails2.setModelSnapshotRetentionDays(8L);
         jobDetails2.setAnalysisConfig(createAnalysisConfig());
         jobDetails2.setCreateTime(date);
-        assertFalse(jobDetails1.build().equals(jobDetails2.build()));
+        assertNotEquals(jobDetails1.build(), jobDetails2.build());
     }
 
     public void testEquals_GivenDifferentResultsRetentionDays() {
@@ -227,7 +262,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         jobDetails2.setResultsRetentionDays(4L);
         jobDetails2.setAnalysisConfig(createAnalysisConfig());
         jobDetails2.setCreateTime(date);
-        assertFalse(jobDetails1.build().equals(jobDetails2.build()));
+        assertNotEquals(jobDetails1.build(), jobDetails2.build());
     }
 
     public void testEquals_GivenDifferentCustomSettings() {
@@ -239,7 +274,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         Map<String, Object> customSettings2 = new HashMap<>();
         customSettings2.put("key2", "value2");
         jobDetails2.setCustomSettings(customSettings2);
-        assertFalse(jobDetails1.build().equals(jobDetails2.build()));
+        assertNotEquals(jobDetails1.build(), jobDetails2.build());
     }
 
     // JobConfigurationTests:
@@ -396,6 +431,30 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertEquals(errorMessage, e.getMessage());
     }
 
+    public void testVerify_GivenNegativeDailyModelSnapshotRetentionAfterDays() {
+        String errorMessage =
+            Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "daily_model_snapshot_retention_after_days", 0, -1);
+        Job.Builder builder = buildJobBuilder("foo");
+        builder.setDailyModelSnapshotRetentionAfterDays(-1L);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
+
+        assertEquals(errorMessage, e.getMessage());
+    }
+
+    public void testVerify_GivenInconsistentModelSnapshotRetentionSettings() {
+        long dailyModelSnapshotRetentionAfterDays = randomLongBetween(1, Long.MAX_VALUE);
+        long modelSnapshotRetentionDays = randomLongBetween(0, dailyModelSnapshotRetentionAfterDays - 1);
+        String errorMessage =
+            Messages.getMessage(Messages.JOB_CONFIG_MODEL_SNAPSHOT_RETENTION_SETTINGS_INCONSISTENT,
+                dailyModelSnapshotRetentionAfterDays, modelSnapshotRetentionDays);
+        Job.Builder builder = buildJobBuilder("foo");
+        builder.setDailyModelSnapshotRetentionAfterDays(dailyModelSnapshotRetentionAfterDays);
+        builder.setModelSnapshotRetentionDays(modelSnapshotRetentionDays);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
+
+        assertEquals(errorMessage, e.getMessage());
+    }
+
     public void testVerify_GivenLowBackgroundPersistInterval() {
         String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "background_persist_interval", 3600, 3599);
         Job.Builder builder = buildJobBuilder("foo");
@@ -405,8 +464,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public void testVerify_GivenNegativeResultsRetentionDays() {
-        String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW,
-                "results_retention_days", 0, -1);
+        String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "results_retention_days", 0, -1);
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsRetentionDays(-1L);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
@@ -559,6 +617,51 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         }
     }
 
+    public void testDocumentId() {
+        String jobFoo = "foo";
+        assertEquals("anomaly_detector-" + jobFoo, Job.documentId(jobFoo));
+        assertEquals(jobFoo, Job.extractJobIdFromDocumentId(
+            Job.documentId(jobFoo)
+        ));
+        assertNull(Job.extractJobIdFromDocumentId("some_other_type-foo"));
+    }
+
+    public void testDeletingAndBlockReasonAreSynced() {
+        {
+            Job job = buildJobBuilder(randomValidJobId())
+                .setDeleting(true)
+                .build();
+            assertThat(job.getBlocked().getReason(), equalTo(Blocked.Reason.DELETE));
+        }
+        {
+            Job job = buildJobBuilder(randomValidJobId())
+                .setBlocked(new Blocked(Blocked.Reason.DELETE, null))
+                .build();
+            assertThat(job.isDeleting(), is(true));
+        }
+    }
+
+    public void testParseJobWithDeletingButWithoutBlockReason() throws IOException {
+        String jobWithDeleting = "{\n" +
+            "    \"job_id\": \"deleting_job\",\n" +
+            "    \"create_time\": 1234567890000,\n" +
+            "    \"analysis_config\": {\n" +
+            "        \"bucket_span\": \"1h\",\n" +
+            "        \"detectors\": [{\"function\": \"count\"}]\n" +
+            "    },\n" +
+            "    \"data_description\": {\n" +
+            "        \"time_field\": \"time\"\n" +
+            "    },\n" +
+            "    \"deleting\": true\n" +
+            "}";
+
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, jobWithDeleting)) {
+            Job job = doParseInstance(parser);
+            assertThat(job.getBlocked().getReason(), equalTo(Blocked.Reason.DELETE));
+        }
+    }
+
     public static Job.Builder buildJobBuilder(String id, Date date) {
         Job.Builder builder = new Job.Builder(id);
         builder.setCreateTime(date);
@@ -586,6 +689,10 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public static Job createRandomizedJob() {
+        return createRandomizedJob(null);
+    }
+
+    public static Job createRandomizedJob(DatafeedConfig.Builder datafeedBuilder) {
         String jobId = randomValidJobId();
         Job.Builder builder = new Job.Builder(jobId);
         if (randomBoolean()) {
@@ -611,11 +718,10 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
                 AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB));
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));
         builder.setDataDescription(dataDescription);
 
         if (randomBoolean()) {
-            builder.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10)));
+            builder.setModelPlotConfig(ModelPlotConfigTests.createRandomized());
         }
         if (randomBoolean()) {
             builder.setRenormalizationWindowDays(randomNonNegativeLong());
@@ -625,6 +731,13 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setModelSnapshotRetentionDays(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            if (builder.getModelSnapshotRetentionDays() != null) {
+                builder.setDailyModelSnapshotRetentionAfterDays(randomLongBetween(0, builder.getModelSnapshotRetentionDays()));
+            } else {
+                builder.setDailyModelSnapshotRetentionAfterDays(randomNonNegativeLong());
+            }
         }
         if (randomBoolean()) {
             builder.setResultsRetentionDays(randomNonNegativeLong());
@@ -643,6 +756,12 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setAllowLazyOpen(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.setBlocked(BlockedTests.createRandom());
+        }
+        if (datafeedBuilder != null) {
+            builder.setDatafeed(datafeedBuilder);
         }
         return builder.build();
     }

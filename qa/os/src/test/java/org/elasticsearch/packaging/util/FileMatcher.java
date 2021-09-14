@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
@@ -43,24 +32,32 @@ import static org.elasticsearch.packaging.util.FileUtils.getPosixFileAttributes;
  */
 public class FileMatcher extends TypeSafeMatcher<Path> {
 
-    public enum Fileness { File, Directory }
+    public enum Fileness {
+        File,
+        Directory
+    }
 
-    public static final Set<PosixFilePermission> p775 = fromString("rwxrwxr-x");
-    public static final Set<PosixFilePermission> p755 = fromString("rwxr-xr-x");
-    public static final Set<PosixFilePermission> p750 = fromString("rwxr-x---");
-    public static final Set<PosixFilePermission> p660 = fromString("rw-rw----");
+    public static final Set<PosixFilePermission> p444 = fromString("r--r--r--");
+    public static final Set<PosixFilePermission> p555 = fromString("r-xr-xr-x");
+    public static final Set<PosixFilePermission> p600 = fromString("rw-------");
     public static final Set<PosixFilePermission> p644 = fromString("rw-r--r--");
+    public static final Set<PosixFilePermission> p660 = fromString("rw-rw----");
+    public static final Set<PosixFilePermission> p664 = fromString("rw-rw-r--");
+    public static final Set<PosixFilePermission> p750 = fromString("rwxr-x---");
+    public static final Set<PosixFilePermission> p755 = fromString("rwxr-xr-x");
+    public static final Set<PosixFilePermission> p770 = fromString("rwxrwx---");
+    public static final Set<PosixFilePermission> p775 = fromString("rwxrwxr-x");
 
-    private final Fileness fileness;
-    private final String owner;
-    private final String group;
-    private final Set<PosixFilePermission> posixPermissions;
+    protected final Fileness fileness;
+    protected final String owner;
+    protected final String group;
+    protected final Set<PosixFilePermission> posixPermissions;
 
-    private String mismatch;
+    protected String mismatch;
 
     public FileMatcher(Fileness fileness, String owner, String group, Set<PosixFilePermission> posixPermissions) {
         this.fileness = Objects.requireNonNull(fileness);
-        this.owner = Objects.requireNonNull(owner);
+        this.owner = owner;
         this.group = group;
         this.posixPermissions = posixPermissions;
     }
@@ -74,16 +71,18 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
 
         if (Platforms.WINDOWS) {
             final BasicFileAttributes attributes = getBasicFileAttributes(path);
-            final String attributeViewOwner = getFileOwner(path);
 
             if (fileness.equals(Fileness.Directory) != attributes.isDirectory()) {
                 mismatch = "Is " + (attributes.isDirectory() ? "a directory" : "a file");
                 return false;
             }
 
-            if (attributeViewOwner.contains(owner) == false) {
-                mismatch = "Owned by " + attributeViewOwner;
-                return false;
+            if (owner != null) {
+                final String attributeViewOwner = getFileOwner(path);
+                if (attributeViewOwner.contains(owner) == false) {
+                    mismatch = "Owned by " + attributeViewOwner;
+                    return false;
+                }
             }
         } else {
             final PosixFileAttributes attributes = getPosixFileAttributes(path);
@@ -93,7 +92,7 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
                 return false;
             }
 
-            if (owner.equals(attributes.owner().getName()) == false) {
+            if (owner != null && owner.equals(attributes.owner().getName()) == false) {
                 mismatch = "Owned by " + attributes.owner().getName();
                 return false;
             }
@@ -122,10 +121,14 @@ public class FileMatcher extends TypeSafeMatcher<Path> {
 
     @Override
     public void describeTo(Description description) {
-        description.appendValue("file/directory: ").appendValue(fileness)
-            .appendText(" with owner ").appendValue(owner)
-            .appendText(" with group ").appendValue(group)
-            .appendText(" with posix permissions ").appendValueList("[", ",", "]", posixPermissions);
+        description.appendValue("file/directory: ")
+            .appendValue(fileness)
+            .appendText(" with owner ")
+            .appendValue(owner)
+            .appendText(" with group ")
+            .appendValue(group)
+            .appendText(" with posix permissions ")
+            .appendValueList("[", ",", "]", posixPermissions);
     }
 
     public static FileMatcher file(Fileness fileness, String owner) {

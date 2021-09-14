@@ -1,0 +1,35 @@
+version: '3'
+services:
+  minio-fixture:
+    build:
+      context: .
+      args:
+        bucket: "bucket"
+        accessKey: "s3_test_access_key"
+        secretKey: "s3_test_secret_key"
+      dockerfile: Dockerfile
+    ports:
+      - "9000"
+    command: ["server", "/minio/data"]
+  minio-fixture-other:
+    build:
+      context: .
+      args:
+        bucket: "bucket"
+        accessKey: "s3_test_access_key"
+        secretKey: "s3_test_secret_key"
+      dockerfile: Dockerfile
+    ports:
+      - "9000"
+    command: ["server", "/minio/data"]
+  minio-fixture-repository-test-kit:
+    build:
+      context: .
+      args:
+        bucket: "bucket"
+        accessKey: "s3_test_access_key"
+        secretKey: "s3_test_secret_key"
+      dockerfile: Dockerfile
+    ports:
+      - "9000"
+    command: ["server", "/minio/data"]

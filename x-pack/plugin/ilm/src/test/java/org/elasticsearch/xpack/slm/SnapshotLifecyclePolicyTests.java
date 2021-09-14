@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
 
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -23,62 +26,81 @@ import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTe
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<SnapshotLifecyclePolicy> {
 
     private String id;
 
-    public void testNameGeneration() {
-        long time = 1552684146542L; // Fri Mar 15 2019 21:09:06 UTC
-        SnapshotLifecyclePolicy.ResolverContext context = new SnapshotLifecyclePolicy.ResolverContext(time);
-        SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "1 * * * * ?", "repo", Collections.emptyMap(),
+    public void testToRequest() {
+        SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY);
-        assertThat(p.generateSnapshotName(context), startsWith("name-"));
-        assertThat(p.generateSnapshotName(context).length(), greaterThan("name-".length()));
+        CreateSnapshotRequest request = p.toRequest();
+        CreateSnapshotRequest expected = new CreateSnapshotRequest().userMetadata(Collections.singletonMap("policy", "id"));
 
-        p = new SnapshotLifecyclePolicy("id", "<name-{now}>", "1 * * * * ?", "repo", Collections.emptyMap(),
-            SnapshotRetentionConfiguration.EMPTY);
-        assertThat(p.generateSnapshotName(context), startsWith("name-2019.03.15-"));
-        assertThat(p.generateSnapshotName(context).length(), greaterThan("name-2019.03.15-".length()));
-
-        p = new SnapshotLifecyclePolicy("id", "<name-{now/M}>", "1 * * * * ?", "repo", Collections.emptyMap(),
-            SnapshotRetentionConfiguration.EMPTY);
-        assertThat(p.generateSnapshotName(context), startsWith("name-2019.03.01-"));
-
-        p = new SnapshotLifecyclePolicy("id", "<name-{now/m{yyyy-MM-dd.HH:mm:ss}}>", "1 * * * * ?", "repo", Collections.emptyMap(),
-            SnapshotRetentionConfiguration.EMPTY);
-        assertThat(p.generateSnapshotName(context), startsWith("name-2019-03-15.21:09:00-"));
+        p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", null, null);
+        request = p.toRequest();
+        expected.waitForCompletion(true).snapshot(request.snapshot()).repository("repo");
+        assertEquals(expected, request);
     }
-
     public void testNextExecutionTime() {
         SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", Collections.emptyMap(),
             SnapshotRetentionConfiguration.EMPTY);
         assertThat(p.calculateNextExecution(), equalTo(4078864860000L));
     }
 
+    public void testCalculateNextInterval() {
+        {
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 0/5 * * * ?", "repo", Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY);
+            assertThat(p.calculateNextInterval(), equalTo(TimeValue.timeValueMinutes(5)));
+        }
+
+        {
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY);
+            assertThat(p.calculateNextInterval(), equalTo(TimeValue.MINUS_ONE));
+        }
+
+        {
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "* * * 31 FEB ? *", "repo", Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY);
+            assertThat(p.calculateNextInterval(), equalTo(TimeValue.MINUS_ONE));
+        }
+    }
+
     public void testValidation() {
-        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("a,b", "<my, snapshot-{now/M}>",
-            "* * * * * L", "  ", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("a,b", "<my, snapshot-{now/M}>",
+                "* * * * * L", "  ", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
 
-        ValidationException e = policy.validate();
-        assertThat(e.validationErrors(),
-            containsInAnyOrder(
-                "invalid policy id [a,b]: must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
-                "invalid snapshot name [<my, snapshot-{now/M}>]: must not contain contain" +
-                    " the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
-                "invalid repository name [  ]: cannot be empty",
-                "invalid schedule: invalid cron expression [* * * * * L]"));
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(),
+                containsInAnyOrder(
+                    "invalid policy id [a,b]: must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
+                    "invalid snapshot name [<my, snapshot-{now/M}>]: must not contain contain" +
+                        " the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
+                    "invalid repository name [  ]: cannot be empty",
+                    "invalid schedule: invalid cron expression [* * * * * L]"));
+        }
 
-        policy = new SnapshotLifecyclePolicy("_my_policy", "mySnap",
-            " ", "repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("_my_policy", "mySnap",
+                " ", "repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
 
-        e = policy.validate();
-        assertThat(e.validationErrors(),
-            containsInAnyOrder("invalid policy id [_my_policy]: must not start with '_'",
-                "invalid snapshot name [mySnap]: must be lowercase",
-                "invalid schedule [ ]: must not be empty"));
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(),
+                containsInAnyOrder("invalid policy id [_my_policy]: must not start with '_'",
+                    "invalid snapshot name [mySnap]: must be lowercase",
+                    "invalid schedule [ ]: must not be empty"));
+        }
+
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("my_policy", "my_snap",
+                "0 0/30 * * * ?", "repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
+            ValidationException e = policy.validate();
+            assertThat(e, nullValue());
+        }
     }
 
     public void testMetadataValidation() {

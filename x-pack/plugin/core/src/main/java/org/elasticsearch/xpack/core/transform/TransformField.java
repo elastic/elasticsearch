@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 
 /*
- * Utility class to hold common fields and strings for data frame.
+ * Utility class to hold common fields and strings for transform.
  */
 public final class TransformField {
 
@@ -22,6 +23,7 @@ public final class TransformField {
     public static final ParseField GROUP_BY = new ParseField("group_by");
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
+    public static final ParseField WAIT_FOR_CHECKPOINT = new ParseField("wait_for_checkpoint");
     public static final ParseField STATS_FIELD = new ParseField("stats");
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
     public static final ParseField SOURCE = new ParseField("source");
@@ -29,14 +31,21 @@ public final class TransformField {
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField DESTINATION = new ParseField("dest");
+    public static final ParseField SETTINGS = new ParseField("settings");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField FORCE = new ParseField("force");
     public static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
+    public static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
+    public static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");
+    public static final ParseField ALIGN_CHECKPOINTS = new ParseField("align_checkpoints");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");
-    public static final ParseField TIME_BASED_SYNC = new ParseField("time");
+    public static final ParseField TIME = new ParseField("time");
     public static final ParseField DELAY = new ParseField("delay");
+    // TODO: Rename to "defer_data_validation" or similar to emphasize that not all validation is deferred
     public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");
+    public static final ParseField RETENTION_POLICY = new ParseField("retention_policy");
+    public static final ParseField MAX_AGE = new ParseField("max_age");
 
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
     /**
@@ -81,10 +90,10 @@ public final class TransformField {
      * API's)
      */
     public static final String FOR_INTERNAL_STORAGE = "for_internal_storage";
+    public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     // internal document id
     public static String DOCUMENT_ID_FIELD = "_id";
 
-    private TransformField() {
-    }
+    private TransformField() {}
 }

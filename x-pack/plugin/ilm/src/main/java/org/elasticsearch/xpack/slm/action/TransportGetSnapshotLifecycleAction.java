@@ -1,13 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -19,17 +18,15 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,29 +39,19 @@ import java.util.stream.Collectors;
 public class TransportGetSnapshotLifecycleAction extends
     TransportMasterNodeAction<GetSnapshotLifecycleAction.Request, GetSnapshotLifecycleAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
-
     @Inject
     public TransportGetSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetSnapshotLifecycleAction.Request::new, indexNameExpressionResolver);
-    }
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetSnapshotLifecycleAction.Response read(StreamInput in) throws IOException {
-        return new GetSnapshotLifecycleAction.Response(in);
+                GetSnapshotLifecycleAction.Request::new, indexNameExpressionResolver, GetSnapshotLifecycleAction.Response::new,
+                ThreadPool.Names.SAME);
     }
 
     @Override
     protected void masterOperation(final Task task, final GetSnapshotLifecycleAction.Request request,
                                    final ClusterState state,
                                    final ActionListener<GetSnapshotLifecycleAction.Response> listener) {
-        SnapshotLifecycleMetadata snapMeta = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null) {
             if (request.getLifecycleIds().length == 0) {
                 listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));
@@ -83,12 +70,12 @@ public class TransportGetSnapshotLifecycleAction extends
                 for (SnapshotsInProgress.Entry entry : sip.entries()) {
                     Map<String, Object> meta = entry.userMetadata();
                     if (meta == null ||
-                        meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) == null ||
-                        (meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) instanceof String == false)) {
+                        meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) == null ||
+                        (meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String == false)) {
                         continue;
                     }
 
-                    String policyId = (String) meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD);
+                    String policyId = (String) meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
                     inProgress.put(policyId, SnapshotLifecyclePolicyItem.SnapshotInProgress.fromEntry(entry));
                 }
             }

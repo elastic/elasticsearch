@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm.history;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -116,11 +117,6 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, DELETE_OPERATION, true, null, null);
     }
 
-    public static SnapshotHistoryItem deletionPossibleSuccessRecord(long timestamp, String snapshotName, String policyId, String repository,
-                                                                    String details) {
-        return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, DELETE_OPERATION, true, null, details);
-    }
-
     public static SnapshotHistoryItem deletionFailureRecord(long timestamp, String snapshotName, String policyId, String repository,
                                                             Exception exception) throws IOException {
         String exceptionString = exceptionToString(exception);
@@ -215,7 +211,7 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
             Objects.equals(getRepository(), that1.getRepository()) &&
             Objects.equals(getSnapshotName(), that1.getSnapshotName()) &&
             Objects.equals(getOperation(), that1.getOperation());
-        if (!result) return false;
+        if (result == false) return false;
         SnapshotHistoryItem that = (SnapshotHistoryItem) o;
         return Objects.equals(getSnapshotConfiguration(), that.getSnapshotConfiguration()) &&
             Objects.equals(getErrorDetails(), that.getErrorDetails());

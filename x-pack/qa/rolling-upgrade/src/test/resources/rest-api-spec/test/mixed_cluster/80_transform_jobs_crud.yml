@@ -1,0 +1,387 @@
+---
+"Test put batch transform on mixed cluster":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      cluster.health:
+        index: "transform-airline-data"
+        wait_for_status: green
+        timeout: 70s
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.put_transform:
+        transform_id: "mixed-simple-transform"
+        body: >
+          {
+            "source": { "index": "transform-airline-data" },
+            "dest": { "index": "mixed-simple-transform-idx" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.start_transform:
+        transform_id: "mixed-simple-transform"
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "mixed-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-transform" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.stop_transform:
+        transform_id: "mixed-simple-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "mixed-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-transform" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.put_transform:
+        transform_id: "mixed-complex-transform"
+        body: >
+          {
+            "source": {
+              "index": "transform-airline-data",
+              "query": {
+                "bool": {
+                  "filter": {"term": {"airline": "ElasticAir"}}
+                }
+              }
+            },
+            "dest": {
+              "index": "mixed-complex-transform-idx",
+              "pipeline": "data_frame_simple_pipeline"
+            },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "day": {"date_histogram": {"field": "timestamp", "calendar_interval": "1d"}},
+                "every_50": {"histogram": {"field": "responsetime", "interval": 50}}
+              },
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform:
+        transform_id: "mixed-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-complex-transform" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.start_transform:
+        transform_id: "mixed-complex-transform"
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "mixed-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-complex-transform" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.stop_transform:
+        transform_id: "mixed-complex-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "mixed-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-complex-transform" }
+  - match: { transforms.0.state: "stopped" }
+
+---
+"Test put continuous transform on mixed cluster":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      cluster.health:
+        index: "transform-airline-data-cont"
+        wait_for_status: green
+        timeout: 70s
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.put_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        body: >
+          {
+            "source": { "index": "transform-airline-data-cont" },
+            "dest": { "index": "mixed-simple-continuous-transform-idx" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.start_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.stop_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.state: "stopped" }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.update_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        body: >
+          {
+            "description": "Simple continuous transform"
+          }
+---
+"Test GET, start, and stop old cluster batch transforms":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      cluster.health:
+        index: "transform-airline-data"
+        wait_for_status: green
+        timeout: 70s
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform:
+        transform_id: "old-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-transform" }
+  - match: { transforms.0.source.index.0: "transform-airline-data" }
+  - match: { transforms.0.dest.index: "old-simple-transform-idx" }
+  - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
+  - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.start_transform:
+        transform_id: "old-simple-transform"
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "old-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-transform" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.stop_transform:
+        transform_id: "old-simple-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "old-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-transform" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform:
+        transform_id: "old-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-complex-transform" }
+  - match: { transforms.0.source.index.0: "transform-airline-data" }
+  - match: { transforms.0.dest.index: "old-complex-transform-idx" }
+  - match: { transforms.0.dest.pipeline: "data_frame_simple_pipeline" }
+  - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
+  - match: { transforms.0.pivot.group_by.day.date_histogram.field: "timestamp" }
+  - match: { transforms.0.pivot.group_by.every_50.histogram.field: "responsetime" }
+  - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.start_transform:
+        transform_id: "old-complex-transform"
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "old-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-complex-transform" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.stop_transform:
+        transform_id: "old-complex-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "old-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-complex-transform" }
+  - match: { transforms.0.state: "stopped" }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.update_transform:
+        transform_id: "old-complex-transform"
+        body: >
+          {
+            "description": "old complex transform"
+          }
+---
+"Test GET, stop, start, old continuous transforms":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      cluster.health:
+        index: "transform-airline-data-cont"
+        wait_for_status: green
+        timeout: 70s
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.start_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.stop_transform:
+        transform_id: "old-simple-continuous-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.get_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state: "stopped" }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.update_transform:
+        transform_id: "old-simple-continuous-transform"
+        body: >
+          {
+            "description": "old simple continuous transform"
+          }

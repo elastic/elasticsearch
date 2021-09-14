@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.xpack.sql.client.Version;
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -23,7 +24,7 @@ public class EsDriver implements Driver {
 
     static {
         // invoke Version to perform classpath/jar sanity checks
-        Version.CURRENT.toString();
+        ClientVersion.CURRENT.toString();
 
         try {
             register();
@@ -68,7 +69,7 @@ public class EsDriver implements Driver {
         if (url == null) {
             throw new JdbcSQLException("Non-null url required");
         }
-        if (!acceptsURL(url)) {
+        if (acceptsURL(url) == false) {
             return null;
         }
 
@@ -88,7 +89,7 @@ public class EsDriver implements Driver {
 
     @Override
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-        if (!acceptsURL(url)) {
+        if (acceptsURL(url) == false) {
             return new DriverPropertyInfo[0];
         }
         return JdbcConfiguration.create(url, info, DriverManager.getLoginTimeout()).driverPropertyInfo();
@@ -96,12 +97,12 @@ public class EsDriver implements Driver {
 
     @Override
     public int getMajorVersion() {
-        return Version.CURRENT.major;
+        return ClientVersion.CURRENT.major;
     }
 
     @Override
     public int getMinorVersion() {
-        return Version.CURRENT.minor;
+        return ClientVersion.CURRENT.minor;
     }
 
     @Override

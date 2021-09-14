@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.store;
 
@@ -24,7 +25,7 @@ import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
@@ -60,7 +62,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -168,7 +169,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client
-                        .prepareDelete(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForRole(deleteRoleRequest.name())).request();
+                        .prepareDelete(SECURITY_MAIN_ALIAS, getIdForRole(deleteRoleRequest.name())).request();
                 request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     new ActionListener<DeleteResponse>() {
@@ -189,9 +190,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
-        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
-            innerPutRole(request, role, listener);
-        } else if (role.isUsingDocumentOrFieldLevelSecurity()) {
+        if (role.isUsingDocumentOrFieldLevelSecurity() && licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
         } else {
             innerPutRole(request, role, listener);
@@ -208,7 +207,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 listener.onFailure(e);
                 return;
             }
-            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForRole(role.getName()))
+            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS).setId(getIdForRole(role.getName()))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
@@ -265,7 +264,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             .setSize(0)
                             .setTerminateAfter(1))
                         .request(),
-                    new ActionListener<MultiSearchResponse>() {
+                    new ActionListener.Delegating<MultiSearchResponse, Map<String, Object>>(listener) {
                         @Override
                         public void onResponse(MultiSearchResponse items) {
                             Item[] responses = items.getResponses();
@@ -285,12 +284,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             } else {
                                 usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits().value > 0L);
                             }
-                            listener.onResponse(usageStats);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
+                            delegate.onResponse(usageStats);
                         }
                     }, client::multiSearch));
         }
@@ -370,30 +364,25 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             // we pass true as last parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
             RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
-            if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
-                return roleDescriptor;
-            } else {
-                final boolean dlsEnabled =
-                        Arrays.stream(roleDescriptor.getIndicesPrivileges()).anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
-                final boolean flsEnabled =
-                        Arrays.stream(roleDescriptor.getIndicesPrivileges()).anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity);
-                if (dlsEnabled || flsEnabled) {
-                    List<String> unlicensedFeatures = new ArrayList<>(2);
-                    if (flsEnabled) {
-                        unlicensedFeatures.add("fls");
-                    }
-                    if (dlsEnabled) {
-                        unlicensedFeatures.add("dls");
-                    }
-                    Map<String, Object> transientMap = new HashMap<>(2);
-                    transientMap.put("unlicensed_features", unlicensedFeatures);
-                    transientMap.put("enabled", false);
-                    return new RoleDescriptor(roleDescriptor.getName(), roleDescriptor.getClusterPrivileges(),
-                            roleDescriptor.getIndicesPrivileges(), roleDescriptor.getRunAs(), roleDescriptor.getMetadata(), transientMap);
-                } else {
-                    return roleDescriptor;
+            final boolean dlsEnabled =
+                    Arrays.stream(roleDescriptor.getIndicesPrivileges()).anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
+            final boolean flsEnabled =
+                    Arrays.stream(roleDescriptor.getIndicesPrivileges()).anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity);
+            if ((dlsEnabled || flsEnabled) && licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                List<String> unlicensedFeatures = new ArrayList<>(2);
+                if (flsEnabled) {
+                    unlicensedFeatures.add("fls");
                 }
-
+                if (dlsEnabled) {
+                    unlicensedFeatures.add("dls");
+                }
+                Map<String, Object> transientMap = new HashMap<>(2);
+                transientMap.put("unlicensed_features", unlicensedFeatures);
+                transientMap.put("enabled", false);
+                return new RoleDescriptor(roleDescriptor.getName(), roleDescriptor.getClusterPrivileges(),
+                        roleDescriptor.getIndicesPrivileges(), roleDescriptor.getRunAs(), roleDescriptor.getMetadata(), transientMap);
+            } else {
+                return roleDescriptor;
             }
         } catch (Exception e) {
             logger.error(new ParameterizedMessage("error in the format of data for role [{}]", name), e);

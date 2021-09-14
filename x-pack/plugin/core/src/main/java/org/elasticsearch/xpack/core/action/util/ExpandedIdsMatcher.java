@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action.util;
 
@@ -43,6 +44,7 @@ public final class ExpandedIdsMatcher {
     }
 
     private final LinkedList<IdMatcher> requiredMatches;
+    private final boolean onlyExact;
 
     /**
      * Generate the list of required matches from the expressions in {@code tokens}
@@ -65,14 +67,19 @@ public final class ExpandedIdsMatcher {
                 // require something, anything to match
                 requiredMatches.add(new WildcardMatcher("*"));
             }
+            onlyExact = false;
             return;
         }
+
+        boolean atLeastOneWildcard = false;
 
         if (allowNoMatchForWildcards) {
             // matches are not required for wildcards but
             // specific job Ids are
             for (String token : tokens) {
-                if (Regex.isSimpleMatchPattern(token) == false) {
+                if (Regex.isSimpleMatchPattern(token)) {
+                    atLeastOneWildcard = true;
+                } else {
                     requiredMatches.add(new EqualsIdMatcher(token));
                 }
             }
@@ -81,11 +88,13 @@ public final class ExpandedIdsMatcher {
             for (String token : tokens) {
                 if (Regex.isSimpleMatchPattern(token)) {
                     requiredMatches.add(new WildcardMatcher(token));
+                    atLeastOneWildcard = true;
                 } else {
                     requiredMatches.add(new EqualsIdMatcher(token));
                 }
             }
         }
+        onlyExact = atLeastOneWildcard == false;
     }
 
     /**
@@ -119,6 +128,57 @@ public final class ExpandedIdsMatcher {
         return requiredMatches.stream().map(IdMatcher::getId).collect(Collectors.joining(","));
     }
 
+    /**
+     * Whether ids are based on exact matchers or at least one contains a wildcard.
+     *
+     * @return true if only exact matches, false if at least one id contains a wildcard
+     */
+    public boolean isOnlyExact() {
+        return onlyExact;
+    }
+
+
+    /**
+     * A simple matcher with one purpose to test whether an id
+     * matches a expression that may contain wildcards.
+     * Use the {@link #idMatches(String)} function to
+     * test if the given id is matched by any of the matchers.
+     *
+     * Unlike {@link ExpandedIdsMatcher} there is no
+     * allowNoMatchForWildcards logic and the matchers
+     * are not be removed once they have been matched.
+     */
+    public static class SimpleIdsMatcher {
+
+        private final LinkedList<IdMatcher> requiredMatches;
+
+        public SimpleIdsMatcher(String[] tokens) {
+            requiredMatches = new LinkedList<>();
+
+            if (Strings.isAllOrWildcard(tokens)) {
+                requiredMatches.add(new WildcardMatcher("*"));
+                return;
+            }
+
+            for (String token : tokens) {
+                if (Regex.isSimpleMatchPattern(token)) {
+                    requiredMatches.add(new WildcardMatcher(token));
+                } else {
+                    requiredMatches.add(new EqualsIdMatcher(token));
+                }
+            }
+        }
+
+        /**
+         * Do any of the matchers match {@code id}?
+         *
+         * @param id Id to test
+         * @return True if the given id is matched by any of the matchers
+         */
+        public boolean idMatches(String id) {
+            return requiredMatches.stream().anyMatch(idMatcher -> idMatcher.matches(id));
+        }
+    }
 
     private abstract static class IdMatcher {
         protected final String id;

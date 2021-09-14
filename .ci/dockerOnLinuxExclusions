@@ -1,0 +1,19 @@
+# This file specifies the Linux OS versions on which we can't build and
+# test Docker images for some reason. These values correspond to ID and
+# VERSION_ID from /etc/os-release, and a matching value will cause the
+# Docker tests to be skipped on that OS. If /etc/os-release doesn't exist
+# (as is the case on centos-6, for example) then that OS will again be
+# excluded.
+debian-8
+opensuse-leap-15.1
+ol-7.7
+sles-12.3 # older version used in Vagrant image
+sles-12.5
+sles-15.1
+sles-15.2
+sles-15.3
+
+# These OSes are deprecated and filtered starting with 8.0.0, but need to be excluded
+# for PR checks
+centos-6
+ol-6.10

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.replication;
@@ -32,7 +21,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -94,7 +83,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                 @Override
                 public void onFailure(Exception e) {
                     logger.trace("{}: got failure from {}", actionName, shardId);
-                    int totalNumCopies = clusterState.getMetaData().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
+                    int totalNumCopies = clusterState.getMetadata().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
                     ShardResponse shardResponse = newShardResponse();
                     ReplicationResponse.ShardInfo.Failure[] failures;
                     if (TransportActions.isShardNotAvailableException(e)) {
@@ -129,8 +118,8 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         List<ShardId> shardIds = new ArrayList<>();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         for (String index : concreteIndices) {
-            IndexMetaData indexMetaData = clusterState.metaData().getIndices().get(index);
-            if (indexMetaData != null) {
+            IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(index);
+            if (indexMetadata != null) {
                 for (IntObjectCursor<IndexShardRoutingTable> shardRouting
                         : clusterState.getRoutingTable().indicesRouting().get(index).getShards()) {
                     shardIds.add(shardRouting.value.shardId());
@@ -144,7 +133,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
 
     protected abstract ShardRequest newShardRequest(Request request, ShardId shardId);
 
-    private void finishAndNotifyListener(ActionListener listener, CopyOnWriteArrayList<ShardResponse> shardsResponses) {
+    private void finishAndNotifyListener(ActionListener<Response> listener, CopyOnWriteArrayList<ShardResponse> shardsResponses) {
         logger.trace("{}: got all shard responses", actionName);
         int successfulShards = 0;
         int failedShards = 0;
@@ -170,6 +159,6 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         listener.onResponse(newResponse(successfulShards, failedShards, totalNumCopies, shardFailures));
     }
 
-    protected abstract BroadcastResponse newResponse(int successfulShards, int failedShards, int totalNumCopies,
+    protected abstract Response newResponse(int successfulShards, int failedShards, int totalNumCopies,
                                                      List<DefaultShardOperationFailedException> shardFailures);
 }

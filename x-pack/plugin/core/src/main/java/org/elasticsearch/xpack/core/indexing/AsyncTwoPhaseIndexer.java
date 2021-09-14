@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.indexing;
@@ -11,12 +12,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
-import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -38,15 +40,65 @@ import java.util.concurrent.atomic.AtomicReference;
 public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends IndexerJobStats> {
     private static final Logger logger = LogManager.getLogger(AsyncTwoPhaseIndexer.class.getName());
 
+    // max time to wait for during throttling
+    private static final TimeValue MAX_THROTTLE_WAIT_TIME = TimeValue.timeValueHours(1);
+    // min time to trigger delayed execution, this avoids scheduling tasks with super short amount of time
+    private static final TimeValue MIN_THROTTLE_WAIT_TIME = TimeValue.timeValueMillis(10);
+
+    private final ActionListener<SearchResponse> searchResponseListener = ActionListener.wrap(
+        this::onSearchResponse,
+        this::finishWithSearchFailure
+    );
+
     private final JobStats stats;
 
     private final AtomicReference<IndexerState> state;
     private final AtomicReference<JobPosition> position;
-    private final Executor executor;
+    private final ThreadPool threadPool;
 
-    protected AsyncTwoPhaseIndexer(Executor executor, AtomicReference<IndexerState> initialState,
-                                   JobPosition initialPosition, JobStats jobStats) {
-        this.executor = executor;
+    // throttling implementation
+    private volatile float currentMaxDocsPerSecond;
+    private volatile long lastSearchStartTimeNanos = 0;
+    private volatile long lastDocCount = 0;
+    private volatile ScheduledRunnable scheduledNextSearch;
+
+    /**
+     * Task wrapper for throttled execution, we need this wrapper in order to cancel and re-issue scheduled searches
+     */
+    class ScheduledRunnable {
+        private final ThreadPool threadPool;
+        private final Runnable command;
+        private Scheduler.ScheduledCancellable scheduled;
+
+        ScheduledRunnable(ThreadPool threadPool, TimeValue delay, Runnable command) {
+            this.threadPool = threadPool;
+
+            // with wrapping the command in RunOnce we ensure the command isn't executed twice, e.g. if the
+            // future is already running and cancel returns true
+            this.command = new RunOnce(command);
+            this.scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
+        }
+
+        public void reschedule(TimeValue delay) {
+            // note: cancel return true if the runnable is currently executing
+            if (scheduled.cancel()) {
+                if (delay.duration() > 0) {
+                    scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
+                } else {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(command::run);
+                }
+            }
+        }
+
+    }
+
+    protected AsyncTwoPhaseIndexer(
+        ThreadPool threadPool,
+        AtomicReference<IndexerState> initialState,
+        JobPosition initialPosition,
+        JobStats jobStats
+    ) {
+        this.threadPool = threadPool;
         this.state = initialState;
         this.position = new AtomicReference<>(initialPosition);
         this.stats = jobStats;
@@ -96,7 +148,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * @return The new state for the indexer (STOPPED, STOPPING or ABORTING if the job was already aborted).
      */
     public synchronized IndexerState stop() {
-        return state.updateAndGet(previousState -> {
+        IndexerState indexerState = state.updateAndGet(previousState -> {
             if (previousState == IndexerState.INDEXING) {
                 return IndexerState.STOPPING;
             } else if (previousState == IndexerState.STARTED) {
@@ -105,6 +157,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 return previousState;
             }
         });
+
+        // a throttled search might be waiting to be executed, stop it
+        runSearchImmediately();
+
+        return indexerState;
     }
 
     /**
@@ -152,15 +209,15 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
             if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
                 // fire off the search. Note this is async, the method will return from here
-                executor.execute(() -> {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                     onStart(now, ActionListener.wrap(r -> {
                         assert r != null;
                         if (r) {
-                            nextSearch(ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
+                            nextSearch();
                         } else {
                             onFinish(ActionListener.wrap(
-                                onFinishResponse -> doSaveState(finishAndSetState(), position.get(), () -> {}),
-                                onFinishFailure -> doSaveState(finishAndSetState(), position.get(), () -> {})));
+                                onFinishResponse -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                                onFinishFailure -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
                         }
                     },
                     this::finishWithFailure));
@@ -179,6 +236,63 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     /**
+     * Checks if the state should be persisted, if true doSaveState is called before continuing. Inherited classes
+     * can override this, to provide a better logic, when state should be saved.
+     *
+     * @return true if state should be saved, false if not.
+     */
+    protected boolean triggerSaveState() {
+        // implementors can overwrite this with something more intelligent than every-50
+        return (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0);
+    }
+
+    /**
+     * Re-schedules the search request if necessary, this method can be called to apply a change
+     * in maximumRequestsPerSecond immediately
+     */
+    protected void rethrottle() {
+        // simple check if the setting has changed, ignores the call if it hasn't
+        if (getMaxDocsPerSecond() == currentMaxDocsPerSecond) {
+            return;
+        }
+
+        reQueueThrottledSearch();
+    }
+
+    /**
+     * Re-schedules the current search request to run immediately, iff one is scheduled.
+     *
+     * Call this if you need the indexer to fast forward a scheduled(in case it's throttled) search once in order to
+     * complete a full cycle.
+     */
+    protected void runSearchImmediately() {
+        ScheduledRunnable runnable = scheduledNextSearch;
+        if (runnable != null) {
+            runnable.reschedule(TimeValue.ZERO);
+        }
+    }
+
+    // protected, so it can be overwritten by tests
+    protected long getTimeNanos() {
+        return System.nanoTime();
+    }
+
+    // only for testing purposes
+    protected ScheduledRunnable getScheduledNextSearch() {
+        return scheduledNextSearch;
+    }
+
+    /**
+     * Called to get max docs per second. To be overwritten if
+     * throttling is implemented, the default -1 turns off throttling.
+     *
+     * @return a float with max docs per second, -1 if throttling is off
+     */
+    protected float getMaxDocsPerSecond() {
+        return -1;
+    }
+
+    /**
      * Called to get the Id of the job, used for logging.
      *
      * @return a string with the id of the job
@@ -194,13 +308,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract IterationResult<JobPosition> doProcess(SearchResponse searchResponse);
 
     /**
-     * Called to build the next search request.
-     *
-     * @return SearchRequest to be passed to the search phase.
-     */
-    protected abstract SearchRequest buildSearchRequest();
-
-    /**
      * Called at startup after job has been triggered using {@link #maybeTriggerAsyncJob(long)} and the
      * internal state is {@link IndexerState#STARTED}.
      *
@@ -212,15 +319,18 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract void onStart(long now, ActionListener<Boolean> listener);
 
     /**
-     * Executes the {@link SearchRequest} and calls <code>nextPhase</code> with the
+     * Executes the next search and calls <code>nextPhase</code> with the
      * response or the exception if an error occurs.
      *
-     * @param request
-     *            The search request to execute
+     * In case the indexer is throttled waitTimeInNanos can be used as hint for doing a less resource hungry
+     * search.
+     *
+     * @param waitTimeInNanos
+     *            Duration in nanoseconds the indexer has waited due to throttling
      * @param nextPhase
      *            Listener for the next phase
      */
-    protected abstract void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase);
+    protected abstract void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase);
 
     /**
      * Executes the {@link BulkRequest} and calls <code>nextPhase</code> with the
@@ -265,6 +375,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract void onFinish(ActionListener<Void> listener);
 
     /**
+     * Called after onFinish or after onFailure and all the following steps - in particular state persistence - are completed.
+     */
+    protected void afterFinishOrFailure() {
+    }
+
+    /**
      * Called when the indexer is stopped. This is only called when the indexer is stopped
      * via {@link #stop()} as opposed to {@link #onFinish(ActionListener)} which is called
      * when the indexer's work is done.
@@ -281,18 +397,19 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private void finishWithSearchFailure(Exception exc) {
         stats.incrementSearchFailures();
         onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), () -> {});
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private void finishWithIndexingFailure(Exception exc) {
         stats.incrementIndexingFailures();
         onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), () -> {});
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private void finishWithFailure(Exception exc) {
         onFailure(exc);
         finishAndSetState();
+        afterFinishOrFailure();
     }
 
     private IndexerState finishAndSetState() {
@@ -345,45 +462,57 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 return;
             }
 
-            // allowPartialSearchResults is set to false, so we should never see shard failures here
-            assert (searchResponse.getShardFailures().length == 0);
-
-            stats.incrementNumPages(1);
-            IterationResult<JobPosition> iterationResult = doProcess(searchResponse);
-
-            if (iterationResult.isDone()) {
-                logger.debug("Finished indexing for job [" + getJobId() + "], saving state and shutting down.");
-
-                position.set(iterationResult.getPosition());
+            // searchResponse may be null if the search was optimized to a noop
+            if (searchResponse == null) {
+                logger.debug("No indexing necessary for job [{}], saving state and shutting down.", getJobId());
                 // execute finishing tasks
                 onFinish(ActionListener.wrap(
-                        r -> doSaveState(finishAndSetState(), position.get(), () -> {}),
-                        e -> doSaveState(finishAndSetState(), position.get(), () -> {})));
-
+                    r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                    e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
                 return;
             }
 
-            final List<IndexRequest> docs = iterationResult.getToIndex();
+            // allowPartialSearchResults is set to false, so we should never see shard failures here
+            assert (searchResponse.getShardFailures().length == 0);
+            stats.markStartProcessing();
+            stats.incrementNumPages(1);
+
+            long numDocumentsBefore = stats.getNumDocuments();
+            IterationResult<JobPosition> iterationResult = doProcess(searchResponse);
+
+            // record the number of documents returned to base throttling on the output
+            lastDocCount = stats.getNumDocuments() - numDocumentsBefore;
+
+            if (iterationResult.isDone()) {
+                logger.debug("Finished indexing for job [{}], saving state and shutting down.", getJobId());
+
+                position.set(iterationResult.getPosition());
+                stats.markEndProcessing();
+                // execute finishing tasks
+                onFinish(ActionListener.wrap(
+                        r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                        e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
+                return;
+            }
+
+            final BulkRequest bulkRequest = new BulkRequest();
+            iterationResult.getToIndex().forEach(bulkRequest::add);
+            stats.markEndProcessing();
 
             // an iteration result might return an empty set of documents to be indexed
-            if (docs.isEmpty() == false) {
-                final BulkRequest bulkRequest = new BulkRequest();
-                docs.forEach(bulkRequest::add);
-
+            if (bulkRequest.numberOfActions() > 0) {
                 stats.markStartIndexing();
                 doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
                     // TODO we should check items in the response and move after accordingly to
                     // resume the failing buckets ?
                     if (bulkResponse.hasFailures()) {
-                        logger.warn("Error while attempting to bulk index documents: " + bulkResponse.buildFailureMessage());
+                        logger.warn("Error while attempting to bulk index documents: {}", bulkResponse.buildFailureMessage());
                     }
                     stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
-
-                    // check if indexer has been asked to stop, state {@link IndexerState#STOPPING}
-                    if (checkState(getState()) == false) {
-                        return;
-                    }
-
+                    // There is no reason to do a `checkState` here and prevent the indexer from continuing
+                    // As we have already indexed the documents, updated the stats, etc.
+                    // We do an another `checkState` in `onBulkResponse` which will stop the indexer if necessary
+                    // And, we will still be at our new position due to setting it here.
                     JobPosition newPosition = iterationResult.getPosition();
                     position.set(newPosition);
 
@@ -395,8 +524,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     JobPosition newPosition = iterationResult.getPosition();
                     position.set(newPosition);
 
-                    ActionListener<SearchResponse> listener = ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure);
-                    nextSearch(listener);
+                    if (triggerSaveState()) {
+                        doSaveState(IndexerState.INDEXING, newPosition, () -> { nextSearch(); });
+                    } else {
+                        nextSearch();
+                    }
                 } catch (Exception e) {
                     finishWithFailure(e);
                 }
@@ -408,26 +540,69 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     private void onBulkResponse(BulkResponse response, JobPosition position) {
         stats.markEndIndexing();
+
+        // check if we should stop
+        if (checkState(getState()) == false) {
+            return;
+        }
+
         try {
-            ActionListener<SearchResponse> listener = ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure);
-            // TODO probably something more intelligent than every-50 is needed
-            if (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0) {
-                doSaveState(IndexerState.INDEXING, position, () -> {
-                    nextSearch(listener);
-                });
+            if (triggerSaveState()) {
+                doSaveState(IndexerState.INDEXING, position, () -> { nextSearch(); });
             } else {
-                nextSearch(listener);
+                nextSearch();
             }
         } catch (Exception e) {
             finishWithIndexingFailure(e);
         }
     }
 
-    private void nextSearch(ActionListener<SearchResponse> listener) {
+    protected void nextSearch() {
+        currentMaxDocsPerSecond = getMaxDocsPerSecond();
+        if (currentMaxDocsPerSecond > 0 && lastDocCount > 0) {
+            TimeValue executionDelay = calculateThrottlingDelay(
+                currentMaxDocsPerSecond,
+                lastDocCount,
+                lastSearchStartTimeNanos,
+                getTimeNanos()
+            );
+
+            if (executionDelay.duration() > 0) {
+                logger.debug(
+                    "throttling job [{}], wait for {} ({} {})",
+                    getJobId(),
+                    executionDelay,
+                    currentMaxDocsPerSecond,
+                    lastDocCount
+                );
+                scheduledNextSearch = new ScheduledRunnable(
+                    threadPool,
+                    executionDelay,
+                    () -> triggerNextSearch(executionDelay.getNanos())
+                );
+
+                // corner case: if meanwhile stop() has been called or state persistence has been requested: fast forward, run search now
+                if (getState().equals(IndexerState.STOPPING) || triggerSaveState()) {
+                    runSearchImmediately();
+                }
+                return;
+            }
+        }
+
+        triggerNextSearch(0L);
+    }
+
+    private void triggerNextSearch(long waitTimeInNanos) {
+        if (checkState(getState()) == false) {
+            return;
+        }
+
+        // cleanup the scheduled runnable
+        scheduledNextSearch = null;
         stats.markStartSearch();
-        // ensure that partial results are not accepted and cause a search failure
-        SearchRequest searchRequest = buildSearchRequest().allowPartialSearchResults(false);
-        doNextSearch(searchRequest, listener);
+        lastSearchStartTimeNanos = getTimeNanos();
+
+        doNextSearch(waitTimeInNanos, searchResponseListener);
     }
 
     /**
@@ -442,7 +617,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
         case STOPPING:
             logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-            doSaveState(finishAndSetState(), getPosition(), () -> {});
+            doSaveState(finishAndSetState(), getPosition(), this::afterFinishOrFailure);
             return false;
 
         case STOPPED:
@@ -458,6 +633,44 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
             throw new IllegalStateException("Indexer job encountered an illegal state [" + currentState + "]");
         }
+    }
+
+    private synchronized void reQueueThrottledSearch() {
+        currentMaxDocsPerSecond = getMaxDocsPerSecond();
+
+        ScheduledRunnable runnable = scheduledNextSearch;
+        if (runnable != null) {
+            TimeValue executionDelay = calculateThrottlingDelay(
+                currentMaxDocsPerSecond,
+                lastDocCount,
+                lastSearchStartTimeNanos,
+                getTimeNanos()
+            );
+
+            logger.trace(
+                "[{}] rethrottling job, wait {} until next search",
+                getJobId(),
+                executionDelay
+            );
+            runnable.reschedule(executionDelay);
+        }
+    }
+
+    static TimeValue calculateThrottlingDelay(float docsPerSecond, long docCount, long startTimeNanos, long now) {
+        if (docsPerSecond <= 0) {
+            return TimeValue.ZERO;
+        }
+        float timeToWaitNanos = (docCount / docsPerSecond) * TimeUnit.SECONDS.toNanos(1);
+
+        // from timeToWaitNanos - (now - startTimeNanos)
+        TimeValue executionDelay = TimeValue.timeValueNanos(
+            Math.min(MAX_THROTTLE_WAIT_TIME.getNanos(), Math.max(0, (long) timeToWaitNanos + startTimeNanos - now))
+        );
+
+        if (executionDelay.compareTo(MIN_THROTTLE_WAIT_TIME) < 0) {
+            return TimeValue.ZERO;
+        }
+        return executionDelay;
     }
 
 }

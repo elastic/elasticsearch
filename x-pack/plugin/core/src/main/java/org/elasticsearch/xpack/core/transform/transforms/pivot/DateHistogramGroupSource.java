@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
@@ -23,10 +25,8 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 
 public class DateHistogramGroupSource extends SingleGroupSource {
 
@@ -43,7 +43,9 @@ public class DateHistogramGroupSource extends SingleGroupSource {
      */
     public interface Interval extends Writeable, ToXContentFragment {
         String getName();
+
         DateHistogramInterval getInterval();
+
         byte getIntervalTypeId();
     }
 
@@ -104,6 +106,11 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         public int hashCode() {
             return Objects.hash(interval);
         }
+
+        @Override
+        public String toString() {
+            return interval.toString();
+        }
     }
 
     public static class CalendarInterval implements Interval {
@@ -113,8 +120,9 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         public CalendarInterval(DateHistogramInterval interval) {
             this.interval = interval;
             if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) == null) {
-                throw new IllegalArgumentException("The supplied interval [" + interval + "] could not be parsed " +
-                    "as a calendar interval.");
+                throw new IllegalArgumentException(
+                    "The supplied interval [" + interval + "] could not be parsed " + "as a calendar interval."
+                );
             }
         }
 
@@ -167,17 +175,22 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         public int hashCode() {
             return Objects.hash(interval);
         }
+
+        @Override
+        public String toString() {
+            return interval.toString();
+        }
     }
 
     private Interval readInterval(StreamInput in) throws IOException {
         byte id = in.readByte();
         switch (id) {
-        case FIXED_INTERVAL_ID:
-            return new FixedInterval(in);
-        case CALENDAR_INTERVAL_ID:
-            return new CalendarInterval(in);
-        default:
-            throw new IllegalArgumentException("unknown interval type [" + id + "]");
+            case FIXED_INTERVAL_ID:
+                return new FixedInterval(in);
+            case CALENDAR_INTERVAL_ID:
+                return new CalendarInterval(in);
+            default:
+                throw new IllegalArgumentException("unknown interval type [" + id + "]");
         }
     }
 
@@ -193,11 +206,14 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     private static final ConstructingObjectParser<DateHistogramGroupSource, Void> LENIENT_PARSER = createParser(true);
 
     private final Interval interval;
-    private ZoneId timeZone;
+    private final ZoneId timeZone;
+    private final Rounding.Prepared rounding;
 
-    public DateHistogramGroupSource(String field, Interval interval) {
-        super(field);
+    public DateHistogramGroupSource(String field, ScriptConfig scriptConfig, boolean missingBucket, Interval interval, ZoneId timeZone) {
+        super(field, scriptConfig, missingBucket);
         this.interval = interval;
+        this.timeZone = timeZone;
+        rounding = buildRounding();
     }
 
     public DateHistogramGroupSource(StreamInput in) throws IOException {
@@ -208,13 +224,32 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         if (in.getVersion().before(Version.V_7_3_0)) {
             in.readOptionalString();
         }
+        rounding = buildRounding();
+    }
+
+    private Rounding.Prepared buildRounding() {
+        Rounding.DateTimeUnit timeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
+        final Rounding.Builder roundingBuilder;
+        if (timeUnit != null) {
+            roundingBuilder = new Rounding.Builder(timeUnit);
+        } else {
+            roundingBuilder = new Rounding.Builder(TimeValue.parseTimeValue(interval.toString(), interval.getName()));
+        }
+
+        if (timeZone != null) {
+            roundingBuilder.timeZone(timeZone);
+        }
+        return roundingBuilder.build().prepareForUnknown();
     }
 
     private static ConstructingObjectParser<DateHistogramGroupSource, Void> createParser(boolean lenient) {
         ConstructingObjectParser<DateHistogramGroupSource, Void> parser = new ConstructingObjectParser<>(NAME, lenient, (args) -> {
             String field = (String) args[0];
-            String fixedInterval = (String) args[1];
-            String calendarInterval = (String) args[2];
+            ScriptConfig scriptConfig = (ScriptConfig) args[1];
+            boolean missingBucket = args[2] == null ? false : (boolean) args[2];
+            String fixedInterval = (String) args[3];
+            String calendarInterval = (String) args[4];
+            ZoneId zoneId = (ZoneId) args[5];
 
             Interval interval = null;
 
@@ -228,15 +263,15 @@ public class DateHistogramGroupSource extends SingleGroupSource {
                 throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found none");
             }
 
-            return new DateHistogramGroupSource(field, interval);
+            return new DateHistogramGroupSource(field, scriptConfig, missingBucket, interval, zoneId);
         });
 
-        declareValuesSourceFields(parser);
+        declareValuesSourceFields(parser, lenient);
 
         parser.declareString(optionalConstructorArg(), new ParseField(FixedInterval.NAME));
         parser.declareString(optionalConstructorArg(), new ParseField(CalendarInterval.NAME));
 
-        parser.declareField(DateHistogramGroupSource::setTimeZone, p -> {
+        parser.declareField(optionalConstructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return ZoneId.of(p.text());
             } else {
@@ -264,13 +299,13 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         return timeZone;
     }
 
-    public void setTimeZone(ZoneId timeZone) {
-        this.timeZone = timeZone;
+    public Rounding.Prepared getRounding() {
+        return rounding;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(field);
+        super.writeTo(out);
         writeInterval(interval, out);
         out.writeOptionalZoneId(timeZone);
         // Format was optional in 7.2.x, removed in 7.3+
@@ -282,9 +317,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (field != null) {
-            builder.field(FIELD.getPreferredName(), field);
-        }
+        super.innerXContent(builder, params);
         interval.toXContent(builder, params);
         if (timeZone != null) {
             builder.field(TIME_ZONE.getPreferredName(), timeZone.toString());
@@ -305,24 +338,15 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
         final DateHistogramGroupSource that = (DateHistogramGroupSource) other;
 
-        return Objects.equals(this.field, that.field) &&
-            Objects.equals(interval, that.interval) &&
-            Objects.equals(timeZone, that.timeZone);
+        return this.missingBucket == that.missingBucket
+            && Objects.equals(this.field, that.field)
+            && Objects.equals(this.scriptConfig, that.scriptConfig)
+            && Objects.equals(this.interval, that.interval)
+            && Objects.equals(this.timeZone, that.timeZone);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, interval, timeZone);
-    }
-
-    @Override
-    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
-        // no need for an extra range filter as this is already done by checkpoints
-        return null;
-    }
-
-    @Override
-    public boolean supportsIncrementalBucketUpdate() {
-        return false;
+        return Objects.hash(field, scriptConfig, missingBucket, interval, timeZone);
     }
 }

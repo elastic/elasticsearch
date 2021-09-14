@@ -1,28 +1,24 @@
 [[mapping-fields]]
-== Meta-Fields
+== Metadata fields
 
-Each document has metadata associated with it, such as the `_index`, mapping
-<<mapping-type-field,`_type`>>, and `_id` meta-fields.  The behaviour of some of these meta-fields
-can be customised when a mapping type is created.
+Each document has metadata associated with it, such as the `_index`
+and `_id` metadata fields. The behavior of some of these metadata
+fields can be customized when a mapping is created.
 
-[float]
-=== Identity meta-fields
+[discrete]
+=== Identity metadata fields
 
 [horizontal]
 <<mapping-index-field,`_index`>>::
 
     The index to which the document belongs.
 
-<<mapping-type-field,`_type`>>::
-
-    The document's <<mapping-type,mapping type>>.
-
 <<mapping-id-field,`_id`>>::
 
     The document's ID.
 
-[float]
-=== Document source meta-fields
+[discrete]
+=== Document source metadata fields
 
 <<mapping-source-field,`_source`>>::
 
@@ -33,8 +29,15 @@ can be customised when a mapping type is created.
     The size of the `_source` field in bytes, provided by the
     {plugins}/mapper-size.html[`mapper-size` plugin].
 
-[float]
-=== Indexing meta-fields
+[discrete]
+=== Doc count metadata field
+
+<<mapping-doc-count-field,`_doc_count`>>::
+
+    A custom field used for storing doc counts when a document represents pre-aggregated data.
+
+[discrete]
+=== Indexing metadata fields
 
 <<mapping-field-names-field,`_field_names`>>::
 
@@ -45,20 +48,25 @@ can be customised when a mapping type is created.
     All fields in the document that have been ignored at index time because of
     <<ignore-malformed,`ignore_malformed`>>.
 
-[float]
-=== Routing meta-field
+[discrete]
+=== Routing metadata field
 
 <<mapping-routing-field,`_routing`>>::
 
     A custom routing value which routes a document to a particular shard.
 
-[float]
-=== Other meta-field
+[discrete]
+=== Other metadata field
 
 <<mapping-meta-field,`_meta`>>::
 
     Application specific metadata.
 
+<<mapping-tier-field,`_tier`>>::
+
+    The current data tier preference of the index to which the document belongs.
+
+include::fields/doc-count-field.asciidoc[]
 
 include::fields/field-names-field.asciidoc[]
 
@@ -74,5 +82,4 @@ include::fields/routing-field.asciidoc[]
 
 include::fields/source-field.asciidoc[]
 
-include::fields/type-field.asciidoc[]
-
+include::fields/tier-field.asciidoc[]

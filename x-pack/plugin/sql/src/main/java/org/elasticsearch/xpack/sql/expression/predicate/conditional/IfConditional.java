@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Nullability;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.Arrays;
 import java.util.List;
@@ -50,9 +51,6 @@ public class IfConditional extends Expression {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
-        }
         return new IfConditional(source(), newChildren.get(0), newChildren.get(1));
     }
 
@@ -69,24 +67,17 @@ public class IfConditional extends Expression {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (!super.equals(o)) {
-            return false;
-        }
-
-        IfConditional that = (IfConditional) o;
-        return Objects.equals(condition, that.condition) &&
-            Objects.equals(result, that.result);
+    public int hashCode() {
+        return Objects.hash(condition, result);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(condition, result);
+    public boolean equals(Object o) {
+        if (super.equals(o)) {
+            IfConditional that = (IfConditional) o;
+            return Objects.equals(condition, that.condition)
+                    && Objects.equals(result, that.result);
+        }
+        return false;
     }
 }

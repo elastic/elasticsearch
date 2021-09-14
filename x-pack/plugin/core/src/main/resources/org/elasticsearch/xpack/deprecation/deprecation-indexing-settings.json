@@ -1,0 +1,20 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle": {
+          "name": ".deprecation-indexing-ilm-policy"
+        },
+        "codec": "best_compression",
+        "query": {
+          "default_field": ["message"]
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default settings for Stack deprecation logs index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.deprecation.indexing.template.version}
+}

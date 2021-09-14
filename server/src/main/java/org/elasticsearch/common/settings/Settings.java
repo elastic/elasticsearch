@@ -1,30 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Numbers;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +23,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -73,7 +63,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 /**
  * An immutable settings implementation.
@@ -169,7 +159,10 @@ public final class Settings implements ToXContentFragment {
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             if (isArray) {
                 try {
-                    int index = Integer.parseInt(entry.getKey());
+                    final String key = entry.getKey();
+                    // check whether string may be an integer first (mostly its not) to avoid the slowness of parseInt throwing in a hot
+                    // loop
+                    int index = Numbers.isPositiveNumeric(key) ? Integer.parseInt(key) : -1;
                     if (index >= 0) {
                         maxIndex = Math.max(maxIndex, index);
                     } else {
@@ -319,7 +312,7 @@ public final class Settings implements ToXContentFragment {
      * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
      */
     static class DeprecationLoggerHolder {
-        static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Settings.class));
+        static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Settings.class);
     }
 
     /**
@@ -397,7 +390,9 @@ public final class Settings implements ToXContentFragment {
         final Object valueFromPrefix = settings.get(key);
         if (valueFromPrefix != null) {
             if (valueFromPrefix instanceof List) {
-                return Collections.unmodifiableList((List<String>) valueFromPrefix);
+                @SuppressWarnings("unchecked")
+                final List<String> valuesAsList = (List<String>) valueFromPrefix;
+                return Collections.unmodifiableList(valuesAsList);
             } else if (commaDelimited) {
                 String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
@@ -429,7 +424,7 @@ public final class Settings implements ToXContentFragment {
      * Returns group settings for the given setting prefix.
      */
     public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
-        if (!Strings.hasLength(settingPrefix)) {
+        if (Strings.hasLength(settingPrefix) == false) {
             throw new IllegalArgumentException("illegal setting prefix " + settingPrefix);
         }
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
@@ -535,7 +530,9 @@ public final class Settings implements ToXContentFragment {
             if (value == null) {
                 builder.putNull(key);
             } else if (value instanceof List) {
-                builder.putList(key, (List<String>) value);
+                @SuppressWarnings("unchecked")
+                List<String> stringList = (List<String>) value;
+                builder.putList(key, stringList);
             } else {
                 builder.put(key, value.toString());
             }
@@ -545,12 +542,7 @@ public final class Settings implements ToXContentFragment {
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
-        Set<Map.Entry<String, Object>> entries = settings.settings.entrySet();
-        out.writeVInt(entries.size());
-        for (Map.Entry<String, Object> entry : entries) {
-            out.writeString(entry.getKey());
-            out.writeGenericValue(entry.getValue());
-        }
+        out.writeMap(settings.settings, StreamOutput::writeString, StreamOutput::writeGenericValue);
     }
 
     /**
@@ -563,7 +555,7 @@ public final class Settings implements ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Settings settings = SettingsFilter.filterSettings(params, this);
-        if (!params.paramAsBoolean("flat_settings", false)) {
+        if (params.paramAsBoolean("flat_settings", false) == false) {
             for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
@@ -588,7 +580,7 @@ public final class Settings implements ToXContentFragment {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Builder innerBuilder = Settings.builder();
         StringBuilder currentKeyBuilder = new StringBuilder();
         fromXContent(parser, currentKeyBuilder, innerBuilder, allowNullValues);
@@ -596,7 +588,7 @@ public final class Settings implements ToXContentFragment {
             // ensure we reached the end of the stream
             XContentParser.Token lastToken = null;
             try {
-                while (!parser.isClosed() && (lastToken = parser.nextToken()) == null) ;
+                while (parser.isClosed() == false && (lastToken = parser.nextToken()) == null) ;
             } catch (Exception e) {
                 throw new ElasticsearchParseException(
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
@@ -690,14 +682,17 @@ public final class Settings implements ToXContentFragment {
 
     /** Returns the fully qualified setting names contained in this settings object. */
     public Set<String> keySet() {
-        synchronized (keys) {
-            if (keys.get() == null) {
-                if (secureSettings == null) {
-                    keys.set(settings.keySet());
-                } else {
-                    Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
-                    // uniquify, since for legacy reasons the same setting name may exist in both
-                    keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
+        if (keys.get() == null) {
+            synchronized (keys) {
+                // Check that the keys are still null now that we have acquired the lock
+                if (keys.get() == null) {
+                    if (secureSettings == null) {
+                        keys.set(settings.keySet());
+                    } else {
+                        Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
+                        // uniquify, since for legacy reasons the same setting name may exist in both
+                        keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
+                    }
                 }
             }
         }
@@ -845,7 +840,9 @@ public final class Settings implements ToXContentFragment {
             }
             final Object value = source.settings.get(sourceKey);
             if (value instanceof List) {
-                return putList(key, (List)value);
+                @SuppressWarnings("unchecked")
+                final List<String> stringList = (List<String>) value;
+                return putList(key, stringList);
             } else if (value == null) {
                 return putNull(key);
             } else {
@@ -1023,6 +1020,19 @@ public final class Settings implements ToXContentFragment {
         }
 
         /**
+         * Loads settings from a map.
+         */
+        public Builder loadFromMap(Map<String, ?> map) {
+            // TODO: do this without a serialization round-trip
+            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+                builder.map(map);
+                return loadFromSource(Strings.toString(builder), builder.contentType());
+            } catch (IOException e) {
+                throw new ElasticsearchGenerationException("Failed to generate [" + map + "]", e);
+            }
+        }
+
+        /**
          * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
@@ -1112,7 +1122,7 @@ public final class Settings implements ToXContentFragment {
 
                 @Override
                 public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
-                    return !placeholderName.startsWith("prompt.");
+                    return placeholderName.startsWith("prompt.") == false;
                 }
             };
 
@@ -1124,6 +1134,7 @@ public final class Settings implements ToXContentFragment {
                     continue;
                 }
                 if (entry.getValue() instanceof List) {
+                    @SuppressWarnings("unchecked")
                     final ListIterator<String> li = ((List<String>) entry.getValue()).listIterator();
                     while (li.hasNext()) {
                         final String settingValueRaw = li.next();

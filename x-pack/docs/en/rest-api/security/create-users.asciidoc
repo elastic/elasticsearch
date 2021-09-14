@@ -5,7 +5,7 @@
 <titleabbrev>Create or update users</titleabbrev>
 ++++
 
-Adds and updates users in the native realm. These users are commonly referred 
+Adds and updates users in the native realm. These users are commonly referred
 to as _native users_.
 
 
@@ -14,7 +14,7 @@ to as _native users_.
 
 `POST /_security/user/<username>` +
 
-`PUT /_security/user/<username>` 
+`PUT /_security/user/<username>`
 
 
 [[security-api-put-user-prereqs]]
@@ -26,12 +26,12 @@ to as _native users_.
 [[security-api-put-user-desc]]
 ==== {api-description-title}
 
-When updating a user, you can update everything but its `username` and `password`. 
-To change a user's password, use the 
-<<security-api-change-password, change password API>>.
+A `password` is required for adding a new user but is optional when updating an
+existing user. To change a user's password without updating any other fields,
+use the <<security-api-change-password, change password API>>.
 
-For more information about the native realm, see 
-<<realms>> and <<configuring-native-realm>>. 
+For more information about the native realm, see
+<<realms>> and <<native-realm>>.
 
 [[security-api-put-user-path-params]]
 ==== {api-path-parms-title}
@@ -43,7 +43,7 @@ For more information about the native realm, see
 [[username-validation]]
 NOTE: Usernames must be at least 1 and no more than 1024 characters. They can
 contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces, punctuation, and
-printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block]. Leading or trailing whitespace is not allowed.
+printable symbols in the {wikipedia}/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block]. Leading or trailing whitespace is not allowed.
 
 --
 
@@ -61,7 +61,7 @@ printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_bloc
 The following parameters can be specified in the body of a POST or PUT request:
 
 `enabled`::
-(boolean) Specifies whether the user is enabled. The default value is `true`.
+(Boolean) Specifies whether the user is enabled. The default value is `true`.
 
 `email`::
 (string) The email of the user.
@@ -73,7 +73,7 @@ The following parameters can be specified in the body of a POST or PUT request:
 (object) Arbitrary metadata that you want to associate with the user.
 
 `password`::
-(string) The user's password. Passwords must be at least 6 characters long.
+(Required<<not-always-required,*>>, string) The user's password. Passwords must be at least 6 characters long.
 +
 When adding a user, one of `password` or `password_hash` is required.
 When updating an existing user, the password is optional, so that other
@@ -95,9 +95,13 @@ used in the same request.
 
 `roles`::
 (Required, list) A set of roles the user has. The roles determine the user's
-access  permissions. To create a user without any roles, specify an empty list:
+access permissions. To create a user without any roles, specify an empty list:
 `[]`.
 
+--
+[[not-always-required]]
+*Indicates that the setting is required in some, but not all situations.
+--
 
 [[security-api-put-user-example]]
 ==== {api-examples-title}
@@ -108,7 +112,7 @@ The following example creates a user `jacknich`:
 --------------------------------------------------
 POST /_security/user/jacknich
 {
-  "password" : "j@rV1s",
+  "password" : "l0ng-r4nd0m-p@ssw0rd",
   "roles" : [ "admin", "other_role1" ],
   "full_name" : "Jack Nicholson",
   "email" : "jacknich@example.com",
@@ -134,6 +138,6 @@ After you add a user, requests from that user can be authenticated. For example:
 
 [source,shell]
 --------------------------------------------------
-curl -u jacknich:j@rV1s http://localhost:9200/_cluster/health
+curl -u jacknich:l0ng-r4nd0m-p@ssw0rd http://localhost:9200/_cluster/health
 --------------------------------------------------
 // NOTCONSOLE

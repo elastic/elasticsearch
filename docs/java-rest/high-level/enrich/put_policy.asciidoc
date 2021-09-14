@@ -5,12 +5,12 @@
 --
 
 [id="{upid}-{api}"]
-=== Put Policy API
+=== Create enrich policy API
 
 [id="{upid}-{api}-request"]
 ==== Request
 
-The Put Policy API stores an enrich policy in Elasticsearch.
+Creates an enrich policy.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -20,12 +20,12 @@ include-tagged::{doc-tests-file}[{api}-request]
 [id="{upid}-{api}-response"]
 ==== Response
 
-The returned +{response}+ indicates if the put policy request was acknowledged.
+The +{response}+ indicates if the request was acknowledged.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> Whether put policy request was acknowledged.
+<1> Whether the request was acknowledged.
 
 include::../execution.asciidoc[]

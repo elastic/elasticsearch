@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.Numbers;
 
 import java.util.Arrays;
 import java.util.Base64;
@@ -30,51 +20,11 @@ public final class Uid {
     public static final char DELIMITER = '#';
     public static final byte DELIMITER_BYTE = 0x23;
 
-    private final String type;
-
-    private final String id;
-
-    public Uid(String type, String id) {
-        this.type = type;
-        this.id = id;
-    }
-
-    public String type() {
-        return type;
-    }
-
-    public String id() {
-        return id;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Uid uid = (Uid) o;
-
-        if (id != null ? !id.equals(uid.id) : uid.id != null) return false;
-        if (type != null ? !type.equals(uid.type) : uid.type != null) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = type != null ? type.hashCode() : 0;
-        result = 31 * result + (id != null ? id.hashCode() : 0);
-        return result;
-    }
-
-    @Override
-    public String toString() {
-        return type + "#" + id;
-    }
-
     private static final int UTF8 = 0xff;
     private static final int NUMERIC = 0xfe;
     private static final int BASE64_ESCAPE = 0xfd;
+
+    private Uid() {}
 
     static boolean isURLBase64WithoutPadding(String id) {
         // We are not lenient about padding chars ('=') otherwise
@@ -115,16 +65,6 @@ public final class Uid {
                     (c >= 'a' && c <= 'z') ||
                     c == '-' || c == '_';
             if (allowed == false) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    static boolean isPositiveNumeric(String id) {
-        for (int i = 0; i < id.length(); ++i) {
-            final char c = id.charAt(i);
-            if (c < '0' || c > '9') {
                 return false;
             }
         }
@@ -179,7 +119,7 @@ public final class Uid {
         if (id.isEmpty()) {
             throw new IllegalArgumentException("Ids can't be empty");
         }
-        if (isPositiveNumeric(id)) {
+        if (Numbers.isPositiveNumeric(id)) {
             // common for ids that come from databases with auto-increments
             return encodeNumericId(id);
         } else if (isURLBase64WithoutPadding(id)) {

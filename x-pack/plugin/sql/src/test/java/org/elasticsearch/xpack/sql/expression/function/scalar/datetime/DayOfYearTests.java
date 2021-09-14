@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 
@@ -28,6 +29,6 @@ public class DayOfYearTests extends ESTestCase {
     }
 
     private DayOfYear build(Object value, ZoneId zoneId) {
-        return new DayOfYear(Source.EMPTY, new Literal(Source.EMPTY, value, DataType.DATETIME), zoneId);
+        return new DayOfYear(Source.EMPTY, new Literal(Source.EMPTY, value, DataTypes.DATETIME), zoneId);
     }
 }

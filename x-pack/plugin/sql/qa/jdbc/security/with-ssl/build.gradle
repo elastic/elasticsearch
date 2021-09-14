@@ -1,0 +1,15 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.test-with-ssl'
+
+testClusters.all {
+  // The setup that we actually want
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.http.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+}
+
+// JDBC client can only be configured for SSL with keystores, but we can't use JKS/PKCS12 keystores in FIPS 140-2 mode.
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false}
+}

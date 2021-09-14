@@ -1,13 +1,15 @@
 [[search-aggregations-bucket-filters-aggregation]]
-=== Filters Aggregation
+=== Filters aggregation
+++++
+<titleabbrev>Filters</titleabbrev>
+++++
 
-Defines a multi bucket aggregation where each bucket is associated with a
-filter. Each bucket will collect all documents that match its associated
-filter.
+A multi-bucket aggregation where each bucket contains the documents
+that match a <<query-dsl,query>>.
 
 Example:
 
-[source,console]
+[source,console,id=filters-aggregation-example]
 --------------------------------------------------
 PUT /logs/_bulk?refresh
 { "index" : { "_id" : 1 } }
@@ -69,7 +71,7 @@ Response:
 The filters field can also be provided as an array of filters, as in the
 following request:
 
-[source,console]
+[source,console,id=filters-aggregation-anonymous-example]
 --------------------------------------------------
 GET logs/_search
 {
@@ -89,7 +91,7 @@ GET logs/_search
 // TEST[continued]
 
 The filtered buckets are returned in the same order as provided in the
-request.  The response for this example would be:
+request. The response for this example would be:
 
 [source,console-result]
 --------------------------------------------------
@@ -131,7 +133,7 @@ this parameter will implicitly set the `other_bucket` parameter to `true`.
 
 The following snippet shows a response where the `other` bucket is requested to be named `other_messages`.
 
-[source,console]
+[source,console,id=filters-aggregation-other-bucket-example]
 --------------------------------------------------
 PUT logs/_doc/4?refresh
 {

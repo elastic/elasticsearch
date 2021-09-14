@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
@@ -32,9 +21,13 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileOwnerAttributeView;
@@ -42,17 +35,21 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
+import static org.elasticsearch.packaging.test.PackagingTestCase.getRootTempDir;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.core.IsNot.not;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertThat;
 
 /**
  * Wrappers and convenience methods for common filesystem operations
@@ -61,6 +58,9 @@ public class FileUtils {
 
     public static List<Path> lsGlob(Path directory, String glob) {
         List<Path> paths = new ArrayList<>();
+        if (Files.exists(directory) == false) {
+            return List.of();
+        }
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory, glob)) {
 
             for (Path path : stream) {
@@ -81,24 +81,47 @@ public class FileUtils {
         }
     }
 
+    public static void rmWithRetries(Path... paths) {
+        int tries = 10;
+        Exception exception = null;
+        while (tries-- > 0) {
+            try {
+                IOUtils.rm(paths);
+                return;
+            } catch (IOException e) {
+                if (exception == null) {
+                    exception = e;
+                } else {
+                    exception.addSuppressed(e);
+                }
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        throw new RuntimeException(exception);
+    }
+
     public static Path mktempDir(Path path) {
         try {
-            return Files.createTempDirectory(path,"tmp");
+            return Files.createTempDirectory(path, "tmp");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-
     public static Path mkdir(Path path) {
         try {
             return Files.createDirectories(path);
-         } catch (IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
-         }
-     }
+        }
+    }
 
-     public static Path cp(Path source, Path target) {
+    public static Path cp(Path source, Path target) {
         try {
             return Files.copy(source, target);
         } catch (IOException e) {
@@ -114,9 +137,22 @@ public class FileUtils {
         }
     }
 
+    /**
+     * Creates or appends to the specified file, and writes the supplied string to it.
+     * No newline is written - if a trailing newline is required, it should be present
+     * in <code>text</code>, or use {@link Files#write(Path, Iterable, OpenOption...)}.
+     * @param file the file to create or append
+     * @param text the string to write
+     */
     public static void append(Path file, String text) {
-        try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8,
-            StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+        try (
+            BufferedWriter writer = Files.newBufferedWriter(
+                file,
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND
+            )
+        ) {
 
             writer.write(text);
         } catch (IOException e) {
@@ -126,7 +162,7 @@ public class FileUtils {
 
     public static String slurp(Path file) {
         try {
-            return String.join("\n", Files.readAllLines(file, StandardCharsets.UTF_8));
+            return String.join(System.lineSeparator(), Files.readAllLines(file, StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -176,7 +212,7 @@ public class FileUtils {
             for (Path rotatedLogFile : FileUtils.lsGlob(logPath, rotatedLogFilesGlob)) {
                 logFileJoiner.add(FileUtils.slurpTxtorGz(rotatedLogFile));
             }
-            return(logFileJoiner.toString());
+            return (logFileJoiner.toString());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -193,14 +229,14 @@ public class FileUtils {
                 // gc logs are verbose and not useful in this context
                 .filter(file -> file.getFileName().toString().startsWith("gc.log") == false)
                 .forEach(file -> {
-                logger.info("=== Contents of `{}` ({}) ===", file, file.toAbsolutePath());
-                try (Stream<String> stream = Files.lines(file)) {
-                    stream.forEach(logger::info);
-                } catch (IOException e) {
-                    logger.error("Can't show contents", e);
-                }
-                logger.info("=== End of contents of `{}`===", file);
-            });
+                    logger.info("=== Contents of `{}` ({}) ===", file, file.toAbsolutePath());
+                    try (Stream<String> stream = Files.lines(file)) {
+                        stream.forEach(logger::info);
+                    } catch (IOException e) {
+                        logger.error("Can't show contents", e);
+                    }
+                    logger.info("=== End of contents of `{}`===", file);
+                });
         } catch (IOException e) {
             logger.error("Can't list log files", e);
         }
@@ -240,16 +276,28 @@ public class FileUtils {
         }
     }
 
-    // vagrant creates /tmp for us in windows so we use that to avoid long paths
-    public static Path getTempDir() {
-        return Paths.get("/tmp");
+    /**
+     * Gets numeric ownership attributes that are supported by Unix filesystems
+     * @return a Map of the uid/gid integer values
+     */
+    public static Map<String, Integer> getNumericUnixPathOwnership(Path path) {
+        Map<String, Integer> numericPathOwnership = new HashMap<>();
+
+        try {
+            numericPathOwnership.put("uid", (int) Files.getAttribute(path, "unix:uid", LinkOption.NOFOLLOW_LINKS));
+            numericPathOwnership.put("gid", (int) Files.getAttribute(path, "unix:gid", LinkOption.NOFOLLOW_LINKS));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return numericPathOwnership;
     }
 
     public static Path getDefaultArchiveInstallPath() {
-        return getTempDir().resolve("elasticsearch");
+        return getRootTempDir().resolve("elasticsearch");
     }
 
     private static final Pattern VERSION_REGEX = Pattern.compile("(\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?)");
+
     public static String getCurrentVersion() {
         // TODO: just load this once
         String distroFile = System.getProperty("tests.distribution");
@@ -264,17 +312,17 @@ public class FileUtils {
         return distribution.path;
     }
 
-    public static void assertPathsExist(Path... paths) {
-        Arrays.stream(paths).forEach(path -> assertTrue(path + " should exist", Files.exists(path)));
+    public static void assertPathsExist(final Path... paths) {
+        Arrays.stream(paths).forEach(path -> assertThat(path, fileExists()));
     }
 
     public static Matcher<Path> fileWithGlobExist(String glob) throws IOException {
-        return new FeatureMatcher<Path,Iterable<Path>>(not(emptyIterable()),"File with pattern exist", "file with pattern"){
+        return new FeatureMatcher<Path, Iterable<Path>>(not(emptyIterable()), "File with pattern exist", "file with pattern") {
 
             @Override
             protected Iterable<Path> featureValueOf(Path actual) {
                 try {
-                    return Files.newDirectoryStream(actual,glob);
+                    return Files.newDirectoryStream(actual, glob);
                 } catch (IOException e) {
                     return Collections.emptyList();
                 }
@@ -282,8 +330,8 @@ public class FileUtils {
         };
     }
 
-    public static void assertPathsDontExist(Path... paths) {
-        Arrays.stream(paths).forEach(path -> assertFalse(path + " should not exist", Files.exists(path)));
+    public static void assertPathsDoNotExist(final Path... paths) {
+        Arrays.stream(paths).forEach(path -> assertThat(path, fileDoesNotExist()));
     }
 
     public static void deleteIfExists(Path path) {
@@ -294,5 +342,37 @@ public class FileUtils {
                 throw new UncheckedIOException(e);
             }
         }
+    }
+
+    /**
+     * Return the given path a string suitable for using on the host system.
+     */
+    public static String escapePath(Path path) {
+        if (Platforms.WINDOWS) {
+            // replace single backslash with forward slash, to avoid unintended escapes in scripts
+            return path.toString().replace('\\', '/');
+        }
+        return path.toString();
+    }
+
+    /**
+     * Recursively copy the the source directory to the target directory, preserving permissions.
+     */
+    public static void copyDirectory(Path source, Path target) throws IOException {
+        Files.walkFileTree(source, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                // this won't copy the directory contents, only the directory itself, but we use
+                // copy to allow copying attributes
+                Files.copy(dir, target.resolve(source.relativize(dir)), StandardCopyOption.COPY_ATTRIBUTES);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.copy(file, target.resolve(source.relativize(file)), StandardCopyOption.COPY_ATTRIBUTES);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }

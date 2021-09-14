@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.translog;
@@ -26,9 +15,10 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -63,6 +53,7 @@ public class TruncateTranslogAction {
     }
 
     public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
+                                                                                     ClusterState clusterState,
                                                                                      Directory indexDirectory) throws IOException {
         final Path indexPath = shardPath.resolveIndex();
         final Path translogPath = shardPath.resolveTranslog();
@@ -83,7 +74,7 @@ public class TruncateTranslogAction {
             throw new ElasticsearchException("shard must have a valid translog UUID but got: [null]");
         }
 
-        final boolean clean = isTranslogClean(shardPath, translogUUID);
+        final boolean clean = isTranslogClean(shardPath, clusterState, translogUUID);
 
         if (clean) {
             return Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CLEAN, null);
@@ -127,30 +118,25 @@ public class TruncateTranslogAction {
 
         // Retrieve the generation and UUID from the existing data
         commitData = commits.get(commits.size() - 1).getUserData();
-        final String translogGeneration = commitData.get(Translog.TRANSLOG_GENERATION_KEY);
         final String translogUUID = commitData.get(Translog.TRANSLOG_UUID_KEY);
-        if (translogGeneration == null || translogUUID == null) {
-            throw new ElasticsearchException("shard must have a valid translog generation and UUID but got: [{}] and: [{}]",
-                translogGeneration, translogUUID);
+        if (translogUUID == null) {
+            throw new ElasticsearchException("shard must have a valid translog UUID");
         }
 
         final long globalCheckpoint = commitData.containsKey(SequenceNumbers.MAX_SEQ_NO)
             ? Long.parseLong(commitData.get(SequenceNumbers.MAX_SEQ_NO))
             : SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-        terminal.println("Translog Generation: " + translogGeneration);
         terminal.println("Translog UUID      : " + translogUUID);
         terminal.println("History UUID       : " + historyUUID);
 
         Path tempEmptyCheckpoint = translogPath.resolve("temp-" + Translog.CHECKPOINT_FILE_NAME);
         Path realEmptyCheckpoint = translogPath.resolve(Translog.CHECKPOINT_FILE_NAME);
-        Path tempEmptyTranslog = translogPath.resolve("temp-" + Translog.TRANSLOG_FILE_PREFIX +
-            translogGeneration + Translog.TRANSLOG_FILE_SUFFIX);
-        Path realEmptyTranslog = translogPath.resolve(Translog.TRANSLOG_FILE_PREFIX +
-            translogGeneration + Translog.TRANSLOG_FILE_SUFFIX);
+        final long gen = 1;
+        Path tempEmptyTranslog = translogPath.resolve("temp-" + Translog.TRANSLOG_FILE_PREFIX + gen + Translog.TRANSLOG_FILE_SUFFIX);
+        Path realEmptyTranslog = translogPath.resolve(Translog.TRANSLOG_FILE_PREFIX + gen + Translog.TRANSLOG_FILE_SUFFIX);
 
         // Write empty checkpoint and translog to empty files
-        long gen = Long.parseLong(translogGeneration);
         int translogLen = writeEmptyTranslog(tempEmptyTranslog, translogUUID);
         writeEmptyCheckpoint(tempEmptyCheckpoint, translogLen, gen, globalCheckpoint);
 
@@ -166,32 +152,20 @@ public class TruncateTranslogAction {
         IOUtils.fsync(translogPath, true);
     }
 
-    private boolean isTranslogClean(ShardPath shardPath, String translogUUID) throws IOException {
+    private boolean isTranslogClean(ShardPath shardPath, ClusterState clusterState, String translogUUID) throws IOException {
         // perform clean check of translog instead of corrupted marker file
         try {
             final Path translogPath = shardPath.resolveTranslog();
             final long translogGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-            final IndexMetaData indexMetaData =
-                IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardPath.getDataPath().getParent());
-            final IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+            final IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(shardPath.getShardId().getIndex());
+            final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
             final TranslogConfig translogConfig = new TranslogConfig(shardPath.getShardId(), translogPath,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-            long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardPath.getShardId().id());
-            // We open translog to check for corruption, do not clean anything.
-            final TranslogDeletionPolicy retainAllTranslogPolicy = new TranslogDeletionPolicy(
-                Long.MAX_VALUE, Long.MAX_VALUE, Integer.MAX_VALUE) {
-                @Override
-                long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) {
-                    long minGen = writer.generation;
-                    for (TranslogReader reader : readers) {
-                        minGen = Math.min(reader.generation, minGen);
-                    }
-                    return minGen;
-                }
-            };
+            long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardPath.getShardId().id());
+            final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
             try (Translog translog = new Translog(translogConfig, translogUUID,
-                retainAllTranslogPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});
-                 Translog.Snapshot snapshot = translog.newSnapshot()) {
+                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});
+                 Translog.Snapshot snapshot = translog.newSnapshot(0, Long.MAX_VALUE)) {
                 //noinspection StatementWithEmptyBody we are just checking that we can iterate through the whole snapshot
                 while (snapshot.next() != null) {
                 }
@@ -209,8 +183,6 @@ public class TruncateTranslogAction {
             globalCheckpoint, translogGeneration);
         Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
             StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
-        // fsync with metadata here to make sure.
-        IOUtils.fsync(filename, false);
     }
 
     /**

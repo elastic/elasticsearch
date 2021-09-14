@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-job]]
-=== Delete {anomaly-jobs} API
+= Delete {anomaly-jobs} API
 ++++
 <titleabbrev>Delete jobs</titleabbrev>
 ++++
@@ -9,18 +9,20 @@
 Deletes an existing {anomaly-job}.
 
 [[ml-delete-job-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `DELETE _ml/anomaly_detectors/<job_id>`
 
 [[ml-delete-job-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
-cluster privileges to use this API. See <<security-privileges>>.
+* Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+* Before you can delete a job, you must close it (unless you specify the `force` 
+parameter). See <<ml-close-job>>.
 
 [[ml-delete-job-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 All job configuration, model state and results are deleted.
 
@@ -29,34 +31,34 @@ delete the job directly from the `.ml-*` indices using the {es} delete document
 API. When {es} {security-features} are enabled, make sure no `write` privileges
 are granted to anyone over the `.ml-*` indices.
 
-Before you can delete a job, you must delete the {dfeeds} that are associated
-with it. See <<ml-delete-datafeed,Delete {dfeeds-cap}>>. Unless the `force`
-parameter is used the job must be closed before it can be deleted.
-
 It is not currently possible to delete multiple jobs using wildcards or a comma
 separated list.
 
+If you delete a job that has a {dfeed}, the request first tries to delete the
+{dfeed}. This behavior is equivalent to calling
+<<ml-delete-datafeed,delete {dfeed}>> with the same `timeout` and `force`
+parameters as the delete job request.
+
 [[ml-delete-job-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}.
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-delete-job-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `force`::
-  (Optional, boolean) Use to forcefully delete an opened job; this method is
+  (Optional, Boolean) Use to forcefully delete an opened job; this method is
   quicker than closing and deleting the job.
 
 `wait_for_completion`::
-  (Optional, boolean) Specifies whether the request should return immediately or
+  (Optional, Boolean) Specifies whether the request should return immediately or
   wait until the job deletion completes. Defaults to `true`.
 
 [[ml-delete-job-example]]
-==== {api-examples-title}
-
-The following example deletes the `total-requests` job:
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

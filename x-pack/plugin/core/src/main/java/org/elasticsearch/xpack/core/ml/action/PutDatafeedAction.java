@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -32,8 +32,11 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        public static Request parseRequest(String datafeedId, XContentParser parser) {
+        public static Request parseRequest(String datafeedId, IndicesOptions indicesOptions, XContentParser parser) {
             DatafeedConfig.Builder datafeed = DatafeedConfig.STRICT_PARSER.apply(parser, null);
+            if (datafeed.getIndicesOptions() == null) {
+                datafeed.setIndicesOptions(indicesOptions);
+            }
             datafeed.setId(datafeedId);
             return new Request(datafeed.build());
         }
@@ -42,9 +45,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
         public Request(DatafeedConfig datafeed) {
             this.datafeed = datafeed;
-        }
-
-        public Request() {
         }
 
         public Request(StreamInput in) throws IOException {
@@ -84,13 +84,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         @Override
         public int hashCode() {
             return Objects.hash(datafeed);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, PutDatafeedAction action) {
-            super(client, action, new Request());
         }
     }
 

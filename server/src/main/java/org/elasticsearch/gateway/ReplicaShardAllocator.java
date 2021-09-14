@@ -1,28 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -34,19 +24,21 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
@@ -57,7 +49,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * has to copy segment files.
      */
     public void processExistingRecoveries(RoutingAllocation allocation) {
-        MetaData metaData = allocation.metaData();
+        Metadata metadata = allocation.metadata();
         RoutingNodes routingNodes = allocation.routingNodes();
         List<Runnable> shardCancellationActions = new ArrayList<>();
         for (RoutingNode routingNode : routingNodes) {
@@ -77,7 +69,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     continue;
                 }
 
-                AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> shardStores = fetchData(shard, allocation);
+                AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetchData(shard, allocation);
                 if (shardStores.hasData() == false) {
                     logger.trace("{}: fetching new stores for initializing shard", shard);
                     continue; // still fetching
@@ -87,7 +79,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
                 assert primaryShard.currentNodeId() != null;
                 final DiscoveryNode primaryNode = allocation.nodes().get(primaryShard.currentNodeId());
-                final TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryNode, shardStores);
+                final TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore = findStore(primaryNode, shardStores);
                 if (primaryStore == null) {
                     // if we can't find the primary data, it is probably because the primary shard is corrupted (and listing failed)
                     // just let the recovery find it out, no need to do anything about it for the initializing shard
@@ -95,7 +87,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     continue;
                 }
 
-                MatchingNodes matchingNodes = findMatchingNodes(shard, allocation, primaryNode, primaryStore, shardStores, false);
+                MatchingNodes matchingNodes = findMatchingNodes(shard, allocation, true, primaryNode, primaryStore, shardStores, false);
                 if (matchingNodes.getNodeWithHighestMatch() != null) {
                     DiscoveryNode currentNode = allocation.nodes().get(shard.currentNodeId());
                     DiscoveryNode nodeWithHighestMatch = matchingNodes.getNodeWithHighestMatch();
@@ -106,14 +98,16 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                         // we found a better match that can perform noop recovery, cancel the existing allocation.
                         logger.debug("cancelling allocation of replica on [{}], can perform a noop recovery on node [{}]",
                                 currentNode, nodeWithHighestMatch);
+                        final Set<String> failedNodeIds =
+                            shard.unassignedInfo() == null ? Collections.emptySet() : shard.unassignedInfo().getFailedNodeIds();
                         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
                             "existing allocation of replica to [" + currentNode + "] cancelled, can perform a noop recovery on ["+
                                 nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false,
-                            UnassignedInfo.AllocationStatus.NO_ATTEMPT);
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds, null);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
                         shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo,
-                            metaData.getIndexSafe(shard.index()), allocation.changes()));
+                            metadata.getIndexSafe(shard.index()), allocation.changes()));
                     }
                 }
             }
@@ -156,7 +150,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 result.v2() != null ? new ArrayList<>(result.v2().values()) : null);
         }
 
-        AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> shardStores = fetchData(unassignedShard, allocation);
+        AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetchData(unassignedShard, allocation);
         if (shardStores.hasData() == false) {
             logger.trace("{}: ignoring allocation, still fetching shard stores", unassignedShard);
             allocation.setHasPendingAsyncFetch();
@@ -176,7 +170,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         }
         assert primaryShard.currentNodeId() != null;
         final DiscoveryNode primaryNode = allocation.nodes().get(primaryShard.currentNodeId());
-        final TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryNode, shardStores);
+        final TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore = findStore(primaryNode, shardStores);
         if (primaryStore == null) {
             // if we can't find the primary data, it is probably because the primary shard is corrupted (and listing failed)
             // we want to let the replica be allocated in order to expose the actual problem with the primary that the replica
@@ -186,7 +180,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             return AllocateUnassignedDecision.NOT_TAKEN;
         }
 
-        MatchingNodes matchingNodes = findMatchingNodes(unassignedShard, allocation, primaryNode, primaryStore, shardStores, explain);
+        MatchingNodes matchingNodes = findMatchingNodes(
+            unassignedShard, allocation, false, primaryNode, primaryStore, shardStores, explain);
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
         List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.v2(), matchingNodes.nodeDecisions);
@@ -194,7 +189,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
         } else if (matchingNodes.getNodeWithHighestMatch() != null) {
             RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
-            // we only check on THROTTLE since we checked before before on NO
+            // we only check on THROTTLE since we checked before on NO
             Decision decision = allocation.deciders().canAllocate(unassignedShard, nodeWithHighestMatch, allocation);
             if (decision.type() == Decision.Type.THROTTLE) {
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store",
@@ -216,10 +211,14 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             long totalDelayMillis = 0L;
             if (explain) {
                 UnassignedInfo unassignedInfo = unassignedShard.unassignedInfo();
-                MetaData metadata = allocation.metaData();
-                IndexMetaData indexMetaData = metadata.index(unassignedShard.index());
-                totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetaData.getSettings()).getMillis();
-                long remainingDelayNanos = unassignedInfo.getRemainingDelay(System.nanoTime(), indexMetaData.getSettings());
+                Metadata metadata = allocation.metadata();
+                IndexMetadata indexMetadata = metadata.index(unassignedShard.index());
+                totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
+                long remainingDelayNanos = unassignedInfo.getRemainingDelay(
+                    System.nanoTime(),
+                    indexMetadata.getSettings(),
+                    metadata.nodeShutdowns()
+                );
                 remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
             }
             return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);
@@ -236,8 +235,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * YES or THROTTLE).  If in explain mode, also returns the node-level explanations as the second element
      * in the returned tuple.
      */
-    private static Tuple<Decision, Map<String, NodeAllocationResult>> canBeAllocatedToAtLeastOneNode(ShardRouting shard,
-                                                                                                     RoutingAllocation allocation) {
+    public static Tuple<Decision, Map<String, NodeAllocationResult>> canBeAllocatedToAtLeastOneNode(ShardRouting shard,
+                                                                                                    RoutingAllocation allocation) {
         Decision madeDecision = Decision.NO;
         final boolean explain = allocation.debugDecision();
         Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
@@ -288,26 +287,30 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Finds the store for the assigned shard in the fetched data, returns null if none is found.
      */
-    private static TransportNodesListShardStoreMetaData.StoreFilesMetaData findStore(DiscoveryNode node,
-            AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> data) {
-        NodeStoreFilesMetaData nodeFilesStore = data.getData().get(node);
+    private static TransportNodesListShardStoreMetadata.StoreFilesMetadata findStore(DiscoveryNode node,
+            AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> data) {
+        NodeStoreFilesMetadata nodeFilesStore = data.getData().get(node);
         if (nodeFilesStore == null) {
             return null;
         }
-        return nodeFilesStore.storeFilesMetaData();
+        return nodeFilesStore.storeFilesMetadata();
     }
 
-    private MatchingNodes findMatchingNodes(ShardRouting shard, RoutingAllocation allocation,
-                                            DiscoveryNode primaryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
-                                            AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> data,
+    private MatchingNodes findMatchingNodes(ShardRouting shard, RoutingAllocation allocation, boolean noMatchFailedNodes,
+                                            DiscoveryNode primaryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
+                                            AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> data,
                                             boolean explain) {
         Map<DiscoveryNode, MatchingNode> matchingNodes = new HashMap<>();
         Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
-        for (Map.Entry<DiscoveryNode, NodeStoreFilesMetaData> nodeStoreEntry : data.getData().entrySet()) {
+        for (Map.Entry<DiscoveryNode, NodeStoreFilesMetadata> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
-            TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue().storeFilesMetaData();
+            if (noMatchFailedNodes && shard.unassignedInfo() != null &&
+                shard.unassignedInfo().getFailedNodeIds().contains(discoNode.getId())) {
+                continue;
+            }
+            TransportNodesListShardStoreMetadata.StoreFilesMetadata storeFilesMetadata = nodeStoreEntry.getValue().storeFilesMetadata();
             // we don't have any files at all, it is an empty index
-            if (storeFilesMetaData.isEmpty()) {
+            if (storeFilesMetadata.isEmpty()) {
                 continue;
             }
 
@@ -322,7 +325,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
             MatchingNode matchingNode = null;
             if (explain) {
-                matchingNode = computeMatchingNode(primaryNode, primaryStore, discoNode, storeFilesMetaData);
+                matchingNode = computeMatchingNode(primaryNode, primaryStore, discoNode, storeFilesMetadata);
                 ShardStoreInfo shardStoreInfo = new ShardStoreInfo(matchingNode.matchingBytes);
                 nodeDecisions.put(node.nodeId(), new NodeAllocationResult(discoNode, shardStoreInfo, decision));
             }
@@ -332,7 +335,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             }
 
             if (matchingNode == null) {
-                matchingNode = computeMatchingNode(primaryNode, primaryStore, discoNode, storeFilesMetaData);
+                matchingNode = computeMatchingNode(primaryNode, primaryStore, discoNode, storeFilesMetadata);
             }
             matchingNodes.put(discoNode, matchingNode);
             if (logger.isTraceEnabled()) {
@@ -351,27 +354,27 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return new MatchingNodes(matchingNodes, nodeDecisions);
     }
 
-    private static long computeMatchingBytes(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
-                                             TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData) {
+    private static long computeMatchingBytes(TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
+                                             TransportNodesListShardStoreMetadata.StoreFilesMetadata storeFilesMetadata) {
         long sizeMatched = 0;
-        for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
-            String metaDataFileName = storeFileMetaData.name();
-            if (primaryStore.fileExists(metaDataFileName) && primaryStore.file(metaDataFileName).isSame(storeFileMetaData)) {
-                sizeMatched += storeFileMetaData.length();
+        for (StoreFileMetadata storeFileMetadata : storeFilesMetadata) {
+            String metadataFileName = storeFileMetadata.name();
+            if (primaryStore.fileExists(metadataFileName) && primaryStore.file(metadataFileName).isSame(storeFileMetadata)) {
+                sizeMatched += storeFileMetadata.length();
             }
         }
         return sizeMatched;
     }
 
-    private static boolean hasMatchingSyncId(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
-                                             TransportNodesListShardStoreMetaData.StoreFilesMetaData replicaStore) {
+    private static boolean hasMatchingSyncId(TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
+                                             TransportNodesListShardStoreMetadata.StoreFilesMetadata replicaStore) {
         String primarySyncId = primaryStore.syncId();
         return primarySyncId != null && primarySyncId.equals(replicaStore.syncId());
     }
 
     private static MatchingNode computeMatchingNode(
-        DiscoveryNode primaryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
-        DiscoveryNode replicaNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData replicaStore) {
+        DiscoveryNode primaryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
+        DiscoveryNode replicaNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata replicaStore) {
         final long retainingSeqNoForPrimary = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(primaryNode);
         final long retainingSeqNoForReplica = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(replicaNode);
         final boolean isNoopRecovery = (retainingSeqNoForReplica >= retainingSeqNoForPrimary && retainingSeqNoForPrimary >= 0)
@@ -380,20 +383,20 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return new MatchingNode(matchingBytes, retainingSeqNoForReplica, isNoopRecovery);
     }
 
-    private static boolean canPerformOperationBasedRecovery(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
-                                                            AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> shardStores,
+    private static boolean canPerformOperationBasedRecovery(TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
+                                                            AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores,
                                                             DiscoveryNode targetNode) {
-        final NodeStoreFilesMetaData targetNodeStore = shardStores.getData().get(targetNode);
-        if (targetNodeStore == null || targetNodeStore.storeFilesMetaData().isEmpty()) {
+        final NodeStoreFilesMetadata targetNodeStore = shardStores.getData().get(targetNode);
+        if (targetNodeStore == null || targetNodeStore.storeFilesMetadata().isEmpty()) {
             return false;
         }
-        if (hasMatchingSyncId(primaryStore, targetNodeStore.storeFilesMetaData())) {
+        if (hasMatchingSyncId(primaryStore, targetNodeStore.storeFilesMetadata())) {
             return true;
         }
         return primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(targetNode) >= 0;
     }
 
-    protected abstract AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation);
+    protected abstract AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation);
 
     /**
      * Returns a boolean indicating whether fetching shard data has been triggered at any point for the given shard.

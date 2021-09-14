@@ -13,32 +13,32 @@ For example:
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
-    "names": [ "John Abraham", "Lincoln Smith"]
+  "names": [ "John Abraham", "Lincoln Smith"]
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
-    "query": {
-        "match_phrase": {
-            "names": {
-                "query": "Abraham Lincoln" <1>
-            }
-        }
+  "query": {
+    "match_phrase": {
+      "names": {
+        "query": "Abraham Lincoln" <1>
+      }
     }
+  }
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
-    "query": {
-        "match_phrase": {
-            "names": {
-                "query": "Abraham Lincoln",
-                "slop": 101 <2>
-            }
-        }
+  "query": {
+    "match_phrase": {
+      "names": {
+        "query": "Abraham Lincoln",
+        "slop": 101 <2>
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -47,11 +47,11 @@ GET my_index/_search
     are in separate strings, because `slop` > `position_increment_gap`.
 
 
-The `position_increment_gap` can be specified in the mapping.  For instance:
+The `position_increment_gap` can be specified in the mapping. For instance:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -63,18 +63,18 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
-    "names": [ "John Abraham", "Lincoln Smith"]
+  "names": [ "John Abraham", "Lincoln Smith"]
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
-    "query": {
-        "match_phrase": {
-            "names": "Abraham Lincoln" <2>
-        }
+  "query": {
+    "match_phrase": {
+      "names": "Abraham Lincoln" <2>
     }
+  }
 }
 --------------------------------------------------
 

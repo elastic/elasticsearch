@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -23,8 +12,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -131,7 +120,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     public static ShardSearchFailure fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         String currentFieldName = null;
         int shardId = -1;
         String indexName = null;
@@ -169,7 +158,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         SearchShardTarget searchShardTarget = null;
         if (nodeId != null) {
             searchShardTarget = new SearchShardTarget(nodeId,
-                new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
+                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(exception, searchShardTarget);
     }

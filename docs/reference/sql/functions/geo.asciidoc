@@ -35,13 +35,11 @@ ST_AsWKT(
 
 *Input*:
 
-<1> geometry
+<1> geometry. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Returns the WKT representation of the `geometry`.
+*Description*: Returns the WKT representation of the `geometry`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -62,13 +60,12 @@ ST_WKTToSQL(
 
 *Input*:
 
-<1> string WKT representation of geometry
+<1> string WKT representation of geometry. If `null`, the function returns
+`null`.
 
 *Output*: geometry
 
-.Description:
-
-Returns the geometry from WKT representation.
+*Description*: Returns the geometry from WKT representation.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -90,13 +87,11 @@ ST_GeometryType(
 
 *Input*:
 
-<1> geometry
+<1> geometry. If `null`, the function returns `null`.
 
 *Output*: string
 
-.Description:
-
-Returns the type of the `geometry` such as POINT, MULTIPOINT, LINESTRING, MULTILINESTRING, POLYGON, MULTIPOLYGON, GEOMETRYCOLLECTION, ENVELOPE or CIRCLE.
+*Description*: Returns the type of the `geometry` such as POINT, MULTIPOINT, LINESTRING, MULTILINESTRING, POLYGON, MULTIPOLYGON, GEOMETRYCOLLECTION, ENVELOPE or CIRCLE.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -116,13 +111,11 @@ ST_X(
 
 *Input*:
 
-<1> geometry
+<1> geometry. If `null`, the function returns `null`.
 
 *Output*: double
 
-.Description:
-
-Returns the longitude of the first point in the geometry.
+*Description*: Returns the longitude of the first point in the geometry.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -142,13 +135,11 @@ ST_Y(
 
 *Input*:
 
-<1> geometry
+<1> geometry. If `null`, the function returns `null`.
 
 *Output*: double
 
-.Description:
-
-Returns the latitude of the first point in the geometry.
+*Description*: Returns the latitude of the first point in the geometry.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -168,13 +159,11 @@ ST_Z(
 
 *Input*:
 
-<1> geometry
+<1> geometry. If `null`, the function returns `null`.
 
 *Output*: double
 
-.Description:
-
-Returns the altitude of the first point in the geometry.
+*Description*: Returns the altitude of the first point in the geometry.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -195,14 +184,12 @@ ST_Distance(
 
 *Input*:
 
-<1> source geometry
-<2> target geometry
+<1> source geometry. If `null`, the function returns `null`.
+<2> target geometry. If `null`, the function returns `null`.
 
 *Output*: Double
 
-.Description:
-
-Returns the distance between geometries in meters. Both geometries have to be points.
+*Description*: Returns the distance between geometries in meters. Both geometries have to be points.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------

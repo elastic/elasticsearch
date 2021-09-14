@@ -8,7 +8,7 @@ matching certain criteria determined by the <<discovery-ec2-usage,plugin
 settings>>.
 
 *If you are looking for a hosted solution of {es} on AWS, please visit
-http://www.elastic.co/cloud.*
+https://www.elastic.co/cloud.*
 
 :plugin_name: discovery-ec2
 include::install_remove.asciidoc[]
@@ -29,7 +29,7 @@ will work correctly even if it finds master-ineligible nodes, but master
 elections will be more efficient if this can be avoided.
 
 The interaction with the AWS API can be authenticated using the
-http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[instance
+https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[instance
 role], or else custom credentials can be supplied.
 
 ===== Enabling EC2 discovery
@@ -76,7 +76,7 @@ The available settings for the EC2 discovery plugin are as follows.
 `discovery.ec2.endpoint`::
 
     The EC2 service endpoint to which to connect. See
-    http://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region to find
+    https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region to find
     the appropriate endpoint for the region. This setting defaults to
     `ec2.us-east-1.amazonaws.com` which is appropriate for clusters running in
     the `us-east-1` region.
@@ -114,7 +114,7 @@ The available settings for the EC2 discovery plugin are as follows.
 `discovery.ec2.read_timeout`::
 
     The socket timeout for connections to EC2,
-    {ref}/common-options.html#time-units[including the units]. For example, a
+    {time-units}[including the units]. For example, a
     value of `60s` specifies a 60-second timeout. Defaults to 50 seconds.
 
 `discovery.ec2.groups`::
@@ -152,7 +152,7 @@ For example if you tag some EC2 instances with a tag named
 `elasticsearch-host-name` and set `host_type: tag:elasticsearch-host-name` then
 the `discovery-ec2` plugin will read each instance's host name from the value
 of the `elasticsearch-host-name` tag.
-http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html[Read more
+https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html[Read more
 about EC2 Tags].
 
 --
@@ -236,7 +236,8 @@ The `discovery-ec2` plugin can automatically set the `aws_availability_zone`
 node attribute to the availability zone of each node. This node attribute
 allows you to ensure that each shard has copies allocated redundantly across
 multiple availability zones by using the
-{ref}/allocation-awareness.html[Allocation Awareness] feature.
+{ref}/modules-cluster.html#shard-allocation-awareness[Allocation Awareness]
+feature.
 
 In order to enable the automatic definition of the `aws_availability_zone`
 attribute, set `cloud.node.auto_attributes` to `true`. For example:
@@ -285,14 +286,14 @@ you to set `discovery.seed_providers: ec2`. However they do require that the
 This section contains some other information about designing and managing an
 {es} cluster on your own AWS infrastructure. If you would prefer to avoid these
 operational details then you may be interested in a hosted {es} installation
-available on AWS-based infrastructure from http://www.elastic.co/cloud.
+available on AWS-based infrastructure from https://www.elastic.co/cloud.
 
 ===== Storage
 
 EC2 instances offer a number of different kinds of storage. Please be aware of
-the folowing when selecting the storage for your cluster:
+the following when selecting the storage for your cluster:
 
-* http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html[Instance
+* https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html[Instance
 Store] is recommended for {es} clusters as it offers excellent performance and
 is cheaper than EBS-based storage. {es} is designed to work well with this kind
 of ephemeral storage because it replicates each shard across multiple nodes. If
@@ -313,7 +314,7 @@ achieve the same benefits using {es} directly.
 
 ===== Choice of AMI
 
-Prefer the https://aws.amazon.com/amazon-linux-ami/[Amazon Linux AMIs] as these
+Prefer the https://aws.amazon.com/amazon-linux-2/[Amazon Linux 2 AMIs] as these
 allow you to benefit from the lightweight nature, support, and EC2-specific
 performance enhancements that these images offer.
 
@@ -326,9 +327,10 @@ https://aws.amazon.com/ec2/instance-types/[instance types] with networking
 labelled as `Moderate` or `Low`.
 
 * It is a good idea to distribute your nodes across multiple
-http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html[availability
-zones] and use {ref}/allocation-awareness.html[shard allocation awareness] to
-ensure that each shard has copies in more than one availability zone.
+https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html[availability
+zones] and use {ref}/modules-cluster.html#shard-allocation-awareness[shard
+allocation awareness] to ensure that each shard has copies in more than one
+availability zone.
 
 * Do not span a cluster across regions. {es} expects that node-to-node
 connections within a cluster are reasonably reliable and offer high bandwidth
@@ -338,7 +340,7 @@ connections are unreliable or slow, it is not optimised for this case and its
 performance may suffer. If you wish to geographically distribute your data, you
 should provision multiple clusters and use features such as
 {ref}/modules-cross-cluster-search.html[cross-cluster search] and
-{stack-ov}/xpack-ccr.html[cross-cluster replication].
+{ref}/xpack-ccr.html[cross-cluster replication].
 
 ===== Other recommendations
 

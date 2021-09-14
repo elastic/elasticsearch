@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher;
 
@@ -18,14 +19,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -101,7 +102,7 @@ public class WatcherService {
                    ExecutionService executionService, WatchParser parser, Client client) {
         this(settings, triggerService, triggeredWatchStore, executionService, parser, client,
             EsExecutors.newFixed(LIFECYCLE_THREADPOOL_NAME, 1, 1000, daemonThreadFactory(settings, LIFECYCLE_THREADPOOL_NAME),
-                client.threadPool().getThreadContext()));
+                client.threadPool().getThreadContext(), false));
     }
 
     /**
@@ -117,13 +118,13 @@ public class WatcherService {
             return false;
         }
 
-        IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metaData());
-        IndexMetaData triggeredWatchesIndexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME,
-            state.metaData());
-        boolean isIndexInternalFormatWatchIndex = watcherIndexMetaData == null ||
-            UpgradeField.checkInternalIndexFormat(watcherIndexMetaData);
-        boolean isIndexInternalFormatTriggeredWatchIndex = triggeredWatchesIndexMetaData == null ||
-            UpgradeField.checkInternalIndexFormat(triggeredWatchesIndexMetaData);
+        IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metadata());
+        IndexMetadata triggeredWatchesIndexMetadata = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME,
+            state.metadata());
+        boolean isIndexInternalFormatWatchIndex = watcherIndexMetadata == null ||
+            UpgradeField.checkInternalIndexFormat(watcherIndexMetadata);
+        boolean isIndexInternalFormatTriggeredWatchIndex = triggeredWatchesIndexMetadata == null ||
+            UpgradeField.checkInternalIndexFormat(triggeredWatchesIndexMetadata);
         if (isIndexInternalFormatTriggeredWatchIndex == false || isIndexInternalFormatWatchIndex == false) {
             logger.warn("not starting watcher, upgrade API run required: .watches[{}], .triggered_watches[{}]",
                 isIndexInternalFormatWatchIndex, isIndexInternalFormatTriggeredWatchIndex);
@@ -136,8 +137,8 @@ public class WatcherService {
                 return false;
             }
 
-            return watcherIndexMetaData == null || (watcherIndexMetaData.getState() == IndexMetaData.State.OPEN &&
-                state.routingTable().index(watcherIndexMetaData.getIndex()).allPrimaryShardsActive());
+            return watcherIndexMetadata == null || (watcherIndexMetadata.getState() == IndexMetadata.State.OPEN &&
+                state.routingTable().index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
         } catch (IllegalStateException e) {
             logger.debug("error validating to start watcher", e);
             return false;
@@ -271,9 +272,9 @@ public class WatcherService {
      * before they are fed into the trigger service.
      */
     private Collection<Watch> loadWatches(ClusterState clusterState) {
-        IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX, clusterState.metaData());
+        IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, clusterState.metadata());
         // no index exists, all good, we can start
-        if (indexMetaData == null) {
+        if (indexMetadata == null) {
             return Collections.emptyList();
         }
 
@@ -282,12 +283,12 @@ public class WatcherService {
         try {
             RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(INDEX))
                 .actionGet(TimeValue.timeValueSeconds(5));
-            if (refreshResponse.getSuccessfulShards() < indexMetaData.getNumberOfShards()) {
+            if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
                 throw illegalState("not all required shards have been refreshed");
             }
 
             // find out local shards
-            String watchIndexName = indexMetaData.getIndex().getName();
+            String watchIndexName = indexMetadata.getIndex().getName();
             RoutingNode routingNode = clusterState.getRoutingNodes().node(clusterState.nodes().getLocalNodeId());
             // yes, this can happen, if the state is not recovered
             if (routingNode == null) {

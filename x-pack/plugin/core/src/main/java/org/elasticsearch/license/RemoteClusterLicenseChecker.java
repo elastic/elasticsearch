@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.license;
@@ -19,6 +20,7 @@ import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
@@ -137,9 +139,9 @@ public final class RemoteClusterLicenseChecker {
         this.predicate = predicate;
     }
 
-    public static boolean isLicensePlatinumOrTrial(final XPackInfoResponse.LicenseInfo licenseInfo) {
-        final License.OperationMode mode = License.OperationMode.resolve(licenseInfo.getMode());
-        return mode == License.OperationMode.PLATINUM || mode == License.OperationMode.TRIAL;
+    public static boolean isAllowedByLicense(final XPackInfoResponse.LicenseInfo licenseInfo) {
+        final License.OperationMode mode = License.OperationMode.parse(licenseInfo.getMode());
+        return XPackLicenseState.isAllowedByOperationMode(mode, License.OperationMode.PLATINUM);
     }
 
     /**
@@ -168,7 +170,7 @@ public final class RemoteClusterLicenseChecker {
                     return;
                 }
                 if ((licenseInfo.getStatus() == LicenseStatus.ACTIVE) == false
-                        || predicate.test(License.OperationMode.resolve(licenseInfo.getMode())) == false) {
+                        || predicate.test(License.OperationMode.parse(licenseInfo.getMode())) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }
@@ -229,7 +231,7 @@ public final class RemoteClusterLicenseChecker {
      * @param indices the collection of index names
      * @return true if the collection of index names contains a name that represents a remote index, otherwise false
      */
-    public static boolean containsRemoteIndex(final List<String> indices) {
+    public static boolean containsRemoteIndex(final Collection<String> indices) {
         return indices.stream().anyMatch(RemoteClusterLicenseChecker::isRemoteIndex);
     }
 
@@ -240,7 +242,7 @@ public final class RemoteClusterLicenseChecker {
      * @param indices the collection of index names
      * @return list of index names that represent remote index names
      */
-    public static List<String> remoteIndices(final List<String> indices) {
+    public static List<String> remoteIndices(final Collection<String> indices) {
         return indices.stream().filter(RemoteClusterLicenseChecker::isRemoteIndex).collect(Collectors.toList());
     }
 
@@ -282,7 +284,7 @@ public final class RemoteClusterLicenseChecker {
             final String message = String.format(
                     Locale.ROOT,
                     "the license mode [%s] on cluster [%s] does not enable [%s]",
-                    License.OperationMode.resolve(remoteClusterLicenseInfo.licenseInfo().getMode()),
+                    License.OperationMode.parse(remoteClusterLicenseInfo.licenseInfo().getMode()),
                     remoteClusterLicenseInfo.clusterAlias(),
                     feature);
             error.append(message);

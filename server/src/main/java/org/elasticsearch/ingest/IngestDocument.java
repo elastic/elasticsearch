@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.TemplateScript;
 
@@ -38,7 +27,8 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,6 +41,7 @@ import java.util.function.BiConsumer;
 public final class IngestDocument {
 
     public static final String INGEST_KEY = "_ingest";
+    public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
 
@@ -60,24 +51,23 @@ public final class IngestDocument {
     private final Map<String, Object> ingestMetadata;
 
     // Contains all pipelines that have been executed for this document
-    private final Set<Pipeline> executedPipelines = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<String> executedPipelines = new LinkedHashSet<>();
 
     public IngestDocument(String index, String id, String routing,
                           Long version, VersionType versionType, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
-        this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
-        this.sourceAndMetadata.put(MetaData.ID.getFieldName(), id);
+        this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
+        this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
         if (routing != null) {
-            this.sourceAndMetadata.put(MetaData.ROUTING.getFieldName(), routing);
+            this.sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
         }
         if (version != null) {
-            sourceAndMetadata.put(MetaData.VERSION.getFieldName(), version);
+            sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
         }
         if (versionType != null) {
-            sourceAndMetadata.put(MetaData.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
+            sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
-
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
     }
@@ -378,7 +368,24 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(String path, Object value) {
-        setFieldValue(path, value, true);
+        appendFieldValue(path, value, true);
+    }
+
+    /**
+     * Appends the provided value to the provided path in the document.
+     * Any non existing path element will be created.
+     * If the path identifies a list, the value will be appended to the existing list.
+     * If the path identifies a scalar, the scalar will be converted to a list and
+     * the provided value will be added to the newly created list.
+     * Supports multiple values too provided in forms of list, in that case all the values will be appended to the
+     * existing (or newly created) list.
+     * @param path The path within the document in dot-notation
+     * @param value The value or values to append to the existing ones
+     * @param allowDuplicates When false, any values that already exist in the field will not be added
+     * @throws IllegalArgumentException if the path is null, empty or invalid.
+     */
+    public void appendFieldValue(String path, Object value, boolean allowDuplicates) {
+        setFieldValue(path, value, true, allowDuplicates);
     }
 
     /**
@@ -396,6 +403,24 @@ public final class IngestDocument {
     public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
         Map<String, Object> model = createTemplateModel();
         appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model));
+    }
+
+    /**
+     * Appends the provided value to the provided path in the document.
+     * Any non existing path element will be created.
+     * If the path identifies a list, the value will be appended to the existing list.
+     * If the path identifies a scalar, the scalar will be converted to a list and
+     * the provided value will be added to the newly created list.
+     * Supports multiple values too provided in forms of list, in that case all the values will be appended to the
+     * existing (or newly created) list.
+     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param valueSource The value source that will produce the value or values to append to the existing ones
+     * @param allowDuplicates When false, any values that already exist in the field will not be added
+     * @throws IllegalArgumentException if the path is null, empty or invalid.
+     */
+    public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean allowDuplicates) {
+        Map<String, Object> model = createTemplateModel();
+        appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), allowDuplicates);
     }
 
     /**
@@ -426,7 +451,64 @@ public final class IngestDocument {
         setFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), false);
     }
 
+    /**
+     * Sets the provided value to the provided path in the document.
+     * Any non existing path element will be created. If the last element is a list,
+     * the value will replace the existing list.
+     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param valueSource The value source that will produce the value to put in for the path key
+     * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
+     * item identified by the provided path.
+     */
+    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean ignoreEmptyValue) {
+        Map<String, Object> model = createTemplateModel();
+        Object value = valueSource.copyAndResolve(model);
+        if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
+            if (value == null) {
+                return;
+            }
+            String valueStr = (String) value;
+            if (valueStr.isEmpty()) {
+                return;
+            }
+        }
+
+        setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
+    }
+
+    /**
+     * Sets the provided value to the provided path in the document.
+     * Any non existing path element will be created. If the last element is a list,
+     * the value will replace the existing list.
+     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param value The value to put in for the path key
+     * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
+     * item identified by the provided path.
+     */
+    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, Object value, boolean ignoreEmptyValue) {
+        Map<String, Object> model = createTemplateModel();
+        if (ignoreEmptyValue) {
+            if (value == null) {
+                return;
+            }
+            if (value instanceof String){
+                String valueStr = (String) value;
+                if (valueStr.isEmpty()) {
+                    return;
+                }
+            }
+        }
+
+        setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
+    }
+
     private void setFieldValue(String path, Object value, boolean append) {
+        setFieldValue(path, value, append, true);
+    }
+
+    private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
         FieldPath fieldPath = new FieldPath(path);
         Object context = fieldPath.initialContext;
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
@@ -475,7 +557,7 @@ public final class IngestDocument {
             if (append) {
                 if (map.containsKey(leafKey)) {
                     Object object = map.get(leafKey);
-                    List<Object> list = appendValues(object, value);
+                    Object list = appendValues(object, value, allowDuplicates);
                     if (list != object) {
                         map.put(leafKey, list);
                     }
@@ -503,7 +585,7 @@ public final class IngestDocument {
             }
             if (append) {
                 Object object = list.get(index);
-                List<Object> newList = appendValues(object, value);
+                Object newList = appendValues(object, value, allowDuplicates);
                 if (newList != object) {
                     list.set(index, newList);
                 }
@@ -517,7 +599,7 @@ public final class IngestDocument {
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Object> appendValues(Object maybeList, Object value) {
+    private static Object appendValues(Object maybeList, Object value, boolean allowDuplicates) {
         List<Object> list;
         if (maybeList instanceof List) {
             //maybeList is already a list, we append the provided values to it
@@ -527,8 +609,13 @@ public final class IngestDocument {
             list = new ArrayList<>();
             list.add(maybeList);
         }
-        appendValues(list, value);
-        return list;
+        if (allowDuplicates) {
+            appendValues(list, value);
+            return list;
+        } else {
+            // if no values were appended due to duplication, return the original object so the ingest document remains unmodified
+            return appendValuesWithoutDuplicates(list, value) ? list : maybeList;
+        }
     }
 
     private static void appendValues(List<Object> list, Object value) {
@@ -537,6 +624,25 @@ public final class IngestDocument {
         } else {
             list.add(value);
         }
+    }
+
+    private static boolean appendValuesWithoutDuplicates(List<Object> list, Object value) {
+        boolean valuesWereAppended = false;
+        if (value instanceof List) {
+            List<?> valueList = (List<?>) value;
+            for (Object val : valueList) {
+                if (list.contains(val) == false) {
+                    list.add(val);
+                    valuesWereAppended = true;
+                }
+            }
+        } else {
+            if (list.contains(value) == false) {
+                list.add(value);
+                valuesWereAppended = true;
+            }
+        }
+        return valuesWereAppended;
     }
 
     private static <T> T cast(String path, Object object, Class<T> clazz) {
@@ -555,22 +661,24 @@ public final class IngestDocument {
     }
 
     private Map<String, Object> createTemplateModel() {
-        Map<String, Object> model = new HashMap<>(sourceAndMetadata);
-        model.put(SourceFieldMapper.NAME, sourceAndMetadata);
-        // If there is a field in the source with the name '_ingest' it gets overwritten here,
-        // if access to that field is required then it get accessed via '_source._ingest'
-        model.put(INGEST_KEY, ingestMetadata);
-        return model;
+        return new LazyMap<>(() -> {
+            Map<String, Object> model = new HashMap<>(sourceAndMetadata);
+            model.put(SourceFieldMapper.NAME, sourceAndMetadata);
+            // If there is a field in the source with the name '_ingest' it gets overwritten here,
+            // if access to that field is required then it get accessed via '_source._ingest'
+            model.put(INGEST_KEY, ingestMetadata);
+            return model;
+        });
     }
 
     /**
      * one time operation that extracts the metadata fields from the ingest document and returns them.
      * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
      */
-    public Map<MetaData, Object> extractMetadata() {
-        Map<MetaData, Object> metadataMap = new EnumMap<>(MetaData.class);
-        for (MetaData metaData : MetaData.values()) {
-            metadataMap.put(metaData, sourceAndMetadata.remove(metaData.getFieldName()));
+    public Map<Metadata, Object> extractMetadata() {
+        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
+        for (Metadata metadata : Metadata.values()) {
+            metadataMap.put(metadata, sourceAndMetadata.remove(metadata.getFieldName()));
         }
         return metadataMap;
     }
@@ -578,10 +686,10 @@ public final class IngestDocument {
     /**
      * Does the same thing as {@link #extractMetadata} but does not mutate the map.
      */
-    public Map<MetaData, Object> getMetadata() {
-        Map<MetaData, Object> metadataMap = new EnumMap<>(MetaData.class);
-        for (MetaData metaData : MetaData.values()) {
-            metadataMap.put(metaData, sourceAndMetadata.get(metaData.getFieldName()));
+    public Map<Metadata, Object> getMetadata() {
+        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
+        for (Metadata metadata : Metadata.values()) {
+            metadataMap.put(metadata, sourceAndMetadata.get(metadata.getFieldName()));
         }
         return metadataMap;
     }
@@ -608,7 +716,7 @@ public final class IngestDocument {
         return (Map<K, V>) deepCopy(source);
     }
 
-    private static Object deepCopy(Object value) {
+    public static Object deepCopy(Object value) {
         if (value instanceof Map) {
             Map<?, ?> mapValue = (Map<?, ?>) value;
             Map<Object, Object> copy = new HashMap<>(mapValue.size());
@@ -620,6 +728,13 @@ public final class IngestDocument {
             List<?> listValue = (List<?>) value;
             List<Object> copy = new ArrayList<>(listValue.size());
             for (Object itemValue : listValue) {
+                copy.add(deepCopy(itemValue));
+            }
+            return copy;
+        } else if (value instanceof Set) {
+            Set<?> setValue = (Set<?>) value;
+            Set<Object> copy = new HashSet<>(setValue.size());
+            for (Object itemValue : setValue) {
                 copy.add(deepCopy(itemValue));
             }
             return copy;
@@ -646,14 +761,29 @@ public final class IngestDocument {
      * @param handler handles the result or failure
      */
     public void executePipeline(Pipeline pipeline, BiConsumer<IngestDocument, Exception> handler) {
-        if (executedPipelines.add(pipeline)) {
+        if (executedPipelines.add(pipeline.getId())) {
+            Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
             pipeline.execute(this, (result, e) -> {
-                executedPipelines.remove(pipeline);
+                executedPipelines.remove(pipeline.getId());
+                if (previousPipeline != null) {
+                    ingestMetadata.put("pipeline", previousPipeline);
+                } else {
+                    ingestMetadata.remove("pipeline");
+                }
                 handler.accept(result, e);
             });
         } else {
-            handler.accept(null, new IllegalStateException("Cycle detected for pipeline: " + pipeline.getId()));
+            handler.accept(null, new IllegalStateException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
         }
+    }
+
+    /**
+     * @return a pipeline stack; all pipelines that are in execution by this document in reverse order
+     */
+    List<String> getPipelineStack() {
+        List<String> pipelineStack = new ArrayList<>(executedPipelines);
+        Collections.reverse(pipelineStack);
+        return pipelineStack;
     }
 
     @Override
@@ -681,17 +811,20 @@ public final class IngestDocument {
                 '}';
     }
 
-    public enum MetaData {
+    public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
-        TYPE(TypeFieldMapper.NAME),
+        TYPE("_type"),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
         VERSION(VersionFieldMapper.NAME),
-        VERSION_TYPE("_version_type");
+        VERSION_TYPE("_version_type"),
+        IF_SEQ_NO("_if_seq_no"),
+        IF_PRIMARY_TERM("_if_primary_term"),
+        DYNAMIC_TEMPLATES("_dynamic_templates");
 
         private final String fieldName;
 
-        MetaData(String fieldName) {
+        Metadata(String fieldName) {
             this.fieldName = fieldName;
         }
 

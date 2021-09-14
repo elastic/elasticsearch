@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.internal;
@@ -45,6 +34,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
@@ -54,13 +44,15 @@ import org.elasticsearch.search.profile.query.QueryTimingType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
  */
-public class ContextIndexSearcher extends IndexSearcher {
+public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /**
      * The interval at which we check for search cancellation when we cannot use
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
@@ -69,13 +61,23 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
-    private Runnable checkCancelled;
+    private MutableQueryTimeout cancellable;
 
-    public ContextIndexSearcher(IndexReader reader, Similarity similarity, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
-        super(reader);
+    public ContextIndexSearcher(IndexReader reader, Similarity similarity,
+                                QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                                boolean wrapWithExitableDirectoryReader) throws IOException {
+        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader);
+    }
+
+    private ContextIndexSearcher(IndexReader reader, Similarity similarity,
+                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                                 MutableQueryTimeout cancellable,
+                                 boolean wrapWithExitableDirectoryReader) throws IOException {
+        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
+        this.cancellable = cancellable;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -83,11 +85,32 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Set a {@link Runnable} that will be run on a regular basis while
-     * collecting documents.
+     * Add a {@link Runnable} that will be run on a regular basis while accessing documents in the
+     * DirectoryReader but also while collecting them and check for query cancellation or timeout.
      */
-    public void setCheckCancelled(Runnable checkCancelled) {
-        this.checkCancelled = checkCancelled;
+    public Runnable addQueryCancellation(Runnable action) {
+        return this.cancellable.add(action);
+    }
+
+    /**
+     * Remove a {@link Runnable} that checks for query cancellation or timeout
+     * which is called while accessing documents in the DirectoryReader but also while collecting them.
+     */
+    public void removeQueryCancellation(Runnable action) {
+        this.cancellable.remove(action);
+    }
+
+    @Override
+    public void close() {
+        // clear the list of cancellables when closing the owning search context, since the ExitableDirectoryReader might be cached (for
+        // instance in fielddata cache).
+        // A cancellable can contain an indirect reference to the search context, which potentially retains a significant amount
+        // of memory.
+        this.cancellable.clear();
+    }
+
+    public boolean hasCancellations() {
+        return this.cancellable.isEnabled();
     }
 
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
@@ -120,7 +143,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             timer.start();
             final Weight weight;
             try {
-                weight = super.createWeight(query, scoreMode, boost);
+                weight = query.createWeight(this, scoreMode, boost);
             } finally {
                 timer.stop();
                 profiler.pollLastElement();
@@ -131,12 +154,59 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
     }
 
-    @Override
-    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        final Weight cancellableWeight;
-        if (checkCancelled != null) {
-            cancellableWeight = new Weight(weight.getQuery()) {
+    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        for (LeafReaderContext ctx : leaves) { // search each subreader
+            searchLeaf(ctx, weight, collector);
+        }
+    }
 
+    /**
+     * Lower-level search API.
+     *
+     * {@link LeafCollector#collect(int)} is called for every matching document in
+     * the provided <code>ctx</code>.
+     */
+    private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+        cancellable.checkCancelled();
+        weight = wrapWeight(weight);
+        final LeafCollector leafCollector;
+        try {
+            leafCollector = collector.getLeafCollector(ctx);
+        } catch (CollectionTerminatedException e) {
+            // there is no doc of interest in this reader context
+            // continue with the following leaf
+            return;
+        }
+        Bits liveDocs = ctx.reader().getLiveDocs();
+        BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
+        if (liveDocsBitSet == null) {
+            BulkScorer bulkScorer = weight.bulkScorer(ctx);
+            if (bulkScorer != null) {
+                try {
+                    bulkScorer.score(leafCollector, liveDocs);
+                } catch (CollectionTerminatedException e) {
+                    // collection was terminated prematurely
+                    // continue with the following leaf
+                }
+            }
+        } else {
+            // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
+            Scorer scorer = weight.scorer(ctx);
+            if (scorer != null) {
+                try {
+                    intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
+                            this.cancellable.isEnabled() ? cancellable::checkCancelled: () -> {});
+                } catch (CollectionTerminatedException e) {
+                    // collection was terminated prematurely
+                    // continue with the following leaf
+                }
+            }
+        }
+    }
+
+    private Weight wrapWeight(Weight weight) {
+        if (cancellable.isEnabled()) {
+            return new Weight(weight.getQuery()) {
                 @Override
                 public void extractTerms(Set<Term> terms) {
                     throw new UnsupportedOperationException();
@@ -161,55 +231,17 @@ public class ContextIndexSearcher extends IndexSearcher {
                 public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                     BulkScorer in = weight.bulkScorer(context);
                     if (in != null) {
-                        return new CancellableBulkScorer(in, checkCancelled);
+                        return new CancellableBulkScorer(in, cancellable::checkCancelled);
                     } else {
                         return null;
                     }
                 }
             };
         } else {
-            cancellableWeight = weight;
+            return weight;
         }
-        searchInternal(leaves, cancellableWeight, collector);
     }
 
-    private void searchInternal(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        for (LeafReaderContext ctx : leaves) { // search each subreader
-            final LeafCollector leafCollector;
-            try {
-                leafCollector = collector.getLeafCollector(ctx);
-            } catch (CollectionTerminatedException e) {
-                // there is no doc of interest in this reader context
-                // continue with the following leaf
-                continue;
-            }
-            Bits liveDocs = ctx.reader().getLiveDocs();
-            BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
-            if (liveDocsBitSet == null) {
-                BulkScorer bulkScorer = weight.bulkScorer(ctx);
-                if (bulkScorer != null) {
-                    try {
-                        bulkScorer.score(leafCollector, liveDocs);
-                    } catch (CollectionTerminatedException e) {
-                        // collection was terminated prematurely
-                        // continue with the following leaf
-                    }
-                }
-            } else {
-                // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
-                Scorer scorer = weight.scorer(ctx);
-                if (scorer != null) {
-                    try {
-                        intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
-                            checkCancelled == null ? () -> {} : checkCancelled);
-                    } catch (CollectionTerminatedException e) {
-                        // collection was terminated prematurely
-                        // continue with the following leaf
-                    }
-                }
-            }
-        }
-    }
 
     private static BitSet getSparseBitSetOrNull(Bits liveDocs) {
         if (liveDocs instanceof SparseFixedBitSet) {
@@ -274,5 +306,38 @@ public class ContextIndexSearcher extends IndexSearcher {
         final IndexReader reader = getIndexReader();
         assert reader instanceof DirectoryReader : "expected an instance of DirectoryReader, got " + reader.getClass();
         return (DirectoryReader) reader;
+    }
+
+    private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
+
+        private final Set<Runnable> runnables = new HashSet<>();
+
+        private Runnable add(Runnable action) {
+            Objects.requireNonNull(action, "cancellation runnable should not be null");
+            if (runnables.add(action) == false) {
+                throw new IllegalArgumentException("Cancellation runnable already added");
+            }
+            return action;
+        }
+
+        private void remove(Runnable action) {
+            runnables.remove(action);
+        }
+
+        @Override
+        public void checkCancelled() {
+            for (Runnable timeout : runnables) {
+                timeout.run();
+            }
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return runnables.isEmpty() == false;
+        }
+
+        public void clear() {
+            runnables.clear();
+        }
     }
 }

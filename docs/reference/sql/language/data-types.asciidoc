@@ -13,21 +13,21 @@ s|SQL precision
 
 4+h| Core types
 
-| <<null-value, `null`>>      | null          | NULL        | 0
-| <<boolean, `boolean`>>      | boolean       | BOOLEAN     | 1
-| <<number, `byte`>>          | byte          | TINYINT     | 3
-| <<number, `short`>>         | short         | SMALLINT    | 5
-| <<number, `integer`>>       | integer       | INTEGER     | 10
-| <<number, `long`>>          | long          | BIGINT      | 19
-| <<number, `double`>>        | double        | DOUBLE      | 15
-| <<number, `float`>>         | float         | REAL        | 7
-| <<number, `half_float`>>    | half_float    | FLOAT       | 3
-| <<number, `scaled_float`>>  | scaled_float  | DOUBLE      | 15
-| <<keyword, `keyword`>>      | keyword       | VARCHAR     | 32,766
-| <<text, `text`>>            | text          | VARCHAR     | 2,147,483,647
-| <<binary, `binary`>>        | binary        | VARBINARY   | 2,147,483,647
-| <<date, `date`>>            | datetime      | TIMESTAMP   | 29
-| <<ip, `ip`>>                | ip            | VARCHAR     | 39
+| <<null-value, `null`>>                   | null            | NULL        | 0
+| <<boolean, `boolean`>>                   | boolean         | BOOLEAN     | 1
+| <<number, `byte`>>                       | byte            | TINYINT     | 3
+| <<number, `short`>>                      | short           | SMALLINT    | 5
+| <<number, `integer`>>                    | integer         | INTEGER     | 10
+| <<number, `long`>>                       | long            | BIGINT      | 19
+| <<number, `double`>>                     | double          | DOUBLE      | 15
+| <<number, `float`>>                      | float           | REAL        | 7
+| <<number, `half_float`>>                 | half_float      | FLOAT       | 3
+| <<number, `scaled_float`>>               | scaled_float    | DOUBLE      | 15
+| <<keyword, keyword type family>>         | keyword         | VARCHAR     | 32,766
+| <<text, `text`>>                         | text            | VARCHAR     | 2,147,483,647
+| <<binary, `binary`>>                     | binary          | VARBINARY   | 2,147,483,647
+| <<date, `date`>>                         | datetime        | TIMESTAMP   | 29
+| <<ip, `ip`>>                             | ip              | VARCHAR     | 39
 
 4+h| Complex types
 
@@ -89,14 +89,14 @@ s|SQL precision
 
 
 [[sql-multi-field]]
-[float]
+[discrete]
 ==== SQL and multi-fields
 
 A core concept in {es} is that of an `analyzed` field, that is a full-text value that is interpreted in order
 to be effectively indexed. These fields are of type <<text, `text`>> and are not used for sorting or aggregations as their actual value depends on the <<analyzer, `analyzer`>> used hence why {es} also offers the <<keyword, `keyword`>> type for storing the _exact_
 value.
 
-In most case, and the default actually, is to use both types when for strings which {es} supports through <<multi-fields, multi fields>>, that is the ability to index the same string in multiple ways; for example index it both as `text` for search but also as `keyword` for sorting and aggregations.
+In most case, and the default actually, is to use both types for strings which {es} supports through <<multi-fields, multi-fields>>, that is the ability to index the same string in multiple ways; for example index it both as `text` for search but also as `keyword` for sorting and aggregations.
 
 As SQL requires exact values, when encountering a `text` field {es-sql} will search for an exact multi-field that it can use for comparisons, sorting and aggregations.
 To do that, it will search for the first `keyword` that it can find that is _not_ normalized and use that as the original field _exact_ value.
@@ -106,14 +106,14 @@ Consider the following `string` mapping:
 [source,js]
 ----
 {
-    "first_name" : {
-        "type" : "text",
-        "fields" : {
-            "raw" : {
-                "type" : "keyword"
-            }
-        }
+  "first_name": {
+    "type": "text",
+    "fields": {
+      "raw": {
+        "type": "keyword"
+      }
     }
+  }
 }
 ----
 // NOTCONSOLE
@@ -133,4 +133,3 @@ SELECT first_name FROM index WHERE first_name.raw = 'John'
 ----
 
 as {es-sql} automatically _picks_ up the `raw` multi-field from `raw` for exact matching.
-

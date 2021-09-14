@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
@@ -12,7 +13,6 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 
 import java.io.Closeable;
 import java.time.Clock;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -38,19 +39,25 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
     private final SchedulerEngine scheduler;
     private final SnapshotRetentionTask retentionTask;
     private final Clock clock;
+    private final AtomicBoolean running = new AtomicBoolean(true);
 
     private volatile String slmRetentionSchedule;
     private volatile boolean isMaster = false;
 
     public SnapshotRetentionService(Settings settings,
                                     Supplier<SnapshotRetentionTask> taskSupplier,
-                                    ClusterService clusterService,
                                     Clock clock) {
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.retentionTask = taskSupplier.get();
         this.scheduler.register(this.retentionTask);
         this.slmRetentionSchedule = LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING.get(settings);
+    }
+
+    /**
+     * Initializer method to avoid the publication of a self reference in the constructor.
+     */
+    public void init(ClusterService clusterService) {
         clusterService.addLocalNodeMasterListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
             this::setUpdateSchedule);
@@ -81,7 +88,7 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
 
     private void rescheduleRetentionJob() {
         final String schedule = this.slmRetentionSchedule;
-        if (this.isMaster && Strings.hasText(schedule)) {
+        if (this.running.get() && this.isMaster && Strings.hasText(schedule)) {
             final SchedulerEngine.Job retentionJob = new SchedulerEngine.Job(SLM_RETENTION_JOB_ID,
                 new CronSchedule(schedule));
             logger.debug("scheduling SLM retention job for [{}]", schedule);
@@ -107,12 +114,9 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
     }
 
     @Override
-    public String executorName() {
-        return ThreadPool.Names.SNAPSHOT;
-    }
-
-    @Override
     public void close() {
-        this.scheduler.stop();
+        if (this.running.compareAndSet(true, false)) {
+            this.scheduler.stop();
+        }
     }
 }

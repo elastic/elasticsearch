@@ -30,14 +30,6 @@ include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-local]
---------------------------------------------------
-<1> The `local` flag (defaults to `false`) controls whether the aliases need
-to be looked up in the local cluster state or in the cluster state held by
-the elected master node
-
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]

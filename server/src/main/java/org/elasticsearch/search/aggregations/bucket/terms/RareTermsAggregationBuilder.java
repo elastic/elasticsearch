@@ -1,95 +1,105 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, RareTermsAggregationBuilder> {
+public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<RareTermsAggregationBuilder> {
     public static final String NAME = "rare_terms";
+    public static final ValuesSourceRegistry.RegistryKey<RareTermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        RareTermsAggregatorSupplier.class
+    );
 
     private static final ParseField MAX_DOC_COUNT_FIELD_NAME = new ParseField("max_doc_count");
     private static final ParseField PRECISION = new ParseField("precision");
 
     private static final int MAX_MAX_DOC_COUNT = 100;
-    private static final ObjectParser<RareTermsAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<RareTermsAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        RareTermsAggregationBuilder::new
+    );
     static {
-        PARSER = new ObjectParser<>(RareTermsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareLong(RareTermsAggregationBuilder::maxDocCount, MAX_DOC_COUNT_FIELD_NAME);
 
-        PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
-            IncludeExclude::parseInclude, IncludeExclude.INCLUDE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
+        PARSER.declareField(
+            (b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
+            IncludeExclude::parseInclude,
+            IncludeExclude.INCLUDE_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING
+        );
 
-        PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
-            IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
+        PARSER.declareField(
+            (b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
+            IncludeExclude::parseExclude,
+            IncludeExclude.EXCLUDE_FIELD,
+            ObjectParser.ValueType.STRING_ARRAY
+        );
 
         PARSER.declareDouble(RareTermsAggregationBuilder::setPrecision, PRECISION);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new RareTermsAggregationBuilder(aggregationName, null), null);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        RareTermsAggregatorFactory.registerAggregators(builder);
     }
 
     private IncludeExclude includeExclude = null;
     private int maxDocCount = 1;
     private double precision = 0.001;
 
-    public RareTermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, ValuesSourceType.ANY, valueType);
+    public RareTermsAggregationBuilder(String name) {
+        super(name);
     }
 
-    private RareTermsAggregationBuilder(RareTermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    private RareTermsAggregationBuilder(
+        RareTermsAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
+        super(clone, factoriesBuilder, metadata);
         this.includeExclude = clone.includeExclude;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new RareTermsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.KEYWORD;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new RareTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
      * Read from a stream.
      */
     public RareTermsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY);
+        super(in);
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         maxDocCount = in.readVInt();
     }
@@ -112,13 +122,20 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     public RareTermsAggregationBuilder maxDocCount(long maxDocCount) {
         if (maxDocCount <= 0) {
             throw new IllegalArgumentException(
-                "[" + MAX_DOC_COUNT_FIELD_NAME.getPreferredName() + "] must be greater than 0. Found ["
-                    + maxDocCount + "] in [" + name + "]");
+                "["
+                    + MAX_DOC_COUNT_FIELD_NAME.getPreferredName()
+                    + "] must be greater than 0. Found ["
+                    + maxDocCount
+                    + "] in ["
+                    + name
+                    + "]"
+            );
         }
-        //TODO review: what size cap should we put on this?
+        // TODO review: what size cap should we put on this?
         if (maxDocCount > MAX_MAX_DOC_COUNT) {
-            throw new IllegalArgumentException("[" + MAX_DOC_COUNT_FIELD_NAME.getPreferredName() + "] must be smaller" +
-                "than " + MAX_MAX_DOC_COUNT + "in [" + name + "]");
+            throw new IllegalArgumentException(
+                "[" + MAX_DOC_COUNT_FIELD_NAME.getPreferredName() + "] must be smaller" + "than " + MAX_MAX_DOC_COUNT + "in [" + name + "]"
+            );
         }
         this.maxDocCount = (int) maxDocCount;
         return this;
@@ -162,12 +179,32 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                     ValuesSourceConfig<ValuesSource> config,
-                                                                     AggregatorFactory parent,
-                                                                     Builder subFactoriesBuilder) throws IOException {
-        return new RareTermsAggregatorFactory(name, config, includeExclude,
-            queryShardContext, parent, subFactoriesBuilder, metaData, maxDocCount, precision);
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
+    protected ValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+
+        RareTermsAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
+        return new RareTermsAggregatorFactory(
+            name,
+            config,
+            includeExclude,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            maxDocCount,
+            precision,
+            aggregatorSupplier
+        );
     }
 
     @Override
@@ -201,4 +238,8 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         return NAME;
     }
 
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
 }

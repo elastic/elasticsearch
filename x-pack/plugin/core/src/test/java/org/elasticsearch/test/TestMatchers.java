@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test;
 
@@ -20,6 +21,10 @@ import java.util.regex.Pattern;
 
 public class TestMatchers extends Matchers {
 
+    /**
+     * @deprecated Use {@link FileMatchers#pathExists}
+     */
+    @Deprecated
     public static Matcher<Path> pathExists(Path path, LinkOption... options) {
         return new CustomMatcher<Path>("Path " + path + " exists") {
             @Override
@@ -62,6 +67,7 @@ public class TestMatchers extends Matchers {
         };
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> Matcher<Predicate<T>> predicateMatches(T value) {
         return new CustomMatcher<Predicate<T>>("Matches " + value) {
             @Override

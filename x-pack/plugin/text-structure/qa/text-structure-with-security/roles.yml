@@ -1,0 +1,8 @@
+monitor_text_structure:
+  cluster:
+    - monitor_text_structure
+minimal:
+  cluster:
+    # This is always required because the REST client uses it to find the version of
+    # Elasticsearch it's talking to
+    - cluster:monitor/main

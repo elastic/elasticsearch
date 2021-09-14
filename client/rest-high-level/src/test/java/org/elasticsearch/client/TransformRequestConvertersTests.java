@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -28,6 +17,7 @@ import org.elasticsearch.client.transform.DeleteTransformRequest;
 import org.elasticsearch.client.transform.GetTransformRequest;
 import org.elasticsearch.client.transform.GetTransformStatsRequest;
 import org.elasticsearch.client.transform.PreviewTransformRequest;
+import org.elasticsearch.client.transform.PreviewTransformRequestTests;
 import org.elasticsearch.client.transform.PutTransformRequest;
 import org.elasticsearch.client.transform.StartTransformRequest;
 import org.elasticsearch.client.transform.StopTransformRequest;
@@ -38,7 +28,7 @@ import org.elasticsearch.client.transform.transforms.TransformConfigTests;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdateTests;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -55,6 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformRequestConvertersTests extends ESTestCase {
 
@@ -149,7 +140,12 @@ public class TransformRequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             timeValue = TimeValue.parseTimeValue(randomTimeValue(), "timeout");
         }
-        StopTransformRequest stopRequest = new StopTransformRequest(id, waitForCompletion, timeValue);
+        Boolean waitForCheckpoint = null;
+        if (randomBoolean()) {
+            waitForCheckpoint = randomBoolean();
+        }
+
+        StopTransformRequest stopRequest = new StopTransformRequest(id, waitForCompletion, timeValue, waitForCheckpoint);
 
         Request request = TransformRequestConverters.stopTransform(stopRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
@@ -168,6 +164,12 @@ public class TransformRequestConvertersTests extends ESTestCase {
         } else {
             assertFalse(request.getParameters().containsKey("timeout"));
         }
+        if (waitForCheckpoint != null) {
+            assertTrue(request.getParameters().containsKey("wait_for_checkpoint"));
+            assertEquals(stopRequest.getWaitForCheckpoint(), Boolean.parseBoolean(request.getParameters().get("wait_for_checkpoint")));
+        } else {
+            assertFalse(request.getParameters().containsKey("wait_for_checkpoint"));
+        }
 
         assertFalse(request.getParameters().containsKey(ALLOW_NO_MATCH));
         stopRequest.setAllowNoMatch(randomBoolean());
@@ -176,17 +178,26 @@ public class TransformRequestConvertersTests extends ESTestCase {
     }
 
     public void testPreviewDataFrameTransform() throws IOException {
-        PreviewTransformRequest previewRequest = new PreviewTransformRequest(
-                TransformConfigTests.randomTransformConfig());
+        PreviewTransformRequest previewRequest = new PreviewTransformRequest(TransformConfigTests.randomTransformConfig());
         Request request = TransformRequestConverters.previewTransform(previewRequest);
 
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_transform/_preview"));
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
-            TransformConfig parsedConfig = TransformConfig.PARSER.apply(parser, null);
-            assertThat(parsedConfig, equalTo(previewRequest.getConfig()));
+            PreviewTransformRequest parsedRequest = PreviewTransformRequestTests.fromXContent(parser);
+            assertThat(parsedRequest, equalTo(previewRequest));
         }
+    }
+
+    public void testPreviewDataFrameTransformById() throws IOException {
+        String transformId = randomAlphaOfLengthBetween(1, 10);
+        PreviewTransformRequest previewRequest = new PreviewTransformRequest(transformId);
+        Request request = TransformRequestConverters.previewTransform(previewRequest);
+
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_transform/" + transformId + "/_preview"));
+        assertThat(request.getEntity(), nullValue());
     }
 
     public void testGetDataFrameTransformStats() {

@@ -2,10 +2,10 @@
 === Operators
 
 An operator is the most basic action that can be taken to evaluate values in a
-script. An expression is one-to-many consecutive operations.  Precedence is the
+script. An expression is one-to-many consecutive operations. Precedence is the
 order in which an operator will be evaluated relative to another operator.
 Associativity is the direction within an expression in which a specific operator
-is evaluated.  The following table lists all available operators:
+is evaluated. The following table lists all available operators:
 
 [cols="<6,<3,^3,^2,^4"]
 |====
@@ -45,7 +45,7 @@ is evaluated.  The following table lists all available operators:
 | <<greater-than-operator, Greater Than>>                   | <<painless-operators-boolean, Boolean>>     | >           | 7            | left -> right
 | <<greater-than-or-equal-operator, Greater Than Or Equal>> | <<painless-operators-boolean, Boolean>>     | >=          | 7            | left -> right
 | <<less-than-operator, Less Than>>                         | <<painless-operators-boolean, Boolean>>     | <           | 7            | left -> right
-| <<less-than-or-equal-operator, Less Than Or Equal>>       | <<painless-operators-boolean, Boolean>>     | <=          | 7            | left -> right
+| <<less-than-or-equal-operator, Less Than Or Equal>>       | <<painless-operators-boolean, Boolean>>     | +++<=+++    | 7            | left -> right
 | <<instanceof-operator, Instanceof>>                       | <<painless-operators-boolean, Boolean>>     | instanceof  | 8            | left -> right
 | <<equality-equals-operator, Equality Equals>>             | <<painless-operators-boolean, Boolean>>     | ==          | 9            | left -> right
 | <<equality-not-equals-operator, Equality Not Equals>>     | <<painless-operators-boolean, Boolean>>     | !=          | 9            | left -> right

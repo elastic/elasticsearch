@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,7 +20,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -40,11 +30,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.PriorityQueue;
 import java.util.Set;
 
-public class InternalComposite
-    extends InternalMultiBucketAggregation<InternalComposite, InternalComposite.InternalBucket> implements CompositeAggregation {
+public class InternalComposite extends InternalMultiBucketAggregation<InternalComposite, InternalComposite.InternalBucket>
+    implements
+        CompositeAggregation {
 
     private final int size;
     private final List<InternalBucket> buckets;
@@ -53,16 +43,27 @@ public class InternalComposite
     private final List<String> sourceNames;
     private final List<DocValueFormat> formats;
 
-    InternalComposite(String name, int size, List<String> sourceNames, List<DocValueFormat> formats,
-                      List<InternalBucket> buckets, CompositeKey afterKey, int[] reverseMuls,
-                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    private final boolean earlyTerminated;
+
+    InternalComposite(
+        String name,
+        int size,
+        List<String> sourceNames,
+        List<DocValueFormat> formats,
+        List<InternalBucket> buckets,
+        CompositeKey afterKey,
+        int[] reverseMuls,
+        boolean earlyTerminated,
+        Map<String, Object> metadata
+    ) {
+        super(name, metadata);
         this.sourceNames = sourceNames;
         this.formats = formats;
         this.buckets = buckets;
         this.afterKey = afterKey;
         this.size = size;
         this.reverseMuls = reverseMuls;
+        this.earlyTerminated = earlyTerminated;
     }
 
     public InternalComposite(StreamInput in) throws IOException {
@@ -75,7 +76,8 @@ public class InternalComposite
         }
         this.reverseMuls = in.readIntArray();
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls));
-        this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
+        this.afterKey = in.readOptionalWriteable(CompositeKey::new);
+        this.earlyTerminated = in.getVersion().onOrAfter(Version.V_7_6_0) ? in.readBoolean() : false;
     }
 
     @Override
@@ -87,9 +89,9 @@ public class InternalComposite
         }
         out.writeIntArray(reverseMuls);
         out.writeList(buckets);
-        out.writeBoolean(afterKey != null);
-        if (afterKey != null) {
-            afterKey.writeTo(out);
+        out.writeOptionalWriteable(afterKey);
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeBoolean(earlyTerminated);
         }
     }
 
@@ -110,14 +112,19 @@ public class InternalComposite
          * keep the <code>afterKey</code> of the original aggregation in order
          * to be able to retrieve the next page even if all buckets have been filtered.
          */
-        return new InternalComposite(name, size, sourceNames, formats, newBuckets, afterKey,
-            reverseMuls, pipelineAggregators(), getMetaData());
+        return new InternalComposite(name, size, sourceNames, formats, newBuckets, afterKey, reverseMuls, earlyTerminated, getMetadata());
     }
 
     @Override
     public InternalBucket createBucket(InternalAggregations aggregations, InternalBucket prototype) {
-        return new InternalBucket(prototype.sourceNames, prototype.formats, prototype.key, prototype.reverseMuls,
-            prototype.docCount, aggregations);
+        return new InternalBucket(
+            prototype.sourceNames,
+            prototype.formats,
+            prototype.key,
+            prototype.reverseMuls,
+            prototype.docCount,
+            aggregations
+        );
     }
 
     public int getSize() {
@@ -129,6 +136,13 @@ public class InternalComposite
         return buckets;
     }
 
+    /**
+     * The formats used when writing the keys. Package private for testing.
+     */
+    List<DocValueFormat> getFormats() {
+        return formats;
+    }
+
     @Override
     public Map<String, Object> afterKey() {
         if (afterKey != null) {
@@ -138,15 +152,27 @@ public class InternalComposite
     }
 
     // Visible for tests
+    boolean isTerminatedEarly() {
+        return earlyTerminated;
+    }
+
+    // Visible for tests
     int[] getReverseMuls() {
         return reverseMuls;
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size());
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size()) {
+            @Override
+            protected boolean lessThan(BucketIterator a, BucketIterator b) {
+                return a.compareTo(b) < 0;
+            }
+        };
+        boolean earlyTerminated = false;
         for (InternalAggregation agg : aggregations) {
             InternalComposite sortedAgg = (InternalComposite) agg;
+            earlyTerminated |= sortedAgg.earlyTerminated;
             BucketIterator it = new BucketIterator(sortedAgg.buckets);
             if (it.next() != null) {
                 pq.add(it);
@@ -156,11 +182,10 @@ public class InternalComposite
         List<InternalBucket> buckets = new ArrayList<>();
         List<InternalBucket> result = new ArrayList<>();
         while (pq.size() > 0) {
-            BucketIterator bucketIt = pq.poll();
+            BucketIterator bucketIt = pq.top();
             if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
                 InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
                 buckets.clear();
-                reduceContext.consumeBucketsAndMaybeBreak(1);
                 result.add(reduceBucket);
                 if (result.size() >= size) {
                     break;
@@ -169,16 +194,27 @@ public class InternalComposite
             lastBucket = bucketIt.current;
             buckets.add(bucketIt.current);
             if (bucketIt.next() != null) {
-                pq.add(bucketIt);
+                pq.updateTop();
+            } else {
+                pq.pop();
             }
         }
         if (buckets.size() > 0) {
             InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
-            reduceContext.consumeBucketsAndMaybeBreak(1);
             result.add(reduceBucket);
         }
-        final CompositeKey lastKey = result.size() > 0 ? result.get(result.size()-1).getRawKey() : null;
-        return new InternalComposite(name, size, sourceNames, formats, result, lastKey, reverseMuls, pipelineAggregators(), metaData);
+
+        List<DocValueFormat> reducedFormats = formats;
+        CompositeKey lastKey = null;
+        if (result.size() > 0) {
+            lastBucket = result.get(result.size() - 1);
+            /* Attach the formats from the last bucket to the reduced composite
+             * so that we can properly format the after key. */
+            reducedFormats = lastBucket.formats;
+            lastKey = lastBucket.getRawKey();
+        }
+        reduceContext.consumeBucketsAndMaybeBreak(result.size());
+        return new InternalComposite(name, size, sourceNames, reducedFormats, result, lastKey, reverseMuls, earlyTerminated, metadata);
     }
 
     @Override
@@ -191,7 +227,12 @@ public class InternalComposite
             aggregations.add(bucket.aggregations);
         }
         InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        return new InternalBucket(sourceNames, formats, buckets.get(0).key, reverseMuls, docCount, aggs);
+        /* Use the formats from the bucket because they'll be right to format
+         * the key. The formats on the InternalComposite doing the reducing are
+         * just whatever formats make sense for *its* index. This can be real
+         * trouble when the index doing the reducing is unmapped. */
+        var reducedFormats = buckets.get(0).formats;
+        return new InternalBucket(sourceNames, reducedFormats, buckets.get(0).key, reverseMuls, docCount, aggs);
     }
 
     @Override
@@ -201,10 +242,10 @@ public class InternalComposite
         if (super.equals(obj) == false) return false;
 
         InternalComposite that = (InternalComposite) obj;
-        return Objects.equals(size, that.size) &&
-            Objects.equals(buckets, that.buckets) &&
-            Objects.equals(afterKey, that.afterKey) &&
-            Arrays.equals(reverseMuls, that.reverseMuls);
+        return Objects.equals(size, that.size)
+            && Objects.equals(buckets, that.buckets)
+            && Objects.equals(afterKey, that.afterKey)
+            && Arrays.equals(reverseMuls, that.reverseMuls);
     }
 
     @Override
@@ -231,7 +272,9 @@ public class InternalComposite
     }
 
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
-        implements CompositeAggregation.Bucket, KeyComparable<InternalBucket> {
+        implements
+            CompositeAggregation.Bucket,
+            KeyComparable<InternalBucket> {
 
         private final CompositeKey key;
         private final long docCount;
@@ -240,9 +283,14 @@ public class InternalComposite
         private final transient List<String> sourceNames;
         private final transient List<DocValueFormat> formats;
 
-
-        InternalBucket(List<String> sourceNames, List<DocValueFormat> formats, CompositeKey key, int[] reverseMuls, long docCount,
-                       InternalAggregations aggregations) {
+        InternalBucket(
+            List<String> sourceNames,
+            List<DocValueFormat> formats,
+            CompositeKey key,
+            int[] reverseMuls,
+            long docCount,
+            InternalAggregations aggregations
+        ) {
             this.key = key;
             this.docCount = docCount;
             this.aggregations = aggregations;
@@ -254,7 +302,7 @@ public class InternalComposite
         InternalBucket(StreamInput in, List<String> sourceNames, List<DocValueFormat> formats, int[] reverseMuls) throws IOException {
             this.key = new CompositeKey(in);
             this.docCount = in.readVLong();
-            this.aggregations = new InternalAggregations(in);
+            this.aggregations = InternalAggregations.readFrom(in);
             this.reverseMuls = reverseMuls;
             this.sourceNames = sourceNames;
             this.formats = formats;
@@ -321,6 +369,13 @@ public class InternalComposite
             return aggregations;
         }
 
+        /**
+         * The formats used when writing the keys. Package private for testing.
+         */
+        List<DocValueFormat> getFormats() {
+            return formats;
+        }
+
         @Override
         public int compareKey(InternalBucket other) {
             for (int i = 0; i < key.size(); i++) {
@@ -355,42 +410,107 @@ public class InternalComposite
      * Format <code>obj</code> using the provided {@link DocValueFormat}.
      * If the format is equals to {@link DocValueFormat#RAW}, the object is returned as is
      * for numbers and a string for {@link BytesRef}s.
+     *
+     * This method will then attempt to parse the formatted value using the specified format,
+     * and throw an IllegalArgumentException if parsing fails.  This in turn prevents us from
+     * returning an after_key which we can't subsequently parse into the original value.
      */
     static Object formatObject(Object obj, DocValueFormat format) {
         if (obj == null) {
             return null;
         }
+        Object formatted = obj;
+        Object parsed;
         if (obj.getClass() == BytesRef.class) {
             BytesRef value = (BytesRef) obj;
             if (format == DocValueFormat.RAW) {
-                return value.utf8ToString();
+                formatted = value.utf8ToString();
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseBytesRef(formatted.toString());
+            if (parsed.equals(obj) == false) {
+                throw new IllegalArgumentException(
+                    "Format ["
+                        + format
+                        + "] created output it couldn't parse for value ["
+                        + obj
+                        + "] "
+                        + "of type ["
+                        + obj.getClass()
+                        + "]. parsed value: ["
+                        + parsed
+                        + "("
+                        + parsed.getClass()
+                        + ")]"
+                );
             }
         } else if (obj.getClass() == Long.class) {
             long value = (long) obj;
             if (format == DocValueFormat.RAW) {
-                return value;
+                formatted = value;
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseLong(
+                formatted.toString(),
+                false,
+                () -> { throw new UnsupportedOperationException("Using now() is not supported in after keys"); }
+            );
+            if (parsed.equals(((Number) obj).longValue()) == false) {
+                throw new IllegalArgumentException(
+                    "Format ["
+                        + format
+                        + "] created output it couldn't parse for value ["
+                        + obj
+                        + "] "
+                        + "of type ["
+                        + obj.getClass()
+                        + "]. parsed value: ["
+                        + parsed
+                        + "("
+                        + parsed.getClass()
+                        + ")]"
+                );
             }
         } else if (obj.getClass() == Double.class) {
             double value = (double) obj;
             if (format == DocValueFormat.RAW) {
-                return value;
+                formatted = value;
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseDouble(
+                formatted.toString(),
+                false,
+                () -> { throw new UnsupportedOperationException("Using now() is not supported in after keys"); }
+            );
+            if (parsed.equals(((Number) obj).doubleValue()) == false) {
+                throw new IllegalArgumentException(
+                    "Format ["
+                        + format
+                        + "] created output it couldn't parse for value ["
+                        + obj
+                        + "] "
+                        + "of type ["
+                        + obj.getClass()
+                        + "]. parsed value: ["
+                        + parsed
+                        + "("
+                        + parsed.getClass()
+                        + ")]"
+                );
             }
         }
-        return obj;
+        return formatted;
     }
 
     static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
-        final Comparable[] values;
+        final Comparable<?>[] values;
         final List<DocValueFormat> formats;
 
-        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable[] values) {
+        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable<?>[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
             this.formats = formats;
@@ -419,6 +539,7 @@ public class InternalComposite
                 public Iterator<Entry<String, Object>> iterator() {
                     return new Iterator<Entry<String, Object>>() {
                         int pos = 0;
+
                         @Override
                         public boolean hasNext() {
                             return pos < values.length;
@@ -426,9 +547,11 @@ public class InternalComposite
 
                         @Override
                         public Entry<String, Object> next() {
-                            SimpleEntry<String, Object> entry =
-                                new SimpleEntry<>(keys.get(pos), formatObject(values[pos], formats.get(pos)));
-                            ++ pos;
+                            SimpleEntry<String, Object> entry = new SimpleEntry<>(
+                                keys.get(pos),
+                                formatObject(values[pos], formats.get(pos))
+                            );
+                            ++pos;
                             return entry;
                         }
                     };
@@ -442,6 +565,7 @@ public class InternalComposite
         }
 
         @Override
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         public int compareTo(ArrayMap that) {
             if (that == this) {
                 return 0;
@@ -452,7 +576,7 @@ public class InternalComposite
             while (idx < max) {
                 int compare = compareNullables(keys.get(idx), that.keys.get(idx));
                 if (compare == 0) {
-                    compare = compareNullables(values[idx], that.values[idx]);
+                    compare = compareNullables((Comparable) values[idx], (Comparable) that.values[idx]);
                 }
                 if (compare != 0) {
                     return compare;
@@ -469,7 +593,7 @@ public class InternalComposite
         }
     }
 
-    private static int compareNullables(Comparable a, Comparable b) {
+    private static <T extends Comparable<T>> int compareNullables(T a, T b) {
         if (a == b) {
             return 0;
         }

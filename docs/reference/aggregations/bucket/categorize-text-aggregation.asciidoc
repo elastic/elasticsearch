@@ -132,7 +132,7 @@ Response:
         },
         {
           "doc_count" : 1,
-          "key" : "User foo_864 logged off"
+          "key" : "Node starting up"
         },
         {
           "doc_count" : 1,
@@ -140,7 +140,7 @@ Response:
         },
         {
           "doc_count" : 1,
-          "key" : "Node starting up"
+          "key" : "User foo_864 logged off"
         }
       ]
     }
@@ -185,15 +185,15 @@ category results
         },
         {
           "doc_count" : 1,
+          "key" : "Node starting up"
+        },
+        {
+          "doc_count" : 1,
           "key" : "User logged off"
         },
         {
           "doc_count" : 1,
           "key" : "User logging on"
-        },
-        {
-          "doc_count" : 1,
-          "key" : "Node starting up"
         }
       ]
     }
@@ -213,7 +213,7 @@ POST log-messages/_search?filter_path=aggregations
         "field": "message",
         "categorization_filters": ["\\w+\\_\\d{3}"], <1>
         "max_depth": 2, <2>
-        "similarity_threshold": 0.3 <3>
+        "similarity_threshold": 30 <3>
       }
     }
   }
@@ -309,7 +309,7 @@ POST log-messages/_search?filter_path=aggregations
                     "hits" : [
                       {
                         "_index" : "log-messages",
-                        "_id" : "DU9q4HsBtGA51sVjTrac",
+                        "_id" : "-u5F5XsBST1JKaSDH8OW",
                         "_score" : 1.0,
                         "_source" : {
                           "message" : "2016-02-07T00:00:00+0000 Node 3 shutting down"
@@ -332,7 +332,7 @@ POST log-messages/_search?filter_path=aggregations
                     "hits" : [
                       {
                         "_index" : "log-messages",
-                        "_id" : "Dk9q4HsBtGA51sVjTrac",
+                        "_id" : "--5F5XsBST1JKaSDH8OW",
                         "_score" : 1.0,
                         "_source" : {
                           "message" : "2016-02-07T00:00:00+0000 Node 5 starting up"
@@ -353,6 +353,29 @@ POST log-messages/_search?filter_path=aggregations
             "buckets" : [
               {
                 "doc_count" : 1,
+                "key" : "Node shutting down",
+                "hit" : {
+                  "hits" : {
+                    "total" : {
+                      "value" : 1,
+                      "relation" : "eq"
+                    },
+                    "max_score" : 1.0,
+                    "hits" : [
+                      {
+                        "_index" : "log-messages",
+                        "_id" : "_e5F5XsBST1JKaSDH8OW",
+                        "_score" : 1.0,
+                        "_source" : {
+                          "message" : "2016-02-08T00:00:00+0000 Node 5 shutting down"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "doc_count" : 1,
                 "key" : "User logged off",
                 "hit" : {
                   "hits" : {
@@ -364,7 +387,7 @@ POST log-messages/_search?filter_path=aggregations
                     "hits" : [
                       {
                         "_index" : "log-messages",
-                        "_id" : "Ek9q4HsBtGA51sVjTrac",
+                        "_id" : "_-5F5XsBST1JKaSDH8OW",
                         "_score" : 1.0,
                         "_source" : {
                           "message" : "2016-02-08T00:00:00+0000 User foo_864 logged off"
@@ -387,33 +410,10 @@ POST log-messages/_search?filter_path=aggregations
                     "hits" : [
                       {
                         "_index" : "log-messages",
-                        "_id" : "EU9q4HsBtGA51sVjTrac",
+                        "_id" : "_u5F5XsBST1JKaSDH8OW",
                         "_score" : 1.0,
                         "_source" : {
                           "message" : "2016-02-08T00:00:00+0000 User foo_325 logging on"
-                        }
-                      }
-                    ]
-                  }
-                }
-              },
-              {
-                "doc_count" : 1,
-                "key" : "Node shutting down",
-                "hit" : {
-                  "hits" : {
-                    "total" : {
-                      "value" : 1,
-                      "relation" : "eq"
-                    },
-                    "max_score" : 1.0,
-                    "hits" : [
-                      {
-                        "_index" : "log-messages",
-                        "_id" : "EE9q4HsBtGA51sVjTrac",
-                        "_score" : 1.0,
-                        "_source" : {
-                          "message" : "2016-02-08T00:00:00+0000 Node 5 shutting down"
                         }
                       }
                     ]

@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -199,6 +200,10 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return builder;
         }
 
+        BucketKey getRawKey()  {
+            return key;
+        }
+
         @Override
         public Object getKey() {
             return key;
@@ -336,7 +341,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         // TODO: Could we do a merge sort similar to terms?
         //  It would require us returning partial reductions sorted by key, not by doc_count
         // First, make sure we have all the counts for equal log groups
-        Map<BucketKey, DelayedCategorizationBucket> reduced = new HashMap<>(aggregations.size(), 1.0f);
+        Map<BucketKey, DelayedCategorizationBucket> reduced = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
             InternalCategorizationAggregation categorizationAggregation = (InternalCategorizationAggregation) aggregation;
             for (Bucket bucket : categorizationAggregation.buckets) {
@@ -350,7 +355,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         }
         // Collapse tiny groups together, this may result in new bucket keys for already known buckets
         categorizationTokenTree.mergeSmallestChildren();
-        Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>(aggregations.size(), 1.0f);
+        Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>();
         for (DelayedCategorizationBucket delayedBucket : reduced.values()) {
             TextCategorization group = categorizationTokenTree.parseLogLineConst(delayedBucket.key.keyAsTokens());
             if (group == null) {
@@ -386,6 +391,10 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         Bucket[] bucketList = new Bucket[pq.size()];
         for (int i = pq.size() - 1; i >= 0; i--) {
             bucketList[i] = pq.pop();
+        }
+        // Keep the top categories top, but then sort by the key for those with duplicate counts
+        if (reduceContext.isFinalReduce()) {
+            Arrays.sort(bucketList, Comparator.comparing(Bucket::getDocCount).reversed().thenComparing(Bucket::getRawKey));
         }
         return new InternalCategorizationAggregation(
             name,

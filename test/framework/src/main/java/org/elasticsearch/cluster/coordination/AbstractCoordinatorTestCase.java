@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -1415,13 +1416,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         @Override
-        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
+        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ActionListener<Void> listener) {
             if (clusterStateApplyResponse == ClusterStateApplyResponse.HANG) {
                 if (randomBoolean()) {
                     // apply cluster state, but don't notify listener
-                    super.onNewClusterState(source, clusterStateSupplier, e -> {
-                        // ignore result
-                    });
+                    super.onNewClusterState(
+                        source,
+                        clusterStateSupplier,
+                        ActionListener.wrap(() -> {
+                            // ignore result
+                        }));
                 }
             } else {
                 super.onNewClusterState(source, clusterStateSupplier, listener);

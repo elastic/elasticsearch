@@ -1177,7 +1177,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             "hits.hits._source.boundary",
             searchResult
         )).get(0);
-        assertThat(actualObj.get("type"), equalTo("point"));
+        assertThat(actualObj.get("type"), equalTo("Point"));
         List<Double> coordinates = (List<Double>) actualObj.get("coordinates");
         assertEquals((4 + 10), coordinates.get(1), 0.000001);
         assertEquals((4 + 15), coordinates.get(0), 0.000001);
@@ -1355,7 +1355,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             "hits.hits._source.tile",
             searchResult
         )).get(0);
-        assertThat(actualObj.get("type"), equalTo("polygon"));
+        assertThat(actualObj.get("type"), equalTo("Polygon"));
         List<List<Double>> coordinates = ((List<List<List<Double>>>) actualObj.get("coordinates")).get(0);
         assertThat(coordinates, is(not(nullValue())));
         assertThat(coordinates, hasSize(5));

@@ -922,8 +922,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             T defaultValue,
             Class<T> enumClass
         ) {
-            Set<T> acceptedValues = EnumSet.noneOf(enumClass);
-            acceptedValues.addAll(Arrays.asList(enumClass.getEnumConstants()));
+            Set<T> acceptedValues = EnumSet.allOf(enumClass);
             return restrictedEnumParam(name, updateable, initializer, defaultValue, enumClass, acceptedValues);
         }
 
@@ -954,7 +953,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     @SuppressWarnings("unchecked")
                     T enumValue = Enum.valueOf(enumClass, (String) o);
                     return enumValue;
-                } catch (Exception e) {
+                } catch (IllegalArgumentException e) {
                     throw new MapperParsingException(
                         "Unknown value [" + o + "] for field [" + name + "] - accepted values are " + values
                     );

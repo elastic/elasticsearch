@@ -282,7 +282,7 @@ class InstallPluginAction implements Closeable {
                 final Path pluginPath = getPluginArchivePath(pluginId, pluginArchiveDir);
                 if (Files.exists(pluginPath)) {
                     terminal.println("-> Downloading " + pluginId + " from local archive: " + pluginArchiveDir);
-                    return downloadZip("file:" + pluginPath, tmpDir);
+                    return downloadZip("file://" + pluginPath, tmpDir);
                 }
                 // else carry on to regular download
             }

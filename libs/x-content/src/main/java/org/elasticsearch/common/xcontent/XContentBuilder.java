@@ -61,7 +61,6 @@ public final class XContentBuilder implements Closeable, Flushable {
      * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content. When both exclusive and
      * inclusive filters are provided, the underlying builder will first use exclusion filters to remove fields and then will check the
      * remaining fields against the inclusive filters.
-     * <p>
      *
      * @param xContent the {@link XContent}
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.

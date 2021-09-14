@@ -21,6 +21,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeAction<
         GetFeatureUpgradeStatusRequest,
         GetFeatureUpgradeStatusResponse> {
@@ -53,9 +56,16 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     @Override
     protected void masterOperation(Task task, GetFeatureUpgradeStatusRequest request, ClusterState state,
                                    ActionListener<GetFeatureUpgradeStatusResponse> listener) throws Exception {
-        listener.onResponse(new GetFeatureUpgradeStatusResponse(
-            // TODO: implement operation for this action - https://github.com/elastic/elasticsearch/issues/77524
+        List<GetFeatureUpgradeStatusResponse.IndexVersion> indexVersions = new ArrayList<>();
+        indexVersions.add(new GetFeatureUpgradeStatusResponse.IndexVersion(".security-7", "7.1.1"));
+        List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = new ArrayList<>();
+        features.add(new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
+            "security",
+            "7.1.1",
+            "UPGRADE_NEEDED",
+            indexVersions
         ));
+        listener.onResponse(new GetFeatureUpgradeStatusResponse(features, "UPGRADE_NEEDED"));
     }
 
     @Override

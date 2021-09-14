@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -25,16 +24,9 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
     private final List<FeatureUpgradeStatus> featureUpgradeStatuses;
     private final String upgradeStatus;
 
-    public GetFeatureUpgradeStatusResponse() {
-
-        // TODO: remove dummy data, implement constructor parameters
-        List<IndexVersion> indexVersions = new ArrayList<>();
-        indexVersions.add(new IndexVersion(".security-7", "7.1.1"));
-        this.featureUpgradeStatuses = new ArrayList<>();
-        featureUpgradeStatuses.add(new FeatureUpgradeStatus(
-            "security", "7.1.1", "UPGRADE_NEEDED", indexVersions
-        ));
-        this.upgradeStatus = "UPGRADE_NEEDED";
+    public GetFeatureUpgradeStatusResponse(List<FeatureUpgradeStatus> statuses, String upgradeStatus) {
+        this.featureUpgradeStatuses = statuses;
+        this.upgradeStatus = upgradeStatus;
     }
 
     public GetFeatureUpgradeStatusResponse(StreamInput in) throws IOException {
@@ -58,6 +50,27 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(this.featureUpgradeStatuses);
         out.writeString(upgradeStatus);
+    }
+
+    public List<FeatureUpgradeStatus> featureUpgradeStatuses() {
+        return featureUpgradeStatuses;
+    }
+
+    public String upgradeStatus() {
+        return upgradeStatus;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetFeatureUpgradeStatusResponse that = (GetFeatureUpgradeStatusResponse) o;
+        return Objects.equals(featureUpgradeStatuses, that.featureUpgradeStatuses) && Objects.equals(upgradeStatus, that.upgradeStatus);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(featureUpgradeStatuses, upgradeStatus);
     }
 
     public static class FeatureUpgradeStatus implements Writeable, ToXContentObject {

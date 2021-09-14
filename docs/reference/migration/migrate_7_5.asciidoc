@@ -14,7 +14,24 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 //tag::notable-breaking-changes[]
 
-//end::notable-breaking-changes[]
+[discrete]
+[[breaking_75_allocation_deprecations]]
+=== Allocation deprecations
+
+[discrete]
+[[deprecate-cluster-routing-allocation-disk-include-relocations-setting]]
+==== The `cluster.routing.allocation.disk.include_relocations` setting is deprecated.
+
+The `cluster.routing.allocation.disk.include_relocations` cluster setting is now
+deprecated. In future versions, {es} will account for the sizes of relocating
+shards when making allocation decisions based on the disk usage of nodes in the
+cluster.
+
+Currently, you can set `cluster.routing.allocation.disk.include_relocations` to
+`false` to disable this accounting. This can result in poor allocation decisions
+that might overshoot watermarks and require significant work to correct.
+
+To avoid deprecation warnings, discontinue use of the setting.
 
 [discrete]
 [[breaking_75_search_changes]]
@@ -26,3 +43,5 @@ Previously, a wildcard query on the `_index` field matched directly against the
 fully-qualified index name. Now, in order to match against remote indices like
 `cluster:index`, the query must contain a colon, as in `cl*ster:inde*`. This
 behavior aligns with the way indices are matched in the search endpoint.
+
+//end::notable-breaking-changes[]

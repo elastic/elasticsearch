@@ -475,6 +475,7 @@ class InstallPluginAction implements Closeable {
      * content length might be -1 for unknown and progress only makes sense if the content length is greater than 0
      */
     private static class TerminalProgressInputStream extends ProgressInputStream {
+        private static final int WIDTH = 50;
 
         private final Terminal terminal;
         private final boolean enabled;
@@ -488,14 +489,13 @@ class InstallPluginAction implements Closeable {
         @Override
         public void onProgress(int percent) {
             if (enabled) {
-                int width = 50;
-                int currentPosition = percent * width / 100;
+                int currentPosition = percent * WIDTH / 100;
                 StringBuilder sb = new StringBuilder("\r[");
                 sb.append(String.join("=", Collections.nCopies(currentPosition, "")));
                 if (currentPosition > 0 && percent < 100) {
                     sb.append(">");
                 }
-                sb.append(String.join(" ", Collections.nCopies(width - currentPosition, "")));
+                sb.append(String.join(" ", Collections.nCopies(WIDTH - currentPosition, "")));
                 sb.append("] %s   ");
                 if (percent == 100) {
                     sb.append("\n");

@@ -121,8 +121,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.offset(),
             request.size(),
             request.order(),
-            request.policies(),
-            request.afterValue(),
+            buildSnapshotPredicate(request.sort(), request.order(), request.policies(), request.afterValue()),
             listener
         );
     }
@@ -140,8 +139,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         int offset,
         int size,
         SortOrder order,
-        String[] slmPolicies,
-        @Nullable String afterValue,
+        @Nullable Predicate<SnapshotInfo> predicate,
         ActionListener<GetSnapshotsResponse> listener
     ) {
         // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
@@ -161,16 +159,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     .map(Tuple::v1)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-                final SnapshotsInRepo snInfos = sortAndFilterSnapshots(
-                    allSnapshots,
-                    sortBy,
-                    after,
-                    offset,
-                    size,
-                    order,
-                    slmPolicies,
-                    afterValue
-                );
+                final SnapshotsInRepo snInfos = sortAndFilterSnapshots(allSnapshots, sortBy, after, offset, size, order, predicate);
                 final List<SnapshotInfo> snapshotInfos = snInfos.snapshotInfos;
                 final int remaining = snInfos.remaining + responses.stream()
                     .map(Tuple::v2)
@@ -194,8 +183,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 snapshotsInProgress,
                 repoName,
                 snapshots,
-                slmPolicies,
-                afterValue,
+                predicate,
                 ignoreUnavailable,
                 verbose,
                 cancellableTask,
@@ -217,8 +205,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         SnapshotsInProgress snapshotsInProgress,
         String repo,
         String[] snapshots,
-        String[] slmPolicies,
-        @Nullable String afterValue,
+        Predicate<SnapshotInfo> predicate,
         boolean ignoreUnavailable,
         boolean verbose,
         CancellableTask task,
@@ -256,8 +243,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 sortBy,
                 after,
                 order,
-                slmPolicies,
-                afterValue,
+                predicate,
                 listener
             ),
             listener::onFailure
@@ -297,8 +283,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         GetSnapshotsRequest.SortBy sortBy,
         @Nullable final GetSnapshotsRequest.After after,
         SortOrder order,
-        String[] slmPolicies,
-        @Nullable String afterValue,
+        @Nullable Predicate<SnapshotInfo> predicate,
         ActionListener<SnapshotsInRepo> listener
     ) {
         if (task.notifyIfCancelled(listener)) {
@@ -370,15 +355,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 sortBy,
                 after,
                 order,
-                slmPolicies,
-                afterValue,
+                predicate,
                 listener
             );
         } else {
-            assert slmPolicies.length == 0
-                : "slm policy filtering not support for non-verbose request but saw ["
-                    + Strings.arrayToCommaDelimitedString(slmPolicies)
-                    + "]";
+            assert predicate == null : "filtering is not supported in non-verbose mode";
             final SnapshotsInRepo snapshotInfos;
             if (repositoryData != null) {
                 // want non-current snapshots as well, which are found in the repository data
@@ -414,8 +395,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         GetSnapshotsRequest.SortBy sortBy,
         @Nullable GetSnapshotsRequest.After after,
         SortOrder order,
-        String[] slmPolicies,
-        @Nullable String afterValue,
+        @Nullable Predicate<SnapshotInfo> predicate,
         ActionListener<SnapshotsInRepo> listener
     ) {
         if (task.notifyIfCancelled(listener)) {
@@ -444,9 +424,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final ActionListener<Void> allDoneListener = listener.delegateFailure((l, v) -> {
             final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
             snapshotList.addAll(snapshotSet);
-            listener.onResponse(
-                sortAndFilterSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order, slmPolicies, afterValue)
-            );
+            listener.onResponse(sortAndFilterSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order, predicate));
         });
         if (snapshotIdsToIterate.isEmpty()) {
             allDoneListener.onResponse(null);
@@ -552,8 +530,22 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final int offset,
         final int size,
         final SortOrder order,
-        final String[] slmPolicies,
-        final @Nullable String afterValue
+        final @Nullable Predicate<SnapshotInfo> predicate
+    ) {
+        final List<SnapshotInfo> filteredSnapshotInfos;
+        if (predicate == null) {
+            filteredSnapshotInfos = snapshotInfos;
+        } else {
+            filteredSnapshotInfos = snapshotInfos.stream().filter(predicate).collect(Collectors.toUnmodifiableList());
+        }
+        return sortSnapshots(filteredSnapshotInfos, sortBy, after, offset, size, order);
+    }
+
+    private static Predicate<SnapshotInfo> buildSnapshotPredicate(
+        GetSnapshotsRequest.SortBy sortBy,
+        SortOrder order,
+        String[] slmPolicies,
+        String afterValue
     ) {
         Predicate<SnapshotInfo> predicate = null;
         if (slmPolicies.length > 0) {
@@ -567,13 +559,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 predicate = afterValuePredicate.and(predicate);
             }
         }
-        final List<SnapshotInfo> filteredSnapshotInfos;
-        if (predicate == null) {
-            filteredSnapshotInfos = snapshotInfos;
-        } else {
-            filteredSnapshotInfos = snapshotInfos.stream().filter(predicate).collect(Collectors.toUnmodifiableList());
-        }
-        return sortSnapshots(filteredSnapshotInfos, sortBy, after, offset, size, order);
+        return predicate;
     }
 
     private static SnapshotsInRepo sortSnapshots(

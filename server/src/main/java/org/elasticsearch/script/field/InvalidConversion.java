@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.script.field;
 
 /**
  * A failed conversion of a script {@link Field}.  Thrown by {@link Converter}s and

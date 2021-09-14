@@ -43,8 +43,8 @@ public class FailureTrackingResponseListenerTests extends RestClientTestCase {
 
         final Response response = mockResponse();
         listener.onSuccess(response);
-        assertSame(response, responseListener.response.get());
-        assertNull(responseListener.exception.get());
+        assertSame(response, responseListener.lastResponse.get());
+        assertNull(responseListener.lastException.get());
     }
 
     public void testOnFailure() {
@@ -56,20 +56,20 @@ public class FailureTrackingResponseListenerTests extends RestClientTestCase {
             RuntimeException runtimeException = new RuntimeException("test" + i);
             expectedExceptions[i] = runtimeException;
             listener.trackFailure(runtimeException);
-            assertNull(responseListener.response.get());
-            assertNull(responseListener.exception.get());
+            assertNull(responseListener.lastResponse.get());
+            assertNull(responseListener.lastException.get());
         }
 
         if (randomBoolean()) {
             Response response = mockResponse();
             listener.onSuccess(response);
-            assertSame(response, responseListener.response.get());
-            assertNull(responseListener.exception.get());
+            assertSame(response, responseListener.lastResponse.get());
+            assertNull(responseListener.lastException.get());
         } else {
             RuntimeException runtimeException = new RuntimeException("definitive");
             listener.onDefinitiveFailure(runtimeException);
-            assertNull(responseListener.response.get());
-            Throwable exception = responseListener.exception.get();
+            assertNull(responseListener.lastResponse.get());
+            Throwable exception = responseListener.lastException.get();
             assertSame(runtimeException, exception);
 
             int i = numIters - 1;
@@ -83,19 +83,19 @@ public class FailureTrackingResponseListenerTests extends RestClientTestCase {
     }
 
     private static class MockResponseListener implements ResponseListener {
-        private final AtomicReference<Response> response = new AtomicReference<>();
-        private final AtomicReference<Exception> exception = new AtomicReference<>();
+        private final AtomicReference<Response> lastResponse = new AtomicReference<>();
+        private final AtomicReference<Exception> lastException = new AtomicReference<>();
 
         @Override
         public void onSuccess(Response response) {
-            if (this.response.compareAndSet(null, response) == false) {
+            if (this.lastResponse.compareAndSet(null, response) == false) {
                 throw new IllegalStateException("onSuccess was called multiple times");
             }
         }
 
         @Override
         public void onFailure(Exception exception) {
-            if (this.exception.compareAndSet(null, exception) == false) {
+            if (this.lastException.compareAndSet(null, exception) == false) {
                 throw new IllegalStateException("onFailure was called multiple times");
             }
         }

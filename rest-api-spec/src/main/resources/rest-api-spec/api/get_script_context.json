@@ -5,6 +5,10 @@
       "description":"Returns all script contexts."
     },
     "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

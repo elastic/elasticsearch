@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.analysis;
@@ -29,7 +18,6 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.Streams;
@@ -44,7 +32,6 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.MyFilterTokenFilterFactory;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
@@ -129,6 +116,7 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testSimpleConfigurationYaml() throws IOException {
         Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
+        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     public void testVersionedAnalyzers() throws Exception {
@@ -142,22 +130,8 @@ public class AnalysisModuleTests extends ESTestCase {
         AnalysisRegistry newRegistry = getNewRegistry(settings2);
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
 
-        // registry always has the current version
-        assertThat(newRegistry.getAnalyzer("default"), is(instanceOf(NamedAnalyzer.class)));
-        NamedAnalyzer defaultNamedAnalyzer = (NamedAnalyzer) newRegistry.getAnalyzer("default");
-        assertThat(defaultNamedAnalyzer.analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(Version.CURRENT.luceneVersion, defaultNamedAnalyzer.analyzer().getVersion());
-
-        // analysis service has the expected version
-        assertThat(indexAnalyzers.get("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(version.luceneVersion,
-                indexAnalyzers.get("standard").analyzer().getVersion());
-        assertEquals(version.luceneVersion,
-                indexAnalyzers.get("stop").analyzer().getVersion());
-
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0),
-                indexAnalyzers.get("custom7").analyzer().getVersion());
+        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     private void testSimpleConfiguration(Settings settings) throws IOException {
@@ -228,14 +202,28 @@ public class AnalysisModuleTests extends ESTestCase {
         }
     }
 
-    public void testStandardFilterBWC() {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
-        final Settings settings = Settings.builder().put("index.analysis.analyzer.my_standard.tokenizer", "standard")
+    public void testStandardFilterBWC() throws IOException {
+        // standard tokenfilter should have been removed entirely in the 7x line.  However, a
+        // cacheing bug meant that it was still possible to create indexes using a standard
+        // filter until 7.6
+        {
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_6_0, Version.CURRENT);
+            final Settings settings = Settings.builder().put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build();
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(settings));
-        assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(settings));
+            assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
+        }
+        {
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_2);
+            final Settings settings = Settings.builder().put("index.analysis.analyzer.my_standard.tokenizer", "standard")
+                .put("index.analysis.analyzer.my_standard.filter", "standard")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).put(IndexMetadata.SETTING_VERSION_CREATED, version)
+                .build();
+            getIndexAnalyzers(settings);
+            assertWarnings("The [standard] token filter is deprecated and will be removed in a future version.");
+        }
     }
 
     /**
@@ -413,7 +401,7 @@ public class AnalysisModuleTests extends ESTestCase {
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");
         InputStream dic = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.dic");
         Dictionary dictionary;
-        try (Directory tmp = new SimpleFSDirectory(environment.tmpFile())) {
+        try (Directory tmp = newFSDirectory(environment.tmpFile())) {
             dictionary = new Dictionary(tmp, "hunspell", aff, dic);
         }
         AnalysisModule module = new AnalysisModule(environment, singletonList(new AnalysisPlugin() {

@@ -1,193 +1,142 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Explicit;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-import org.junit.Before;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
-import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldMapper.Builder> {
+public class GeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected GeoShapeFieldMapper.Builder newBuilder() {
-        return new GeoShapeFieldMapper.Builder("geoshape");
-    }
-
-    @Before
-    public void addModifiers() {
-        addModifier("orientation", true, (a, b) -> {
-            a.orientation(ShapeBuilder.Orientation.LEFT);
-            b.orientation(ShapeBuilder.Orientation.RIGHT);
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
+            GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper) m;
+            assertEquals(Orientation.RIGHT, gsfm.orientation());
+        });
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
+            GeoShapeFieldMapper gpfm = (GeoShapeFieldMapper) m;
+            assertTrue(gpfm.ignoreMalformed());
+        });
+        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+            GeoShapeFieldMapper gpfm = (GeoShapeFieldMapper) m;
+            assertFalse(gpfm.ignoreZValue());
+        });
+        checker.registerUpdateCheck(b -> b.field("coerce", true), m -> {
+            GeoShapeFieldMapper gpfm = (GeoShapeFieldMapper) m;
+            assertTrue(gpfm.coerce.value());
         });
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new TestGeoShapeFieldMapperPlugin());
+    }
+
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "geo_shape");
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
+    protected Object getSampleValueForDocument() {
+        return "POINT (14.0 15.0)";
     }
 
     public void testDefaultConfiguration() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(),
-            equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
-        assertThat(geoShapeFieldMapper.fieldType.hasDocValues(), equalTo(false));
+            equalTo(Orientation.RIGHT));
+        assertThat(geoShapeFieldMapper.fieldType().hasDocValues(), equalTo(false));
     }
 
     /**
      * Test that orientation parameter correctly parses
      */
     public void testOrientationParsing() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("orientation", "left")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("orientation", "left")));
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
-        ShapeBuilder.Orientation orientation = ((GeoShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+        Orientation orientation = ((GeoShapeFieldMapper)fieldMapper).fieldType().orientation();
+        assertThat(orientation, equalTo(Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.LEFT));
+        assertThat(orientation, equalTo(Orientation.CW));
 
         // explicit right orientation test
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("orientation", "right")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        fieldMapper = defaultMapper.mappers().getMapper("location");
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("orientation", "right")));
+        fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         orientation = ((GeoShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.RIGHT));
+        assertThat(orientation, equalTo(Orientation.CCW));
     }
 
     /**
      * Test that coerce parameter correctly parses
      */
     public void testCoerceParsing() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("coerce", "true")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("coerce", true)));
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-
-        boolean coerce = ((GeoShapeFieldMapper)fieldMapper).coerce().value();
+        boolean coerce = ((GeoShapeFieldMapper)fieldMapper).coerce();
         assertThat(coerce, equalTo(true));
 
         // explicit false coerce test
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("coerce", "false")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        fieldMapper = defaultMapper.mappers().getMapper("location");
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("coerce", false)));
+        fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-
-        coerce = ((GeoShapeFieldMapper)fieldMapper).coerce().value();
+        coerce = ((GeoShapeFieldMapper)fieldMapper).coerce();
         assertThat(coerce, equalTo(false));
-        assertFieldWarnings("tree");
     }
-
 
     /**
      * Test that accept_z_value parameter correctly parses
      */
     public void testIgnoreZValue() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field(IGNORE_Z_VALUE.getPreferredName(), "true")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("ignore_z_value", true)));
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
-        boolean ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        boolean ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field(IGNORE_Z_VALUE.getPreferredName(), "false")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        fieldMapper = defaultMapper.mappers().getMapper("location");
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("ignore_z_value", false)));
+        fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
-        ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(false));
     }
 
@@ -195,124 +144,110 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldM
      * Test that ignore_malformed parameter correctly parses
      */
     public void testIgnoreMalformedParsing() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("ignore_malformed", "true")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("ignore_malformed", true)));
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-
-        Explicit<Boolean> ignoreMalformed = ((GeoShapeFieldMapper)fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed.value(), equalTo(true));
+        boolean ignoreMalformed = ((GeoShapeFieldMapper)fieldMapper).ignoreMalformed();
+        assertThat(ignoreMalformed, equalTo(true));
 
         // explicit false ignore_malformed test
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("ignore_malformed", "false")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        fieldMapper = defaultMapper.mappers().getMapper("location");
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("ignore_malformed", false)));
+        fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-
         ignoreMalformed = ((GeoShapeFieldMapper)fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed.explicit(), equalTo(true));
-        assertThat(ignoreMalformed.value(), equalTo(false));
+        assertThat(ignoreMalformed, equalTo(false));
     }
-
 
     private void assertFieldWarnings(String... fieldNames) {
         String[] warnings = new String[fieldNames.length];
         for (int i = 0; i < fieldNames.length; ++i) {
-            warnings[i] = "Field parameter [" + fieldNames[i] + "] "
-                + "is deprecated and will be removed in a future version.";
+            warnings[i] = "Parameter [" + fieldNames[i] + "] "
+                + "is deprecated and will be removed in a future version";
         }
+        assertWarnings(warnings);
     }
 
     public void testGeoShapeMapperMerge() throws Exception {
-        String stage1Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("shape").field("type", "geo_shape")
-            .field("orientation", "ccw")
-            .endObject().endObject().endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(stage1Mapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
-        String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("shape").field("type", "geo_shape")
-            .field("orientation", "cw").endObject().endObject().endObject().endObject());
-        mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
-
-        // verify nothing changed
-        Mapper fieldMapper = docMapper.mappers().getMapper("shape");
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "geo_shape").field("orientation", "ccw")));
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CCW));
 
         // change mapping; orientation
-        stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("shape").field("type", "geo_shape")
-            .field("orientation", "cw").endObject().endObject().endObject().endObject());
-        docMapper = mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
-
-        fieldMapper = docMapper.mappers().getMapper("shape");
+        merge(mapperService, fieldMapping(b -> b.field("type", "geo_shape").field("orientation", "cw")));
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-
         geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
     }
 
-    public void testEmptyName() throws Exception {
-        // after 5.x
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("")
-            .field("type", "geo_shape")
-            .endObject().endObject()
-            .endObject().endObject());
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+    public void testGeoShapeLegacyMerge() throws Exception {
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", "geo_shape")));
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> merge(m, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive"))));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type1", new CompressedXContent(mapping))
-        );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+        assertThat(e.getMessage(),
+            containsString("mapper [field] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
+        assertFieldWarnings("strategy");
+
+        MapperService lm = createMapperService(version, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive")));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> merge(lm, fieldMapping(b -> b.field("type", "geo_shape"))));
+        assertThat(e.getMessage(),
+            containsString("mapper [field] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
+        assertFieldWarnings("strategy");
     }
 
     public void testSerializeDefaults() throws Exception {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .endObject().endObject()
-                .endObject().endObject());
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            String serialized = toXContentString((GeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
-            assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-                AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
-        }
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        assertThat(
+            Strings.toString(
+                mapper.mappers().getMapper("field"),
+                new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"))
+            ),
+            containsString("\"orientation\":\"" + Orientation.RIGHT + "\"")
+        );
     }
 
-    public String toXContentString(GeoShapeFieldMapper mapper, boolean includeDefaults) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        ToXContent.Params params;
-        if (includeDefaults) {
-            params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
-        } else {
-            params = ToXContent.EMPTY_PARAMS;
-        }
-        mapper.doXContentBody(builder, includeDefaults, params);
-        return Strings.toString(builder.endObject());
+    public void testGeoShapeArrayParsing() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument document = mapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("type", "Point").startArray("coordinates").value(176.0).value(15.0).endArray().endObject();
+                b.startObject().field("type", "Point").startArray("coordinates").value(76.0).value(-15.0).endArray().endObject();
+            }
+            b.endArray();
+        }));
+        assertThat(document.docs(), hasSize(1));
+        assertThat(document.docs().get(0).getFields("field").length, equalTo(2));
     }
 
-    public String toXContentString(GeoShapeFieldMapper mapper) throws IOException {
-        return toXContentString(mapper, true);
+    public void testMultiFieldsDeprecationWarning() throws Exception {
+        createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
+    }
+
+    @Override
+    protected boolean supportsMeta() {
+        return false;
+    }
+
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

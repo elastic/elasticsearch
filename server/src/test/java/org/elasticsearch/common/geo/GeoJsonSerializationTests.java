@@ -1,28 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeographyValidator;
@@ -30,6 +25,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -41,13 +37,13 @@ import static org.elasticsearch.geo.GeometryTestUtils.randomMultiPoint;
 import static org.elasticsearch.geo.GeometryTestUtils.randomMultiPolygon;
 import static org.elasticsearch.geo.GeometryTestUtils.randomPoint;
 import static org.elasticsearch.geo.GeometryTestUtils.randomPolygon;
+import static org.hamcrest.Matchers.equalTo;
 
 public class GeoJsonSerializationTests extends ESTestCase {
 
     private static class GeometryWrapper implements ToXContentObject {
 
-        private Geometry geometry;
-        private static final GeoJson PARSER = new GeoJson(true, false, new GeographyValidator(true));
+        private final Geometry geometry;
 
         GeometryWrapper(Geometry geometry) {
             this.geometry = geometry;
@@ -60,7 +56,7 @@ public class GeoJsonSerializationTests extends ESTestCase {
 
         public static GeometryWrapper fromXContent(XContentParser parser) throws IOException {
             parser.nextToken();
-            return new GeometryWrapper(PARSER.fromXContent(parser));
+            return new GeometryWrapper(GeoJson.fromXContent(GeographyValidator.instance(true), false, true, parser));
         }
 
         @Override
@@ -125,5 +121,20 @@ public class GeoJsonSerializationTests extends ESTestCase {
 
     public void testCircle() throws IOException {
         xContentTest(() -> randomCircle(randomBoolean()));
+    }
+
+    public void testToMap() throws IOException {
+        for (int i = 0; i < 10; i++) {
+            Geometry geometry = GeometryTestUtils.randomGeometry(randomBoolean());
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            GeoJson.toXContent(geometry, builder, ToXContent.EMPTY_PARAMS);
+            StreamInput input = BytesReference.bytes(builder).streamInput();
+
+            try (XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)) {
+                Map<String, Object> map = GeoJson.toMap(geometry);
+                assertThat(parser.map(), equalTo(map));
+            }
+        }
     }
 }

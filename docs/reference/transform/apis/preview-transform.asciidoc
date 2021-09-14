@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[preview-transform]]
-=== Preview {transform} API
+= Preview {transform} API
 
 [subs="attributes"]
 ++++
@@ -11,26 +11,29 @@
 Previews a {transform}.
 
 [[preview-transform-request]]
-==== {api-request-title}
+== {api-request-title}
+
+
+`GET _transform/<transform_id>/_preview` +
+
+`POST _transform/<transform_id>/_preview` +
+
+`GET _transform/_preview` +
 
 `POST _transform/_preview`
 
+
 [[preview-transform-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the following privileges:
 
-* `manage_transform` 
-* source index: `read`, `view_index_metadata`
-
-The built-in `transform_admin` role has the `manage_transform` privilege.
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
-
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`.
 
 [[preview-transform-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API generates a preview of the results that you will get when you run the
 <<put-transform,create {transforms} API>> with the same
@@ -47,9 +50,23 @@ might result in poor mappings. As a work-around, create the destination index
 or an index template with your preferred mappings before you start the
 {transform}.
 
+You must choose either the `latest` or `pivot` method for your {transform}; you
+cannot use both in a single {transform}.
+
 [role="child_attributes"]
+
+[[preview-transform-path-params]]
+== {api-path-parms-title}
+
+`<transform_id>`::
+(Optional, string)
+Id of the {transform} to preview.
++
+NOTE: If you provide the `<transform_id>` as a path parameter, you cannot
+provide {transform} configuration details in the request body.
+
 [[preview-transform-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 
 `description`::
@@ -77,6 +94,26 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 
+//Begin latest
+`latest`::
+(Required^*^, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-latest]
++
+.Properties of `latest`
+[%collapsible%open]
+====
+
+`sort`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-sort]
+
+`unique_key`:::
+(Required, array of strings)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-unique-key]
+
+====
+//End latest
+
 //Begin pivot
 `pivot`::
 (Required, object)
@@ -96,6 +133,32 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
 ====
 //End pivot
 
+//Begin retention policy
+`retention_policy`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention]
++
+.Properties of `retention_policy`
+[%collapsible%open]
+====
+`time`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
+`field`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
+
+`max_age`:::
+(Required, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
+=====
+====
+//End retention policy
+
 //Begin source
 `source`::
 (Required, object)
@@ -112,6 +175,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transform
 `query`:::
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+
+`runtime_mappings`:::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-runtime-mappings-transforms]
 ====
 //End source
 
@@ -136,7 +203,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 `delay`::::
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
-    
+
 `field`::::
 (Optional, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
@@ -156,6 +223,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
 `docs_per_second`:::
 (Optional, float)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+`align_checkpoints`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
 `max_page_search_size`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
@@ -164,14 +234,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max
 
 [role="child_attributes"]
 [[preview-transform-response]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 `preview`::
-(array) An array of documents. In particular, they are the JSON representation 
-of the documents that would be created in the destination index by the 
+(array) An array of documents. In particular, they are the JSON representation
+of the documents that would be created in the destination index by the
 {transform}.
 
-//Begin generated_dest_index  
+//Begin generated_dest_index
 `generated_dest_index`::
 (object) Contains details about the destination index.
 +
@@ -183,14 +253,14 @@ of the documents that would be created in the destination index by the
 (object) The aliases for the destination index.
 
 `mappings`:::
-(object) The <<mapping,mappings>> for each document in the destination index. 
+(object) The <<mapping,mappings>> for each document in the destination index.
 
 `settings`:::
 (object) The <<index-modules-settings,index settings>> for the destination index.
 ====
 //End generated_dest_index
 
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

@@ -1,63 +1,80 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(':x-pack:qa')
+  testImplementation project(':x-pack:qa')
 }
 
 restResources {
   restApi {
-    includeXpack 'security'
+    include '_common', 'bulk', 'field_caps', 'security', 'search', 'clear_scroll', 'scroll', 'async_search', 'cluster',
+      'indices', 'open_point_in_time', 'close_point_in_time', 'terms_enum'
   }
 }
 
-task 'remote-cluster'(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
-  runner {
-    systemProperty 'tests.rest.suite', 'remote_cluster'
+tasks.register('remote-cluster', RestIntegTestTask) {
+  mustRunAfter("precommit")
+  systemProperty 'tests.rest.suite', 'remote_cluster'
+}
+
+// randomise between sniff and proxy modes
+boolean proxyMode = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+
+testClusters {
+  'remote-cluster' {
+    testDistribution = 'DEFAULT'
+    numberOfNodes = 2
+    setting 'node.roles', '[data,ingest,master]'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+
+    user username: "test_user", password: "x-pack-test-password"
+  }
+
+  'mixed-cluster' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    if (proxyMode) {
+      setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
+      setting 'cluster.remote.my_remote_cluster.proxy_address', {
+        "\"${testClusters.'remote-cluster'.getAllTransportPortURI().get(0)}\""
+      }
+    } else {
+      setting 'cluster.remote.my_remote_cluster.seeds', {
+        testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
+      }
+    }
+    setting 'cluster.remote.connections_per_cluster', "1"
+
+    user username: "test_user", password: "x-pack-test-password"
   }
 }
 
-testClusters.'remote-cluster' {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 2
-  setting 'node.remote_cluster_client', "false"
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-
-  user username: "test_user", password: "x-pack-test-password"
-}
-
-task 'mixed-cluster'(type: RestIntegTestTask) {
+tasks.register('mixed-cluster', RestIntegTestTask) {
   dependsOn 'remote-cluster'
-  runner {
-    useCluster testClusters.'remote-cluster'
-    systemProperty 'tests.rest.suite', 'multi_cluster'
+  useCluster testClusters.'remote-cluster'
+  systemProperty 'tests.rest.suite', 'multi_cluster'
+  if (proxyMode) {
+    systemProperty 'tests.rest.blacklist', [
+      'multi_cluster/10_basic/Add transient remote cluster based on the preset cluster',
+      'multi_cluster/20_info/Add transient remote cluster based on the preset cluster and check remote info',
+      'multi_cluster/20_info/Fetch remote cluster info for existing cluster',
+      'multi_cluster/70_connection_mode_configuration/*',
+    ].join(",")
   }
 }
 
-testClusters.'mixed-cluster' {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.my_remote_cluster.seeds', {
-    testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
-  }
-  setting 'cluster.remote.connections_per_cluster', "1"
-  setting 'node.remote_cluster_client', "true"
-
-  user username: "test_user", password: "x-pack-test-password"
-}
-
-task integTest {
+tasks.register("integTest") {
   dependsOn 'mixed-cluster'
 }
 
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
-check.dependsOn(integTest)
+tasks.named("check").configure { dependsOn("integTest") }

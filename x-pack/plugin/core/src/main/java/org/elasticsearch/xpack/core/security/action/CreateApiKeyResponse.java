@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
@@ -19,8 +20,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -39,6 +42,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         PARSER.declareString(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("api_key"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("encoded"));
     }
 
     private final String name;
@@ -107,14 +111,13 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
             return false;
         }
         final CreateApiKeyResponse other = (CreateApiKeyResponse) obj;
-        if (expiration == null) {
-            if (other.expiration != null)
-                return false;
-        } else if (!Objects.equals(expiration, other.expiration))
+        if (expiration == null && other.expiration != null) {
             return false;
-        return Objects.equals(id, other.id)
-                && Objects.equals(key, other.key)
-                && Objects.equals(name, other.name);
+        }
+        return Objects.equals(expiration, other.expiration)
+            && Objects.equals(id, other.id)
+            && Objects.equals(key, other.key)
+            && Objects.equals(name, other.name);
     }
 
     @Override
@@ -151,6 +154,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         } finally {
             Arrays.fill(charBytes, (byte) 0);
         }
+        builder.field("encoded", Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)));
         return builder.endObject();
     }
 

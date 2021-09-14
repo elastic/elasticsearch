@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cli;
@@ -60,7 +49,7 @@ public abstract class Terminal {
     }
 
     /** The current verbosity for the terminal, defaulting to {@link Verbosity#NORMAL}. */
-    private Verbosity verbosity = Verbosity.NORMAL;
+    private Verbosity currentVerbosity = Verbosity.NORMAL;
 
     /** The newline used when calling println. */
     private final String lineSeparator;
@@ -71,7 +60,7 @@ public abstract class Terminal {
 
     /** Sets the verbosity of the terminal. */
     public void setVerbosity(Verbosity verbosity) {
-        this.verbosity = verbosity;
+        this.currentVerbosity = verbosity;
     }
 
     /** Reads clear text from the terminal input. See {@link Console#readLine()}. */
@@ -139,7 +128,7 @@ public abstract class Terminal {
 
     /** Checks if is enough {@code verbosity} level to be printed */
     public final boolean isPrintable(Verbosity verbosity) {
-        return this.verbosity.ordinal() >= verbosity.ordinal();
+        return this.currentVerbosity.ordinal() >= verbosity.ordinal();
     }
 
     /**

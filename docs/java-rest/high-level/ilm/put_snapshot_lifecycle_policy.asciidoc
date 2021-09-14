@@ -5,14 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put Snapshot Lifecycle Policy API
+=== Create or update snapshot lifecycle policy API
 
 
 [id="{upid}-{api}-request"]
 ==== Request
 
-The Put Snapshot Lifecycle Policy API allows you to add of update the definition of a Snapshot
-Lifecycle Management Policy in the cluster.
+Creates or updates a snapshot lifecycle management policy.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -22,14 +21,13 @@ include-tagged::{doc-tests-file}[{api}-request]
 [id="{upid}-{api}-response"]
 ==== Response
 
-The returned +{response}+ indicates if the put snapshot lifecycle policy request was received.
+The +{response}+ indicates if the request was received.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> Whether or not the put snapshot lifecycle policy was acknowledged.
+<1> Whether or not the request was acknowledged.
 
 include::../execution.asciidoc[]
-
 

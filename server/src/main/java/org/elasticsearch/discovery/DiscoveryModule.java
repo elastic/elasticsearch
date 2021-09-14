@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery;
@@ -37,7 +26,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.transport.TransportService;
 
@@ -81,11 +72,22 @@ public class DiscoveryModule {
 
     private final Discovery discovery;
 
-    public DiscoveryModule(Settings settings, TransportService transportService,
-                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
-                           ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
-                           AllocationService allocationService, Path configFile, GatewayMetaState gatewayMetaState,
-                           RerouteService rerouteService) {
+    public DiscoveryModule(
+        Settings settings,
+        BigArrays bigArrays,
+        TransportService transportService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService,
+        MasterService masterService,
+        ClusterApplier clusterApplier,
+        ClusterSettings clusterSettings,
+        List<DiscoveryPlugin> plugins,
+        AllocationService allocationService,
+        Path configFile,
+        GatewayMetaState gatewayMetaState,
+        RerouteService rerouteService,
+        NodeHealthService nodeHealthService
+    ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
@@ -143,11 +145,23 @@ public class DiscoveryModule {
         }
 
         if (ZEN2_DISCOVERY_TYPE.equals(discoveryType) || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
-            discovery = new Coordinator(NODE_NAME_SETTING.get(settings),
-                settings, clusterSettings,
-                transportService, namedWriteableRegistry, allocationService, masterService, gatewayMetaState::getPersistedState,
-                seedHostsProvider, clusterApplier, joinValidators, new Random(Randomness.get().nextLong()), rerouteService,
-                electionStrategy);
+            discovery = new Coordinator(
+                NODE_NAME_SETTING.get(settings),
+                settings,
+                clusterSettings,
+                bigArrays,
+                transportService,
+                namedWriteableRegistry,
+                allocationService,
+                masterService,
+                gatewayMetaState::getPersistedState,
+                seedHostsProvider,
+                clusterApplier,
+                joinValidators,
+                new Random(Randomness.get().nextLong()),
+                rerouteService,
+                electionStrategy,
+                nodeHealthService);
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }

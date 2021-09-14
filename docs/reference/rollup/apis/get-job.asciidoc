@@ -75,7 +75,7 @@ rollup documents. When in this state, any subsequent cron interval triggers will
 be ignored because the job is already active with the prior trigger.
 - `abort` is a transient state, which is usually not witnessed by the user. It
 is used if the task needs to be shut down for some reason (job has been deleted,
-an unrecoverable error has been encountered, etc).  Shortly after the `abort`
+an unrecoverable error has been encountered, etc). Shortly after the `abort`
 state is set, the job will remove itself from the cluster.
 ====
 
@@ -96,64 +96,64 @@ The API yields the following response:
 [source,console-result]
 ----
 {
-    "jobs" : [
-        {
-          "config" : {
-            "id" : "sensor",
-            "index_pattern" : "sensor-*",
-            "rollup_index" : "sensor_rollup",
-            "cron" : "*/30 * * * * ?",
-            "groups" : {
-              "date_histogram" : {
-                "fixed_interval" : "1h",
-                "delay": "7d",
-                "field": "timestamp",
-                "time_zone": "UTC"
-              },
-              "terms" : {
-                "fields" : [
-                  "node"
-                ]
-              }
-            },
-            "metrics" : [
-              {
-                "field" : "temperature",
-                "metrics" : [
-                  "min",
-                  "max",
-                  "sum"
-                ]
-              },
-              {
-                "field" : "voltage",
-                "metrics" : [
-                  "avg"
-                ]
-              }
-            ],
-            "timeout" : "20s",
-            "page_size" : 1000
+  "jobs": [
+    {
+      "config": {
+        "id": "sensor",
+        "index_pattern": "sensor-*",
+        "rollup_index": "sensor_rollup",
+        "cron": "*/30 * * * * ?",
+        "groups": {
+          "date_histogram": {
+            "fixed_interval": "1h",
+            "delay": "7d",
+            "field": "timestamp",
+            "time_zone": "UTC"
           },
-          "status" : {
-            "job_state" : "stopped"
-          },
-          "stats" : {
-            "pages_processed" : 0,
-            "documents_processed" : 0,
-            "rollups_indexed" : 0,
-            "trigger_count" : 0,
-            "index_failures": 0,
-            "index_time_in_ms": 0,
-            "index_total": 0,
-            "search_failures": 0,
-            "search_time_in_ms": 0,
-            "search_total": 0,
-            "processing_time_in_ms": 0,
-            "processing_total": 0
+          "terms": {
+            "fields": [
+              "node"
+            ]
           }
-        }
-    ]
+        },
+        "metrics": [
+          {
+            "field": "temperature",
+            "metrics": [
+              "min",
+              "max",
+              "sum"
+            ]
+          },
+          {
+            "field": "voltage",
+            "metrics": [
+              "avg"
+            ]
+          }
+        ],
+        "timeout": "20s",
+        "page_size": 1000
+      },
+      "status": {
+        "job_state": "stopped"
+      },
+      "stats": {
+        "pages_processed": 0,
+        "documents_processed": 0,
+        "rollups_indexed": 0,
+        "trigger_count": 0,
+        "index_failures": 0,
+        "index_time_in_ms": 0,
+        "index_total": 0,
+        "search_failures": 0,
+        "search_time_in_ms": 0,
+        "search_total": 0,
+        "processing_time_in_ms": 0,
+        "processing_total": 0
+      }
+    }
+  ]
 }
 ----
 
@@ -164,30 +164,30 @@ If we add another job, we can see how multi-job responses are handled:
 --------------------------------------------------
 PUT _rollup/job/sensor2 <1>
 {
-    "index_pattern": "sensor-*",
-    "rollup_index": "sensor_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "fixed_interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["node"]
-      }
+  "index_pattern": "sensor-*",
+  "rollup_index": "sensor_rollup",
+  "cron": "*/30 * * * * ?",
+  "page_size": 1000,
+  "groups": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "1h",
+      "delay": "7d"
     },
-    "metrics": [
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        },
-        {
-            "field": "voltage",
-            "metrics": ["avg"]
-        }
-    ]
+    "terms": {
+      "fields": [ "node" ]
+    }
+  },
+  "metrics": [
+    {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "voltage",
+      "metrics": [ "avg" ]
+    }
+  ]
 }
 
 GET _rollup/job/_all <2>
@@ -201,120 +201,120 @@ Which will yield the following response:
 [source,js]
 ----
 {
-    "jobs" : [
-        {
-          "config" : {
-            "id" : "sensor2",
-            "index_pattern" : "sensor-*",
-            "rollup_index" : "sensor_rollup",
-            "cron" : "*/30 * * * * ?",
-            "groups" : {
-              "date_histogram" : {
-                "fixed_interval" : "1h",
-                "delay": "7d",
-                "field": "timestamp",
-                "time_zone": "UTC"
-              },
-              "terms" : {
-                "fields" : [
-                  "node"
-                ]
-              }
-            },
-            "metrics" : [
-              {
-                "field" : "temperature",
-                "metrics" : [
-                  "min",
-                  "max",
-                  "sum"
-                ]
-              },
-              {
-                "field" : "voltage",
-                "metrics" : [
-                  "avg"
-                ]
-              }
-            ],
-            "timeout" : "20s",
-            "page_size" : 1000
+  "jobs": [
+    {
+      "config": {
+        "id": "sensor2",
+        "index_pattern": "sensor-*",
+        "rollup_index": "sensor_rollup",
+        "cron": "*/30 * * * * ?",
+        "groups": {
+          "date_histogram": {
+            "fixed_interval": "1h",
+            "delay": "7d",
+            "field": "timestamp",
+            "time_zone": "UTC"
           },
-          "status" : {
-            "job_state" : "stopped"
-          },
-          "stats" : {
-            "pages_processed" : 0,
-            "documents_processed" : 0,
-            "rollups_indexed" : 0,
-            "trigger_count" : 0,
-            "index_failures": 0,
-            "index_time_in_ms": 0,
-            "index_total": 0,
-            "search_failures": 0,
-            "search_time_in_ms": 0,
-            "search_total": 0,
-            "processing_time_in_ms": 0,
-            "processing_total": 0
+          "terms": {
+            "fields": [
+              "node"
+            ]
           }
         },
-        {
-          "config" : {
-            "id" : "sensor",
-            "index_pattern" : "sensor-*",
-            "rollup_index" : "sensor_rollup",
-            "cron" : "*/30 * * * * ?",
-            "groups" : {
-              "date_histogram" : {
-                "fixed_interval" : "1h",
-                "delay": "7d",
-                "field": "timestamp",
-                "time_zone": "UTC"
-              },
-              "terms" : {
-                "fields" : [
-                  "node"
-                ]
-              }
-            },
-            "metrics" : [
-              {
-                "field" : "temperature",
-                "metrics" : [
-                  "min",
-                  "max",
-                  "sum"
-                ]
-              },
-              {
-                "field" : "voltage",
-                "metrics" : [
-                  "avg"
-                ]
-              }
-            ],
-            "timeout" : "20s",
-            "page_size" : 1000
+        "metrics": [
+          {
+            "field": "temperature",
+            "metrics": [
+              "min",
+              "max",
+              "sum"
+            ]
           },
-          "status" : {
-            "job_state" : "stopped"
-          },
-          "stats" : {
-            "pages_processed" : 0,
-            "documents_processed" : 0,
-            "rollups_indexed" : 0,
-            "trigger_count" : 0,
-            "index_failures": 0,
-            "index_time_in_ms": 0,
-            "index_total": 0,
-            "search_failures": 0,
-            "search_time_in_ms": 0,
-            "search_total": 0,
-            "processing_time_in_ms": 0,
-            "processing_total": 0
+          {
+            "field": "voltage",
+            "metrics": [
+              "avg"
+            ]
           }
-        }
-    ]
+        ],
+        "timeout": "20s",
+        "page_size": 1000
+      },
+      "status": {
+        "job_state": "stopped"
+      },
+      "stats": {
+        "pages_processed": 0,
+        "documents_processed": 0,
+        "rollups_indexed": 0,
+        "trigger_count": 0,
+        "index_failures": 0,
+        "index_time_in_ms": 0,
+        "index_total": 0,
+        "search_failures": 0,
+        "search_time_in_ms": 0,
+        "search_total": 0,
+        "processing_time_in_ms": 0,
+        "processing_total": 0
+      }
+    },
+    {
+      "config": {
+        "id": "sensor",
+        "index_pattern": "sensor-*",
+        "rollup_index": "sensor_rollup",
+        "cron": "*/30 * * * * ?",
+        "groups": {
+          "date_histogram": {
+            "fixed_interval": "1h",
+            "delay": "7d",
+            "field": "timestamp",
+            "time_zone": "UTC"
+          },
+          "terms": {
+            "fields": [
+              "node"
+            ]
+          }
+        },
+        "metrics": [
+          {
+            "field": "temperature",
+            "metrics": [
+              "min",
+              "max",
+              "sum"
+            ]
+          },
+          {
+            "field": "voltage",
+            "metrics": [
+              "avg"
+            ]
+          }
+        ],
+        "timeout": "20s",
+        "page_size": 1000
+      },
+      "status": {
+        "job_state": "stopped"
+      },
+      "stats": {
+        "pages_processed": 0,
+        "documents_processed": 0,
+        "rollups_indexed": 0,
+        "trigger_count": 0,
+        "index_failures": 0,
+        "index_time_in_ms": 0,
+        "index_total": 0,
+        "search_failures": 0,
+        "search_time_in_ms": 0,
+        "search_total": 0,
+        "processing_time_in_ms": 0,
+        "processing_total": 0
+      }
+    }
+  ]
 }
 ----
 // NOTCONSOLE

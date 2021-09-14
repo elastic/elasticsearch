@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata.plain;
@@ -29,9 +18,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -40,9 +28,8 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -57,33 +44,28 @@ import java.util.Objects;
  */
 public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
-
+        private final String name;
         private final NumericType numericType;
 
-        public Builder(NumericType numericType) {
+        public Builder(String name, NumericType numericType) {
+            this.name = name;
             this.numericType = numericType;
         }
 
         @Override
         public SortedNumericIndexFieldData build(
-            IndexSettings indexSettings,
-            MappedFieldType fieldType,
             IndexFieldDataCache cache,
-            CircuitBreakerService breakerService,
-            MapperService mapperService
+            CircuitBreakerService breakerService
         ) {
-            final String fieldName = fieldType.name();
-            return new SortedNumericIndexFieldData(indexSettings.getIndex(), fieldName, numericType);
+            return new SortedNumericIndexFieldData(name, numericType);
         }
     }
 
     private final NumericType numericType;
-    protected final Index index;
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
 
-    public SortedNumericIndexFieldData(Index index, String fieldName, NumericType numericType) {
-        this.index = index;
+    public SortedNumericIndexFieldData(String fieldName, NumericType numericType) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         this.valuesSourceType = numericType.getValuesSourceType();
@@ -100,38 +82,42 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public final void clear() {
-        // can't do
-    }
-
-    @Override
-    public final Index index() {
-        return index;
-    }
-
-    @Override
     protected boolean sortRequiresCustomComparator() {
         return numericType == NumericType.HALF_FLOAT;
     }
 
     @Override
-    protected XFieldComparatorSource dateComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+    protected XFieldComparatorSource dateComparatorSource(
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested
+    ) {
         if (numericType == NumericType.DATE_NANOSECONDS) {
-            // converts date values to nanosecond resolution
+            // converts date_nanos values to millisecond resolution
             return new LongValuesComparatorSource(this, missingValue,
-                sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds));
+                sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds), NumericType.DATE);
         }
-        return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, NumericType.DATE);
     }
 
     @Override
-    protected XFieldComparatorSource dateNanosComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+    protected XFieldComparatorSource dateNanosComparatorSource(
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested
+    ) {
         if (numericType == NumericType.DATE) {
-            // converts date_nanos values to millisecond resolution
-            return new LongValuesComparatorSource(this, missingValue,
-                sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds));
+            // converts date values to nanosecond resolution
+            return new LongValuesComparatorSource(
+                this,
+                missingValue,
+                sortMode,
+                nested,
+                dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds),
+                NumericType.DATE_NANOSECONDS
+            );
         }
-        return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, NumericType.DATE_NANOSECONDS);
     }
 
     @Override
@@ -189,6 +175,28 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }
+        }
+
+        @Override
+        public FormattedDocValues getFormattedValues(DocValueFormat format) {
+            DocValueFormat nanosFormat = DocValueFormat.withNanosecondResolution(format);
+            SortedNumericDocValues values = getLongValuesAsNanos();
+            return new FormattedDocValues() {
+                @Override
+                public boolean advanceExact(int docId) throws IOException {
+                    return values.advanceExact(docId);
+                }
+
+                @Override
+                public int docValueCount() throws IOException {
+                    return values.docValueCount();
+                }
+
+                @Override
+                public Object nextValue() throws IOException {
+                    return nanosFormat.format(values.nextValue());
+                }
+            };
         }
     }
 

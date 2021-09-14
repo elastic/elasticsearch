@@ -9,16 +9,17 @@ operating normally if some of its nodes are unavailable or disconnected.
 There is a limit to how small a resilient cluster can be. All {es} clusters
 require:
 
-* One <<modules-discovery-quorums,elected master node>> node
-* At least one node for each <<modules-node,role>>.
-* At least one copy of every <<scalability,shard>>.
+- One <<modules-discovery-quorums,elected master node>> node
+- At least one node for each <<modules-node,role>>.
+- At least one copy of every <<scalability,shard>>.
 
 A resilient cluster requires redundancy for every required cluster component.
 This means a resilient cluster must have:
 
-* At least three master-eligible nodes
-* At least two nodes of each role
-* At least two copies of each shard (one primary and one or more replicas)
+- At least three master-eligible nodes
+- At least two nodes of each role
+- At least two copies of each shard (one primary and one or more replicas,
+  unless the index is a <<searchable-snapshots,searchable snapshot index>>)
 
 A resilient cluster needs three master-eligible nodes so that if one of
 them fails then the remaining two still form a majority and can hold a
@@ -44,8 +45,8 @@ failures. Designers of larger clusters must also consider cases where multiple
 nodes fail at the same time. The following pages give some recommendations for
 building resilient clusters of various sizes:
 
-* <<high-availability-cluster-small-clusters>>
-* <<high-availability-cluster-design-large-clusters>>
+- <<high-availability-cluster-small-clusters>>
+- <<high-availability-cluster-design-large-clusters>>
 
 [[high-availability-cluster-small-clusters]]
 === Resilience in small clusters
@@ -60,7 +61,7 @@ as possible to the failure of an individual node.
 If your cluster consists of one node, that single node must do everything.
 To accommodate this, {es} assigns nodes every role by default.
 
-A single node cluster is not resilient. If the the node fails, the cluster will
+A single node cluster is not resilient. If the node fails, the cluster will
 stop working. Because there are no replicas in a one-node cluster, you cannot
 store your data redundantly. However, by default at least one replica is
 required for a <<cluster-health,`green` cluster health status>>. To ensure your
@@ -78,11 +79,12 @@ one-node clusters in production.
 
 If you have two nodes, we recommend they both be data nodes. You should also
 ensure every shard is stored redundantly on both nodes by setting
-<<dynamic-index-settings,`index.number_of_replicas`>> to `1` on every index.
-This is the default number of replicas but may be overridden by an
-<<indices-templates,index template>>. <<dynamic-index-settings,Auto-expand
-replicas>> can also achieve the same thing, but it's not necessary to use this
-feature in such a small cluster.
+<<dynamic-index-settings,`index.number_of_replicas`>> to `1` on every index
+that is not a <<searchable-snapshots,searchable snapshot index>>. This is the
+default behaviour but may be overridden by an <<index-templates,index
+template>>. <<dynamic-index-settings,Auto-expand replicas>> can also achieve
+the same thing, but it's not necessary to use this feature in such a small
+cluster.
 
 We recommend you set `node.master: false` on one of your two nodes so that it is
 not <<master-node,master-eligible>>. This means you can be certain which of your
@@ -118,7 +120,7 @@ expect that if either node fails then {es} can elect the remaining node as the
 master, but it is impossible to tell the difference between the failure of a
 remote node and a mere loss of connectivity between the nodes. If both nodes
 were capable of running independent elections, a loss of connectivity would
-lead to a https://en.wikipedia.org/wiki/Split-brain_(computing)[split-brain
+lead to a {wikipedia}/Split-brain_(computing)[split-brain
 problem] and therefore data loss. {es} avoids this and
 protects your data by electing neither node as master until that node can be
 sure that it has the latest cluster state and that there is no other master in
@@ -162,12 +164,13 @@ cluster that is suitable for production deployments.
 [[high-availability-cluster-design-three-nodes]]
 ==== Three-node clusters
 
-If you have three nodes, we recommend they all be <<data-node,data
-nodes>> and every index should have at least one replica. Nodes are data nodes
-by default. You may prefer for some indices to have two replicas so that each
-node has a copy of each shard in those indices. You should also configure each
-node to be <<master-node,master-eligible>> so that any two of them can hold a
-master election without needing to communicate with the third node. Nodes are
+If you have three nodes, we recommend they all be <<data-node,data nodes>> and
+every index that is not a <<searchable-snapshots,searchable snapshot index>>
+should have at least one replica. Nodes are data nodes by default. You may
+prefer for some indices to have two replicas so that each node has a copy of
+each shard in those indices. You should also configure each node to be
+<<master-node,master-eligible>> so that any two of them can hold a master
+election without needing to communicate with the third node. Nodes are
 master-eligible by default. This cluster will be resilient to the loss of any
 single node.
 
@@ -215,8 +218,8 @@ The cluster will be resilient to the loss of any node as long as:
 
 - The <<cluster-health,cluster health status>> is `green`.
 - There are at least two data nodes. 
-- Every index has at least one replica of each shard, in addition to the 
-  primary.
+- Every index that is not a <<searchable-snapshots,searchable snapshot index>>
+  has at least one replica of each shard, in addition to the primary.
 - The cluster has at least three master-eligible nodes, as long as at least two
   of these nodes are not voting-only master-eligible nodes.
 - Clients are configured to send their requests to more than one node or are
@@ -227,24 +230,48 @@ The cluster will be resilient to the loss of any node as long as:
 [[high-availability-cluster-design-large-clusters]]
 === Resilience in larger clusters
 
-It is not unusual for nodes to share some common infrastructure, such as a power
-supply or network router. If so, you should plan for the failure of this
+It's not unusual for nodes to share common infrastructure, such as network
+interconnects or a power supply. If so, you should plan for the failure of this
 infrastructure and ensure that such a failure would not affect too many of your
 nodes. It is common practice to group all the nodes sharing some infrastructure
 into _zones_ and to plan for the failure of any whole zone at once.
 
-Your cluster’s zones should all be contained within a single data centre. {es}
-expects its node-to-node connections to be reliable and have low latency and
-high bandwidth. Connections between data centres typically do not meet these
-expectations. Although {es} will behave correctly on an unreliable or slow
-network, it will not necessarily behave optimally. It may take a considerable
-length of time for a cluster to fully recover from a network partition since it
-must resynchronize any missing data and rebalance the cluster once the
-partition heals. If you want your data to be available in multiple data centres,
-deploy a separate cluster in each data centre and use
-<<modules-cross-cluster-search,{ccs}>> or <<xpack-ccr,{ccr}>> to link the
+{es} expects node-to-node connections to be reliable, have low latency, and
+have adequate bandwidth. Many {es} tasks require multiple round-trips between
+nodes. A slow or unreliable interconnect may have a significant effect on the
+performance and stability of your cluster.
+
+For example, a few milliseconds of latency added to each round-trip can quickly
+accumulate into a noticeable performance penalty. An unreliable network may
+have frequent network partitions. {es} will automatically recover from a
+network partition as quickly as it can but your cluster may be partly
+unavailable during a partition and will need to spend time and resources to
+resynchronize any missing data and rebalance itself once the partition heals.
+Recovering from a failure may involve copying a large amount of data between
+nodes so the recovery time is often determined by the available bandwidth.
+
+If you've divided your cluster into zones, the network connections within each
+zone are typically of higher quality than the connections between the zones.
+Ensure the network connections between zones are of sufficiently high quality.
+You will see the best results by locating all your zones within a single data
+center with each zone having its own independent power supply and other
+supporting infrastructure. You can also _stretch_ your cluster across nearby
+data centers as long as the network interconnection between each pair of data
+centers is good enough.
+
+[[high-availability-cluster-design-min-network-perf]]
+There is no specific minimum network performance required to run a healthy {es}
+cluster. In theory, a cluster will work correctly even if the round-trip
+latency between nodes is several hundred milliseconds. In practice, if your
+network is that slow then the cluster performance will be very poor. In
+addition, slow networks are often unreliable enough to cause network partitions
+that lead to periods of unavailability.
+
+If you want your data to be available in multiple data centers that are further
+apart or not well connected, deploy a separate cluster in each data center and
+use <<modules-cross-cluster-search,{ccs}>> or <<xpack-ccr,{ccr}>> to link the
 clusters together. These features are designed to perform well even if the
-cluster-to-cluster connections are less reliable or slower than the network
+cluster-to-cluster connections are less reliable or performant than the network
 within each cluster.
 
 After losing a whole zone's worth of nodes, a properly-designed cluster may be
@@ -260,12 +287,11 @@ more than one zone.
 
 You should consider all node roles and ensure that each role is split
 redundantly across two or more zones. For instance, if you are using
-<<ingest,ingest pipelines>> or {stack-ov}/xpack-ml.html[{ml}],
-you should have ingest or {ml} nodes in two or more zones. However,
-the placement of master-eligible nodes requires a little more care because a
-resilient cluster needs at least two of the three master-eligible nodes in
-order to function. The following sections explore the options for placing
-master-eligible nodes across multiple zones.
+<<ingest,ingest pipelines>> or {ml}, you should have ingest or {ml} nodes in two
+or more zones. However, the placement of master-eligible nodes requires a little
+more care because a resilient cluster needs at least two of the three
+master-eligible nodes in order to function. The following sections explore the
+options for placing master-eligible nodes across multiple zones.
 
 [[high-availability-cluster-design-two-zones]]
 ==== Two-zone clusters
@@ -292,7 +318,7 @@ zone as the master but it is impossible to tell the difference between the
 failure of a remote zone and a mere loss of connectivity between the zones. If
 both zones were capable of running independent elections then a loss of
 connectivity would lead to a
-https://en.wikipedia.org/wiki/Split-brain_(computing)[split-brain problem] and
+{wikipedia}/Split-brain_(computing)[split-brain problem] and
 therefore data loss. {es} avoids this and protects your data by not electing
 a node from either zone as master until that node can be sure that it has the
 latest cluster state and that there is no other master in the cluster. This may
@@ -327,14 +353,14 @@ zone. If you have more than three zones then you should choose three of the
 zones and put a master-eligible node in each of these three zones. This will
 mean that the cluster can still elect a master even if one of the zones fails.
 
-As always, your indices should have at least one replica in case a node fails.
-You should also use <<allocation-awareness,shard allocation awareness>> to
-limit the number of copies of each shard in each zone. For instance, if you have
-an index with one or two replicas configured then allocation awareness will
-ensure that the replicas of the shard are in a different zone from the primary.
-This means that a copy of every shard will still be available if one zone
-fails. The availability of this shard will not be affected by such a
-failure.
+As always, your indices should have at least one replica in case a node fails,
+unless they are <<searchable-snapshots,searchable snapshot indices>>. You
+should also use <<allocation-awareness,shard allocation awareness>> to limit
+the number of copies of each shard in each zone. For instance, if you have an
+index with one or two replicas configured then allocation awareness will ensure
+that the replicas of the shard are in a different zone from the primary. This
+means that a copy of every shard will still be available if one zone fails. The
+availability of this shard will not be affected by such a failure.
 
 [[high-availability-cluster-design-large-cluster-summary]]
 ==== Summary
@@ -343,8 +369,8 @@ The cluster will be resilient to the loss of any zone as long as:
 
 - The <<cluster-health,cluster health status>> is `green`.
 - There are at least two zones containing data nodes.
-- Every index has at least one replica of each shard, in addition to the 
-  primary.
+- Every index that is not a <<searchable-snapshots,searchable snapshot index>>
+  has at least one replica of each shard, in addition to the primary.
 - Shard allocation awareness is configured to avoid concentrating all copies of
   a shard within a single zone.
 - The cluster has at least three master-eligible nodes. At least two of these 

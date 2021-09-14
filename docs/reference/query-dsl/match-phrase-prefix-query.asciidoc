@@ -22,13 +22,13 @@ brown ferrets` but not `the fox is quick and brown`.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match_phrase_prefix" : {
-            "message" : {
-                "query" : "quick brown f"
-            }
-        }
+  "query": {
+    "match_phrase_prefix": {
+      "message": {
+        "query": "quick brown f"
+      }
     }
+  }
 }
 --------------------------------------------------
 

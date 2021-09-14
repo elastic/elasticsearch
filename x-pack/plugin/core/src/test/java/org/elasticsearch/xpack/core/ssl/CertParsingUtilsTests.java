@@ -1,24 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ssl;
 
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPrivateKey;
-import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,7 +41,7 @@ public class CertParsingUtilsTests extends ESTestCase {
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
 
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
+        PrivateKey privateKey = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(getDataPath
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), "testnode"::toCharArray);
 
         assertThat(privateKey, notNullValue());
@@ -80,14 +82,12 @@ public class CertParsingUtilsTests extends ESTestCase {
         verifyPrime256v1ECKey(keyNoSpecPath);
 
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
-        Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath.toString()), newEnvironment());
-        assertEquals(1, certs.length);
-        Certificate cert = certs[0];
+        X509Certificate cert = CertParsingUtils.readX509Certificate(certPath);
         assertNotNull(cert);
         assertEquals("EC", cert.getPublicKey().getAlgorithm());
     }
 
-    private void verifyPrime256v1ECKey(Path keyPath) throws IOException {
+    private void verifyPrime256v1ECKey(Path keyPath) throws IOException, GeneralSecurityException {
         PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, () -> null);
         assertEquals("EC", privateKey.getAlgorithm());
         assertThat(privateKey, instanceOf(ECPrivateKey.class));

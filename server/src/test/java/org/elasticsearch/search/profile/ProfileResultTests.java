@@ -1,32 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,12 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-
-public class ProfileResultTests extends ESTestCase {
+public class ProfileResultTests extends AbstractSerializingTestCase<ProfileResult> {
+    public static final Predicate<String> RANDOM_FIELDS_EXCLUDE_FILTER = s -> s.endsWith(ProfileResult.BREAKDOWN.getPreferredName())
+        || s.endsWith(ProfileResult.DEBUG.getPreferredName());
 
     public static ProfileResult createTestItem(int depth) {
         String type = randomAlphaOfLengthBetween(5, 10);
@@ -69,41 +54,24 @@ public class ProfileResultTests extends ESTestCase {
         return new ProfileResult(type, description, breakdown, debug, randomNonNegativeLong(), children);
     }
 
-    public void testFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
+    @Override
+    protected ProfileResult createTestInstance() {
+        return createTestItem(2);
     }
 
-    /**
-     * This test adds random fields and objects to the xContent rendered out to ensure we can parse it
-     * back to be forward compatible with additions to the xContent
-     */
-    public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
+    @Override
+    protected Reader<ProfileResult> instanceReader() {
+        return ProfileResult::new;
     }
 
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        ProfileResult profileResult = createTestItem(2);
-        XContentType xContentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(profileResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        BytesReference mutated;
-        if (addRandomFields) {
-            // "breakdown" and "debug" just consists of key/value pairs, we shouldn't add anything random there
-            Predicate<String> excludeFilter = (s) ->
-                s.endsWith(ProfileResult.BREAKDOWN.getPreferredName()) || s.endsWith(ProfileResult.DEBUG.getPreferredName());
-            mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
-        } else {
-            mutated = originalBytes;
-        }
-        ProfileResult parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            parsed = ProfileResult.fromXContent(parser);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertNull(parser.nextToken());
-        }
-        assertEquals(profileResult.getTime(), parsed.getTime());
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    @Override
+    protected ProfileResult doParseInstance(XContentParser parser) throws IOException {
+        return ProfileResult.fromXContent(parser);
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return RANDOM_FIELDS_EXCLUDE_FILTER;
     }
 
     public void testToXContent() throws IOException {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
@@ -17,7 +18,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -126,7 +127,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         actionRespond(GetRequest.class, new GetResponse(result));
 
         final NativeUsersStore.ReservedUserInfo userInfo = future.get();
-        assertThat(userInfo.hasEmptyPassword, equalTo(true));
+        assertThat(userInfo.hasEmptyPassword(), equalTo(true));
         assertThat(userInfo.enabled, equalTo(true));
         assertTrue(Hasher.verifyHash(new SecureString("".toCharArray()), userInfo.passwordHash));
     }
@@ -187,7 +188,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                 false,
                 null,
                 Collections.emptyMap(),
-                Collections.emptyMap());
+            Collections.emptyMap());
 
         actionRespond(GetRequest.class, new GetResponse(getResult));
 
@@ -198,6 +199,18 @@ public class NativeUsersStoreTests extends ESTestCase {
         assertThat(result.getMessage(), nullValue());
     }
 
+    public void testDefaultReservedUserInfoPasswordEmpty() {
+        NativeUsersStore.ReservedUserInfo disabledUserInfo = NativeUsersStore.ReservedUserInfo.defaultDisabledUserInfo();
+        NativeUsersStore.ReservedUserInfo enabledUserInfo = NativeUsersStore.ReservedUserInfo.defaultEnabledUserInfo();
+        NativeUsersStore.ReservedUserInfo constructedUserInfo =
+            new NativeUsersStore.ReservedUserInfo(Hasher.PBKDF2.hash(new SecureString(randomAlphaOfLength(14))), randomBoolean());
+
+        assertThat(disabledUserInfo.hasEmptyPassword(), equalTo(true));
+        assertThat(enabledUserInfo.hasEmptyPassword(), equalTo(true));
+        assertThat(constructedUserInfo.hasEmptyPassword(), equalTo(false));
+    }
+
+    @SuppressWarnings("unchecked")
     private <ARequest extends ActionRequest, AResponse extends ActionResponse> ARequest actionRespond(Class<ARequest> requestClass,
                                                                                                       AResponse response) {
         Tuple<ARequest, ActionListener<?>> tuple = findRequest(requestClass);
@@ -206,11 +219,11 @@ public class NativeUsersStoreTests extends ESTestCase {
     }
 
     private <ARequest extends ActionRequest> Tuple<ARequest, ActionListener<?>> findRequest(
-            Class<ARequest> requestClass) {
+        Class<ARequest> requestClass) {
         return this.requests.stream()
-                .filter(t -> requestClass.isInstance(t.v1()))
-                .map(t -> new Tuple<ARequest, ActionListener<?>>(requestClass.cast(t.v1()), t.v2()))
-                .findFirst().orElseThrow(() -> new RuntimeException("Cannot find request of type " + requestClass));
+            .filter(t -> requestClass.isInstance(t.v1()))
+            .map(t -> new Tuple<ARequest, ActionListener<?>>(requestClass.cast(t.v1()), t.v2()))
+            .findFirst().orElseThrow(() -> new RuntimeException("Cannot find request of type " + requestClass));
     }
 
     private void respondToGetUserRequest(String username, SecureString password, String[] roles) throws IOException {
@@ -234,11 +247,11 @@ public class NativeUsersStoreTests extends ESTestCase {
         actionRespond(GetRequest.class, new GetResponse(getResult));
     }
 
+    @SuppressWarnings("unchecked")
     private NativeUsersStore startNativeUsersStore() {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isMappingUpToDate()).thenReturn(true);
         when(securityIndex.isIndexUpToDate()).thenReturn(true);
         when(securityIndex.freeze()).thenReturn(securityIndex);
         doAnswer((i) -> {

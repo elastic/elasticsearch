@@ -1,34 +1,33 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-filter]]
-=== Update filter API
+= Update filters API
 ++++
-<titleabbrev>Update filter</titleabbrev>
+<titleabbrev>Update filters</titleabbrev>
 ++++
 
 Updates the description of a filter, adds items, or removes items. 
 
 [[ml-update-filter-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/filters/<filter_id>/_update`
 
 [[ml-update-filter-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>>.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-update-filter-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<filter_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-update-filter-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `add_items`::
   (Optional, array of strings) The items to add to the filter.
@@ -40,7 +39,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
   (Optional, array of strings) The items to remove from the filter.
 
 [[ml-update-filter-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

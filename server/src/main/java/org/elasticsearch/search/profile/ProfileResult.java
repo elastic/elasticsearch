@@ -1,34 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,17 +27,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * This class is the internal representation of a profiled Query, corresponding
- * to a single node in the query tree.  It is built after the query has finished executing
- * and is merely a structured representation, rather than the entity that collects the timing
- * profile (see InternalProfiler for that)
- * <p>
- * Each InternalProfileResult has a List of InternalProfileResults, which will contain
- * "children" queries if applicable
+ * The result of a profiled *thing*, like a query or an aggregation. See
+ * {@link AbstractProfiler} for the statistic collection framework.
  */
 public final class ProfileResult implements Writeable, ToXContentObject {
     static final ParseField TYPE = new ParseField("type");
@@ -172,13 +158,41 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         return builder.endObject();
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        ProfileResult other = (ProfileResult) obj;
+        return type.equals(other.type)
+            && description.equals(other.description)
+            && breakdown.equals(other.breakdown)
+            && debug.equals(other.debug)
+            && nodeTime == other.nodeTime
+            && children.equals(other.children);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, description, breakdown, debug, nodeTime, children);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
     private static final InstantiatingObjectParser<ProfileResult, Void> PARSER;
     static {
         InstantiatingObjectParser.Builder<ProfileResult, Void> parser =
                 InstantiatingObjectParser.builder("profile_result", true, ProfileResult.class);
         parser.declareString(constructorArg(), TYPE);
         parser.declareString(constructorArg(), DESCRIPTION);
-        parser.declareObject(constructorArg(), (p, c) -> p.map(), BREAKDOWN);
+        parser.declareObject(
+            constructorArg(),
+            (p, c) -> p.map().entrySet().stream().collect(toMap(Map.Entry::getKey, e -> ((Number) e.getValue()).longValue())),
+            BREAKDOWN
+        );
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), DEBUG);
         parser.declareLong(constructorArg(), NODE_TIME_RAW);
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> fromXContent(p), CHILDREN);

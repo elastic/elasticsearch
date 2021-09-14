@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -30,6 +33,9 @@ public class PutFollowActionRequestTests extends AbstractSerializingTestCase<Put
 
         request.setRemoteCluster(randomAlphaOfLength(4));
         request.setLeaderIndex(randomAlphaOfLength(4));
+        request.setSettings(
+            Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build()
+        );
         ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
     }
@@ -41,6 +47,9 @@ public class PutFollowActionRequestTests extends AbstractSerializingTestCase<Put
         PutFollowAction.Request request = new PutFollowAction.Request();
         request.setRemoteCluster(randomAlphaOfLength(4));
         request.setLeaderIndex(randomAlphaOfLength(4));
+        request.setSettings(
+            Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build()
+        );
         request.setFollowerIndex("followerIndex");
         ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;

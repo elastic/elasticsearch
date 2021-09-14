@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
@@ -46,7 +47,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override
@@ -66,7 +67,10 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
 
     public static Ensemble createRandom(TargetType targetType, List<String> featureNames) {
         int numberOfModels = randomIntBetween(1, 10);
-        List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6))
+        List<String> treeFeatureNames = featureNames.isEmpty() ?
+            Stream.generate(() -> randomAlphaOfLength(10)).limit(5).collect(Collectors.toList()) :
+            featureNames;
+        List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(treeFeatureNames, 6))
             .limit(numberOfModels)
             .collect(Collectors.toList());
         double[] weights = randomBoolean() ?
@@ -77,7 +81,8 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             categoryLabels = randomList(2, randomIntBetween(3, 10), () -> randomAlphaOfLength(10));
         }
 
-        OutputAggregator outputAggregator = targetType == TargetType.REGRESSION ? new WeightedSum(weights) :
+        OutputAggregator outputAggregator = targetType == TargetType.REGRESSION ?
+            randomFrom(new WeightedSum(weights), new Exponent(weights)) :
             randomFrom(
                 new WeightedMode(
                     weights,
@@ -91,7 +96,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .toArray() :
             null;
 
-        return new Ensemble(randomBoolean() ? featureNames : Collections.emptyList(),
+        return new Ensemble(featureNames,
             models,
             outputAggregator,
             targetType,

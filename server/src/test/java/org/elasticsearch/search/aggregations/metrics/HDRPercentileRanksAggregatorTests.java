@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -41,56 +30,48 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-
 public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new PercentileRanksAggregationBuilder("hdr_ranks", new double[]{0.1, 0.5, 12})
-            .field(fieldName)
+        return new PercentileRanksAggregationBuilder("hdr_ranks", new double[] { 0.1, 0.5, 12 }).field(fieldName)
             .percentilesConfig(new PercentilesConfig.Hdr());
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.DATE,
-            CoreValuesSourceType.BOOLEAN);
+        return List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN);
     }
 
     public void testEmpty() throws IOException {
-        PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[]{0.5})
-                .field("field")
-                .method(PercentilesMethod.HDR);
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        fieldType.setName("field");
+        PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[] { 0.5 }).field("field")
+            .method(PercentilesMethod.HDR);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
         try (IndexReader reader = new MultiReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
-            PercentileRanks ranks = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+            PercentileRanks ranks = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
             Percentile rank = ranks.iterator().next();
             assertEquals(Double.NaN, rank.getPercent(), 0d);
             assertEquals(0.5, rank.getValue(), 0d);
-            assertFalse(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks)ranks));
+            assertFalse(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks) ranks));
         }
     }
 
     public void testSimple() throws IOException {
-        try (Directory dir = newDirectory();
-                RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            for (double value : new double[] {3, 0.2, 10}) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            for (double value : new double[] { 3, 0.2, 10 }) {
                 Document doc = new Document();
                 doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
                 w.addDocument(doc);
             }
 
-            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[]{0.1, 0.5, 12})
-                    .field("field")
-                    .method(PercentilesMethod.HDR);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-            fieldType.setName("field");
+            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[] { 0.1, 0.5, 12 })
+                .field("field")
+                .method(PercentilesMethod.HDR);
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                PercentileRanks ranks = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                PercentileRanks ranks = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 Iterator<Percentile> rankIterator = ranks.iterator();
                 Percentile rank = rankIterator.next();
                 assertEquals(0.1, rank.getValue(), 0d);
@@ -103,20 +84,24 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
                 assertEquals(12, rank.getValue(), 0d);
                 assertThat(rank.getPercent(), Matchers.equalTo(100d));
                 assertFalse(rankIterator.hasNext());
-                assertTrue(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks)ranks));
+                assertTrue(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks) ranks));
             }
         }
     }
 
     public void testNullValues() throws IOException {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new PercentileRanksAggregationBuilder("my_agg", null).field("field").method(PercentilesMethod.HDR));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PercentileRanksAggregationBuilder("my_agg", null).field("field").method(PercentilesMethod.HDR)
+        );
         assertThat(e.getMessage(), Matchers.equalTo("[values] must not be null: [my_agg]"));
     }
 
     public void testEmptyValues() throws IOException {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new PercentileRanksAggregationBuilder("my_agg", new double[0]).field("field").method(PercentilesMethod.HDR));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PercentileRanksAggregationBuilder("my_agg", new double[0]).field("field").method(PercentilesMethod.HDR)
+        );
 
         assertThat(e.getMessage(), Matchers.equalTo("[values] must not be an empty array: [my_agg]"));
     }

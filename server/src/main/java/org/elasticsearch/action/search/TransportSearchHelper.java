@@ -1,56 +1,41 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.RAMOutputStream;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Base64;
 
 final class TransportSearchHelper {
 
     private static final String INCLUDE_CONTEXT_UUID = "include_context_uuid";
 
-    static InternalScrollSearchRequest internalScrollSearchRequest(SearchContextId id, SearchScrollRequest request) {
+    static InternalScrollSearchRequest internalScrollSearchRequest(ShardSearchContextId id, SearchScrollRequest request) {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults,
-                                boolean includeContextUUID) throws IOException {
+    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults) {
         try (RAMOutputStream out = new RAMOutputStream()) {
-            if (includeContextUUID) {
-                out.writeString(INCLUDE_CONTEXT_UUID);
-            }
+            out.writeString(INCLUDE_CONTEXT_UUID);
             out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
             out.writeVInt(searchPhaseResults.asList().size());
             for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
-                if (includeContextUUID) {
-                    out.writeString(searchPhaseResult.getContextId().getReaderId());
-                }
+                out.writeString(searchPhaseResult.getContextId().getSessionId());
                 out.writeLong(searchPhaseResult.getContextId().getId());
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {
@@ -63,13 +48,15 @@ final class TransportSearchHelper {
             byte[] bytes = new byte[(int) out.getFilePointer()];
             out.writeTo(bytes, 0);
             return Base64.getUrlEncoder().encodeToString(bytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
     static ParsedScrollId parseScrollId(String scrollId) {
         try {
             byte[] bytes = Base64.getUrlDecoder().decode(scrollId);
-            ByteArrayDataInput in = new ByteArrayDataInput(bytes);
+            ByteArrayStreamInput in = new ByteArrayStreamInput(bytes);
             final boolean includeContextUUID;
             final String type;
             final String firstChunk = in.readString();
@@ -80,7 +67,7 @@ final class TransportSearchHelper {
                 includeContextUUID = false;
                 type = firstChunk;
             }
-            ScrollIdForNode[] context = new ScrollIdForNode[in.readVInt()];
+            SearchContextIdForNode[] context = new SearchContextIdForNode[in.readVInt()];
             for (int i = 0; i < context.length; ++i) {
                 final String contextUUID = includeContextUUID ? in.readString() : "";
                 long id = in.readLong();
@@ -93,7 +80,7 @@ final class TransportSearchHelper {
                     clusterAlias = target.substring(0, index);
                     target = target.substring(index+1);
                 }
-                context[i] = new ScrollIdForNode(clusterAlias, target, new SearchContextId(contextUUID, id));
+                context[i] = new SearchContextIdForNode(clusterAlias, target, new ShardSearchContextId(contextUUID, id));
             }
             if (in.getPosition() != bytes.length) {
                 throw new IllegalArgumentException("Not all bytes were read");

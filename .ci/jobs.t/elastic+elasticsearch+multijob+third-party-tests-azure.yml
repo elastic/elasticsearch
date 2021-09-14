@@ -1,0 +1,27 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+multijob+third-party-tests-azure
+    workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+multijob+third-party-tests-azure
+    display-name: "elastic / elasticsearch # %BRANCH% - third party tests azure"
+    description: "Testing of the Elasticsearch %BRANCH% third party tests against Azure\n"
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            azure_storage_container=elasticsearch-ci-thirdparty
+            azure_storage_base_path=%BRANCH%
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          set -euo pipefail
+          set +x
+          VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)
+          export VAULT_TOKEN
+          export data=$(vault read -format=json secret/elasticsearch-ci/azure_thirdparty_test_creds)
+          export azure_storage_account=$(echo $data | jq -r .data.account_id)
+          export azure_storage_key=$(echo $data | jq -r .data.account_key)
+          unset VAULT_TOKEN data
+          set -x
+
+          $WORKSPACE/.ci/scripts/run-gradle.sh azureThirdPartyTest

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.cleaner;
 
@@ -10,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.license.XPackLicenseState;
@@ -91,7 +92,7 @@ public class CleanerService extends AbstractLifecycleComponent {
      */
     public TimeValue getRetention() {
         // we only care about their value if they are allowed to set it
-        if (licenseState.isAllowed(Feature.MONITORING_UPDATE_RETENTION) && globalRetention != null) {
+        if (licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION) && globalRetention != null) {
             return globalRetention;
         }
         else {
@@ -109,7 +110,7 @@ public class CleanerService extends AbstractLifecycleComponent {
      */
     public void setGlobalRetention(TimeValue globalRetention) {
         // notify the user that their setting will be ignored until they get the right license
-        if (licenseState.isAllowed(Feature.MONITORING_UPDATE_RETENTION) == false) {
+        if (licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION) == false) {
             logger.warn("[{}] setting will be ignored until an appropriate license is applied", MonitoringField.HISTORY_DURATION.getKey());
         }
 
@@ -166,11 +167,6 @@ public class CleanerService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRunInLifecycle() throws Exception {
-            if (licenseState.isAllowed(Feature.MONITORING) == false) {
-                logger.debug("cleaning service is disabled due to invalid license");
-                return;
-            }
-
             // fetch the retention, which is depends on a bunch of rules
             TimeValue retention = getRetention();
 

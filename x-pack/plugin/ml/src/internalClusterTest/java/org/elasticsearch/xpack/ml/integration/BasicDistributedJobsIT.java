@@ -1,20 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
+
+import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasEntry;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -43,25 +59,43 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasEntry;
+import org.junit.After;
+import org.junit.Before;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
+
+    @Before
+    // upping the logging due to potential failures in: https://github.com/elastic/elasticsearch/issues/63980
+    public void setLogging() {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.action.TransportOpenJobAction", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager", "TRACE")
+                .build()).get();
+    }
+
+    @After
+    public void unsetLogging() {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction")
+                .putNull("logger.org.elasticsearch.xpack.ml.action.TransportOpenJobAction")
+                .putNull("logger.org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor")
+                .putNull("logger.org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager")
+                .build()).get();
+    }
 
     public void testFailOverBasics() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
         ensureStableCluster(4);
 
-        Job.Builder job = createJob("fail-over-basics-job", new ByteSizeValue(2, ByteSizeUnit.MB));
+        Job.Builder job = createJob("fail-over-basics-job", ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         ensureYellow(); // at least the primary shards of the indices a job uses should be started
@@ -150,8 +184,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
     public void testJobAutoClose() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
-        internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), false));
-        internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), true));
+        internalCluster().startNode(removeRoles(Set.of(DiscoveryNodeRole.ML_ROLE)));
+        internalCluster().startNode(addRoles(Set.of(DiscoveryNodeRole.ML_ROLE)));
 
         client().admin().indices().prepareCreate("data")
                 .setMapping("time", "type=date")
@@ -192,11 +226,11 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
     public void testDedicatedMlNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start 2 non ml node that will never get a job allocated. (but ml apis are accessible from this node)
-        internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), false));
-        internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), false));
+        internalCluster().startNode(removeRoles(Set.of(DiscoveryNodeRole.ML_ROLE)));
+        internalCluster().startNode(removeRoles(Set.of(DiscoveryNodeRole.ML_ROLE)));
         // start ml node
         if (randomBoolean()) {
-            internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), true));
+            internalCluster().startNode(addRoles(Set.of(DiscoveryNodeRole.ML_ROLE)));
         } else {
             // the default is based on 'xpack.ml.enabled', which is enabled in base test class.
             internalCluster().startNode();
@@ -204,7 +238,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureStableCluster(3);
 
         String jobId = "dedicated-ml-node-job";
-        Job.Builder job = createJob(jobId, new ByteSizeValue(2, ByteSizeUnit.MB));
+        Job.Builder job = createJob(jobId, ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
@@ -217,14 +251,14 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId(jobId));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "512"));
             JobTaskState jobTaskState = (JobTaskState) task.getState();
             assertNotNull(jobTaskState);
             assertEquals(JobState.OPENED, jobTaskState.getState());
         });
 
         logger.info("stop the only running ml node");
-        internalCluster().stopRandomNode(settings -> settings.getAsBoolean(MachineLearning.ML_ENABLED.getKey(), true));
+        internalCluster().stopRandomNode(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE));
         ensureStableCluster(2);
         assertBusy(() -> {
             // job should get and remain in a failed state and
@@ -233,7 +267,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
 
         logger.info("start ml node");
-        internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), true));
+        internalCluster().startNode(addRoles(Set.of(DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster(3);
         assertBusy(() -> {
             // job should be re-opened:
@@ -246,13 +280,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start non ml node, but that will hold the indices
         logger.info("Start non ml node:");
-        String nonMlNode = internalCluster().startNode(Settings.builder()
-                .put(MachineLearning.ML_ENABLED.getKey(), false));
+        String nonMlNode = internalCluster().startNode(removeRoles(Set.of(DiscoveryNodeRole.ML_ROLE)));
         logger.info("Starting ml nodes");
-        internalCluster().startNodes(numMlNodes, Settings.builder()
-                .put("node.data", false)
-                .put("node.master", false)
-                .put(MachineLearning.ML_ENABLED.getKey(), true).build());
+        internalCluster().startNodes(numMlNodes, onlyRole(DiscoveryNodeRole.ML_ROLE));
         ensureStableCluster(numMlNodes + 1);
 
         int maxConcurrentJobAllocations = randomIntBetween(1, 4);
@@ -286,7 +316,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureYellow(); // at least the primary shards of the indices a job uses should be started
         int numJobs = numMlNodes * 10;
         for (int i = 0; i < numJobs; i++) {
-            Job.Builder job = createJob(Integer.toString(i), new ByteSizeValue(2, ByteSizeUnit.MB));
+            Job.Builder job = createJob(Integer.toString(i), ByteSizeValue.ofMb(2));
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
             client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
@@ -301,8 +331,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             // fork so stopping all ml nodes proceeds quicker:
             Runnable r = () -> {
                 try {
-                    internalCluster()
-                            .stopRandomNode(settings -> settings.getAsBoolean(MachineLearning.ML_ENABLED.getKey(), false));
+                    internalCluster().stopRandomNode(settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE));
                 } catch (IOException e) {
                     logger.error("error stopping node", e);
                 }
@@ -320,10 +349,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
 
         logger.info("re-starting ml nodes");
-        internalCluster().startNodes(numMlNodes, Settings.builder()
-                .put("node.data", false)
-                .put("node.master", false)
-                .put(MachineLearning.ML_ENABLED.getKey(), true).build());
+        internalCluster().startNodes(numMlNodes, onlyRole(DiscoveryNodeRole.ML_ROLE));
 
         ensureStableCluster(1 + numMlNodes);
         assertBusy(checkAllJobsAreAssignedAndOpened(numJobs), 30, TimeUnit.SECONDS);
@@ -340,16 +366,14 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         // start non ml node that will hold the state and results indices
         logger.info("Start non ml node:");
         String nonMLNode = internalCluster().startNode(Settings.builder()
-                .put("node.data", true)
                 .put("node.attr.ml-indices", "state-and-results")
-                .put(MachineLearning.ML_ENABLED.getKey(), false));
+                .put(removeRoles(Set.of(DiscoveryNodeRole.ML_ROLE))));
         ensureStableCluster(1);
         // start an ml node for the config index
         logger.info("Starting ml node");
         String mlNode = internalCluster().startNode(Settings.builder()
-                .put("node.data", true)
                 .put("node.attr.ml-indices", "config")
-                .put(MachineLearning.ML_ENABLED.getKey(), true));
+                .put(addRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE))));
         ensureStableCluster(2);
 
         // Create the indices (using installed templates) and set the routing to specific nodes
@@ -416,8 +440,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         logger.info("Start data node");
         String nonMlNode = internalCluster().startNode(Settings.builder()
                 .put(nonMLNodeDataPathSettings)
-                .put("node.data", true)
-                .put(MachineLearning.ML_ENABLED.getKey(), false));
+                .put(removeRoles(Set.of(DiscoveryNodeRole.ML_ROLE))));
         ensureStableCluster(2, mlNode);
         ensureStableCluster(2, nonMlNode);
         ensureYellow(); // at least the primary shards of the indices a job uses should be started
@@ -425,14 +448,14 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertBusy(() -> assertJobTask(jobId, JobState.OPENED, true));
     }
 
-    public void testCloseUnassignedLazyJobAndDatafeed() throws Exception {
+    public void testCloseUnassignedLazyJobAndDatafeed() {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster(3);
 
         String jobId = "test-lazy-stop";
         String datafeedId = jobId + "-datafeed";
         // Assume the test machine won't have space to assign a 2TB job
-        Job.Builder job = createJob(jobId, new ByteSizeValue(2, ByteSizeUnit.TB), true);
+        Job.Builder job = createJob(jobId, ByteSizeValue.ofTb(2), true);
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
@@ -490,7 +513,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertNotNull(task.getExecutorNode());
             assertFalse(needsReassignment(task.getAssignment(), clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "512"));
 
             JobTaskState jobTaskState = (JobTaskState) task.getState();
             assertNotNull(jobTaskState);

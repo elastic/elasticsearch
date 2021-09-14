@@ -1,72 +1,98 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FETCH_SIZE;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
 
 public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
+    public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
+    public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false,
-        false, true, false);
+    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, true, false);
 
     private QueryBuilder filter = null;
     private String timestampField = FIELD_TIMESTAMP;
+    private String tiebreakerField = null;
     private String eventCategoryField = FIELD_EVENT_CATEGORY;
-    private String implicitJoinKeyField = FIELD_IMPLICIT_JOIN_KEY;
-    private int fetchSize = FETCH_SIZE;
-    private SearchAfterBuilder searchAfterBuilder;
+    private int size = RequestDefaults.SIZE;
+    private int fetchSize = RequestDefaults.FETCH_SIZE;
     private String query;
-    private boolean isCaseSensitive = false;
+    private boolean ccsMinimizeRoundtrips = RequestDefaults.CCS_MINIMIZE_ROUNDTRIPS;
+    private String resultPosition = "tail";
+    private List<FieldAndFormat> fetchFields;
+    private Map<String, Object> runtimeMappings = emptyMap();
+
+    // Async settings
+    private TimeValue waitForCompletionTimeout = null;
+    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
+    private boolean keepOnCompletion;
 
     static final String KEY_FILTER = "filter";
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
+    static final String KEY_TIEBREAKER_FIELD = "tiebreaker_field";
     static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
-    static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
     static final String KEY_SIZE = "size";
-    static final String KEY_SEARCH_AFTER = "search_after";
+    static final String KEY_FETCH_SIZE = "fetch_size";
     static final String KEY_QUERY = "query";
-    static final String KEY_CASE_SENSITIVE = "case_sensitive";
+    static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
+    static final String KEY_KEEP_ALIVE = "keep_alive";
+    static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
+    static final String KEY_RESULT_POSITION = "result_position";
+    static final String KEY_FETCH_FIELDS = "fields";
+    static final String KEY_RUNTIME_MAPPINGS = "runtime_mappings";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
+    static final ParseField TIEBREAKER_FIELD = new ParseField(KEY_TIEBREAKER_FIELD);
     static final ParseField EVENT_CATEGORY_FIELD = new ParseField(KEY_EVENT_CATEGORY_FIELD);
-    static final ParseField IMPLICIT_JOIN_KEY_FIELD = new ParseField(KEY_IMPLICIT_JOIN_KEY_FIELD);
     static final ParseField SIZE = new ParseField(KEY_SIZE);
-    static final ParseField SEARCH_AFTER = new ParseField(KEY_SEARCH_AFTER);
+    static final ParseField FETCH_SIZE = new ParseField(KEY_FETCH_SIZE);
     static final ParseField QUERY = new ParseField(KEY_QUERY);
-    static final ParseField CASE_SENSITIVE = new ParseField(KEY_CASE_SENSITIVE);
+    static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField(KEY_WAIT_FOR_COMPLETION_TIMEOUT);
+    static final ParseField KEEP_ALIVE = new ParseField(KEY_KEEP_ALIVE);
+    static final ParseField KEEP_ON_COMPLETION = new ParseField(KEY_KEEP_ON_COMPLETION);
+    static final ParseField RESULT_POSITION = new ParseField(KEY_RESULT_POSITION);
+    static final ParseField FETCH_FIELDS_FIELD = SearchSourceBuilder.FETCH_FIELDS_FIELD;
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
@@ -80,12 +106,30 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         timestampField = in.readString();
+        tiebreakerField = in.readOptionalString();
         eventCategoryField = in.readString();
-        implicitJoinKeyField = in.readString();
+        size = in.readVInt();
         fetchSize = in.readVInt();
-        searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         query = in.readString();
-        isCaseSensitive = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+            this.ccsMinimizeRoundtrips = in.readBoolean();
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
+            this.waitForCompletionTimeout = in.readOptionalTimeValue();
+            this.keepAlive = in.readOptionalTimeValue();
+            this.keepOnCompletion = in.readBoolean();
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            resultPosition = in.readString();
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+            if (in.readBoolean()) {
+                fetchFields = in.readList(FieldAndFormat::new);
+            }
+            runtimeMappings = in.readMap();
+        } else {
+            runtimeMappings = emptyMap();
+        }
     }
 
     @Override
@@ -119,14 +163,42 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             validationException = addValidationError("event category field is null or empty", validationException);
         }
 
-        if (implicitJoinKeyField == null || implicitJoinKeyField.isEmpty()) {
-            validationException = addValidationError("implicit join key field is null or empty", validationException);
+        if (size < 0) {
+            validationException = addValidationError("size must be greater than or equal to 0", validationException);
         }
 
-        if (fetchSize <= 0) {
-            validationException = addValidationError("size must be greater than 0", validationException);
+        if (fetchSize < 2) {
+            validationException = addValidationError("fetch size must be greater than 1", validationException);
         }
 
+        if (keepAlive != null  && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
+            validationException =
+                addValidationError("[keep_alive] must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
+        }
+
+        if (runtimeMappings != null) {
+            validationException = validateRuntimeMappings(runtimeMappings, validationException);
+        }
+
+        return validationException;
+    }
+
+    private static ActionRequestValidationException validateRuntimeMappings(Map<String, Object> runtimeMappings,
+        ActionRequestValidationException validationException) {
+        for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
+            // top level objects are fields
+            String fieldName = entry.getKey();
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
+                if (propNode.get("type") == null) {
+                    return addValidationError("No type specified for runtime field [" + fieldName + "]", validationException);
+                }
+            } else {
+                return addValidationError("Expected map for runtime field [" + fieldName + "] definition but got ["
+                    + fieldName.getClass().getSimpleName() + "]", validationException);
+            }
+        }
         return validationException;
     }
 
@@ -136,18 +208,27 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             builder.field(KEY_FILTER, filter);
         }
         builder.field(KEY_TIMESTAMP_FIELD, timestampField());
+        if (tiebreakerField != null) {
+            builder.field(KEY_TIEBREAKER_FIELD, tiebreakerField());
+        }
         builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField());
-        if (implicitJoinKeyField != null) {
-            builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField());
-        }
-        builder.field(KEY_SIZE, fetchSize());
-
-        if (searchAfterBuilder != null) {
-            builder.array(SEARCH_AFTER.getPreferredName(), searchAfterBuilder.getSortValues());
-        }
-
+        builder.field(KEY_SIZE, size());
+        builder.field(KEY_FETCH_SIZE, fetchSize());
         builder.field(KEY_QUERY, query);
-        builder.field(KEY_CASE_SENSITIVE, isCaseSensitive);
+        if (waitForCompletionTimeout != null) {
+            builder.field(KEY_WAIT_FOR_COMPLETION_TIMEOUT, waitForCompletionTimeout);
+        }
+        if (keepAlive != null) {
+            builder.field(KEY_KEEP_ALIVE, keepAlive);
+        }
+        builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
+        builder.field(KEY_RESULT_POSITION, resultPosition);
+        if (fetchFields != null && fetchFields.isEmpty() == false) {
+            builder.field(KEY_FETCH_FIELDS, fetchFields);
+        }
+        if (runtimeMappings != null) {
+            builder.field(KEY_RUNTIME_MAPPINGS, runtimeMappings);
+        }
 
         return builder;
     }
@@ -161,13 +242,20 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareObject(EqlSearchRequest::filter,
             (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
         parser.declareString(EqlSearchRequest::timestampField, TIMESTAMP_FIELD);
+        parser.declareString(EqlSearchRequest::tiebreakerField, TIEBREAKER_FIELD);
         parser.declareString(EqlSearchRequest::eventCategoryField, EVENT_CATEGORY_FIELD);
-        parser.declareString(EqlSearchRequest::implicitJoinKeyField, IMPLICIT_JOIN_KEY_FIELD);
-        parser.declareInt(EqlSearchRequest::fetchSize, SIZE);
-        parser.declareField(EqlSearchRequest::setSearchAfter, SearchAfterBuilder::fromXContent, SEARCH_AFTER,
-            ObjectParser.ValueType.OBJECT_ARRAY);
+        parser.declareInt(EqlSearchRequest::size, SIZE);
+        parser.declareInt(EqlSearchRequest::fetchSize, FETCH_SIZE);
         parser.declareString(EqlSearchRequest::query, QUERY);
-        parser.declareBoolean(EqlSearchRequest::isCaseSensitive, CASE_SENSITIVE);
+        parser.declareField(EqlSearchRequest::waitForCompletionTimeout,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_WAIT_FOR_COMPLETION_TIMEOUT), WAIT_FOR_COMPLETION_TIMEOUT,
+            ObjectParser.ValueType.VALUE);
+        parser.declareField(EqlSearchRequest::keepAlive,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE), KEEP_ALIVE, ObjectParser.ValueType.VALUE);
+        parser.declareBoolean(EqlSearchRequest::keepOnCompletion, KEEP_ON_COMPLETION);
+        parser.declareString(EqlSearchRequest::resultPosition, RESULT_POSITION);
+        parser.declareField(EqlSearchRequest::fetchFields, EqlSearchRequest::parseFetchFields, FETCH_FIELDS_FIELD, ValueType.VALUE_ARRAY);
+        parser.declareObject(EqlSearchRequest::runtimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
         return parser;
     }
 
@@ -184,10 +272,24 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public Map<String, Object> runtimeMappings() { return this.runtimeMappings; }
+
+    public EqlSearchRequest runtimeMappings(Map<String, Object> runtimeMappings) {
+        this.runtimeMappings = runtimeMappings;
+        return this;
+    }
+
     public String timestampField() { return this.timestampField; }
 
     public EqlSearchRequest timestampField(String timestampField) {
         this.timestampField = timestampField;
+        return this;
+    }
+
+    public String tiebreakerField() { return this.tiebreakerField; }
+
+    public EqlSearchRequest tiebreakerField(String tiebreakerField) {
+        this.tiebreakerField = tiebreakerField;
         return this;
     }
 
@@ -198,34 +300,21 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public String implicitJoinKeyField() { return this.implicitJoinKeyField; }
+    public int size() {
+        return this.size;
+    }
 
-    public EqlSearchRequest implicitJoinKeyField(String implicitJoinKeyField) {
-        this.implicitJoinKeyField = implicitJoinKeyField;
+    public EqlSearchRequest size(int size) {
+        this.size = size;
         return this;
     }
 
-    public int fetchSize() { return this.fetchSize; }
-
-    public EqlSearchRequest fetchSize(int size) {
-        this.fetchSize = size;
-        return this;
+    public int fetchSize() {
+        return this.fetchSize;
     }
 
-    public Object[] searchAfter() {
-        if (searchAfterBuilder == null) {
-            return null;
-        }
-        return searchAfterBuilder.getSortValues();
-    }
-
-    public EqlSearchRequest searchAfter(Object[] values) {
-        this.searchAfterBuilder = new SearchAfterBuilder().setSortValues(values);
-        return this;
-    }
-
-    private EqlSearchRequest setSearchAfter(SearchAfterBuilder builder) {
-        this.searchAfterBuilder = builder;
+    public EqlSearchRequest fetchSize(int fetchSize) {
+        this.fetchSize = fetchSize;
         return this;
     }
 
@@ -236,11 +325,74 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public boolean isCaseSensitive() { return this.isCaseSensitive; }
+    public TimeValue waitForCompletionTimeout() {
+        return waitForCompletionTimeout;
+    }
 
-    public EqlSearchRequest isCaseSensitive(boolean isCaseSensitive) {
-        this.isCaseSensitive = isCaseSensitive;
+    public EqlSearchRequest waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+        this.waitForCompletionTimeout = waitForCompletionTimeout;
         return this;
+    }
+
+    public TimeValue keepAlive() {
+        return keepAlive;
+    }
+
+    public EqlSearchRequest keepAlive(TimeValue keepAlive) {
+        this.keepAlive = keepAlive;
+        return this;
+    }
+
+    public boolean keepOnCompletion() {
+        return keepOnCompletion;
+    }
+
+    public EqlSearchRequest keepOnCompletion(boolean keepOnCompletion) {
+        this.keepOnCompletion = keepOnCompletion;
+        return this;
+    }
+
+    public EqlSearchRequest ccsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
+        this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
+        return this;
+    }
+
+    public boolean ccsMinimizeRoundtrips() {
+        return ccsMinimizeRoundtrips;
+    }
+
+    public String resultPosition() {
+        return resultPosition;
+    }
+
+    public EqlSearchRequest resultPosition(String position) {
+        if ("head".equals(position) || "tail".equals(position)) {
+            resultPosition = position;
+        } else {
+            throw new IllegalArgumentException("result position needs to be 'head' or 'tail', received '" + position + "'");
+        }
+        return this;
+    }
+
+    public List<FieldAndFormat> fetchFields() {
+        return fetchFields;
+    }
+
+    public EqlSearchRequest fetchFields(List<FieldAndFormat> fetchFields) {
+        this.fetchFields = fetchFields;
+        return this;
+    }
+
+    private static List<FieldAndFormat> parseFetchFields(XContentParser parser) throws IOException {
+        List<FieldAndFormat> result = new ArrayList<>();
+        Token token = parser.currentToken();
+
+        if (token == Token.START_ARRAY) {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                result.add(FieldAndFormat.fromXContent(parser));
+            }
+        }
+        return result.isEmpty() ? null : result;
     }
 
     @Override
@@ -250,12 +402,30 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalNamedWriteable(filter);
         out.writeString(timestampField);
+        out.writeOptionalString(tiebreakerField);
         out.writeString(eventCategoryField);
-        out.writeString(implicitJoinKeyField);
+        out.writeVInt(size);
         out.writeVInt(fetchSize);
-        out.writeOptionalWriteable(searchAfterBuilder);
         out.writeString(query);
-        out.writeBoolean(isCaseSensitive);
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+            out.writeBoolean(ccsMinimizeRoundtrips);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
+            out.writeOptionalTimeValue(waitForCompletionTimeout);
+            out.writeOptionalTimeValue(keepAlive);
+            out.writeBoolean(keepOnCompletion);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) { // TODO: Remove after backport
+            out.writeString(resultPosition);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            out.writeBoolean(fetchFields != null);
+            if (fetchFields != null) {
+                out.writeList(fetchFields);
+            }
+            out.writeMap(runtimeMappings);
+        }
     }
 
     @Override
@@ -267,17 +437,23 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             return false;
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
-        return fetchSize == that.fetchSize &&
+        return size == that.size &&
+                fetchSize == that.fetchSize &&
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
                 Objects.equals(timestampField, that.timestampField) &&
+                Objects.equals(tiebreakerField, that.tiebreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
-                Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
-                Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
                 Objects.equals(query, that.query) &&
-                Objects.equals(isCaseSensitive, that.isCaseSensitive);
+                Objects.equals(ccsMinimizeRoundtrips, that.ccsMinimizeRoundtrips) &&
+                Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
+                Objects.equals(keepAlive, that.keepAlive) &&
+                Objects.equals(resultPosition, that.resultPosition) &&
+                Objects.equals(fetchFields, that.fetchFields) &&
+                Objects.equals(runtimeMappings, that.runtimeMappings);
     }
+
 
     @Override
     public int hashCode() {
@@ -285,12 +461,18 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             Arrays.hashCode(indices),
             indicesOptions,
             filter,
+            size,
             fetchSize,
-            timestampField, eventCategoryField,
-            implicitJoinKeyField,
-            searchAfterBuilder,
+            timestampField,
+            tiebreakerField,
+            eventCategoryField,
             query,
-            isCaseSensitive);
+            ccsMinimizeRoundtrips,
+            waitForCompletionTimeout,
+            keepAlive,
+            resultPosition,
+            fetchFields,
+            runtimeMappings);
     }
 
     @Override
@@ -310,13 +492,26 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new EqlSearchTask(id, type, action, () -> {
-            StringBuilder sb = new StringBuilder();
-            sb.append("indices[");
-            Strings.arrayToDelimitedString(indices, ",", sb);
-            sb.append("], ");
-            sb.append(query);
-            return sb.toString();
-        }, parentTaskId, headers);
+        return new EqlSearchTask(id, type, action, getDescription(), parentTaskId, headers, null, null, keepAlive);
+    }
+
+    @Override
+    public boolean allowsRemoteIndices() {
+        return true;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    @Override
+    public String getDescription() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("indices[");
+        Strings.arrayToDelimitedString(indices, ",", sb);
+        sb.append("], ");
+        sb.append(query);
+        return sb.toString();
     }
 }

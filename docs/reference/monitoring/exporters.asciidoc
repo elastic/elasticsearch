@@ -8,9 +8,9 @@
 {metricbeat} is the recommended method for collecting and shipping monitoring
 data to a monitoring cluster.
 
-If you have previously configured internal collection, you should migrate to
-using {metricbeat} collection. Use either {metricbeat} collection or
-internal collection; do not use both.
+If you have previously configured legacy collection methods, you should migrate
+to using {metricbeat} collection methods. Use either {metricbeat} collection or
+legacy collection methods; do not use both.
 
 Learn more about <<configuring-metricbeat>>.
 =========================
@@ -76,7 +76,7 @@ again. While an active monitoring index is read-only, it will naturally fail to
 write (index) new data and will continuously log errors that indicate the write
 failure. For more information, see <<disk-based-shard-allocation>>.
 
-[float]
+[discrete]
 [[es-monitoring-default-exporter]]
 === Default exporters
 
@@ -96,7 +96,7 @@ If another exporter is already defined, the default exporter is _not_ created.
 When you define a new exporter, if the default exporter exists, it is
 automatically removed.
 
-[float]
+[discrete]
 [[es-monitoring-templates]]
 === Exporter templates and ingest pipelines
 

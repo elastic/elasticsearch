@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[get-dfanalytics-stats]]
-=== Get {dfanalytics-jobs} statistics API
+= Get {dfanalytics-jobs} statistics API
 [subs="attributes"]
 ++++
 <titleabbrev>Get {dfanalytics-jobs} stats</titleabbrev>
@@ -9,10 +9,9 @@
 
 Retrieves usage information for {dfanalytics-jobs}.
 
-experimental[]
 
 [[ml-get-dfanalytics-stats-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/data_frame/analytics/<data_frame_analytics_id>/_stats` +
 
@@ -26,17 +25,14 @@ experimental[]
 
 
 [[ml-get-dfanalytics-stats-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
-* cluster: `monitor_ml`
-  
-For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 [[ml-get-dfanalytics-stats-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
 (Optional, string)
@@ -44,10 +40,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-def
 
 
 [[ml-get-dfanalytics-stats-query-params]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 `from`::
@@ -58,9 +54,13 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 (Optional, integer) 
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
+`verbose`::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=verbose]
+
 [role="child_attributes"]
 [[ml-get-dfanalytics-stats-response-body]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 `data_frame_analytics`::
 (array)
@@ -219,7 +219,7 @@ heuristics.
 [%collapsible%open]
 =======
 `compute_feature_influence`::::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
 
 `feature_influence_threshold`::::
@@ -239,7 +239,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=n-neighbors]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
 
 `standardization_enabled`::::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 =======
 //End parameters
@@ -431,9 +431,23 @@ job is started and memory usage is reported.
 .Properties of `memory_usage`
 [%collapsible%open]
 =====
+`memory_reestimate_bytes`::::
+(long)
+This value is present when the `status` is `hard_limit` and it
+is a new estimate of how much memory the job needs.
+
 `peak_usage_bytes`::::
 (long)
 The number of bytes used at the highest peak of memory usage.
+
+`status`::::
+(string)
+The memory usage status. May have one of the following values:
++
+--
+* `ok`: usage stayed below the limit.
+* `hard_limit`: usage surpassed the configured memory limit.
+--
 
 `timestamp`::::
 (date)
@@ -484,7 +498,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 * `coarse_parameter_search` (for {regression} and {classification} only),
 * `fine_tuning_parameters` (for {regression} and {classification} only),
 * `final_training` (for {regression} and {classification} only),
-* `writing_results`.
+* `writing_results`,
+* `inference` (for {regression} and {classification} only).
 +
 To learn more about the different phases, refer to
 {ml-docs}/ml-dfa-phases.html[How a {dfanalytics} job works].
@@ -496,14 +511,13 @@ percentage.
 
 `state`:::
 (string) The status of the {dfanalytics-job}, which can be one of the following
-values: `analyzing`, `failed`, `reindexing`, `started`, `starting`,`stopping`, 
-`stopped`.
+values: `failed`, `started`, `starting`,`stopping`, `stopped`.
 ====
 //End of data_frame_analytics
 
 
 [[ml-get-dfanalytics-stats-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
@@ -511,14 +525,14 @@ values: `analyzing`, `failed`, `reindexing`, `started`, `starting`,`stopping`,
 
 
 [[ml-get-dfanalytics-stats-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 The following API retrieves usage information for the
-{ml-docs}/ecommerce-outliers.html[{oldetection} {dfanalytics-job} example]:
+{ml-docs}/ml-dfa-finding-outliers.html#weblogs-outliers[{oldetection} {dfanalytics-job} example]:
 
 [source,console]
 --------------------------------------------------
-GET _ml/data_frame/analytics/ecommerce/_stats
+GET _ml/data_frame/analytics/weblog-outliers/_stats
 --------------------------------------------------
 // TEST[skip:Kibana sample data]
 
@@ -528,7 +542,7 @@ GET _ml/data_frame/analytics/ecommerce/_stats
   "count" : 1,
   "data_frame_analytics" : [
     {
-      "id" : "ecommerce",
+      "id" : "weblog-outliers",
       "state" : "stopped",
       "progress" : [
         {
@@ -540,7 +554,7 @@ GET _ml/data_frame/analytics/ecommerce/_stats
           "progress_percent" : 100
         },
         {
-          "phase" : "analyzing",
+          "phase" : "computing_outliers",
           "progress_percent" : 100
         },
         {
@@ -549,17 +563,18 @@ GET _ml/data_frame/analytics/ecommerce/_stats
         }
       ],
       "data_counts" : {
-        "training_docs_count" : 3321,
+        "training_docs_count" : 1001,
         "test_docs_count" : 0,
         "skipped_docs_count" : 0
       },
       "memory_usage" : {
-        "timestamp" : 1586905058000,
-        "peak_usage_bytes" : 279484
+        "timestamp" : 1626264770206,
+        "peak_usage_bytes" : 328011,
+        "status" : "ok"
       },
       "analysis_stats" : {
         "outlier_detection_stats" : {
-          "timestamp" : 1586905058000,
+          "timestamp" : 1626264770206,
           "parameters" : {
             "n_neighbors" : 0,
             "method" : "ensemble",
@@ -569,7 +584,7 @@ GET _ml/data_frame/analytics/ecommerce/_stats
             "standardization_enabled" : true
           },
           "timing_stats" : {
-            "elapsed_time" : 245
+            "elapsed_time" : 32
           }
         }
       }

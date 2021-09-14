@@ -5,6 +5,11 @@
       "description":"Updates a document with a script or partial document."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -99,6 +104,10 @@
       "if_primary_term":{
         "type":"number",
         "description":"only perform the update operation if the last operation that has changed the document has the specified primary term"
+      },
+      "require_alias": {
+        "type": "boolean",
+        "description": "When true, requires destination is an alias. Default is false"
       }
     },
     "body":{

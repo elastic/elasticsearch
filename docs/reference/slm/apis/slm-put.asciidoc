@@ -1,7 +1,7 @@
 [[slm-api-put-policy]]
-=== Put snapshot lifecycle policy API
+=== Create or update snapshot lifecycle policy API
 ++++
-<titleabbrev>Put policy</titleabbrev>
+<titleabbrev>Create or update policy</titleabbrev>
 ++++
 
 Creates or updates a snapshot lifecycle policy.
@@ -23,7 +23,7 @@ For more information, see <<security-privileges>>.
 [[slm-api-put-desc]]
 ==== {api-description-title}
 
-Use the put snapshot lifecycle policy API
+Use the create or update snapshot lifecycle policy API
 to create or update a snapshot lifecycle policy.
 
 If the policy already exists,
@@ -54,25 +54,15 @@ Configuration for each snapshot created by the policy.
 .Properties of `config`
 [%collapsible%open]
 ====
-`ignore_unavailable`::
-(Optional, boolean)
-If `true`, missing indices do *not* cause snapshot creation to fail and return
-an error. Defaults to `false`.
-
-`include_global_state`::
-(Optional, boolean)
-If `true`, cluster states are included in snapshots. Defaults to `false`.
-
-`indices`::
-(Optional, array of strings)
-Array of index names or wildcard pattern of index names included in snapshots. It
-supports <<date-math-index-names,date math>> expressions.
+:page-id: put-slm-api
+include::{es-repo-dir}/snapshot-restore/apis/create-snapshot-api.asciidoc[tag=snapshot-config]
+:!page-id:
 ====
 
 `name`::
 (Required, string)
-Name automatically assigned to each snapshot created by the policy. This value
-supports the same <<date-math-index-names,date math>> supported in index names.
+Name automatically assigned to each snapshot created by the policy.
+<<date-math-index-names,Date math>> is supported.
 To prevent conflicting snapshot names, a UUID is automatically appended to each 
 snapshot name.
 
@@ -93,13 +83,18 @@ Retention rules used to retain and delete snapshots created by the policy.
 `expire_after`::
 (Optional, <<time-units, time units>>)
 Time period after which a snapshot is considered expired and eligible for
-deletion.
+deletion. {slm-init} deletes expired snapshots based on the
+<<slm-retention-schedule,`slm.retention_schedule`>>.
 
 `max_count`::
 (Optional, integer)
 Maximum number of snapshots to retain, even if the snapshots have not yet
 expired. If the number of snapshots in the repository exceeds this limit, the 
 policy retains the most recent snapshots and deletes older snapshots.
++
+NOTE: The maximum number of snapshots in a repository should not exceed `200`. This ensures that the snapshot repository metadata does not
+grow to a size which might destabilize the master node. If the `max_count` setting is not set, this limit should be enforced by configuring
+other retention rules such that the repository size does not exceed `200` snapshots.
 
 `min_count`::
 (Optional, integer)
@@ -108,8 +103,8 @@ Minimum number of snapshots to retain, even if the snapshots have expired.
 
 `schedule`::
 (Required, <<cron-expressions,Cron syntax>>)
-Periodic or absolute schedule at which the policy creates snapshots and deletes 
-expired snapshots. Schedule changes to existing policies are applied immediately.
+Periodic or absolute schedule at which the policy creates snapshots. {slm-init}
+applies `schedule` changes immediately.
 
 [[slm-api-put-example]]
 ==== {api-examples-title}
@@ -141,7 +136,7 @@ PUT /_slm/policy/daily-snapshots
 <2> The name each snapshot should be given
 <3> Which repository to take the snapshot in
 <4> Any extra snapshot configuration
-<5> Which indices the snapshot should contain
+<5> Data streams and indices the snapshot should contain
 <6> Optional retention configuration
 <7> Keep snapshots for 30 days
 <8> Always keep at least 5 successful snapshots, even if they're more than 30 days old

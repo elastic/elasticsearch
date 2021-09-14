@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.user;
 
@@ -22,8 +23,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -31,8 +34,6 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -51,7 +53,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.AdditionalMatchers.aryEq;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -132,7 +133,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
                 usersStore, transportService, mock(ReservedRealm.class));
 
         GetUsersRequest request = new GetUsersRequest();
-        request.usernames(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
+        request.usernames(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal(),
+            XPackSecurityUser.INSTANCE.principal(), AsyncSearchUser.INSTANCE.principal()));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
@@ -214,15 +216,14 @@ public class TransportGetUsersActionTests extends ESTestCase {
                 usersStore, transportService, reservedRealm);
 
         GetUsersRequest request = new GetUsersRequest();
-        doAnswer(new Answer() {
-            public Void answer(InvocationOnMock invocation) {
-                Object[] args = invocation.getArguments();
-                assert args.length == 2;
-                ActionListener<List<User>> listener = (ActionListener<List<User>>) args[1];
-                listener.onResponse(storeUsers);
-                return null;
-            }
-        }).when(usersStore).getUsers(eq(Strings.EMPTY_ARRAY), any(ActionListener.class));
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 2;
+            @SuppressWarnings("unchecked")
+            ActionListener<List<User>> listener = (ActionListener<List<User>>) args[1];
+            listener.onResponse(storeUsers);
+            return null;
+        }).when(usersStore).getUsers(eq(Strings.EMPTY_ARRAY), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
@@ -247,7 +248,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().users(), arrayContaining(expectedList.toArray(new User[expectedList.size()])));
-        verify(usersStore, times(1)).getUsers(aryEq(Strings.EMPTY_ARRAY), any(ActionListener.class));
+        verify(usersStore, times(1)).getUsers(aryEq(Strings.EMPTY_ARRAY), anyActionListener());
     }
 
     public void testGetStoreOnlyUsers() {
@@ -265,10 +266,11 @@ public class TransportGetUsersActionTests extends ESTestCase {
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
+            @SuppressWarnings("unchecked")
             ActionListener<List<User>> listener = (ActionListener<List<User>>) args[1];
             listener.onResponse(storeUsers);
             return null;
-        }).when(usersStore).getUsers(aryEq(storeUsernames), any(ActionListener.class));
+        }).when(usersStore).getUsers(aryEq(storeUsernames), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
@@ -291,9 +293,9 @@ public class TransportGetUsersActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().users(), arrayContaining(expectedList.toArray(new User[expectedList.size()])));
         if (storeUsers.size() > 1) {
-            verify(usersStore, times(1)).getUsers(aryEq(storeUsernames), any(ActionListener.class));
+            verify(usersStore, times(1)).getUsers(aryEq(storeUsernames), anyActionListener());
         } else {
-            verify(usersStore, times(1)).getUsers(aryEq(new String[] {storeUsernames[0]}), any(ActionListener.class));
+            verify(usersStore, times(1)).getUsers(aryEq(new String[] {storeUsernames[0]}), anyActionListener());
         }
     }
 
@@ -313,10 +315,11 @@ public class TransportGetUsersActionTests extends ESTestCase {
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
+            @SuppressWarnings("unchecked")
             ActionListener<List<User>> listener = (ActionListener<List<User>>) args[1];
             listener.onFailure(e);
             return null;
-        }).when(usersStore).getUsers(aryEq(storeUsernames), any(ActionListener.class));
+        }).when(usersStore).getUsers(aryEq(storeUsernames), anyActionListener());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
@@ -335,7 +338,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), is(sameInstance(e)));
         assertThat(responseRef.get(), is(nullValue()));
-        verify(usersStore, times(1)).getUsers(aryEq(storeUsernames), any(ActionListener.class));
+        verify(usersStore, times(1)).getUsers(aryEq(storeUsernames), anyActionListener());
     }
 
     private List<User> randomUsers() {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -12,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -32,19 +34,20 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -66,9 +69,11 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -111,19 +116,22 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     public void validate(ShardFollowTask params, ClusterState clusterState) {
-        IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
-        if (routingTable.shard(params.getFollowShardId().id()).primaryShard().started() == false) {
-            throw new IllegalArgumentException("Not all copies of follow shard are started");
+        final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
+        final ShardRouting primaryShard = routingTable.shard(params.getFollowShardId().id()).primaryShard();
+        if (primaryShard.active() == false) {
+            throw new IllegalArgumentException("The primary shard of a follower index " + primaryShard + " is not active");
         }
     }
 
     private static final Assignment NO_ASSIGNMENT = new Assignment(null, "no nodes found with data and remote cluster client roles");
 
     @Override
-    public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
+    public Assignment getAssignment(final ShardFollowTask params,
+                                    Collection<DiscoveryNode> candidateNodes,
+                                    final ClusterState clusterState) {
         final DiscoveryNode node = selectLeastLoadedNode(
-            clusterState,
-            ((Predicate<DiscoveryNode>) DiscoveryNode::isDataNode).and(DiscoveryNode::isRemoteClusterClient)
+            clusterState, candidateNodes,
+            ((Predicate<DiscoveryNode>) DiscoveryNode::canContainData).and(DiscoveryNode::isRemoteClusterClient)
         );
         if (node == null) {
             return NO_ASSIGNMENT;
@@ -205,8 +213,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                         // if so just update the follower index's settings:
                         if (updatedSettings.keySet().stream().allMatch(indexScopedSettings::isDynamicSetting)) {
                             // If only dynamic settings have been updated then just update these settings in follower index:
-                            final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName());
-                            updateSettingsRequest.settings(updatedSettings);
+                            final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName())
+                                .masterNodeTimeout(TimeValue.MAX_VALUE)
+                                .settings(updatedSettings);
                             followerClient.admin().indices().updateSettings(updateSettingsRequest,
                                 ActionListener.wrap(response -> finalHandler.accept(leaderIMD.getSettingsVersion()), errorHandler));
                         } else {
@@ -327,7 +336,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     if (aliasActions.isEmpty()) {
                         handler.accept(leaderIndexMetadata.getAliasesVersion());
                     } else {
-                        final var request = new IndicesAliasesRequest();
+                        final var request = new IndicesAliasesRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
                         request.origin("ccr");
                         aliasActions.forEach(request::addAliasAction);
                         followerClient.admin().indices().aliases(
@@ -347,7 +356,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                               Settings updatedSettings,
                                                               Runnable handler,
                                                               Consumer<Exception> onFailure) {
-                CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex);
+                CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex).masterNodeTimeout(TimeValue.MAX_VALUE);
                 CheckedConsumer<CloseIndexResponse, Exception> onResponse = response -> {
                     updateSettingsAndOpenIndex(followIndex, updatedSettings, handler, onFailure);
                 };
@@ -358,7 +367,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                     Settings updatedSettings,
                                                     Runnable handler,
                                                     Consumer<Exception> onFailure) {
-                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex);
+                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex)
+                    .masterNodeTimeout(TimeValue.MAX_VALUE);
                 updateSettingsRequest.settings(updatedSettings);
                 CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> openIndex(followIndex, handler, onFailure);
                 followerClient.admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(onResponse, onFailure));
@@ -367,7 +377,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             private void openIndex(String followIndex,
                                    Runnable handler,
                                    Consumer<Exception> onFailure) {
-                OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex);
+                OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex).masterNodeTimeout(TimeValue.MAX_VALUE);
                 CheckedConsumer<OpenIndexResponse, Exception> onResponse = response -> handler.run();
                 followerClient.admin().indices().open(openIndexRequest, ActionListener.wrap(onResponse, onFailure));
             }
@@ -415,7 +425,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                  * again. If that fails, it had better not be because the retention lease already exists. Either way, we will attempt to
                  * renew again on the next scheduled execution.
                  */
-                final ActionListener<RetentionLeaseActions.Response> listener = ActionListener.wrap(
+                final ActionListener<ActionResponse.Empty> listener = ActionListener.wrap(
                         r -> {},
                         e -> {
                             /*
@@ -439,7 +449,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                         params.getFollowShardId(),
                                         retentionLeaseId);
                                 try {
-                                    final ActionListener<RetentionLeaseActions.Response> wrappedListener = ActionListener.wrap(
+                                    final ActionListener<ActionResponse.Empty> wrappedListener = ActionListener.wrap(
                                         r -> {},
                                         inner -> {
                                             /*
@@ -452,7 +462,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                     CcrRetentionLeases.asyncAddRetentionLease(
                                         params.getLeaderShardId(),
                                         retentionLeaseId,
-                                        followerGlobalCheckpoint.getAsLong(),
+                                        followerGlobalCheckpoint.getAsLong() + 1,
                                         remoteClient(params),
                                         wrappedListener);
                                 } catch (NoSuchRemoteClusterException rce) {
@@ -477,7 +487,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                 CcrRetentionLeases.asyncRenewRetentionLease(
                                         params.getLeaderShardId(),
                                         retentionLeaseId,
-                                        followerGlobalCheckpoint.getAsLong(),
+                                        followerGlobalCheckpoint.getAsLong() + 1,
                                         remoteClient(params),
                                         listener);
                             }
@@ -532,9 +542,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             if (ShardFollowNodeTask.shouldRetry(e)) {
                 logger.debug(new ParameterizedMessage("failed to fetch follow shard global {} checkpoint and max sequence number",
                     shardFollowNodeTask), e);
-                threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME);
+                try {
+                    threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME);
+                } catch (EsRejectedExecutionException rex) {
+                    rex.addSuppressed(e);
+                    shardFollowNodeTask.onFatalFailure(rex);
+                }
             } else {
-                shardFollowNodeTask.setFatalException(e);
+                shardFollowNodeTask.onFatalFailure(e);
             }
         };
 

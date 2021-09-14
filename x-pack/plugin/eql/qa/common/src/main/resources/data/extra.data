@@ -1,0 +1,38 @@
+[
+ {
+  "@timestamp": "1",
+  "event_type": "REQUEST",
+  "transID": 1234,
+  "sequence": 1
+ },
+ {
+  "@timestamp": "2",
+  "event_type": "ERROR",
+  "transID": 1234,
+  "sequence": 2
+ },
+ {
+  "@timestamp": "3",
+  "event_type": "STAT",
+  "transID": 1234,
+  "sequence": 3
+ },
+ {
+  "@timestamp": "10",
+  "event_type": "REQUEST",
+  "transID": 1235,
+  "sequence": 1
+ },
+ {
+  "@timestamp": "11",
+  "event_type": "ERROR",
+  "transID": 1235,
+  "sequence": 2
+ },
+ {
+  "@timestamp": "11",
+  "event_type": "STAT",
+  "transID": 1235,
+  "sequence": 3
+ }
+]

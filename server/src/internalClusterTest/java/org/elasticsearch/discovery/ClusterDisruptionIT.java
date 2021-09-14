@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery;
@@ -27,19 +16,22 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -48,11 +40,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -72,6 +64,11 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -112,7 +109,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         issueUrl = "https://github.com/elastic/elasticsearch/issues/41068")
     public void testAckedIndexing() throws Exception {
 
-        final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
+        final int seconds = (TEST_NIGHTLY && rarely()) == false ? 1 : 5;
         final String timeout = seconds + "s";
 
         final List<String> nodes = startCluster(rarely() ? 5 : 3);
@@ -149,10 +146,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 final String name = "indexer_" + indexers.size();
                 final int numPrimaries = getNumShards("test").numPrimaries;
                 Thread thread = new Thread(() -> {
-                    while (!stop.get()) {
+                    while (stop.get() == false) {
                         String id = null;
                         try {
-                            if (!semaphore.tryAcquire(10, TimeUnit.SECONDS)) {
+                            if (semaphore.tryAcquire(10, TimeUnit.SECONDS) == false) {
                                 continue;
                             }
                             logger.info("[{}] Acquired semaphore and it has {} permits left", name, semaphore.availablePermits());
@@ -325,7 +322,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testSendingShardFailure() throws Exception {
         List<String> nodes = startCluster(3);
         String masterNode = internalCluster().getMasterName();
-        List<String> nonMasterNodes = nodes.stream().filter(node -> !node.equals(masterNode)).collect(Collectors.toList());
+        List<String> nonMasterNodes = nodes.stream().filter(node -> node.equals(masterNode) == false).collect(Collectors.toList());
         String nonMasterNode = randomFrom(nonMasterNodes);
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()
@@ -346,8 +343,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         TwoPartitions partitions = isolateNode(isolatedNode);
         // we cannot use the NetworkUnresponsive disruption type here as it will swallow the "shard failed" request, calling neither
         // onSuccess nor onFailure on the provided listener.
-        NetworkLinkDisruptionType disruptionType = new NetworkDisconnect();
-        NetworkDisruption networkDisruption = new NetworkDisruption(partitions, disruptionType);
+        NetworkDisruption networkDisruption = new NetworkDisruption(partitions, NetworkDisruption.DISCONNECT);
         setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
@@ -444,7 +440,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         final String masterNode1 = internalCluster().getMasterName();
         NetworkDisruption networkDisruption =
-                new NetworkDisruption(new TwoPartitions(masterNode1, dataNode), new NetworkDisruption.NetworkUnresponsive());
+            new NetworkDisruption(new TwoPartitions(masterNode1, dataNode), NetworkDisruption.UNRESPONSIVE);
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
         // We know this will time out due to the partition, we check manually below to not proceed until
@@ -508,4 +504,63 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         }
     }
 
+    public void testRejoinWhileBeingRemoved() {
+        final String masterNode = internalCluster().startMasterOnlyNode(Settings.builder()
+            .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+            .build());
+        final String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
+            .put(DISCOVERY_FIND_PEERS_INTERVAL_SETTING.getKey(), "100ms")
+            .put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+            .build());
+
+        final ClusterService masterClusterService = internalCluster().getInstance(ClusterService.class, masterNode);
+        final PlainActionFuture<Void> removedNode = new PlainActionFuture<>();
+        masterClusterService.addListener(clusterChangedEvent -> {
+            if (removedNode.isDone() == false && clusterChangedEvent.state().nodes().getDataNodes().isEmpty()) {
+                removedNode.onResponse(null);
+            }
+        });
+
+        final ClusterService dataClusterService = internalCluster().getInstance(ClusterService.class, dataNode);
+        final PlainActionFuture<Void> failedLeader = new PlainActionFuture<>() {
+            @Override
+            protected boolean blockingAllowed() {
+                // we're deliberately blocking the cluster applier on the master until the data node starts to rejoin
+                return true;
+            }
+        };
+        final AtomicBoolean dataNodeHasMaster = new AtomicBoolean(true);
+        dataClusterService.addListener(clusterChangedEvent -> {
+            dataNodeHasMaster.set(clusterChangedEvent.state().nodes().getMasterNode() != null);
+            if (failedLeader.isDone() == false && dataNodeHasMaster.get() == false) {
+                failedLeader.onResponse(null);
+            }
+        });
+
+        masterClusterService.addHighPriorityApplier(event -> {
+            failedLeader.actionGet();
+            if (dataNodeHasMaster.get() == false) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            }
+        });
+
+        final MockTransportService dataTransportService
+            = (MockTransportService) internalCluster().getInstance(TransportService.class, dataNode);
+        dataTransportService.addRequestHandlingBehavior(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME, (handler, request, channel, task) -> {
+            if (removedNode.isDone() == false) {
+                channel.sendResponse(new ElasticsearchException("simulated check failure"));
+            } else {
+                handler.messageReceived(request, channel, task);
+            }
+        });
+
+        removedNode.actionGet(10, TimeUnit.SECONDS);
+        ensureStableCluster(2);
+    }
 }

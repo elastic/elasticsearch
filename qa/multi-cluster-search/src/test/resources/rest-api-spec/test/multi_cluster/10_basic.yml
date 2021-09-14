@@ -294,7 +294,7 @@
   - match: { hits.total: 12 }
 
 ---
-"Search an filtered alias on the remote cluster":
+"Search a filtered alias on the remote cluster":
 
   - do:
       search:
@@ -311,12 +311,12 @@
   - match: { hits.hits.0._index: "my_remote_cluster:test_index" }
 
 ---
-"Search an filtered alias and empty index on the remote cluster":
+"Search a filtered alias and empty index on the remote cluster":
 
   - do:
       search:
         rest_total_hits_as_int: true
-        index: my_remote_cluster:aliased_test_index,my_remote_cluster:field_caps_index_1
+        index: my_remote_cluster:aliased_test_index,my_remote_cluster:field_caps_empty_index
 
   - is_false: num_reduce_phases
   - match: {_clusters.total: 1}

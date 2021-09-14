@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-stop-datafeed]]
-=== Stop {dfeeds} API
+= Stop {dfeeds} API
 
 [subs="attributes"]
 ++++
@@ -11,7 +11,7 @@
 Stops one or more {dfeeds}.
 
 [[ml-stop-datafeed-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/datafeeds/<feed_id>/_stop` +
 
@@ -20,14 +20,13 @@ Stops one or more {dfeeds}.
 `POST _ml/datafeeds/_all/_stop`
 
 [[ml-stop-datafeed-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>>.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-stop-datafeed-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 A {dfeed} that is stopped ceases to retrieve data from {es}.
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
@@ -37,38 +36,38 @@ comma-separated list of {dfeeds} or a wildcard expression. You can close all
 {dfeeds} by using `_all` or by specifying `*` as the `<feed_id>`.
 
 [[ml-stop-datafeed-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<feed_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
 
 [[ml-stop-datafeed-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
-`allow_no_datafeeds`::
-(Optional, boolean)
+`allow_no_match`::
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
 [[ml-stop-datafeed-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `force`::
-  (Optional, boolean) If true, the {dfeed} is stopped forcefully.
+  (Optional, Boolean) If true, the {dfeed} is stopped forcefully.
 
 `timeout`::
   (Optional, time) Controls the amount of time to wait until a {dfeed} stops.
   The default value is 20 seconds.
 
 [[ml-stop-datafeed-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
-  If `allow_no_datafeeds` is `false`, this code indicates that there are no
+  If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request.
 
 [[ml-stop-datafeed-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

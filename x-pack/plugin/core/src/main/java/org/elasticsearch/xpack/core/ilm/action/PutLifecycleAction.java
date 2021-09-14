@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm.action;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,27 +19,17 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutLifecycleAction extends ActionType<PutLifecycleAction.Response> {
+public class PutLifecycleAction extends ActionType<AcknowledgedResponse> {
     public static final PutLifecycleAction INSTANCE = new PutLifecycleAction();
     public static final String NAME = "cluster:admin/ilm/put";
 
     protected PutLifecycleAction() {
-        super(NAME, PutLifecycleAction.Response::new);
-    }
-
-    public static class Response extends AcknowledgedResponse implements ToXContentObject {
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -70,7 +61,14 @@ public class PutLifecycleAction extends ActionType<PutLifecycleAction.Response> 
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            this.policy.validate();
+            ActionRequestValidationException err = null;
+            String phaseTimingErr = TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings(this.policy.getPhases().values());
+            if (Strings.hasText(phaseTimingErr)) {
+                err = new ActionRequestValidationException();
+                err.addValidationError(phaseTimingErr);
+            }
+            return err;
         }
 
         public static Request parseRequest(String name, XContentParser parser) {

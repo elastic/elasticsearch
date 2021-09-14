@@ -4,32 +4,34 @@
 <titleabbrev>Get index</titleabbrev>
 ++++
 
-Returns information about one or more indexes.
+Returns information about one or more indices. For data streams, the API
+returns information about the stream's backing indices.
 
 [source,console]
 --------------------------------------------------
-GET /twitter
+GET /my-index-000001
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[get-index-api-request]]
 ==== {api-request-title}
 
-`GET /<index>`
+`GET /<target>`
 
+[[get-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target data stream, index, or alias.
 
 [[get-index-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-+
---
-(Required, string) Comma-separated list or wildcard expression of index names
-used to limit the request.
-
-Use a value of `_all` to retrieve information for all indices in the cluster.
---
-
+`<target>`::
+(Required, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[get-index-api-query-params]]
 ==== {api-query-parms-title}
@@ -46,7 +48,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+`ignore_unavailable`::
+(Optional, Boolean)
+If `false`, requests that target a missing index return an error. Defaults to
+`false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 

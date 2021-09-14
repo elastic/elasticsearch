@@ -1,26 +1,33 @@
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 esplugin {
   name 'x-pack-ml'
   description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
   classname 'org.elasticsearch.xpack.ml.MachineLearning'
   hasNativeController true
-  extendedPlugins = ['x-pack-core', 'lang-painless']
+  extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
 
 repositories {
-  ivy {
-    name "ml-cpp"
-    url System.getProperty('build.ml_cpp.repo', 'https://prelert-artifacts.s3.amazonaws.com')
-    metadataSources {
-      // no repository metadata, look directly for the artifact
-      artifact()
+  exclusiveContent {
+    forRepository {
+      ivy {
+        name "ml-cpp"
+        url providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').forUseAtConfigurationTime().get()
+        metadataSources {
+          // no repository metadata, look directly for the artifact
+          artifact()
+        }
+        patternLayout {
+          artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+        }
+      }
     }
-    patternLayout {
-      artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+    filter {
+      includeGroup 'org.elasticsearch.ml'
     }
   }
 }
@@ -36,7 +43,7 @@ configurations {
   }
 }
 
-bundlePlugin {
+tasks.named("bundlePlugin").configure {
   dependsOn configurations.nativeBundle
   from {
     project.zipTree(configurations.nativeBundle.singleFile)
@@ -49,38 +56,32 @@ bundlePlugin {
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ilm'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('autoscaling'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('shutdown'))
+  testImplementation project(path: xpackModule('data-streams'))
+  testImplementation project(':modules:ingest-common')
   // This should not be here
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-
+  testImplementation(testArtifact(project(xpackModule('security'))))
   // ml deps
-  compile project(':libs:elasticsearch-grok')
-  compile "com.ibm.icu:icu4j:${versions.icu4j}"
-  compile "net.sf.supercsv:super-csv:${versions.supercsv}"
+  api project(':libs:elasticsearch-grok')
+  api "org.apache.commons:commons-math3:3.6.1"
   nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
     changing = true
   }
-  testCompile 'org.ini4j:ini4j:0.5.2'
+  testImplementation 'org.ini4j:ini4j:0.5.2'
 }
 
-configurations {
-  testArtifacts.extendsFrom testRuntime
-}
-task testJar(type: Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
 artifacts {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives jar
-  testArtifacts testJar
+  archives tasks.named("jar")
 }
 
-task extractNativeLicenses(type: Copy) {
+tasks.register("extractNativeLicenses", Copy) {
   dependsOn configurations.nativeBundle
-  into "${buildDir}"
+  into "${buildDir}/extractedNativeLicenses"
   from {
     project.zipTree(configurations.nativeBundle.singleFile)
   }
@@ -88,23 +89,13 @@ task extractNativeLicenses(type: Copy) {
 }
 project.afterEvaluate {
   // Add an extra licenses directory to the combined notices
-  project.tasks.findByName('generateNotice').dependsOn extractNativeLicenses
-  project.tasks.findByName('generateNotice').licensesDir new File("${project.buildDir}/platform/licenses")
-  project.tasks.findByName('generateNotice').outputs.upToDateWhen {
-    extractNativeLicenses.state.upToDate
+  tasks.named('generateNotice').configure {
+    dependsOn "extractNativeLicenses"
+    licensesDir new File("${project.buildDir}/extractedNativeLicenses/platform/licenses")
+    outputs.upToDateWhen {
+      extractNativeLicenses.didWork
+    }
   }
 }
 
-// xpack modules are installed in real clusters as the meta plugin, so
-// installing them as individual plugins for integ tests doesn't make sense,
-// so we disable integ tests
-integTest.enabled = false
-
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
-}
+addQaCheckDependencies()

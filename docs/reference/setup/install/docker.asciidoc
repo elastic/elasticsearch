@@ -1,20 +1,16 @@
 [[docker]]
 === Install {es} with Docker
 
-{es} is also available as Docker images.
-The images use https://hub.docker.com/_/centos/[centos:7] as the base image.
+{es} is also available as Docker images. Starting with version 8.0.0, these
+are based upon a tiny core of essential files. Prior versions used
+https://hub.docker.com/_/centos/[centos:8] as the base image.
 
 A list of all published Docker images and tags is available at
 https://www.docker.elastic.co[www.docker.elastic.co]. The source files
 are in
 https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
-These images are free to use under the Elastic license. They contain open source
-and free commercial features and access to paid commercial features.
-{stack-ov}/license-management.html[Start a 30-day trial] to try out all of the
-paid commercial features. See the
-https://www.elastic.co/subscriptions[Subscriptions] page for information about
-Elastic license levels.
+include::license.asciidoc[]
 
 ==== Pulling the image
 
@@ -34,10 +30,6 @@ ifeval::["{release-state}"!="unreleased"]
 --------------------------------------------
 docker pull {docker-repo}:{version}
 --------------------------------------------
-
-Alternatively, you can download other Docker images that contain only features
-available under the Apache 2.0 license. To download the images, go to
-https://www.docker.elastic.co[www.docker.elastic.co].
 
 endif::[]
 
@@ -84,6 +76,10 @@ include::docker-compose.yml[]
 --------------------------------------------
 endif::[]
 
+NOTE: This sample `docker-compose.yml` file uses the `ES_JAVA_OPTS`
+environment variable to manually set the heap size to 512MB. We do not recommend
+using `ES_JAVA_OPTS` in production. See <<docker-set-heap-size>>.
+
 This sample Docker Compose file brings up a three-node {es} cluster.
 Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
 
@@ -93,7 +89,7 @@ potentially ignoring any firewall settings. If you don't want to expose port 920
 a reverse proxy, replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
 {es} will then only be accessible from the host machine itself.
 
-The  https://docs.docker.com/storage/volumes[Docker named volumes]
+The https://docs.docker.com/storage/volumes[Docker named volumes]
 `data01`, `data02`, and `data03` store the node data directories so the data persists across restarts.
 If they don't already exist, `docker-compose` creates them when you bring up the cluster.
 --
@@ -116,12 +112,14 @@ docker-compose up
 +
 [source,sh]
 --------------------------------------------------
-curl -X GET "localhost:9200/_cat/nodes?v&pretty"
+curl -X GET "localhost:9200/_cat/nodes?v=true&pretty"
 --------------------------------------------------
 // NOTCONSOLE
 
 Log messages go to the console and are handled by the configured Docker logging driver.
-By default you can access logs with `docker logs`.
+By default you can access logs with `docker logs`. If you would prefer the {es}
+container to write logs to disk, set the `ES_LOG_STYLE` environment variable to `file`.
+This causes {es} to use the same logging configuration as other {es} distribution formats.
 
 To stop the cluster, run `docker-compose down`.
 The data in the Docker volumes is preserved and loaded
@@ -165,7 +163,7 @@ sysctl -w vm.max_map_count=262144
 --------------------------------------------
 --
 
-* macOS with  https://docs.docker.com/docker-for-mac[Docker for Mac]
+* macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
 +
 --
 The `vm.max_map_count` setting must be set within the xhyve virtual machine:
@@ -199,6 +197,18 @@ sudo sysctl -w vm.max_map_count=262144
 --------------------------------------------
 --
 
+* Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
++
+--
+The `vm.max_map_count` setting must be set in the docker-desktop container:
+
+[source,sh]
+--------------------------------------------
+wsl -d docker-desktop
+sysctl -w vm.max_map_count=262144
+--------------------------------------------
+--
+
 ===== Configuration files must be readable by the `elasticsearch` user
 
 By default, {es} runs inside the container as user `elasticsearch` using
@@ -209,7 +219,8 @@ which runs containers using an arbitrarily assigned user ID.
 Openshift presents persistent volumes with the gid set to `0`, which works without any adjustments.
 
 If you are bind-mounting a local directory or file, it must be readable by the `elasticsearch` user.
-In addition, this user must have write access to the <<path-settings,data and log dirs>>.
+In addition, this user must have write access to the <<path-settings,config, data and log dirs>>
+({es} needs write access to the `config` directory so that it can generate a keystore).
 A good strategy is to grant group access to gid `0` for the local directory.
 
 For example, to prepare a local directory for storing data through a bind-mount:
@@ -220,6 +231,12 @@ mkdir esdatadir
 chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
+
+You can also run an {es} container using both a custom UID and GID. Unless you
+bind-mount each of the `config`, `data` and `logs` directories, you must pass
+the command line option `--group-add 0` to `docker run`. This ensures that the user
+under which {es} is running is also a member of the `root` (GID 0) group inside the
+container.
 
 ===== Increase ulimits for nofile and nproc
 
@@ -232,7 +249,7 @@ To check the Docker daemon defaults for ulimits, run:
 
 [source,sh]
 --------------------------------------------
-docker run --rm centos:7 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
+docker run --rm centos:8 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
 --------------------------------------------
 
 If needed, adjust them in the Daemon or override them per container.
@@ -264,24 +281,23 @@ published ports with `--publish-all` is recommended,
 unless you are pinning one container per host.
 
 [[docker-set-heap-size]]
-===== Set the heap size
+===== Manually set the heap size
 
-To configure the heap size, you can bind mount a <<jvm-options,JVM options>>
-file under `/usr/share/elasticsearch/config/jvm.options.d` that includes your
-desired <<heap-size,heap size>> settings. Note that while the default root
-`jvm.options` file sets a default heap of 1 GB, any value you set in a
-bind-mounted JVM options file will override it.
+By default, {es} automatically sizes JVM heap based on a nodes's
+<<node-roles,roles>> and the total memory available to the node's container. We
+recommend this default sizing for most production environments. If needed, you
+can override default sizing by manually setting JVM heap size.
 
-While setting the heap size via bind-mounted JVM options is the recommended
-method, you can also configure this by using the `ES_JAVA_OPTS` environment
-variable to set the heap size. For example, to use 16 GB, specify
-`-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. Note that while the
-default root `jvm.options` file sets a default heap of 1 GB, any value you set
-in `ES_JAVA_OPTS` will override it. The `docker-compose.yml` file above sets the heap size to 512 MB.
+To manually set the heap size in production, bind mount a <<set-jvm-options,JVM
+options>> file under `/usr/share/elasticsearch/config/jvm.options.d` that
+includes your desired <<set-jvm-heap-size,heap size>> settings.
 
-IMPORTANT: You must <<heap-size,configure the heap size>> even if you are
-https://docs.docker.com/config/containers/resource_constraints/#limit-a-containers-access-to-memory[limiting
-memory access] to the container.
+For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
+environment variable. For example, to use 16GB, specify `-e
+ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
+overrides all other JVM options. The `ES_JAVA_OPTS` variable overrides all other
+JVM options. We do not recommend using `ES_JAVA_OPTS` in production. The
+`docker-compose.yml` file above sets the heap size to 512MB.
 
 ===== Pin deployments to a specific image version
 
@@ -292,7 +308,7 @@ example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
 
 You should use a volume bound on `/usr/share/elasticsearch/data` for the following reasons:
 
-.  The data of your {es} node won't be lost if the container is killed
+. The data of your {es} node won't be lost if the container is killed
 
 . {es} is I/O sensitive and the Docker storage driver is not ideal for fast I/O
 
@@ -323,22 +339,35 @@ over the configuration files in the image.
 
 You can set individual {es} configuration parameters using Docker environment variables.
 The <<docker-compose-file, sample compose file>> and the
-<<docker-cli-run-dev-mode, single-node example>> use this method.
+<<docker-cli-run-dev-mode, single-node example>> use this method. You can
+use the setting name directly as the environment variable name. If
+you cannot do this, for example because your orchestration platform forbids
+periods in environment variable names, then you can use an alternative
+style by converting the setting name as follows.
 
-To use the contents of a file to set an environment variable, suffix the environment
-variable name with `_FILE`. This is useful for passing secrets such as passwords to {es}
-without specifying them directly.
+. Change the setting name to uppercase
+. Prefix it with `ES_SETTING_`
+. Escape any underscores (`_`) by duplicating them
+. Convert all periods (`.`) to underscores (`_`)
+
+For example, `-e bootstrap.memory_lock=true` becomes
+`-e ES_SETTING_BOOTSTRAP_MEMORY__LOCK=true`.
+
+You can use the contents of a file to set the value of the
+`ELASTIC_PASSWORD` or `KEYSTORE_PASSWORD` environment variables, by
+suffixing the environment variable name with `_FILE`. This is useful for
+passing secrets such as passwords to {es} without specifying them directly.
 
 For example, to set the {es} bootstrap password from a file, you can bind mount the
 file and set the `ELASTIC_PASSWORD_FILE` environment variable to the mount location.
-If you mount the password file to `/run/secrets/password.txt`, specify:
+If you mount the password file to `/run/secrets/bootstrapPassword.txt`, specify:
 
 [source,sh]
 --------------------------------------------
 -e ELASTIC_PASSWORD_FILE=/run/secrets/bootstrapPassword.txt
 --------------------------------------------
 
-You can also override the default command for the image to pass {es} configuration
+You can override the default command for the image to pass {es} configuration
 parameters as command line options. For example:
 
 [source,sh]
@@ -366,23 +395,58 @@ uid:gid `1000:0`**. Bind mounted host directories and files must be accessible b
 and the data and log directories must be writable by this user.
 
 [[docker-keystore-bind-mount]]
-===== Mounting an {es} keystore
+===== Create an encrypted {es} keystore
 
-By default, {es} will auto-generate a keystore file for secure settings. This
-file is obfuscated but not encrypted. If you want to encrypt your
-<<secure-settings,secure settings>> with a password, you must use the
-`elasticsearch-keystore` utility to create a password-protected keystore and
-bind-mount it to the container as
-`/usr/share/elasticsearch/config/elasticsearch.keystore`. In order to provide
-the Docker container with the password at startup, set the Docker environment
-value `KEYSTORE_PASSWORD` to the value of your password. For example, a `docker
-run` command might have the following options:
+By default, {es} will auto-generate a keystore file for <<secure-settings,secure
+settings>>. This file is obfuscated but not encrypted.
 
-[source, sh]
---------------------------------------------
--v full_path_to/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore
--E KEYSTORE_PASSWORD=mypassword
---------------------------------------------
+To encrypt your secure settings with a password and have them persist outside
+the container, use a `docker run` command to manually create the keystore
+instead. The command must:
+
+* Bind-mount the `config` directory. The command will create an
+  `elasticsearch.keystore` file in this directory. To avoid errors, do
+  not directly bind-mount the `elasticsearch.keystore` file.
+* Use the `elasticsearch-keystore` tool with the `create -p` option. You'll be
+  prompted to enter a password for the keystore.
+
+ifeval::["{release-state}"!="unreleased"]
+For example:
+
+[source,sh,subs="attributes"]
+----
+docker run -it --rm \
+-v full_path_to/config:/usr/share/elasticsearch/config \
+docker.elastic.co/elasticsearch/elasticsearch:{version} \
+bin/elasticsearch-keystore create -p
+----
+
+You can also use a `docker run` command to add or update secure settings in the
+keystore. You'll be prompted to enter the setting values. If the keystore is
+encrypted, you'll also be prompted to enter the keystore password.
+
+[source,sh,subs="attributes"]
+----
+docker run -it --rm \
+-v full_path_to/config:/usr/share/elasticsearch/config \
+docker.elastic.co/elasticsearch/elasticsearch:{version} \
+bin/elasticsearch-keystore \
+add my.secure.setting \
+my.other.secure.setting
+----
+endif::[]
+
+If you've already created the keystore and don't need to update it, you can
+bind-mount the `elasticsearch.keystore` file directly. You can use the
+`KEYSTORE_PASSWORD` environment variable to provide the keystore password to the
+container at startup. For example, a `docker run` command might have the
+following options:
+
+[source,sh]
+----
+-v full_path_to/config/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore
+-e KEYSTORE_PASSWORD=mypassword
+----
 
 [[_c_customized_image]]
 ===== Using custom Docker images
@@ -411,5 +475,68 @@ You must explicitly accept them either by:
 
 See {plugins}/_other_command_line_parameters.html[Plugin management]
 for more information.
+
+The {es} Docker image only includes what is required to run {es}, and does
+not provide a package manager. It is possible to add additional utilities
+with a multi-phase Docker build. You must also copy any dependencies, for
+example shared libraries.
+
+[source,sh,subs="attributes"]
+--------------------------------------------
+FROM centos:8 AS builder
+yum install -y some-package
+
+FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
+COPY --from=builder /usr/bin/some-utility /usr/bin/
+COPY --from=builder /usr/lib/some-lib.so /usr/lib/
+--------------------------------------------
+
+You should use `centos:8` as a base in order to avoid incompatibilities.
+Use http://man7.org/linux/man-pages/man1/ldd.1.html[`ldd`] to list the
+shared libraries required by a utility.
+
+[[troubleshoot-docker-errors]]
+==== Troubleshoot Docker errors for {es}
+
+Here’s how to resolve common errors when running {es} with Docker.
+
+===== elasticsearch.keystore is a directory
+
+[source,txt]
+----
+Exception in thread "main" org.elasticsearch.bootstrap.BootstrapException: java.io.IOException: Is a directory: SimpleFSIndexInput(path="/usr/share/elasticsearch/config/elasticsearch.keystore") Likely root cause: java.io.IOException: Is a directory
+----
+
+A <<docker-keystore-bind-mount,keystore-related>> `docker run` command attempted
+to directly bind-mount an `elasticsearch.keystore` file that doesn't exist. If
+you use the `-v` or `--volume` flag to mount a file that doesn't exist, Docker
+instead creates a directory with the same name.
+
+To resolve this error:
+
+. Delete the `elasticsearch.keystore` directory in the `config` directory.
+. Update the `-v` or `--volume` flag to point to the `config` directory path
+  rather than the keystore file's path. For an example, see
+  <<docker-keystore-bind-mount>>.
+. Retry the command.
+
+===== elasticsearch.keystore: Device or resource busy
+
+[source,txt]
+----
+Exception in thread "main" java.nio.file.FileSystemException: /usr/share/elasticsearch/config/elasticsearch.keystore.tmp -> /usr/share/elasticsearch/config/elasticsearch.keystore: Device or resource busy
+----
+
+A `docker run` command attempted to <<docker-keystore-bind-mount,update the
+keystore>> while directly bind-mounting the `elasticsearch.keystore` file. To
+update the keystore, the container requires access to other files in the
+`config` directory, such as `keystore.tmp`.
+
+To resolve this error:
+
+. Update the `-v` or `--volume` flag to point to the `config` directory
+  path rather than the keystore file's path. For an example, see
+  <<docker-keystore-bind-mount>>.
+. Retry the command.
 
 include::next-steps.asciidoc[]

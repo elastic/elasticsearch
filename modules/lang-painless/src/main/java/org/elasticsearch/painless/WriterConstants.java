@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -30,8 +19,10 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -78,7 +69,7 @@ public final class WriterConstants {
      * regex per time it is run.
      */
     public static final Method PATTERN_COMPILE = getAsmMethod(Pattern.class, "compile", String.class, int.class);
-    public static final Method PATTERN_MATCHER = getAsmMethod(Matcher.class, "matcher", CharSequence.class);
+    public static final Method PATTERN_MATCHER = getAsmMethod(Matcher.class, "matcher", Pattern.class, int.class, CharSequence.class);
     public static final Method MATCHER_MATCHES = getAsmMethod(boolean.class, "matches");
     public static final Method MATCHER_FIND = getAsmMethod(boolean.class, "find");
 
@@ -132,12 +123,13 @@ public final class WriterConstants {
     /** invokedynamic bootstrap for lambda expression/method references */
     public static final MethodType LAMBDA_BOOTSTRAP_TYPE =
             MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class,
-                    MethodType.class, String.class, int.class, String.class, MethodType.class, int.class);
+                    MethodType.class, String.class, int.class, String.class, MethodType.class, int.class, int.class, Object[].class);
     public static final Handle LAMBDA_BOOTSTRAP_HANDLE =
             new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
                 "lambdaBootstrap", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
     public static final MethodType DELEGATE_BOOTSTRAP_TYPE =
-        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, MethodHandle.class);
+        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, MethodHandle.class,
+                              int.class, Object[].class);
     public static final Handle DELEGATE_BOOTSTRAP_HANDLE =
         new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
             "delegateBootstrap", DELEGATE_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
@@ -181,6 +173,12 @@ public final class WriterConstants {
 
     public static final Type COLLECTION_TYPE = Type.getType(Collection.class);
     public static final Method COLLECTION_SIZE = getAsmMethod(int.class, "size");
+
+    public static final Type LIST_TYPE = Type.getType(List.class);
+    public static final Method LIST_ADD = getAsmMethod(boolean.class, "add", Object.class);
+
+    public static final Type ARRAY_LIST_TYPE = Type.getType(ArrayList.class);
+    public static final Method ARRAY_LIST_CTOR_WITH_SIZE = getAsmMethod(void.class, CTOR_METHOD_NAME, int.class);
 
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

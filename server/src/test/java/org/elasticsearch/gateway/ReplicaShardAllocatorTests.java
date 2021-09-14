@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
@@ -44,7 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -54,6 +43,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -73,8 +63,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
-    private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
-        .minimumIndexCompatibilityVersion().luceneVersion;
+    private static final String MIN_SUPPORTED_LUCENE_VERSION = Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion.toString();
+
     private final ShardId shardId = new ShardId("test", "_na_", 0);
     private final DiscoveryNode node1 = newNode("node1");
     private final DiscoveryNode node2 = newNode("node2");
@@ -200,8 +190,18 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null);
         } else {
             failedNodeIds = new HashSet<>(randomSubsetOf(Set.of("node-4", "node-5", "node-6", "node-7")));
-            unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, null, null, randomIntBetween(1, 10),
-                System.nanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds);
+            unassignedInfo = new UnassignedInfo(
+                UnassignedInfo.Reason.ALLOCATION_FAILED,
+                null,
+                null,
+                randomIntBetween(1, 10),
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                failedNodeIds,
+                null
+            );
         }
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), unassignedInfo);
         long retainingSeqNo = randomLongBetween(1, Long.MAX_VALUE);
@@ -385,8 +385,18 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null);
         } else {
-            unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, null, null, randomIntBetween(1, 10),
-                System.nanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT, Set.of("node-4"));
+            unassignedInfo = new UnassignedInfo(
+                UnassignedInfo.Reason.ALLOCATION_FAILED,
+                null,
+                null,
+                randomIntBetween(1, 10),
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Set.of("node-4"),
+                null
+            );
         }
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), unassignedInfo);
         List<RetentionLease> retentionLeases = new ArrayList<>();
@@ -427,7 +437,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         }
         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, null, null,
             randomIntBetween(failedNodes.size(), 10), System.nanoTime(), System.currentTimeMillis(), false,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodes);
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodes, null);
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), unassignedInfo);
         long retainingSeqNoOnPrimary = randomLongBetween(0, Long.MAX_VALUE);
         List<RetentionLease> retentionLeases = Arrays.asList(
@@ -456,6 +466,9 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         boolean delayed = reason == UnassignedInfo.Reason.NODE_LEFT &&
             UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings).nanos() > 0;
         int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
+        final String lastAllocatedNodeId = reason == UnassignedInfo.Reason.NODE_RESTARTING || randomBoolean()
+            ? randomAlphaOfLength(10)
+            : null;
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
@@ -464,7 +477,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                             RecoverySource.PeerRecoverySource.INSTANCE,
                                             new UnassignedInfo(reason, null, null, failedAllocations, System.nanoTime(),
                                                 System.currentTimeMillis(), delayed, UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                                                Collections.emptySet())))
+                                                Collections.emptySet(), lastAllocatedNodeId)))
                                         .build())
                 )
                 .build();
@@ -472,7 +485,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .metadata(metadata)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, System.nanoTime());
+        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime());
     }
 
     private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders, UnassignedInfo unassignedInfo) {
@@ -495,7 +509,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .metadata(metadata)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, System.nanoTime());
+        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime());
     }
 
     private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders) {

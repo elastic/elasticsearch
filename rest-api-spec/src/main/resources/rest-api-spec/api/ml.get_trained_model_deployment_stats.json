@@ -1,0 +1,30 @@
+{
+  "ml.get_trained_model_deployment_stats":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-trained-model-deployment-stats.html",
+      "description":"Get information about trained model deployments."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/{model_id}/deployment/_stats",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The ID of the trained model deployment stats to fetch"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

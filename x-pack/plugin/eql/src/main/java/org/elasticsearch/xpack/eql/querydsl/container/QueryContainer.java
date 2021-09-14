@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.querydsl.container;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -45,18 +47,27 @@ public class QueryContainer {
     private final boolean trackHits;
     private final boolean includeFrozen;
 
+    private final Limit limit;
+
     public QueryContainer() {
-        this(null, emptyList(), AttributeMap.emptyAttributeMap(), emptyMap(), false, false);
+        this(null, emptyList(), AttributeMap.emptyAttributeMap(), emptyMap(), false, false, null);
     }
 
-    private QueryContainer(Query query, List<Tuple<FieldExtraction, String>> fields, AttributeMap<Expression> attributes,
-                           Map<String, Sort> sort, boolean trackHits, boolean includeFrozen) {
+    private QueryContainer(Query query,
+                           List<Tuple<FieldExtraction, String>> fields,
+                           AttributeMap<Expression> attributes,
+                           Map<String, Sort> sort,
+                           boolean trackHits,
+                           boolean includeFrozen,
+                           Limit limit) {
         this.query = query;
         this.fields = fields;
         this.sort = sort;
         this.attributes = attributes;
         this.trackHits = trackHits;
         this.includeFrozen = includeFrozen;
+
+        this.limit = limit;
     }
 
     public QueryContainer withFrozen() {
@@ -79,8 +90,16 @@ public class QueryContainer {
         return trackHits;
     }
 
+    public Limit limit() {
+        return limit;
+    }
+
     public QueryContainer with(Query q) {
-        return new QueryContainer(q, fields, attributes, sort, trackHits, includeFrozen);
+        return new QueryContainer(q, fields, attributes, sort, trackHits, includeFrozen, limit);
+    }
+
+    public QueryContainer with(Limit limit) {
+        return new QueryContainer(query, fields, attributes, sort, trackHits, includeFrozen, limit);
     }
 
     public QueryContainer addColumn(Attribute attr) {
@@ -111,7 +130,7 @@ public class QueryContainer {
     public QueryContainer addSort(String expressionId, Sort sortable) {
         Map<String, Sort> newSort = new LinkedHashMap<>(this.sort);
         newSort.put(expressionId, sortable);
-        return new QueryContainer(query, fields, attributes, newSort, trackHits, includeFrozen);
+        return new QueryContainer(query, fields, attributes, newSort, trackHits, includeFrozen, limit);
     }
 
     //
@@ -119,12 +138,12 @@ public class QueryContainer {
     //
 
     public QueryContainer addColumn(FieldExtraction ref, String id) {
-        return new QueryContainer(query, combine(fields, new Tuple<>(ref, id)), attributes, sort, trackHits, includeFrozen);
+        return new QueryContainer(query, combine(fields, new Tuple<>(ref, id)), attributes, sort, trackHits, includeFrozen, limit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, attributes, fields, trackHits, includeFrozen);
+        return Objects.hash(query, attributes, fields, trackHits, includeFrozen, limit);
     }
 
     @Override
@@ -141,15 +160,16 @@ public class QueryContainer {
         return Objects.equals(query, other.query)
                 && Objects.equals(attributes, other.attributes)
                 && Objects.equals(fields, other.fields)
-                && Objects.equals(trackHits, other.trackHits)
-                && Objects.equals(includeFrozen, other.includeFrozen);
+                && trackHits == other.trackHits
+                && includeFrozen == other.includeFrozen
+                && Objects.equals(limit, other.limit);
     }
 
     @Override
     public String toString() {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.humanReadable(true).prettyPrint();
-            SourceGenerator.sourceBuilder(this, null, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            SourceGenerator.sourceBuilder(this, null, null, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
             return Strings.toString(builder);
         } catch (IOException e) {
             throw new EqlIllegalArgumentException("error rendering", e);

@@ -1,19 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RawInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
@@ -23,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Leniently
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.OutputAggregator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -37,30 +45,28 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.decodeFeatureImportances;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.sumDoubleArrays;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.transformFeatureImportance;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.transformFeatureImportanceClassification;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.transformFeatureImportanceRegression;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.AGGREGATE_OUTPUT;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.CLASSIFICATION_LABELS;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.CLASSIFICATION_WEIGHTS;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.FEATURE_NAMES;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.TARGET_TYPE;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.TRAINED_MODELS;
 
 public class EnsembleInferenceModel implements InferenceModel {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EnsembleInferenceModel.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EnsembleInferenceModel.class);
+    private static final Logger LOGGER = LogManager.getLogger(EnsembleInferenceModel.class);
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnsembleInferenceModel, Void> PARSER = new ConstructingObjectParser<>(
         "ensemble_inference_model",
         true,
-        a -> new EnsembleInferenceModel((List<String>)a[0],
-            (List<InferenceModel>)a[1],
-            (OutputAggregator)a[2],
-            TargetType.fromString((String)a[3]),
-            (List<String>)a[4],
-            (List<Double>)a[5]));
+        a -> new EnsembleInferenceModel((List<InferenceModel>)a[0],
+            (OutputAggregator)a[1],
+            TargetType.fromString((String)a[2]),
+            (List<String>)a[3],
+            (List<Double>)a[4]));
     static {
-        PARSER.declareStringArray(constructorArg(), FEATURE_NAMES);
         PARSER.declareNamedObjects(constructorArg(),
             (p, c, n) -> p.namedObject(InferenceModel.class, n, null),
             (ensembleBuilder) -> {},
@@ -68,7 +74,7 @@ public class EnsembleInferenceModel implements InferenceModel {
         PARSER.declareNamedObject(constructorArg(),
             (p, c, n) -> p.namedObject(LenientlyParsedOutputAggregator.class, n, null),
             AGGREGATE_OUTPUT);
-        PARSER.declareString(constructorArg(), TARGET_TYPE);
+        PARSER.declareString(constructorArg(), TargetType.TARGET_TYPE);
         PARSER.declareStringArray(optionalConstructorArg(), CLASSIFICATION_LABELS);
         PARSER.declareDoubleArray(optionalConstructorArg(), CLASSIFICATION_WEIGHTS);
     }
@@ -77,24 +83,23 @@ public class EnsembleInferenceModel implements InferenceModel {
         return PARSER.apply(parser, null);
     }
 
-    private String[] featureNames;
+    private String[] featureNames = new String[0];
     private final List<InferenceModel> models;
     private final OutputAggregator outputAggregator;
     private final TargetType targetType;
     private final List<String> classificationLabels;
     private final double[] classificationWeights;
+    private volatile boolean preparedForInference = false;
 
-    EnsembleInferenceModel(List<String> featureNames,
-                           List<InferenceModel> models,
-                           OutputAggregator outputAggregator,
-                           TargetType targetType,
-                           List<String> classificationLabels,
-                           List<Double> classificationWeights) {
-        this.featureNames = ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES).toArray(String[]::new);
+    private EnsembleInferenceModel(List<InferenceModel> models,
+                                   OutputAggregator outputAggregator,
+                                   TargetType targetType,
+                                   @Nullable List<String> classificationLabels,
+                                   List<Double> classificationWeights) {
         this.models = ExceptionsHelper.requireNonNull(models, TRAINED_MODELS);
         this.outputAggregator = ExceptionsHelper.requireNonNull(outputAggregator, AGGREGATE_OUTPUT);
-        this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
-        this.classificationLabels = classificationLabels == null ? null : classificationLabels;
+        this.targetType = ExceptionsHelper.requireNonNull(targetType, TargetType.TARGET_TYPE);
+        this.classificationLabels = classificationLabels;
         this.classificationWeights = classificationWeights == null ?
             null :
             classificationWeights.stream().mapToDouble(Double::doubleValue).toArray();
@@ -110,19 +115,9 @@ public class EnsembleInferenceModel implements InferenceModel {
         return targetType;
     }
 
-    private double[] getFeatures(Map<String, Object> fields) {
-        double[] features = new double[featureNames.length];
-        int i = 0;
-        for (String featureName : featureNames) {
-            Double val = InferenceHelpers.toDouble(fields.get(featureName));
-            features[i++] = val == null ? Double.NaN : val;
-        }
-        return features;
-    }
-
     @Override
     public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
-        return innerInfer(getFeatures(fields), config, featureDecoderMap);
+        return innerInfer(InferenceModel.extractFeatures(featureNames, fields), config, featureDecoderMap);
     }
 
     @Override
@@ -135,6 +130,12 @@ public class EnsembleInferenceModel implements InferenceModel {
             throw ExceptionsHelper.badRequestException(
                 "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
         }
+        if (preparedForInference == false) {
+            throw ExceptionsHelper.serverError("model is not prepared for inference");
+        }
+        LOGGER.debug(
+            () -> new ParameterizedMessage("Inference called with feature names [{}]", Strings.arrayToCommaDelimitedString(featureNames))
+        );
         double[][] inferenceResults = new double[this.models.size()][];
         double[][] featureInfluence = new double[features.length][];
         int i = 0;
@@ -145,14 +146,7 @@ public class EnsembleInferenceModel implements InferenceModel {
             RawInferenceResults inferenceResult = (RawInferenceResults) result;
             inferenceResults[i++] = inferenceResult.getValue();
             if (config.requestingImportance()) {
-                double[][] modelFeatureImportance = inferenceResult.getFeatureImportance();
-                assert modelFeatureImportance.length == featureInfluence.length;
-                for (int j = 0; j < modelFeatureImportance.length; j++) {
-                    if (featureInfluence[j] == null) {
-                        featureInfluence[j] = new double[modelFeatureImportance[j].length];
-                    }
-                    featureInfluence[j] = sumDoubleArrays(featureInfluence[j], modelFeatureImportance[j]);
-                }
+                addFeatureImportance(featureInfluence, inferenceResult);
             }
         }
         double[] processed = outputAggregator.processValues(inferenceResults);
@@ -167,16 +161,20 @@ public class EnsembleInferenceModel implements InferenceModel {
             InferenceResults result = model.infer(features, subModelInferenceConfig);
             assert result instanceof RawInferenceResults;
             RawInferenceResults inferenceResult = (RawInferenceResults) result;
-            double[][] modelFeatureImportance = inferenceResult.getFeatureImportance();
-            assert modelFeatureImportance.length == featureInfluence.length;
-            for (int j = 0; j < modelFeatureImportance.length; j++) {
-                if (featureInfluence[j] == null) {
-                    featureInfluence[j] = new double[modelFeatureImportance[j].length];
-                }
-                featureInfluence[j] = sumDoubleArrays(featureInfluence[j], modelFeatureImportance[j]);
-            }
+            addFeatureImportance(featureInfluence, inferenceResult);
         }
         return featureInfluence;
+    }
+
+    private void addFeatureImportance(double[][] featureInfluence, RawInferenceResults inferenceResult) {
+        double[][] modelFeatureImportance = inferenceResult.getFeatureImportance();
+        assert modelFeatureImportance.length == featureInfluence.length;
+        for (int j = 0; j < modelFeatureImportance.length; j++) {
+            if (featureInfluence[j] == null) {
+                featureInfluence[j] = new double[modelFeatureImportance[j].length];
+            }
+            featureInfluence[j] = sumDoubleArrays(featureInfluence[j], modelFeatureImportance[j]);
+        }
     }
 
     private InferenceResults buildResults(double[] processedInferences,
@@ -199,22 +197,27 @@ public class EnsembleInferenceModel implements InferenceModel {
             case REGRESSION:
                 return new RegressionInferenceResults(outputAggregator.aggregate(processedInferences),
                     config,
-                    transformFeatureImportance(decodedFeatureImportance, null));
+                    transformFeatureImportanceRegression(decodedFeatureImportance));
             case CLASSIFICATION:
                 ClassificationConfig classificationConfig = (ClassificationConfig) config;
                 assert classificationWeights == null || processedInferences.length == classificationWeights.length;
                 // Adjust the probabilities according to the thresholds
-                Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
+                Tuple<InferenceHelpers.TopClassificationValue, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
                     processedInferences,
                     classificationLabels,
                     classificationWeights,
                     classificationConfig.getNumTopClasses(),
                     classificationConfig.getPredictionFieldType());
-                return new ClassificationInferenceResults((double)topClasses.v1(),
-                    classificationLabel(topClasses.v1(), classificationLabels),
+                final InferenceHelpers.TopClassificationValue value = topClasses.v1();
+                return new ClassificationInferenceResults(value.getValue(),
+                    classificationLabel(topClasses.v1().getValue(), classificationLabels),
                     topClasses.v2(),
-                    transformFeatureImportance(decodedFeatureImportance, classificationLabels),
-                    config);
+                    transformFeatureImportanceClassification(decodedFeatureImportance,
+                        classificationLabels,
+                        classificationConfig.getPredictionFieldType()),
+                    config,
+                    value.getProbability(),
+                    value.getScore());
             default:
                 throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on ensemble model");
         }
@@ -231,21 +234,28 @@ public class EnsembleInferenceModel implements InferenceModel {
     }
 
     @Override
-    public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
+    public void rewriteFeatureIndices(final Map<String, Integer> newFeatureIndexMapping) {
+        LOGGER.debug(() -> new ParameterizedMessage("rewriting features {}", newFeatureIndexMapping));
+        if (preparedForInference) {
+            return;
+        }
+        preparedForInference = true;
+        Map<String, Integer> featureIndexMapping = new HashMap<>();
         if (newFeatureIndexMapping == null || newFeatureIndexMapping.isEmpty()) {
             Set<String> referencedFeatures = subModelFeatures();
+            LOGGER.debug(() -> new ParameterizedMessage("detected submodel feature names {}", referencedFeatures));
             int newFeatureIndex = 0;
-            newFeatureIndexMapping = new HashMap<>();
+            featureIndexMapping = new HashMap<>();
             this.featureNames = new String[referencedFeatures.size()];
             for (String featureName : referencedFeatures) {
-                newFeatureIndexMapping.put(featureName, newFeatureIndex);
+                featureIndexMapping.put(featureName, newFeatureIndex);
                 this.featureNames[newFeatureIndex++] = featureName;
             }
         } else {
             this.featureNames = new String[0];
         }
         for (InferenceModel model : models) {
-            model.rewriteFeatureIndices(newFeatureIndexMapping);
+            model.rewriteFeatureIndices(featureIndexMapping);
         }
     }
 
@@ -274,5 +284,34 @@ public class EnsembleInferenceModel implements InferenceModel {
         }
         size += outputAggregator.ramBytesUsed();
         return size;
+    }
+
+    public List<InferenceModel> getModels() {
+        return models;
+    }
+
+    public OutputAggregator getOutputAggregator() {
+        return outputAggregator;
+    }
+
+    public TargetType getTargetType() {
+        return targetType;
+    }
+
+    public double[] getClassificationWeights() {
+        return classificationWeights;
+    }
+
+    @Override
+    public String toString() {
+        return "EnsembleInferenceModel{" +
+            "featureNames=" + Arrays.toString(featureNames) +
+            ", models=" + models +
+            ", outputAggregator=" + outputAggregator +
+            ", targetType=" + targetType +
+            ", classificationLabels=" + classificationLabels +
+            ", classificationWeights=" + Arrays.toString(classificationWeights) +
+            ", preparedForInference=" + preparedForInference +
+            '}';
     }
 }

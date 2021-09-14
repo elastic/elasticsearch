@@ -1,7 +1,7 @@
 [[tune-for-search-speed]]
 == Tune for search speed
 
-[float]
+[discrete]
 === Give memory to the filesystem cache
 
 Elasticsearch heavily relies on the filesystem cache in order to make search
@@ -9,7 +9,7 @@ fast. In general, you should make sure that at least half the available memory
 goes to the filesystem cache so that Elasticsearch can keep hot regions of the
 index in physical memory.
 
-[float]
+[discrete]
 === Use faster hardware
 
 If your search is I/O bound, you should investigate giving more memory to the
@@ -25,7 +25,7 @@ throttled.
 
 If your search is CPU-bound, you should investigate buying faster CPUs.
 
-[float]
+[discrete]
 === Document modeling
 
 Documents should be modeled so that search-time operations are as cheap as possible.
@@ -35,7 +35,8 @@ several times slower and <<parent-join,parent-child>> relations can make
 queries hundreds of times slower. So if the same questions can be answered without
 joins by denormalizing documents, significant speedups can be expected.
 
-[float]
+[discrete]
+[[search-as-few-fields-as-possible]]
 === Search as few fields as possible
 
 The more fields a <<query-dsl-query-string-query,`query_string`>> or
@@ -70,7 +71,7 @@ PUT movies
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 === Pre-index data
 
 You should leverage patterns in your queries to optimize the way data is indexed.
@@ -155,175 +156,21 @@ GET index/_search
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[map-ids-as-keyword]]
 === Consider mapping identifiers as `keyword`
 
 include::../mapping/types/numeric.asciidoc[tag=map-ids-as-keyword]
 
-[float]
+[discrete]
 === Avoid scripts
 
-If possible, avoid using <<modules-scripting,scripts>> or
-<<request-body-search-script-fields,scripted fields>> in searches. Because
-scripts can't make use of index structures, using scripts in search queries can
-result in slower search speeds.
+If possible, avoid using <<modules-scripting,script>>-based sorting, scripts in
+aggregations, and the <<query-dsl-script-score-query,`script_score`>> query. See
+<<scripts-and-search-speed>>.
 
-If you often use scripts to transform indexed data, you can speed up search by
-making these changes during ingest instead. However, that often means slower
-index speeds.
 
-.*Example*
-[%collapsible]
-====
-An index, `my_test_scores`, contains two `long` fields:
-
-* `math_score`
-* `verbal_score`
-
-When running searches, users often use a script to sort results by the sum of
-these two field's values.
-
-[source,console]
-----
-GET /my_test_scores/_search
-{
-  "query": {
-    "term": {
-      "grad_year": "2020"
-    }
-  },
-  "sort": [
-    {
-      "_script": {
-        "type": "number",
-        "script": {
-          "source": "doc['math_score'].value + doc['verbal_score'].value"
-        },
-        "order": "desc"
-      }
-    }
-  ]
-}
-----
-// TEST[s/^/PUT my_test_scores\n/]
-
-To speed up search, you can perform this calculation during ingest and index the
-sum to a field instead.
-
-First, <<indices-put-mapping,add a new field>>, `total_score`, to the index. The
-`total_score` field will contain sum of the `math_score` and `verbal_score`
-field values.
-
-[source,console]
-----
-PUT /my_test_scores/_mapping
-{
-  "properties": {
-    "total_score": {
-      "type": "long"
-    }
-  }
-}
-----
-// TEST[continued]
-
-Next, use an <<ingest,ingest pipeline>> containing the
-<<script-processor,`script`>> processor to calculate the sum of `math_score` and
-`verbal_score` and index it in the `total_score` field.
-
-[source,console]
-----
-PUT _ingest/pipeline/my_test_scores_pipeline
-{
-  "description": "Calculates the total test score",
-  "processors": [
-    {
-      "script": {
-        "source": "ctx.total_score = (ctx.math_score + ctx.verbal_score)"
-      }
-    }
-  ]
-}
-----
-// TEST[continued]
-
-To update existing data, use this pipeline to <<docs-reindex,reindex>> any
-documents from `my_test_scores` to a new index, `my_test_scores_2`.
-
-[source,console]
-----
-POST /_reindex
-{
-  "source": {
-    "index": "my_test_scores"
-  },
-  "dest": {
-    "index": "my_test_scores_2",
-    "pipeline": "my_test_scores_pipeline"
-  }
-}
-----
-// TEST[continued]
-
-Continue using the pipeline to index any new documents to `my_test_scores_2`.
-
-[source,console]
-----
-POST /my_test_scores_2/_doc/?pipeline=my_test_scores_pipeline
-{
-  "student": "kimchy",
-  "grad_year": "2020",
-  "math_score": 800,
-  "verbal_score": 800
-}
-----
-// TEST[continued]
-
-These changes may slow indexing but allow for faster searches. Users can now
-sort searches made on `my_test_scores_2` using the `total_score` field instead
-of using a script.
-
-[source,console]
-----
-GET /my_test_scores_2/_search
-{
-  "query": {
-    "term": {
-      "grad_year": "2020"
-    }
-  },
-  "sort": [
-    {
-      "total_score": {
-        "order": "desc"
-      }
-    }
-  ]
-}
-----
-// TEST[continued]
-
-////
-[source,console]
-----
-DELETE /_ingest/pipeline/my_test_scores_pipeline
-----
-// TEST[continued]
-
-[source,console-result]
-----
-{
-"acknowledged": true
-}
-----
-////
-====
-
-We recommend testing and benchmarking any indexing changes before deploying them
-in production.
-
-[float]
+[discrete]
 === Search rounded dates
 
 Queries on date fields that use `now` are typically not cacheable since the
@@ -438,7 +285,7 @@ However such practice might make the query run slower in some cases since the
 overhead introduced by the `bool` query may defeat the savings from better
 leveraging the query cache.
 
-[float]
+[discrete]
 === Force-merge read-only indices
 
 Indices that are read-only may benefit from being <<indices-forcemerge,merged
@@ -453,16 +300,17 @@ background merge process to perform merges as needed to keep the index running
 smoothly. If you continue to write to a force-merged index then its performance
 may become much worse.
 
-[float]
+[discrete]
 === Warm up global ordinals
 
-Global ordinals are a data-structure that is used in order to run
-<<search-aggregations-bucket-terms-aggregation,`terms`>> aggregations on
-<<keyword,`keyword`>> fields. They are loaded lazily in memory because
-Elasticsearch does not know which fields will be used in `terms` aggregations
-and which fields won't. You can tell Elasticsearch to load global ordinals
-eagerly when starting or refreshing a shard by configuring mappings as
-described below:
+<<eager-global-ordinals,Global ordinals>> are a data structure that is used to
+optimize the performance of aggregations. They are calculated lazily and stored in
+the JVM heap as part of the <<modules-fielddata, field data cache>>. For fields
+that are heavily used for bucketing aggregations, you can tell {es} to construct
+and cache the global ordinals before requests are received. This should be done
+carefully because it will increase heap usage and can make <<indices-refresh, refreshes>>
+take longer. The option can be updated dynamically on an existing mapping by
+setting the <<eager-global-ordinals, eager global ordinals>> mapping parameter:
 
 [source,console]
 --------------------------------------------------
@@ -479,7 +327,7 @@ PUT index
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 === Warm up the filesystem cache
 
 If the machine running Elasticsearch is restarted, the filesystem cache will be
@@ -493,23 +341,23 @@ WARNING: Loading data into the filesystem cache eagerly on too many indices or
 too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.
 
-[float]
+[discrete]
 === Use index sorting to speed up conjunctions
 
 <<index-modules-index-sorting,Index sorting>> can be useful in order to make
 conjunctions faster at the cost of slightly slower indexing. Read more about it
 in the <<index-modules-index-sorting-conjunctions,index sorting documentation>>.
 
-[float]
+[discrete]
 [[preference-cache-optimization]]
 === Use `preference` to optimize cache utilization
 
 There are multiple caches that can help with search performance, such as the
-https://en.wikipedia.org/wiki/Page_cache[filesystem cache], the
+{wikipedia}/Page_cache[filesystem cache], the
 <<shard-request-cache,request cache>> or the <<query-cache,query cache>>. Yet
 all these caches are maintained at the node level, meaning that if you run the
-same request twice in a row, have 1 <<glossary-replica-shard,replica>> or more
-and use https://en.wikipedia.org/wiki/Round-robin_DNS[round-robin], the default
+same request twice in a row, have 1 replica or more
+and use {wikipedia}/Round-robin_DNS[round-robin], the default
 routing algorithm, then those two requests will go to different shard copies,
 preventing node-level caches from helping.
 
@@ -518,7 +366,7 @@ one after another, for instance in order to analyze a narrower subset of the
 index, using a preference value that identifies the current user or session
 could help optimize usage of the caches.
 
-[float]
+[discrete]
 === Replicas might help with throughput, but not always
 
 In addition to improving resiliency, replicas can help improve throughput. For
@@ -545,19 +393,19 @@ right number of replicas for you is
 
 === Tune your queries with the Profile API
 
-You can also analyse how expensive each component of your queries and 
-aggregations are using the {ref}/search-profile.html[Profile API]. This might 
-allow you to tune your queries to be less expensive, resulting in a positive 
-performance result and reduced load. Also note that Profile API payloads can be 
-easily visualised for better readability in the 
-{kibana-ref}/xpack-profiler.html[Search Profiler], which is a Kibana dev tools 
+You can also analyse how expensive each component of your queries and
+aggregations are using the {ref}/search-profile.html[Profile API]. This might
+allow you to tune your queries to be less expensive, resulting in a positive
+performance result and reduced load. Also note that Profile API payloads can be
+easily visualised for better readability in the
+{kibana-ref}/xpack-profiler.html[Search Profiler], which is a Kibana dev tools
 UI available in all X-Pack licenses, including the free X-Pack Basic license.
 
 Some caveats to the Profile API are that:
 
  - the Profile API as a debugging tool adds significant overhead to search execution and can also have a very verbose output
  - given the added overhead, the resulting took times are not reliable indicators of actual took time, but can be used comparatively between clauses for relative timing differences
- - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause 
+ - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause
 
 [[faster-phrase-queries]]
 === Faster phrase queries with `index_phrases`
@@ -576,7 +424,7 @@ run prefix queries. If your use-case involves running lots of prefix queries,
 this can speed up queries significantly.
 
 [[faster-filtering-with-constant-keyword]]
-=== Use <<constant-keyword,`constant_keyword`>> to speed up filtering
+=== Use `constant_keyword` to speed up filtering
 
 There is a general rule that the cost of a filter is mostly a function of the
 number of matched documents. Imagine that you have an index containing cycles.

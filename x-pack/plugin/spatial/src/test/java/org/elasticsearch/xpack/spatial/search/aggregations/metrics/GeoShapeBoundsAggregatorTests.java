@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
@@ -15,6 +16,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
@@ -29,13 +31,12 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
-import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
+import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -56,12 +57,11 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .wrapLongitude(false);
 
-            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
                 assertTrue(Double.isInfinite(bounds.posLeft));
@@ -85,12 +85,11 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .field("non_existent")
                 .wrapLongitude(false);
 
-            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
                 assertTrue(Double.isInfinite(bounds.posLeft));
@@ -108,9 +107,8 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             doc.add(new NumericDocValuesField("not_field", 1000L));
             w.addDocument(doc);
 
-            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
 
             Point point = GeometryTestUtils.randomPoint(false);
             double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getX()));
@@ -124,7 +122,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertThat(bounds.top, equalTo(lat));
                 assertThat(bounds.bottom, equalTo(lat));
                 assertThat(bounds.posLeft, equalTo(lon >= 0 ? lon : Double.POSITIVE_INFINITY));
@@ -141,9 +139,8 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             doc.add(new NumericDocValuesField("not_field", 1000L));
             w.addDocument(doc);
 
-            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
 
             GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
                 .field("field")
@@ -152,7 +149,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                    () -> search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
+                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
                 assertThat(exception.getMessage(), startsWith("Unknown geometry type"));
             }
         }
@@ -195,20 +192,18 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                     }
                 }
                 Geometry geometry = new MultiPoint(points);
-                doc.add(new BinaryGeoShapeDocValuesField("field", GeoTestUtils.toDecodedTriangles(geometry),
-                    new CentroidCalculator(geometry)));
+                doc.add(GeoTestUtils.binaryGeoShapeDocValuesField("field", geometry));
                 w.addDocument(doc);
             }
             GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
                 .field("field")
                 .wrapLongitude(false);
 
-            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertThat(bounds.top, closeTo(top, GEOHASH_TOLERANCE));
                 assertThat(bounds.bottom, closeTo(bottom, GEOHASH_TOLERANCE));
                 assertThat(bounds.posLeft, closeTo(posLeft, GEOHASH_TOLERANCE));

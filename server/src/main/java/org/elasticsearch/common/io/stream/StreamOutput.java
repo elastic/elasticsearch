@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io.stream;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -29,16 +19,18 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
@@ -47,6 +39,7 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
@@ -56,13 +49,12 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.time.Instant;
+import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -70,7 +62,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
 import static java.util.Map.entry;
@@ -88,25 +79,7 @@ import static java.util.Map.entry;
  */
 public abstract class StreamOutput extends OutputStream {
 
-    private static final Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
     private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
-
-    static {
-        final Map<TimeUnit, Byte> timeUnitByteMap = new EnumMap<>(TimeUnit.class);
-        timeUnitByteMap.put(TimeUnit.NANOSECONDS, (byte)0);
-        timeUnitByteMap.put(TimeUnit.MICROSECONDS, (byte)1);
-        timeUnitByteMap.put(TimeUnit.MILLISECONDS, (byte)2);
-        timeUnitByteMap.put(TimeUnit.SECONDS, (byte)3);
-        timeUnitByteMap.put(TimeUnit.MINUTES, (byte)4);
-        timeUnitByteMap.put(TimeUnit.HOURS, (byte)5);
-        timeUnitByteMap.put(TimeUnit.DAYS, (byte)6);
-
-        for (TimeUnit value : TimeUnit.values()) {
-            assert timeUnitByteMap.containsKey(value) : value;
-        }
-
-        TIME_UNIT_BYTE_MAP = Collections.unmodifiableMap(timeUnitByteMap);
-    }
 
     private Version version = Version.CURRENT;
 
@@ -237,12 +210,26 @@ public abstract class StreamOutput extends OutputStream {
      * using {@link #writeInt}
      */
     public void writeVInt(int i) throws IOException {
-        final byte[] buffer = scratch.get();
+        /*
+         * Shortcut writing single byte because it is very, very common and
+         * can skip grabbing the scratch buffer. This is marginally slower
+         * than hand unrolling the entire encoding loop but hand unrolling
+         * the encoding loop blows out the method size so it can't be inlined.
+         * In that case benchmarks of the method itself are faster but
+         * benchmarks of methods that use this method are slower.
+         * This is philosophically in line with vint in general - it biases
+         * twoards being simple and fast for smaller numbers.
+         */
+        if (Integer.numberOfLeadingZeros(i) >= 25) {
+            writeByte((byte) i);
+            return;
+        }
+        byte[] buffer = scratch.get();
         int index = 0;
-        while ((i & ~0x7F) != 0) {
+        do {
             buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
-        }
+        } while ((i & ~0x7F) != 0);
         buffer[index++] = ((byte) i);
         writeBytes(buffer, 0, index);
     }
@@ -391,7 +378,7 @@ public abstract class StreamOutput extends OutputStream {
     private final BytesRefBuilder spare = new BytesRefBuilder();
 
     public void writeText(Text text) throws IOException {
-        if (!text.hasBytes()) {
+        if (text.hasBytes() == false) {
             final String string = text.string();
             spare.copyChars(string);
             writeInt(spare.length());
@@ -601,6 +588,28 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
+     *
+     * @param keyWriter The key writer
+     * @param valueWriter The value writer
+     */
+    public final <K, V> void writeMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+            throws IOException {
+        writeVInt(map.size());
+        for (final ObjectObjectCursor<K, V> entry : map) {
+            keyWriter.write(this, entry.key);
+            valueWriter.write(this, entry.value);
+        }
+    }
+
+    /**
+     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
+     */
+    public final <K extends Writeable, V extends Writeable> void writeMap(final ImmutableOpenMap<K, V> map) throws IOException {
+        writeMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+    }
+
+    /**
      * Writes an {@link Instant} to the stream with nanosecond resolution
      */
     public final void writeInstant(Instant instant) throws IOException {
@@ -620,7 +629,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static final Map<Class<?>, Writer> WRITERS = Map.ofEntries(
+    private static final Map<Class<?>, Writer<?>> WRITERS = Map.ofEntries(
             entry(
                     String.class,
                     (o, v) -> {
@@ -669,7 +678,7 @@ public abstract class StreamOutput extends OutputStream {
                     List.class,
                     (o, v) -> {
                         o.writeByte((byte) 7);
-                        final List list = (List) v;
+                        final List<?> list = (List<?>) v;
                         o.writeVInt(list.size());
                         for (Object item : list) {
                             o.writeGenericValue(item);
@@ -802,7 +811,23 @@ public abstract class StreamOutput extends OutputStream {
                             o.writeByte((byte) 25);
                         }
                         o.writeCollection((Set<?>) v, StreamOutput::writeGenericValue);
+                    }),
+            entry(
+                    // TODO: improve serialization of BigInteger
+                    BigInteger.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 26);
+                        o.writeString(v.toString());
                     }
+            ),
+            entry(
+                OffsetTime.class,
+                (o, v) -> {
+                    o.writeByte((byte) 27);
+                    final OffsetTime offsetTime = (OffsetTime) v;
+                    o.writeString(offsetTime.getOffset().getId());
+                    o.writeLong(offsetTime.toLocalTime().toNanoOfDay());
+                }
             ));
 
     private static Class<?> getGenericType(Object value) {
@@ -834,7 +859,8 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         final Class<?> type = getGenericType(value);
-        final Writer writer = WRITERS.get(type);
+        @SuppressWarnings("unchecked")
+        final Writer<Object> writer = (Writer<Object>) WRITERS.get(type);
         if (writer != null) {
             writer.write(this, value);
         } else {
@@ -1238,7 +1264,21 @@ public abstract class StreamOutput extends OutputStream {
      * Writes an enum with type E based on its ordinal value
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
+        assert enumValue instanceof XContentType == false : "XContentHelper#writeTo should be used for XContentType serialisation";
         writeVInt(enumValue.ordinal());
+    }
+
+    /**
+     * Writes an optional enum with type E based on its ordinal value
+     */
+    public <E extends Enum<E>> void writeOptionalEnum(@Nullable E enumValue) throws IOException {
+        if (enumValue == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            assert enumValue instanceof XContentType == false : "XContentHelper#writeTo should be used for XContentType serialisation";
+            writeVInt(enumValue.ordinal());
+        }
     }
 
     /**
@@ -1256,7 +1296,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeTimeValue(TimeValue timeValue) throws IOException {
         writeZLong(timeValue.duration());
-        writeByte(TIME_UNIT_BYTE_MAP.get(timeValue.timeUnit()));
+        writeByte((byte) timeValue.timeUnit().ordinal());
     }
 
     /**

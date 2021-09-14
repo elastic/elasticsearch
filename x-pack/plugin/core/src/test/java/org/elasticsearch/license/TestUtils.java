@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.elasticsearch.Version;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -45,6 +46,9 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TestUtils {
 
@@ -359,22 +363,22 @@ public class TestUtils {
     public static class AssertingLicenseState extends XPackLicenseState {
         public final List<License.OperationMode> modeUpdates = new ArrayList<>();
         public final List<Boolean> activeUpdates = new ArrayList<>();
-        public final List<Version> trialVersionUpdates = new ArrayList<>();
+        public final List<String> expiryWarnings = new ArrayList<>();
 
         public AssertingLicenseState() {
-            super(Settings.EMPTY);
+            super(() -> 0);
         }
 
         @Override
-        void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
+        protected void update(License.OperationMode mode, boolean active, String expiryWarning) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
-            trialVersionUpdates.add(mostRecentTrialVersion);
+            expiryWarnings.add(expiryWarning);
         }
     }
 
     /**
-     * A license state that makes the {@link #update(License.OperationMode, boolean, Version)}
+     * A license state that makes the {@link #update(License.OperationMode, boolean, String)}
      * method public for use in tests.
      */
     public static class UpdatableLicenseState extends XPackLicenseState {
@@ -383,16 +387,30 @@ public class TestUtils {
         }
 
         public UpdatableLicenseState(Settings settings) {
-            super(settings);
+            super(() -> 0);
         }
 
         @Override
-        public void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
-            super.update(mode, active, mostRecentTrialVersion);
+        public void update(License.OperationMode mode, boolean active, String expiryWarning) {
+            super.update(mode, active, expiryWarning);
         }
+    }
+
+    public static XPackLicenseState newTestLicenseState() {
+        return new XPackLicenseState(() -> 0);
     }
 
     public static void putLicense(Metadata.Builder builder, License license) {
         builder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
+    }
+
+    public static MockLicenseState newMockLicenceState() {
+        MockLicenseState mock = mock(MockLicenseState.class);
+        // These are deprecated methods, but we haven't replaced all usage of them yet
+        // By calling the real methods, we force everything through a small number of mockable methods like
+        //  XPackLicenseState.isAllowed(LicensedFeature)
+        when(mock.isAllowed(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
+        when(mock.checkFeature(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
+        return mock;
     }
 }

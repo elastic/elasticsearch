@@ -1,21 +1,21 @@
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:s3-fixture')
 final Project repositoryPlugin = project(':plugins:repository-s3')
 
 dependencies {
-  testCompile project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
-  testCompile repositoryPlugin
+  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
+  testImplementation repositoryPlugin
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'searchable_snapshots'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots'
   }
 }
 
@@ -26,8 +26,8 @@ String s3Bucket = System.getenv("amazon_s3_bucket")
 String s3BasePath = System.getenv("amazon_s3_base_path")
 
 if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
-  s3AccessKey = 'access_key'
-  s3SecretKey = 'secret_key'
+  s3AccessKey = 's3_test_access_key'
+  s3SecretKey = 's3_test_secret_key'
   s3Bucket = 'bucket'
   s3BasePath = null
   useFixture = true
@@ -41,21 +41,14 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 's3-fixture-other')
 }
 
-integTest {
-  dependsOn repositoryPlugin.bundlePlugin
-  runner {
-    systemProperty 'test.s3.bucket', s3Bucket
-    systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" : 'base_path'
-  }
+tasks.named("integTest").configure {
+  systemProperty 'test.s3.bucket', s3Bucket
+  nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" + BuildParams.testSeed : 'base_path'
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.bundlePlugin.archiveFile
-
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
+  plugin repositoryPlugin.path
 
   keystore 's3.client.searchable_snapshots.access_key', s3AccessKey
   keystore 's3.client.searchable_snapshots.secret_key', s3SecretKey
@@ -74,8 +67,13 @@ testClusters.integTest {
   } else {
     println "Using an external service to test " + project.name
   }
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+
+  setting 'xpack.security.enabled', 'false'
 }
 
-task s3ThirdPartyTest {
-  dependsOn integTest
+tasks.register("s3ThirdPartyTest") {
+  dependsOn "integTest"
 }

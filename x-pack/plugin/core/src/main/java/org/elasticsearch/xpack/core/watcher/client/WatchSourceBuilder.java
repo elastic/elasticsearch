@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.client;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,7 +44,7 @@ public class WatchSourceBuilder implements ToXContentObject {
     private TimeValue defaultThrottlePeriod = null;
     private Map<String, Object> metadata;
 
-    public WatchSourceBuilder trigger(Trigger.Builder trigger) {
+    public WatchSourceBuilder trigger(Trigger.Builder<? extends Trigger> trigger) {
         return trigger(trigger.build());
     }
 
@@ -52,7 +53,7 @@ public class WatchSourceBuilder implements ToXContentObject {
         return this;
     }
 
-    public WatchSourceBuilder input(Input.Builder input) {
+    public WatchSourceBuilder input(Input.Builder<? extends Input> input) {
         return input(input.build());
     }
 
@@ -71,7 +72,7 @@ public class WatchSourceBuilder implements ToXContentObject {
         return this;
     }
 
-    public WatchSourceBuilder transform(Transform.Builder transform) {
+    public WatchSourceBuilder transform(Transform.Builder<? extends Transform> transform) {
         return transform(transform.build());
     }
 
@@ -80,23 +81,25 @@ public class WatchSourceBuilder implements ToXContentObject {
         return this;
     }
 
-    public WatchSourceBuilder addAction(String id, Action.Builder action) {
+    public WatchSourceBuilder addAction(String id, Action.Builder<? extends Action> action) {
         return addAction(id, null, null, action.build());
     }
 
-    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Action.Builder action) {
+    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Action.Builder<? extends Action> action) {
         return addAction(id, throttlePeriod, null, action.build());
     }
 
-    public WatchSourceBuilder addAction(String id, Transform.Builder transform, Action.Builder action) {
+    public WatchSourceBuilder addAction(String id, Transform.Builder<? extends Transform> transform,
+                                        Action.Builder<? extends Action> action) {
         return addAction(id, null, transform.build(), action.build());
     }
 
-    public WatchSourceBuilder addAction(String id, Condition condition, Action.Builder action) {
+    public WatchSourceBuilder addAction(String id, Condition condition, Action.Builder<? extends Action> action) {
         return addAction(id, null, condition, null, action.build());
     }
 
-    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Transform.Builder transform, Action.Builder action) {
+    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Transform.Builder<? extends Transform> transform,
+                                        Action.Builder<? extends Action> action) {
         return addAction(id, throttlePeriod, transform.build(), action.build());
     }
 
@@ -105,8 +108,8 @@ public class WatchSourceBuilder implements ToXContentObject {
         return this;
     }
 
-    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Condition condition, Transform.Builder transform,
-                                        Action.Builder action) {
+    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Condition condition,
+                                        Transform.Builder<? extends Transform> transform, Action.Builder<? extends Action> action) {
         return addAction(id, throttlePeriod, condition, transform.build(), action.build());
     }
 

@@ -1,5 +1,9 @@
 [[pipeline-processor]]
-=== Pipeline Processor
+=== Pipeline processor
+++++
+<titleabbrev>Pipeline</titleabbrev>
+++++
+
 Executes another pipeline.
 
 [[pipeline-options]]
@@ -7,7 +11,7 @@ Executes another pipeline.
 [options="header"]
 |======
 | Name             | Required  | Default  | Description
-| `name`           | yes       | -        | The name of the pipeline to execute. Supports <<accessing-template-fields,template snippets>>.
+| `name`           | yes       | -        | The name of the pipeline to execute. Supports <<template-snippets,template snippets>>.
 include::common-options.asciidoc[]
 |======
 
@@ -72,7 +76,7 @@ from the outer pipeline:
 
 [source,console]
 --------------------------------------------------
-PUT /myindex/_doc/1?pipeline=pipelineB
+PUT /my-index-000001/_doc/1?pipeline=pipelineB
 {
   "field": "value"
 }
@@ -84,7 +88,7 @@ Response from the index request:
 [source,console-result]
 --------------------------------------------------
 {
-  "_index": "myindex",
+  "_index": "my-index-000001",
   "_id": "1",
   "_version": 1,
   "result": "created",

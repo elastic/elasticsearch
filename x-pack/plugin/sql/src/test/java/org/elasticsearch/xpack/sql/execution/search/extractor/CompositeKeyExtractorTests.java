@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
@@ -26,7 +27,7 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCase<CompositeKeyExtractor> {
 
     public static CompositeKeyExtractor randomCompositeKeyExtractor() {
-        return new CompositeKeyExtractor(randomAlphaOfLength(16), randomFrom(asList(Property.values())), randomSafeZone(), randomBoolean());
+        return new CompositeKeyExtractor(randomAlphaOfLength(16), randomFrom(asList(Property.values())), randomZone(), randomBoolean());
     }
 
     public static CompositeKeyExtractor randomCompositeKeyExtractor(ZoneId zoneId) {
@@ -54,7 +55,7 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
             instance.key() + "mutated",
             randomValueOtherThan(instance.property(), () -> randomFrom(Property.values())),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
-            !instance.isDateTimeBased());
+            instance.isDateTimeBased() == false);
     }
 
     public void testExtractBucketCount() {
@@ -73,11 +74,11 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
     }
 
     public void testExtractDate() {
-        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomSafeZone(), true);
+        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomZone(), true);
 
         long millis = System.currentTimeMillis();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), millis), randomLong(), new Aggregations(emptyList()));
-        assertEquals(DateUtils.asDateTime(millis, extractor.zoneId()), extractor.extract(bucket));
+        assertEquals(DateUtils.asDateTimeWithMillis(millis, extractor.zoneId()), extractor.extract(bucket));
     }
 
     public void testExtractIncorrectDateKey() {

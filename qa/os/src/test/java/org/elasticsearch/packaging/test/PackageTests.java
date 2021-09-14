@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
 
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Packages;
@@ -33,16 +21,13 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDoNotExist;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
-import static org.elasticsearch.packaging.util.FileUtils.cp;
 import static org.elasticsearch.packaging.util.FileUtils.fileWithGlobExist;
-import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
@@ -98,7 +83,7 @@ public class PackageTests extends PackagingTestCase {
     private void assertRunsWithJavaHome() throws Exception {
         byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
         try {
-            Files.write(installation.envFile, List.of("JAVA_HOME=" + systemJavaHome), APPEND);
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), APPEND);
             startElasticsearch();
             runElasticsearchTests();
             stopElasticsearch();
@@ -137,31 +122,14 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test34CustomJvmOptionsDirectoryFile() throws Exception {
-        final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
-        try {
-            append(heapOptions, "-Xms512m\n-Xmx512m\n");
+        setHeap("512m");
 
-            startElasticsearch();
+        startElasticsearch();
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+        assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
-            stopElasticsearch();
-        } finally {
-            rm(heapOptions);
-        }
-    }
-
-    public void test42BundledJdkRemoved() throws Exception {
-        assumeThat(distribution().hasJdk, is(true));
-
-        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
-        try {
-            mv(installation.bundledJdk, relocatedJdk);
-            assertRunsWithJavaHome();
-        } finally {
-            mv(relocatedJdk, installation.bundledJdk);
-        }
+        stopElasticsearch();
     }
 
     public void test40StartServer() throws Exception {
@@ -179,6 +147,18 @@ public class PackageTests extends PackagingTestCase {
         runElasticsearchTests();
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
         stopElasticsearch();
+    }
+
+    public void test42BundledJdkRemoved() throws Exception {
+        assumeThat(distribution().hasJdk, is(true));
+
+        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            assertRunsWithJavaHome();
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
     }
 
     public void test50Remove() throws Exception {
@@ -298,8 +278,13 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test81CustomPathConfAndJvmOptions() throws Exception {
+        assumeTrue(isSystemd());
+
+        assertPathsExist(installation.envFile);
+        stopElasticsearch();
+
         withCustomConfig(tempConf -> {
-            append(installation.envFile, "ES_JAVA_OPTS=-XX:-UseCompressedOops");
+            append(installation.envFile, "ES_JAVA_OPTS=\"-Xmx512m -Xms512m -XX:-UseCompressedOops\"");
 
             startElasticsearch();
 
@@ -309,6 +294,8 @@ public class PackageTests extends PackagingTestCase {
 
             stopElasticsearch();
         });
+
+        cleanup();
     }
 
     public void test83SystemdMask() throws Exception {
@@ -351,60 +338,23 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test90DoNotCloseStderrWhenQuiet() throws Exception {
+        assumeTrue(isSystemd());
+
+        assertPathsExist(installation.envFile);
+        stopElasticsearch();
+
         withCustomConfig(tempConf -> {
             // Create a startup problem by adding an invalid YAML line to the config
             append(tempConf.resolve("elasticsearch.yml"), "discovery.zen.ping.unicast.hosts:15172.30.5.3416172.30.5.35, 172.30.5.17]\n");
 
             // Make sure we don't pick up the journal entries for previous ES instances.
             Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
-            runElasticsearchStartCommand(true);
-            final Result logs = journald.getLogs();
+            runElasticsearchStartCommand(null, true, false);
 
-            assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
+            assertBusy(() -> {
+                final Result logs = journald.getLogs();
+                assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
+            });
         });
-    }
-
-    @FunctionalInterface
-    private interface CustomConfigConsumer {
-        void accept(Path path) throws Exception;
-    }
-
-    private void withCustomConfig(CustomConfigConsumer pathConsumer) throws Exception {
-        assumeTrue(isSystemd());
-
-        assertPathsExist(installation.envFile);
-
-        stopElasticsearch();
-
-        // The custom config directory is not under /tmp or /var/tmp because
-        // systemd's private temp directory functionally means different
-        // processes can have different views of what's in these directories
-        String randomName = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10);
-        sh.run("mkdir /etc/" + randomName);
-        final Path tempConf = Paths.get("/etc/" + randomName);
-
-        try {
-            mkdir(tempConf);
-            cp(installation.config("elasticsearch.yml"), tempConf.resolve("elasticsearch.yml"));
-            cp(installation.config("log4j2.properties"), tempConf.resolve("log4j2.properties"));
-
-            // we have to disable Log4j from using JMX lest it will hit a security
-            // manager exception before we have configured logging; this will fail
-            // startup since we detect usages of logging before it is configured
-            final String jvmOptions = "-Xms512m\n-Xmx512m\n-Dlog4j2.disable.jmx=true\n";
-            append(tempConf.resolve("jvm.options"), jvmOptions);
-
-            sh.runIgnoreExitCode("chown -R elasticsearch:elasticsearch " + tempConf);
-
-            cp(installation.envFile, tempConf.resolve("elasticsearch.bk"));// backup
-            append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
-
-            pathConsumer.accept(tempConf);
-        } finally {
-            rm(installation.envFile);
-            cp(tempConf.resolve("elasticsearch.bk"), installation.envFile);
-            rm(tempConf);
-            cleanup();
-        }
     }
 }

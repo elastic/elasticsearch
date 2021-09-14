@@ -12,12 +12,12 @@ POST /_mtermvectors
 {
    "docs": [
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "_id": "2",
          "term_statistics": true
       },
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "_id": "1",
          "fields": [
             "message"
@@ -26,7 +26,7 @@ POST /_mtermvectors
    ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-multi-termvectors-api-request]]
 ==== {api-request-title}
@@ -35,12 +35,18 @@ POST /_mtermvectors
 
 `POST /<index>/_mtermvectors`
 
+[[docs-multi-termvectors-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
 [[docs-multi-termvectors-api-desc]]
 ==== {api-description-title}
 
 You can specify existing documents by index and ID or 
 provide artificial documents in the body of the request.  
-The index can be specified the body of the request or in the request URI.
+You can specify the index in the request body or request URI.
 
 The response contains a `docs` array with all the fetched termvectors. 
 Each element has the structure provided by the <<docs-termvectors,termvectors>>
@@ -80,7 +86,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 
-[float]
+[discrete]
 [[docs-multi-termvectors-api-example]]
 ==== {api-examples-title}
 
@@ -89,7 +95,7 @@ in the request body:
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_mtermvectors
+POST /my-index-000001/_mtermvectors
 {
    "docs": [
       {
@@ -105,25 +111,25 @@ POST /twitter/_mtermvectors
    ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 If all requested documents are in same index and the parameters are the same, you can use the
 following simplified syntax:
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_mtermvectors
+POST /my-index-000001/_mtermvectors
 {
-    "ids" : ["1", "2"],
-    "parameters": {
-    	"fields": [
-         	"message"
-      	],
-      	"term_statistics": true
-    }
+  "ids": [ "1", "2" ],
+  "parameters": {
+    "fields": [
+      "message"
+    ],
+    "term_statistics": true
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-multi-termvectors-artificial-doc]]
 ===== Artificial documents
@@ -137,20 +143,18 @@ POST /_mtermvectors
 {
    "docs": [
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "doc" : {
-            "user" : "John Doe",
-            "message" : "twitter test test test"
+            "message" : "test test test"
          }
       },
       {
-         "_index": "twitter",
+         "_index": "my-index-000001",
          "doc" : {
-           "user" : "Jane Doe",
-           "message" : "Another twitter test ..."
+           "message" : "Another test ..."
          }
       }
    ]
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]

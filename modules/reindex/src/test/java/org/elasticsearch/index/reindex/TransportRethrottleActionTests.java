@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -38,7 +27,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.theInstance;
@@ -102,8 +91,18 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<BulkByScrollTask.StatusOrException> sliceStatuses = new ArrayList<>(slices);
         for (int i = 0; i < slices; i++) {
             BulkByScrollTask.Status status = believeableInProgressStatus(i);
-            tasks.add(new TaskInfo(new TaskId("test", 123), "test", "test", "test", status, 0, 0, true, new TaskId("test", task.getId()),
-                Collections.emptyMap()));
+            tasks.add(new TaskInfo(
+                    new TaskId("test", 123),
+                    "test",
+                    "test",
+                    "test",
+                    status,
+                    0,
+                    0,
+                    true,
+                    false,
+                    new TaskId("test", task.getId()),
+                    Collections.emptyMap()));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
         rethrottleTestCase(slices,
@@ -123,8 +122,18 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<TaskInfo> tasks = new ArrayList<>();
         for (int i = succeeded; i < slices; i++) {
             BulkByScrollTask.Status status = believeableInProgressStatus(i);
-            tasks.add(new TaskInfo(new TaskId("test", 123), "test", "test", "test", status, 0, 0, true, new TaskId("test", task.getId()),
-                Collections.emptyMap()));
+            tasks.add(new TaskInfo(
+                    new TaskId("test", 123),
+                    "test",
+                    "test",
+                    "test",
+                    status,
+                    0,
+                    0,
+                    true,
+                    false,
+                    new TaskId("test", task.getId()),
+                    Collections.emptyMap()));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
         rethrottleTestCase(slices - succeeded,

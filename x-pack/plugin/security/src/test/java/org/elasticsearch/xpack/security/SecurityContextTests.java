@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -23,8 +26,13 @@ import org.junit.Before;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SecurityContextTests extends ESTestCase {
@@ -129,5 +137,58 @@ public class SecurityContextTests extends ESTestCase {
         assertNotNull(originalContext);
         originalContext.restore();
         assertEquals(original, securityContext.getAuthentication());
+    }
+
+    public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteNewApiKeyMetadata() throws IOException {
+        User user = new User("test", null, new User("authUser"));
+        RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
+        final Map<String, Object> metadata = Map.of(
+            API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
+            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
+        );
+        final Authentication original = new Authentication(user, authBy, authBy, Version.V_8_0_0,
+            AuthenticationType.API_KEY, metadata);
+        original.writeToContext(threadContext);
+
+        // If target is old node, rewrite new style API key metadata to old format
+        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
+            Authentication authentication = securityContext.getAuthentication();
+            assertEquals(Map.of("a role", Map.of("cluster", List.of("all"))),
+                authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY));
+            assertEquals(Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
+                authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY));
+        }, Version.V_7_8_0);
+
+        // If target is new node, no need to rewrite the new style API key metadata
+        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
+            Authentication authentication = securityContext.getAuthentication();
+            assertSame(metadata, authentication.getMetadata());
+        }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
+    }
+
+    public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
+        User user = new User("test", null, new User("authUser"));
+        RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
+        final Map<String, Object> metadata = Map.of(
+            API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))),
+            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Map.of("limitedBy role", Map.of("cluster", List.of("all")))
+        );
+        final Authentication original = new Authentication(user, authBy, authBy, Version.V_7_8_0, AuthenticationType.API_KEY, metadata);
+        original.writeToContext(threadContext);
+
+        // If target is old node, no need to rewrite old style API key metadata
+        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
+            Authentication authentication = securityContext.getAuthentication();
+            assertSame(metadata, authentication.getMetadata());
+        }, Version.V_7_8_0);
+
+        // If target is new old, ensure old map style API key metadata is rewritten to bytesreference
+        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
+            Authentication authentication = securityContext.getAuthentication();
+            assertEquals("{\"a role\":{\"cluster\":[\"all\"]}}",
+                ((BytesReference)authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY)).utf8ToString());
+            assertEquals("{\"limitedBy role\":{\"cluster\":[\"all\"]}}",
+                ((BytesReference)authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).utf8ToString());
+        }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
     }
 }

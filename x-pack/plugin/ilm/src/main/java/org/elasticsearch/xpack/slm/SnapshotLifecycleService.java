@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
@@ -11,12 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -40,7 +41,7 @@ import java.util.stream.Collectors;
  * {@link SnapshotLifecycleTask}. It reacts to new policies in the cluster state by scheduling a
  * task according to the policy's schedule.
  */
-public class SnapshotLifecycleService implements LocalNodeMasterListener, Closeable, ClusterStateListener {
+public class SnapshotLifecycleService implements Closeable, ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(SnapshotLifecycleService.class);
     private static final String JOB_PATTERN_SUFFIX = "-\\d+$";
@@ -59,12 +60,31 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
         this.scheduler = new SchedulerEngine(settings, clock);
         this.clusterService = clusterService;
         this.snapshotTask = taskSupplier.get();
-        clusterService.addLocalNodeMasterListener(this); // TODO: change this not to use 'this'
+    }
+
+    /**
+     * Initializer method to avoid the publication of a self reference in the constructor.
+     */
+    public void init() {
         clusterService.addListener(this);
     }
 
     @Override
     public void clusterChanged(final ClusterChangedEvent event) {
+        // Instead of using a LocalNodeMasterListener to track master changes, this service will
+        // track them here to avoid conditions where master listener events run after other
+        // listeners that depend on what happened in the master listener
+        final boolean prevIsMaster = this.isMaster;
+        if (prevIsMaster != event.localNodeMaster()) {
+            this.isMaster = event.localNodeMaster();
+            if (this.isMaster) {
+                scheduler.register(snapshotTask);
+            } else {
+                scheduler.unregister(snapshotTask);
+                cancelSnapshotJobs();
+            }
+        }
+
         if (this.isMaster) {
             final ClusterState state = event.state();
 
@@ -81,25 +101,6 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
             scheduleSnapshotJobs(state);
             cleanupDeletedPolicies(state);
         }
-    }
-
-    @Override
-    public void onMaster() {
-        this.isMaster = true;
-        scheduler.register(snapshotTask);
-        final ClusterState state = clusterService.state();
-        if (slmStoppedOrStopping(state)) {
-            // SLM is currently stopped, so don't schedule jobs
-            return;
-        }
-        scheduleSnapshotJobs(state);
-    }
-
-    @Override
-    public void offMaster() {
-        this.isMaster = false;
-        scheduler.unregister(snapshotTask);
-        cancelSnapshotJobs();
     }
 
     // Only used for testing
@@ -231,14 +232,23 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
      * @throws IllegalArgumentException if the repository does not exist
      */
     public static void validateRepositoryExists(final String repository, final ClusterState state) {
-        Optional.ofNullable((RepositoriesMetadata) state.metadata().custom(RepositoriesMetadata.TYPE))
-            .map(repoMeta -> repoMeta.repository(repository))
-            .orElseThrow(() -> new IllegalArgumentException("no such repository [" + repository + "]"));
+        if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repository) == null) {
+            throw new IllegalArgumentException("no such repository [" + repository + "]");
+        }
     }
 
-    @Override
-    public String executorName() {
-        return ThreadPool.Names.SNAPSHOT;
+    /**
+     * Validates that the interval between snapshots is not smaller than the minimum interval
+     * (see {@link LifecycleSettings#SLM_MINIMUM_INTERVAL_SETTING})
+     * @throws IllegalArgumentException if the interval is less than the minimum
+     */
+    public static void validateMinimumInterval(final SnapshotLifecyclePolicy lifecycle, final ClusterState state) {
+        TimeValue minimum = LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING.get(state.metadata().settings());
+        TimeValue next = lifecycle.calculateNextInterval();
+        if (next.duration() > 0 && minimum.duration() > 0 && next.millis() < minimum.millis()) {
+            throw new IllegalArgumentException("invalid schedule [" + lifecycle.getSchedule() + "]: " +
+                "schedule would be too frequent, executing more than every [" + minimum.getStringRep() + "]");
+        }
     }
 
     @Override

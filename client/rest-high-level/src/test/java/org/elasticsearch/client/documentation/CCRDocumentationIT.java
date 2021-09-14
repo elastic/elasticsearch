@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
@@ -54,6 +43,7 @@ import org.elasticsearch.client.core.BroadcastResponse;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
@@ -91,6 +81,9 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             "follower", // <3>
             ActiveShardCount.ONE // <4>
         );
+        Settings settings =
+            Settings.builder().put("index.number_of_replicas", 0L).build();
+        putFollowRequest.setSettings(settings); // <5>
         // end::ccr-put-follow-request
 
         // tag::ccr-put-follow-execute
@@ -481,9 +474,13 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             new PutAutoFollowPatternRequest(
                 "my_pattern", // <1>
                 "local", // <2>
-                Arrays.asList("logs-*", "metrics-*") // <3>
+                Arrays.asList("logs-*", "metrics-*"), // <3>
+                Arrays.asList("logs-excluded", "metrics-excluded") // <4>
         );
-        request.setFollowIndexNamePattern("copy-{{leader_index}}"); // <4>
+        request.setFollowIndexNamePattern("copy-{{leader_index}}"); // <5>
+        Settings settings =
+            Settings.builder().put("index.number_of_replicas", 0L).build();
+        request.setSettings(settings); // <6>
         // end::ccr-put-auto-follow-pattern-request
 
         // tag::ccr-put-auto-follow-pattern-execute

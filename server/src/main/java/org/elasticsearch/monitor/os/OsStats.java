@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.os;
@@ -196,9 +185,9 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         public Swap(StreamInput in) throws IOException {
             this.total = in.readLong();
-            assert total >= 0 : "expected total swap to be positive, got: " + total;
+            assert this.total >= 0 : "expected total swap to be positive, got: " + total;
             this.free = in.readLong();
-            assert free >= 0 : "expected free swap to be positive, got: " + total;
+            assert this.free >= 0 : "expected free swap to be positive, got: " + total;
         }
 
         @Override
@@ -220,7 +209,9 @@ public class OsStats implements Writeable, ToXContentFragment {
                 //
                 // We intentionally check for (total == 0) rather than (total - free < 0) so as not to hide
                 // cases where (free > total) which would be a different bug.
-                logger.warn("cannot compute used swap when total swap is 0 and free swap is " + free);
+                if (free > 0) {
+                    logger.debug("cannot compute used swap when total swap is 0 and free swap is " + free);
+                }
                 return new ByteSizeValue(0);
             }
             return new ByteSizeValue(total - free);
@@ -280,7 +271,9 @@ public class OsStats implements Writeable, ToXContentFragment {
                 //
                 // We intentionally check for (total == 0) rather than (total - free < 0) so as not to hide
                 // cases where (free > total) which would be a different bug.
-                logger.warn("cannot compute used memory when total memory is 0 and free memory is " + free);
+                if (free > 0) {
+                    logger.debug("cannot compute used memory when total memory is 0 and free memory is " + free);
+                }
                 return new ByteSizeValue(0);
             }
             return new ByteSizeValue(total - free);
@@ -322,7 +315,6 @@ public class OsStats implements Writeable, ToXContentFragment {
         private final long cpuCfsPeriodMicros;
         private final long cpuCfsQuotaMicros;
         private final CpuStat cpuStat;
-        // These will be null for nodes running versions prior to 6.1.0
         private final String memoryControlGroup;
         private final String memoryLimitInBytes;
         private final String memoryUsageInBytes;

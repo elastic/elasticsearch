@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index;
@@ -27,13 +16,13 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -41,7 +30,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 public final class SearchSlowLog implements SearchOperationListener {
-    private static final Charset UTF_8 = Charset.forName("UTF-8");
 
     private long queryWarnThreshold;
     private long queryInfoThreshold;
@@ -152,34 +140,34 @@ public final class SearchSlowLog implements SearchOperationListener {
 
         private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
             Map<String, Object> messageFields = new HashMap<>();
-            messageFields.put("message", context.indexShard().shardId());
-            messageFields.put("took", TimeValue.timeValueNanos(tookInNanos));
-            messageFields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            messageFields.put("elasticsearch.slowlog.message", context.indexShard().shardId());
+            messageFields.put("elasticsearch.slowlog.took", TimeValue.timeValueNanos(tookInNanos).toString());
+            messageFields.put("elasticsearch.slowlog.took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
             if (context.queryResult().getTotalHits() != null) {
-                messageFields.put("total_hits", context.queryResult().getTotalHits());
+                messageFields.put("elasticsearch.slowlog.total_hits", context.queryResult().getTotalHits());
             } else {
-                messageFields.put("total_hits", "-1");
+                messageFields.put("elasticsearch.slowlog.total_hits", "-1");
             }
-            messageFields.put("stats", escapeJson(ESLogMessage.asJsonArray(
+            messageFields.put("elasticsearch.slowlog.stats", escapeJson(ESLogMessage.asJsonArray(
                 context.groupStats() != null ? context.groupStats().stream() : Stream.empty())));
-            messageFields.put("search_type", context.searchType());
-            messageFields.put("total_shards", context.numberOfShards());
+            messageFields.put("elasticsearch.slowlog.search_type", context.searchType());
+            messageFields.put("elasticsearch.slowlog.total_shards", context.numberOfShards());
 
             if (context.request().source() != null) {
                 String source = escapeJson(context.request().source().toString(FORMAT_PARAMS));
 
-                messageFields.put("source", source);
+                messageFields.put("elasticsearch.slowlog.source", source);
             } else {
-                messageFields.put("source", "{}");
+                messageFields.put("elasticsearch.slowlog.source", "{}");
             }
 
-            messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            messageFields.put("elasticsearch.slowlog.id", context.getTask().getHeader(Task.X_OPAQUE_ID));
             return messageFields;
         }
 
         private static String escapeJson(String text) {
             byte[] sourceEscaped = JsonStringEncoder.getInstance().quoteAsUTF8(text);
-            return new String(sourceEscaped, UTF_8);
+            return new String(sourceEscaped, StandardCharsets.UTF_8);
         }
     }
 

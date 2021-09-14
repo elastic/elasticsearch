@@ -5,23 +5,35 @@
 ++++
 
 The `shards` command is the detailed view of what nodes contain which
-shards.  It will tell you if it's a primary or replica, the number of
+shards. It will tell you if it's a primary or replica, the number of
 docs, the bytes it takes on disk, and the node where it's located.
+
+For data streams, the API returns information about the stream's backing
+indices.
 
 
 [[cat-shards-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/shards/<index>`
+`GET /_cat/shards/<target>`
 
 `GET /_cat/shards`
 
+[[cat-shards-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API. You must
+also have the `monitor` or `manage` <<privileges-list-indices,index privilege>>
+for any data stream, index, or alias you retrieve.
 
 [[cat-shards-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
-
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cat-shards-query-params]]
 ==== {api-query-parms-title}
@@ -40,7 +52,7 @@ columns, it only returns the specified columns.
 Valid columns are:
 
 `index`, `i`, `idx`::
-(Default) Name of the index, such as `twitter`.
+(Default) Name of the index.
 
 `shard`, `s`, `sh`::
 (Default) Name of the shard.
@@ -233,7 +245,7 @@ Sync ID of the shard.
 
 `unassigned.at`, `ua`::
 Time at which the shard became unassigned in
-https://en.wikipedia.org/wiki/List_of_UTC_time_offsets[Coordinated Universal
+{wikipedia}/List_of_UTC_time_offsets[Coordinated Universal
 Time (UTC)].
 
 `unassigned.details`, `ud`::
@@ -241,7 +253,7 @@ Details about why the shard became unassigned.
 
 `unassigned.for`, `uf`::
 Time at which the shard was requested to be unassigned in
-https://en.wikipedia.org/wiki/List_of_UTC_time_offsets[Coordinated Universal
+{wikipedia}/List_of_UTC_time_offsets[Coordinated Universal
 Time (UTC)].
 
 [[reason-unassigned]]
@@ -265,8 +277,6 @@ Reason the shard is unassigned. Returned values are:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
-
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
@@ -280,19 +290,19 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ==== {api-examples-title}
 
 [[cat-shards-api-example-single]]
-===== Example with a single index
+===== Example with a single data stream or index
 
 [source,console]
 ---------------------------------------------------------------------------
 GET _cat/shards
 ---------------------------------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
+my-index-000001 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 ---------------------------------------------------------------------------
 // TESTRESPONSE[s/3014/\\d+/]
 // TESTRESPONSE[s/31.1mb/\\d+(\.\\d+)?[kmg]?b/]
@@ -300,25 +310,25 @@ twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 // TESTRESPONSE[s/H5dfFeA/node-0/ non_json]
 
 [[cat-shards-api-example-wildcard]]
-===== Example with a index wildcard pattern
+===== Example with a wildcard pattern
 
-If your cluster has many shards, you can use a wildcard pattern in the `{index}`
-path parameter to limit the API request.
+If your cluster has many shards, you can use a wildcard pattern in the
+`<target>` path parameter to limit the API request.
 
-The following request returns information for any indices beginning with
-`twitt`.
+The following request returns information for any data streams or indices
+beginning with `my-index-`.
 
 [source,console]
 ---------------------------------------------------------------------------
-GET _cat/shards/twitt*
+GET _cat/shards/my-index-*
 ---------------------------------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
+my-index-000001 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 ---------------------------------------------------------------------------
 // TESTRESPONSE[s/3014/\\d+/]
 // TESTRESPONSE[s/31.1mb/\\d+(\.\\d+)?[kmg]?b/]
@@ -339,7 +349,7 @@ The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-twitter 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.56.30 bGG90GE
+my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.56.30 bGG90GE
 ---------------------------------------------------------------------------
 // TESTRESPONSE[non_json]
 
@@ -362,15 +372,15 @@ The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-twitter 0 p STARTED      3014 31.1mb 192.168.56.10 H5dfFeA
-twitter 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
+my-index-000001 0 p STARTED      3014 31.1mb 192.168.56.10 H5dfFeA
+my-index-000001 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
 ---------------------------------------------------------------------------
 // TESTRESPONSE[non_json]
 
 ===== Example with reasons for unassigned shards
 
 The following request returns the `unassigned.reason` column, which indicates
-why a shard is unassigned. 
+why a shard is unassigned.
 
 
 [source,console]
@@ -383,9 +393,9 @@ The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-twitter 0 p STARTED    3014 31.1mb 192.168.56.10 H5dfFeA
-twitter 0 r STARTED    3014 31.1mb 192.168.56.30 bGG90GE
-twitter 0 r STARTED    3014 31.1mb 192.168.56.20 I8hydUG
-twitter 0 r UNASSIGNED ALLOCATION_FAILED
+my-index-000001 0 p STARTED    3014 31.1mb 192.168.56.10 H5dfFeA
+my-index-000001 0 r STARTED    3014 31.1mb 192.168.56.30 bGG90GE
+my-index-000001 0 r STARTED    3014 31.1mb 192.168.56.20 I8hydUG
+my-index-000001 0 r UNASSIGNED ALLOCATION_FAILED
 ---------------------------------------------------------------------------
 // TESTRESPONSE[non_json]

@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.analysis;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -71,8 +60,7 @@ public final class AnalysisModule {
     }
 
     private static final IndexSettings NA_INDEX_SETTINGS;
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(AnalysisModule.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AnalysisModule.class);
 
     private final HunspellService hunspellService;
     private final AnalysisRegistry analysisRegistry;
@@ -126,7 +114,7 @@ public final class AnalysisModule {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
                 if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecate("standard_deprecation",
+                    deprecationLogger.critical(DeprecationCategory.ANALYSIS, "standard_deprecation",
                         "The [standard] token filter name is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
@@ -183,8 +171,11 @@ public final class AnalysisModule {
         // Add "standard" for old indices (bwc)
         preConfiguredTokenFilters.register( "standard",
             PreConfiguredTokenFilter.elasticsearchVersion("standard", true, (reader, version) -> {
-                if (version.before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecate("standard_deprecation",
+                // This was originally removed in 7_0_0 but due to a cacheing bug it was still possible
+                // in certain circumstances to create a new index referencing the standard token filter
+                // until version 7_5_2
+                if (version.before(Version.V_7_6_0)) {
+                    deprecationLogger.critical(DeprecationCategory.ANALYSIS, "standard_deprecation",
                         "The [standard] token filter is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");

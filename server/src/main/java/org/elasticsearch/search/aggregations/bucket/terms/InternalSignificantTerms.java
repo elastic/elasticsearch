@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -40,14 +29,17 @@ import java.util.Objects;
  * Result of the significant terms aggregation.
  */
 public abstract class InternalSignificantTerms<A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>>
-        extends InternalMultiBucketAggregation<A, B> implements SignificantTerms {
+    extends InternalMultiBucketAggregation<A, B>
+    implements
+        SignificantTerms {
 
     public static final String SCORE = "score";
     public static final String BG_COUNT = "bg_count";
 
     @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
     public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
-            implements SignificantTerms.Bucket {
+        implements
+            SignificantTerms.Bucket {
         /**
          * Reads a bucket. Should be a constructor reference.
          */
@@ -65,8 +57,14 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         protected InternalAggregations aggregations;
         final transient DocValueFormat format;
 
-        protected Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
-                InternalAggregations aggregations, DocValueFormat format) {
+        protected Bucket(
+            long subsetDf,
+            long subsetSize,
+            long supersetDf,
+            long supersetSize,
+            InternalAggregations aggregations,
+            DocValueFormat format
+        ) {
             this.subsetSize = subsetSize;
             this.supersetSize = supersetSize;
             this.subsetDf = subsetDf;
@@ -136,10 +134,10 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             }
 
             Bucket<?> that = (Bucket<?>) o;
-            return bucketOrd == that.bucketOrd &&
-                    Double.compare(that.score, score) == 0 &&
-                    Objects.equals(aggregations, that.aggregations) &&
-                    Objects.equals(format, that.format);
+            return bucketOrd == that.bucketOrd
+                && Double.compare(that.score, score) == 0
+                && Objects.equals(aggregations, that.aggregations)
+                && Objects.equals(format, that.format);
         }
 
         @Override
@@ -215,8 +213,16 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
                 }
                 // Adjust the buckets with the global stats representing the
                 // total size of the pots from which the stats are drawn
-                existingBuckets.add(createBucket(bucket.getSubsetDf(), globalSubsetSize, bucket.getSupersetDf(), globalSupersetSize,
-                        bucket.aggregations, bucket));
+                existingBuckets.add(
+                    createBucket(
+                        bucket.getSubsetDf(),
+                        globalSubsetSize,
+                        bucket.getSupersetDf(),
+                        globalSupersetSize,
+                        bucket.aggregations,
+                        bucket
+                    )
+                );
             }
         }
         SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
@@ -259,8 +265,14 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         return createBucket(subsetDf, buckets.get(0).subsetSize, supersetDf, buckets.get(0).supersetSize, aggs, buckets.get(0));
     }
 
-    abstract B createBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
-                            InternalAggregations aggregations, B prototype);
+    abstract B createBucket(
+        long subsetDf,
+        long subsetSize,
+        long supersetDf,
+        long supersetSize,
+        InternalAggregations aggregations,
+        B prototype
+    );
 
     protected abstract A create(long subsetSize, long supersetSize, List<B> buckets);
 
@@ -287,7 +299,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         if (super.equals(obj) == false) return false;
 
         InternalSignificantTerms<?, ?> that = (InternalSignificantTerms<?, ?>) obj;
-        return Objects.equals(minDocCount, that.minDocCount)
-                && Objects.equals(requiredSize, that.requiredSize);
+        return Objects.equals(minDocCount, that.minDocCount) && Objects.equals(requiredSize, that.requiredSize);
     }
 }

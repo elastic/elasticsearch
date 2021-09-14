@@ -1,28 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -37,11 +30,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static junit.framework.TestCase.fail;
 
@@ -53,12 +50,12 @@ public class ClusterServiceUtils {
         executor.onNewClusterState("test setting state",
             () -> ClusterState.builder(clusterState).version(clusterState.version() + 1).build(), new ClusterApplyListener() {
                 @Override
-                public void onSuccess(String source) {
+                public void onSuccess() {
                     latch.countDown();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     exception.set(e);
                     latch.countDown();
                 }
@@ -101,7 +98,7 @@ public class ClusterServiceUtils {
 
     public static ClusterService createClusterService(ThreadPool threadPool) {
         DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
         return createClusterService(threadPool, discoveryNode);
     }
 
@@ -146,20 +143,23 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterStatePublisher createClusterStatePublisher(ClusterApplier clusterApplier) {
-        return (event, publishListener, ackListener) ->
-            clusterApplier.onNewClusterState("mock_publish_to_self[" + event.source() + "]", () -> event.state(),
+        return (clusterStatePublicationEvent, publishListener, ackListener) -> {
+            setAllElapsedMillis(clusterStatePublicationEvent);
+            clusterApplier.onNewClusterState(
+                "mock_publish_to_self[" + clusterStatePublicationEvent.getSummary() + "]",
+                clusterStatePublicationEvent::getNewState,
                 new ClusterApplyListener() {
                     @Override
-                    public void onSuccess(String source) {
+                    public void onSuccess() {
                         publishListener.onResponse(null);
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         publishListener.onFailure(e);
                     }
-                }
-        );
+                });
+        };
     }
 
     public static ClusterService createClusterService(ClusterState initialState, ThreadPool threadPool) {
@@ -177,5 +177,43 @@ public class ClusterServiceUtils {
      */
     public static void setState(ClusterService clusterService, ClusterState clusterState) {
         setState(clusterService.getClusterApplierService(), clusterState);
+    }
+
+    public static void setAllElapsedMillis(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+        clusterStatePublicationEvent.setPublicationContextConstructionElapsedMillis(0L);
+        clusterStatePublicationEvent.setPublicationCommitElapsedMillis(0L);
+        clusterStatePublicationEvent.setPublicationCompletionElapsedMillis(0L);
+        clusterStatePublicationEvent.setMasterApplyElapsedMillis(0L);
+    }
+
+    public static void awaitClusterState(Logger logger,
+                                         Predicate<ClusterState> statePredicate,
+                                         ClusterService clusterService) throws Exception {
+        final ClusterStateObserver observer = new ClusterStateObserver(
+            clusterService,
+            null,
+            logger,
+            clusterService.getClusterApplierService().threadPool().getThreadContext()
+        );
+        if (statePredicate.test(observer.setAndGetObservedState()) == false) {
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    future.onResponse(null);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    future.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    assert false : "onTimeout called with no timeout set";
+                }
+            }, statePredicate);
+            future.get(30L, TimeUnit.SECONDS);
+        }
     }
 }

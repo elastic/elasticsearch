@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Start {dfeed} API
+=== Start {dfeeds} API
 
 Starts a {ml} {dfeed} in the cluster. It accepts a +{request}+ object and
 responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Start {dfeed} request
+==== Start {dfeeds} request
 
 A +{request}+ object is created referencing a non-null `datafeedId`.
 All other fields are optional for the request.
@@ -41,7 +41,7 @@ the analysis starts from the earliest time for which data is available.
 <3> Set the timeout for the request
 
 [id="{upid}-{api}-response"]
-==== Start {dfeed} response
+==== Start {dfeeds} response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

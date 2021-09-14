@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
@@ -21,7 +22,7 @@ public class ScriptQuery extends LeafQuery {
     public ScriptQuery(Source source, ScriptTemplate script) {
         super(source);
         // make script null safe
-        this.script = Scripts.nullSafeFilter(script);
+        this.script = nullSafeScript(script);
     }
 
     public ScriptTemplate script() {
@@ -55,5 +56,9 @@ public class ScriptQuery extends LeafQuery {
     @Override
     protected String innerToString() {
         return script.toString();
+    }
+
+    protected ScriptTemplate nullSafeScript(ScriptTemplate script) {
+        return Scripts.nullSafeFilter(script);
     }
 }

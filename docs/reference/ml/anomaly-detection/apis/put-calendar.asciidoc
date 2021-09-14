@@ -1,46 +1,45 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-calendar]]
-=== Create calendar API
+= Create calendars API
 ++++
-<titleabbrev>Create calendar</titleabbrev>
+<titleabbrev>Create calendars</titleabbrev>
 ++++
 
 Instantiates a calendar.
 
 [[ml-put-calendar-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `PUT _ml/calendars/<calendar_id>`
 
 [[ml-put-calendar-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>>.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-put-calendar-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 For more information, see
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
 [[ml-put-calendar-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<calendar_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 [[ml-put-calendar-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `description`::
 (Optional, string) A description of the calendar.
 
 [[ml-put-calendar-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

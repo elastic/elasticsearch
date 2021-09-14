@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -41,8 +30,16 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
 
         BytesRef termBytes;
 
-        public Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations,
-                DocValueFormat format, double score) {
+        public Bucket(
+            BytesRef term,
+            long subsetDf,
+            long subsetSize,
+            long supersetDf,
+            long supersetSize,
+            InternalAggregations aggregations,
+            DocValueFormat format,
+            double score
+        ) {
             super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
             this.termBytes = term;
             this.score = score;
@@ -57,7 +54,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();
             score = in.readDouble();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -105,9 +102,17 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         }
     }
 
-    public SignificantStringTerms(String name, int requiredSize, long minDocCount,
-            Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
-            SignificanceHeuristic significanceHeuristic, List<Bucket> buckets) {
+    public SignificantStringTerms(
+        String name,
+        int requiredSize,
+        long minDocCount,
+        Map<String, Object> metadata,
+        DocValueFormat format,
+        long subsetSize,
+        long supersetSize,
+        SignificanceHeuristic significanceHeuristic,
+        List<Bucket> buckets
+    ) {
         super(name, requiredSize, minDocCount, metadata, format, subsetSize, supersetSize, significanceHeuristic, buckets);
     }
 
@@ -125,20 +130,46 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
 
     @Override
     public SignificantStringTerms create(List<SignificantStringTerms.Bucket> buckets) {
-        return new SignificantStringTerms(name, requiredSize, minDocCount, metadata, format, subsetSize,
-                supersetSize, significanceHeuristic, buckets);
+        return new SignificantStringTerms(
+            name,
+            requiredSize,
+            minDocCount,
+            metadata,
+            format,
+            subsetSize,
+            supersetSize,
+            significanceHeuristic,
+            buckets
+        );
     }
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, SignificantStringTerms.Bucket prototype) {
-        return new Bucket(prototype.termBytes, prototype.subsetDf, prototype.subsetSize, prototype.supersetDf, prototype.supersetSize,
-                aggregations, prototype.format, prototype.score);
+        return new Bucket(
+            prototype.termBytes,
+            prototype.subsetDf,
+            prototype.subsetSize,
+            prototype.supersetDf,
+            prototype.supersetSize,
+            aggregations,
+            prototype.format,
+            prototype.score
+        );
     }
 
     @Override
     protected SignificantStringTerms create(long subsetSize, long supersetSize, List<Bucket> buckets) {
-        return new SignificantStringTerms(getName(), requiredSize, minDocCount, getMetadata(), format, subsetSize,
-                supersetSize, significanceHeuristic, buckets);
+        return new SignificantStringTerms(
+            getName(),
+            requiredSize,
+            minDocCount,
+            getMetadata(),
+            format,
+            subsetSize,
+            supersetSize,
+            significanceHeuristic,
+            buckets
+        );
     }
 
     @Override
@@ -147,8 +178,14 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
     }
 
     @Override
-    Bucket createBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
-                        InternalAggregations aggregations, SignificantStringTerms.Bucket prototype) {
+    Bucket createBucket(
+        long subsetDf,
+        long subsetSize,
+        long supersetDf,
+        long supersetSize,
+        InternalAggregations aggregations,
+        SignificantStringTerms.Bucket prototype
+    ) {
         return new Bucket(prototype.termBytes, subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format, prototype.score);
     }
 }

@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats.CategorizationStatus;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats.MemoryStatus;
 
 import java.io.IOException;
@@ -23,6 +23,7 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
     public void testDefaultConstructor() {
         ModelSizeStats stats = new ModelSizeStats.Builder("foo").build();
         assertEquals(0, stats.getModelBytes());
+        assertNull(stats.getPeakModelBytes());
         assertNull(stats.getModelBytesExceeded());
         assertNull(stats.getModelBytesMemoryLimit());
         assertEquals(0, stats.getTotalByFieldCount());
@@ -30,6 +31,7 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
         assertEquals(0, stats.getTotalPartitionFieldCount());
         assertEquals(0, stats.getBucketAllocationFailuresCount());
         assertEquals(MemoryStatus.OK, stats.getMemoryStatus());
+        assertNull(stats.getAssignmentMemoryBasis());
         assertEquals(0, stats.getCategorizedDocCount());
         assertEquals(0, stats.getTotalCategoryCount());
         assertEquals(0, stats.getFrequentCategoryCount());
@@ -69,6 +71,9 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
             stats.setModelBytes(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            stats.setPeakModelBytes(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             stats.setModelBytesExceeded(randomNonNegativeLong());
         }
         if (randomBoolean()) {
@@ -91,6 +96,9 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
         }
         if (randomBoolean()) {
             stats.setMemoryStatus(randomFrom(MemoryStatus.values()));
+        }
+        if (randomBoolean()) {
+            stats.setAssignmentMemoryBasis(randomFrom(ModelSizeStats.AssignmentMemoryBasis.values()));
         }
         if (randomBoolean()) {
             stats.setCategorizedDocCount(randomNonNegativeLong());

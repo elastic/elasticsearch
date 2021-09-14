@@ -7,6 +7,8 @@
 [id="{upid}-{api}"]
 === Start Rollup Job API
 
+experimental::[]
+
 [id="{upid}-{api}-request"]
 ==== Request
 

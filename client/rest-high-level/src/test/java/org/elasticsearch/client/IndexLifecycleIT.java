@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -45,12 +34,14 @@ import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyResponse;
 import org.elasticsearch.client.ilm.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.ilm.RolloverAction;
+import org.elasticsearch.client.ilm.SearchableSnapshotAction;
 import org.elasticsearch.client.ilm.ShrinkAction;
 import org.elasticsearch.client.ilm.StartILMRequest;
 import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.client.ilm.UnfollowAction;
+import org.elasticsearch.client.ilm.WaitForSnapshotAction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -60,6 +51,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.ilm.LifecyclePolicyTests.createRandomPolicy;
@@ -146,23 +138,26 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
     public void testExplainLifecycle() throws Exception {
         Map<String, Phase> lifecyclePhases = new HashMap<>();
         Map<String, LifecycleAction> hotActions = new HashMap<>();
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, TimeValue.timeValueHours(50 * 24), null));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, TimeValue.timeValueHours(50 * 24), null));
         Phase hotPhase = new Phase("hot", randomFrom(TimeValue.ZERO, null), hotActions);
         lifecyclePhases.put("hot", hotPhase);
 
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(UnfollowAction.NAME, new UnfollowAction());
         warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, null, Collections.singletonMap("_name", "node-1")));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1000));
         lifecyclePhases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(1000), warmActions));
 
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(UnfollowAction.NAME, new UnfollowAction());
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null));
+        coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo"));
         lifecyclePhases.put("cold", new Phase("cold", TimeValue.timeValueSeconds(2000), coldActions));
 
-        Map<String, LifecycleAction> deleteActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
+        Map<String, LifecycleAction> deleteActions = new HashMap<>();
+        deleteActions.put(WaitForSnapshotAction.NAME, new WaitForSnapshotAction("policy"));
+        deleteActions.put(DeleteAction.NAME, new DeleteAction());
         lifecyclePhases.put("delete", new Phase("delete", TimeValue.timeValueSeconds(3000), deleteActions));
 
         LifecyclePolicy policy = new LifecyclePolicy(randomAlphaOfLength(10), lifecyclePhases);
@@ -214,7 +209,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             assertFalse(squashResponse.managedByILM());
             assertEquals("squash", squashResponse.getIndex());
 
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testDeleteLifecycle() throws IOException {

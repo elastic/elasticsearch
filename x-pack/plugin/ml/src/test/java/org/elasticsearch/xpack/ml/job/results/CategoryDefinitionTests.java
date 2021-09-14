@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.results;
 
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<CategoryDefinition> {
 
-    public CategoryDefinition createTestInstance(String jobId) {
+    public static CategoryDefinition createTestInstance(String jobId) {
         CategoryDefinition categoryDefinition = new CategoryDefinition(jobId);
         categoryDefinition.setCategoryId(randomLong());
         if (randomBoolean()) {

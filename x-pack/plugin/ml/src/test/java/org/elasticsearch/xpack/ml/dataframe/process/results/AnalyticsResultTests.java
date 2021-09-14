@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
@@ -11,23 +12,24 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsageTests;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStatsTests;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsageTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaselineTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResult> {
 
@@ -35,42 +37,48 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 
-    @Override
     protected AnalyticsResult createTestInstance() {
-        RowResults rowResults = null;
-        PhaseProgress phaseProgress = null;
-        TrainedModelDefinition.Builder inferenceModel = null;
-        MemoryUsage memoryUsage = null;
-        OutlierDetectionStats outlierDetectionStats = null;
-        ClassificationStats classificationStats = null;
-        RegressionStats regressionStats = null;
+        AnalyticsResult.Builder builder = AnalyticsResult.builder();
         if (randomBoolean()) {
-            rowResults = RowResultsTests.createRandom();
+            builder.setRowResults(RowResultsTests.createRandom());
         }
         if (randomBoolean()) {
-            phaseProgress = new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100));
+            builder.setPhaseProgress(new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100)));
         }
         if (randomBoolean()) {
-            inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
+            builder.setMemoryUsage(MemoryUsageTests.createRandom());
         }
         if (randomBoolean()) {
-            memoryUsage = MemoryUsageTests.createRandom();
+            builder.setOutlierDetectionStats(OutlierDetectionStatsTests.createRandom());
         }
         if (randomBoolean()) {
-            outlierDetectionStats = OutlierDetectionStatsTests.createRandom();
+            builder.setClassificationStats(ClassificationStatsTests.createRandom());
         }
         if (randomBoolean()) {
-            classificationStats = ClassificationStatsTests.createRandom();
+            builder.setRegressionStats(RegressionStatsTests.createRandom());
         }
         if (randomBoolean()) {
-            regressionStats = RegressionStatsTests.createRandom();
+            builder.setModelSizeInfo(ModelSizeInfoTests.createRandom());
         }
-        return new AnalyticsResult(rowResults, phaseProgress, inferenceModel, memoryUsage, outlierDetectionStats,
-            classificationStats, regressionStats);
+        if (randomBoolean()) {
+            String def = randomAlphaOfLengthBetween(100, 1000);
+            builder.setTrainedModelDefinitionChunk(new TrainedModelDefinitionChunk(def, randomIntBetween(0, 10), randomBoolean()));
+        }
+        if (randomBoolean()) {
+            builder.setModelMetadata(new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
+                .limit(randomIntBetween(1, 10))
+                .collect(Collectors.toList()),
+                FeatureImportanceBaselineTests.randomInstance(),
+                Stream.generate(HyperparametersTests::randomInstance)
+                .limit(randomIntBetween(1, 10))
+                .collect(Collectors.toList())));
+        }
+        return builder.build();
     }
 
     @Override

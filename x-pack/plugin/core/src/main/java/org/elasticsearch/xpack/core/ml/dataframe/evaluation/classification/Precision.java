@@ -1,19 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -39,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -90,9 +92,15 @@ public class Precision implements EvaluationMetric {
     }
 
     @Override
+    public Set<String> getRequiredFields() {
+        return Sets.newHashSet(EvaluationFields.ACTUAL_FIELD.getPreferredName(), EvaluationFields.PREDICTED_FIELD.getPreferredName());
+    }
+
+    @Override
     public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                        String actualField,
-                                                                                        String predictedField) {
+                                                                                        EvaluationFields fields) {
+        String actualField = fields.getActualField();
+        String predictedField = fields.getPredictedField();
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
         this.actualField.trySet(actualField);
         if (topActualClassNames.get() == null) {  // This is step 1
@@ -140,13 +148,13 @@ public class Precision implements EvaluationMetric {
                 aggs.get(AVG_PRECISION_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
             Filters byPredictedClassAgg = aggs.get(BY_PREDICTED_CLASS_AGG_NAME);
             NumericMetricsAggregation.SingleValue avgPrecisionAgg = aggs.get(AVG_PRECISION_AGG_NAME);
-            List<PerClassResult> classes = new ArrayList<>(byPredictedClassAgg.getBuckets().size());
+            List<PerClassSingleValue> classes = new ArrayList<>(byPredictedClassAgg.getBuckets().size());
             for (Filters.Bucket bucket : byPredictedClassAgg.getBuckets()) {
                 String className = bucket.getKeyAsString();
                 NumericMetricsAggregation.SingleValue precisionAgg = bucket.getAggregations().get(PER_PREDICTED_CLASS_PRECISION_AGG_NAME);
                 double precision = precisionAgg.value();
                 if (Double.isFinite(precision)) {
-                    classes.add(new PerClassResult(className, precision));
+                    classes.add(new PerClassSingleValue(className, precision));
                 }
             }
             result.set(new Result(classes, avgPrecisionAgg.value()));
@@ -188,10 +196,10 @@ public class Precision implements EvaluationMetric {
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("precision_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
+            new ConstructingObjectParser<>("precision_result", true, a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1]));
 
         static {
-            PARSER.declareObjectArray(constructorArg(), PerClassResult.PARSER, CLASSES);
+            PARSER.declareObjectArray(constructorArg(), PerClassSingleValue.PARSER, CLASSES);
             PARSER.declareDouble(constructorArg(), AVG_PRECISION);
         }
 
@@ -200,17 +208,17 @@ public class Precision implements EvaluationMetric {
         }
 
         /** List of per-class results. */
-        private final List<PerClassResult> classes;
+        private final List<PerClassSingleValue> classes;
         /** Average of per-class precisions. */
         private final double avgPrecision;
 
-        public Result(List<PerClassResult> classes, double avgPrecision) {
+        public Result(List<PerClassSingleValue> classes, double avgPrecision) {
             this.classes = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(classes, CLASSES));
             this.avgPrecision = avgPrecision;
         }
 
         public Result(StreamInput in) throws IOException {
-            this.classes = Collections.unmodifiableList(in.readList(PerClassResult::new));
+            this.classes = Collections.unmodifiableList(in.readList(PerClassSingleValue::new));
             this.avgPrecision = in.readDouble();
         }
 
@@ -224,7 +232,7 @@ public class Precision implements EvaluationMetric {
             return NAME.getPreferredName();
         }
 
-        public List<PerClassResult> getClasses() {
+        public List<PerClassSingleValue> getClasses() {
             return classes;
         }
 
@@ -259,73 +267,6 @@ public class Precision implements EvaluationMetric {
         @Override
         public int hashCode() {
             return Objects.hash(classes, avgPrecision);
-        }
-    }
-
-    public static class PerClassResult implements ToXContentObject, Writeable {
-
-        private static final ParseField CLASS_NAME = new ParseField("class_name");
-        private static final ParseField PRECISION = new ParseField("precision");
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<PerClassResult, Void> PARSER =
-            new ConstructingObjectParser<>("precision_per_class_result", true, a -> new PerClassResult((String) a[0], (double) a[1]));
-
-        static {
-            PARSER.declareString(constructorArg(), CLASS_NAME);
-            PARSER.declareDouble(constructorArg(), PRECISION);
-        }
-
-        /** Name of the class. */
-        private final String className;
-        /** Fraction of documents predicted as belonging to the {@code predictedClass} class predicted correctly. */
-        private final double precision;
-
-        public PerClassResult(String className, double precision) {
-            this.className = ExceptionsHelper.requireNonNull(className, CLASS_NAME);
-            this.precision = precision;
-        }
-
-        public PerClassResult(StreamInput in) throws IOException {
-            this.className = in.readString();
-            this.precision = in.readDouble();
-        }
-
-        public String getClassName() {
-            return className;
-        }
-
-        public double getPrecision() {
-            return precision;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(className);
-            out.writeDouble(precision);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CLASS_NAME.getPreferredName(), className);
-            builder.field(PRECISION.getPreferredName(), precision);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            PerClassResult that = (PerClassResult) o;
-            return Objects.equals(this.className, that.className)
-                && this.precision == that.precision;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(className, precision);
         }
     }
 }

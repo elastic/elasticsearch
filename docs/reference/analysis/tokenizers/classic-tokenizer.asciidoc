@@ -1,5 +1,8 @@
 [[analysis-classic-tokenizer]]
-=== Classic Tokenizer
+=== Classic tokenizer
+++++
+<titleabbrev>Classic</titleabbrev>
+++++
 
 The `classic` tokenizer is a grammar based tokenizer that is good for English
 language documents. This tokenizer has heuristics for special treatment of
@@ -15,7 +18,7 @@ languages other than English:
 
 * It recognizes email addresses and internet hostnames as one token.
 
-[float]
+[discrete]
 === Example output
 
 [source,console]
@@ -124,7 +127,7 @@ The above sentence would produce the following terms:
 [ The, 2, QUICK, Brown, Foxes, jumped, over, the, lazy, dog's, bone ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `classic` tokenizer accepts the following parameters:
@@ -135,7 +138,7 @@ The `classic` tokenizer accepts the following parameters:
     The maximum token length. If a token is seen that exceeds this length then
     it is split at `max_token_length` intervals. Defaults to `255`.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `classic` tokenizer to have a
@@ -143,7 +146,7 @@ In this example, we configure the `classic` tokenizer to have a
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -162,7 +165,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.oidc;
 
@@ -26,7 +27,6 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -133,48 +134,50 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         }).when(client).prepareBulk();
         doAnswer(invocationOnMock -> {
             IndexRequest indexRequest = (IndexRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[1];
             indexRequests.add(indexRequest);
             final IndexResponse response = new IndexResponse(
                 indexRequest.shardId(), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).index(any(IndexRequest.class), any(ActionListener.class));
+        }).when(client).index(any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
             IndexRequest indexRequest = (IndexRequest) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
             indexRequests.add(indexRequest);
             final IndexResponse response = new IndexResponse(
                 new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
             BulkRequest bulkRequest = (BulkRequest) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocationOnMock.getArguments()[1];
             bulkRequests.add(bulkRequest);
             final BulkResponse response = new BulkResponse(new BulkItemResponse[0], 1);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).bulk(any(BulkRequest.class), any(ActionListener.class));
+        }).when(client).bulk(any(BulkRequest.class), anyActionListener());
 
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
 
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, new SecurityContext(settings, threadContext),
                                         securityIndex, securityIndex, clusterService);
@@ -203,11 +206,11 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final Authentication authentication = new Authentication(user, realmRef, null, null, Authentication.AuthenticationType.REALM,
             tokenMetadata);
 
-        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
         tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetadata, future);
-        final String accessToken = future.actionGet().v1();
+        final String accessToken = future.actionGet().getAccessToken();
         mockGetTokenFromId(tokenService, userTokenId, authentication, false, client);
 
         final OpenIdConnectLogoutRequest request = new OpenIdConnectLogoutRequest();
@@ -235,5 +238,10 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
     @After
     public void cleanup() {
         oidcRealm.close();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -32,8 +21,9 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
 
     @Override
     protected InternalBucketMetricValue createTestInstance(String name, Map<String, Object> metadata) {
-        double value = frequently() ? randomDoubleBetween(-10000, 100000, true)
-                : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
+        double value = frequently()
+            ? randomDoubleBetween(-10000, 100000, true)
+            : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
         String[] keys = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < keys.length; i++) {
             keys[i] = randomAlphaOfLength(10);
@@ -73,30 +63,30 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            if (Double.isFinite(value)) {
-                value += between(1, 100);
-            } else {
-                value = randomDoubleBetween(0, 100000, true);
-            }
-            break;
-        case 2:
-            keys = Arrays.copyOf(keys, keys.length + 1);
-            keys[keys.length - 1] = randomAlphaOfLengthBetween(1, 20);
-            break;
-        case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                if (Double.isFinite(value)) {
+                    value += between(1, 100);
+                } else {
+                    value = randomDoubleBetween(0, 100000, true);
+                }
+                break;
+            case 2:
+                keys = Arrays.copyOf(keys, keys.length + 1);
+                keys[keys.length - 1] = randomAlphaOfLengthBetween(1, 20);
+                break;
+            case 3:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalBucketMetricValue(name, keys, value, formatter, metadata);
     }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
@@ -10,8 +11,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.stats.AnalysisStats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.admin.cluster.stats.MappingStats;
+import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -32,7 +36,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -45,6 +49,7 @@ import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -180,7 +185,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                   randomAlphaOfLength(5),
                                   new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
                                   randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
-                                  singleton(randomFrom(DiscoveryNodeRole.BUILT_IN_ROLES)),
+                                  singleton(randomValueOtherThan(
+                                      DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))
+                                  ),
                                   Version.CURRENT));
         }
 
@@ -235,7 +242,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                         .maxNodes(2)
                                         .build();
 
-        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, false, null));
+        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
         Version mockNodeVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
@@ -256,7 +263,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
         when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
         final PluginInfo pluginInfo = new PluginInfo("_plugin", "_plugin_desc", "_plugin_version", Version.CURRENT,
-            "1.8", "_plugin_class", Collections.emptyList(), false);
+            "1.8", "_plugin_class", Collections.emptyList(), false, PluginType.ISOLATED, "", false);
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(singletonList(pluginInfo));
 
         final OsInfo mockOsInfo = mock(OsInfo.class);
@@ -265,6 +272,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
         when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
+        when(mockOsInfo.getArch()).thenReturn("_architecture");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
         when(mockNodeInfo.getInfo(JvmInfo.class)).thenReturn(mockJvmInfo);
@@ -324,12 +332,15 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[]{mockShardStats});
 
+        final Metadata metadata = clusterState.metadata();
         final ClusterStatsResponse clusterStats = new ClusterStatsResponse(1451606400000L,
                                                                             "_cluster",
                                                                             clusterName,
                                                                             singletonList(mockNodeResponse),
                                                                             emptyList(),
-                                                                            clusterState);
+                                                                            MappingStats.of(metadata, () -> {}),
+                                                                            AnalysisStats.of(metadata, () -> {}),
+                                                                            VersionStats.of(metadata, singletonList(mockNodeResponse)));
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
@@ -412,7 +423,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"deleted\": 0"
                 + "      },"
                 + "      \"store\": {"
-                + "        \"size_in_bytes\": 0"
+                + "        \"size_in_bytes\": 0,"
+                + "        \"total_data_set_size_in_bytes\": 0,"
+                + "        \"reserved_in_bytes\": 0"
                 + "      },"
                 + "      \"fielddata\": {"
                 + "        \"memory_size_in_bytes\": 0,"
@@ -446,7 +459,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"file_sizes\": {}"
                 + "      },"
                 + "      \"mappings\":{"
-                + "        \"field_types\":[]"
+                + "        \"field_types\":[],"
+                + "        \"runtime_field_types\":[]"
                 + "      },"
                 + "      \"analysis\":{"
                 + "        \"char_filter_types\":[],"
@@ -457,16 +471,25 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"built_in_tokenizers\":[],"
                 + "        \"built_in_filters\":[],"
                 + "        \"built_in_analyzers\":[]"
-                + "      }"
+                + "      },"
+                + "      \"versions\":[]"
                 + "    },"
                 + "    \"nodes\": {"
                 + "      \"count\": {"
                 + "        \"total\": 1,"
                 + "        \"coordinating_only\": 0,"
                 + "        \"data\": 0,"
+                + "        \"data_cold\": 0,"
+                + "        \"data_content\": 0,"
+                + "        \"data_frozen\": 0,"
+                + "        \"data_hot\": 0,"
+                + "        \"data_warm\": 0,"
                 + "        \"ingest\": 0,"
                 + "        \"master\": 1,"
-                + "        \"remote_cluster_client\": 0"
+                + "        \"ml\": 0,"
+                + "        \"remote_cluster_client\": 0,"
+                + "        \"transform\": 0,"
+                + "        \"voting_only\": 0"
                 + "      },"
                 + "      \"versions\": ["
                 + "        \"%s\""
@@ -483,6 +506,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"pretty_names\": ["
                 + "          {"
                 + "            \"pretty_name\": \"_pretty_os_name\","
+                + "            \"count\": 1"
+                + "          }"
+                + "        ],"
+                + "        \"architectures\": ["
+                + "          {"
+                + "            \"arch\": \"_architecture\","
                 + "            \"count\": 1"
                 + "          }"
                 + "        ],"
@@ -537,7 +566,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "          \"description\": \"_plugin_desc\","
                 + "          \"classname\": \"_plugin_class\","
                 + "          \"extended_plugins\": [],"
-                + "          \"has_native_controller\": false"
+                + "          \"has_native_controller\": false,"
+                + "          \"licensed\": false,"
+                + "          \"type\": \"isolated\""
                 + "        }"
                 + "      ],"
                 + "      \"network_types\": {"
@@ -578,7 +609,10 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"transport_address\": \"0.0.0.0:9300\","
                 + "        \"attributes\": {"
                 + "          \"attr\": \"value\""
-                + "        }"
+                + "        },"
+                + "        \"roles\" : ["
+                + "          \"master\""
+                + "        ]"
                 + "      }"
                 + "    }"
                 + "  },"
@@ -595,7 +629,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "    },"
                 + "    \"xpack\": {"
                 + "      \"monitoring\": {"
-                + "        \"available\": false,"
+                + "        \"available\": true,"
                 + "        \"enabled\": true,"
                 + "        \"collection_enabled\": false"
                 + "      }"

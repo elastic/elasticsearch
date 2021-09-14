@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
@@ -31,22 +20,25 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.DoubleConsumer;
 
 /**
  * Implementation of {@link Histogram}.
  */
 public final class InternalHistogram extends InternalMultiBucketAggregation<InternalHistogram, InternalHistogram.Bucket>
-        implements Histogram, HistogramFactory {
+    implements
+        Histogram,
+        HistogramFactory {
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
 
         final double key;
@@ -55,8 +47,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         private final transient boolean keyed;
         protected final transient DocValueFormat format;
 
-        public Bucket(double key, long docCount, boolean keyed, DocValueFormat format,
-                InternalAggregations aggregations) {
+        public Bucket(double key, long docCount, boolean keyed, DocValueFormat format, InternalAggregations aggregations) {
             this.format = format;
             this.keyed = keyed;
             this.key = key;
@@ -72,7 +63,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             this.keyed = keyed;
             key = in.readDouble();
             docCount = in.readVLong();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -83,9 +74,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             Bucket that = (Bucket) obj;
             // No need to take the keyed and format parameters into account,
             // they are already stored and tested on the InternalHistogram object
-            return key == that.key
-                    && docCount == that.docCount
-                    && Objects.equals(aggregations, that.aggregations);
+            return key == that.key && docCount == that.docCount && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
@@ -152,12 +141,12 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
     }
 
-    static class EmptyBucketInfo {
+    public static class EmptyBucketInfo {
 
         final double interval, offset, minBound, maxBound;
         final InternalAggregations subAggregations;
 
-        EmptyBucketInfo(double interval, double offset, double minBound, double maxBound, InternalAggregations subAggregations) {
+        public EmptyBucketInfo(double interval, double offset, double minBound, double maxBound, InternalAggregations subAggregations) {
             this.interval = interval;
             this.offset = offset;
             this.minBound = minBound;
@@ -166,7 +155,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
 
         EmptyBucketInfo(StreamInput in) throws IOException {
-            this(in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble(), new InternalAggregations(in));
+            this(in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble(), InternalAggregations.readFrom(in));
         }
 
         public void writeTo(StreamOutput out) throws IOException {
@@ -184,10 +173,10 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             }
             EmptyBucketInfo that = (EmptyBucketInfo) obj;
             return interval == that.interval
-                    && offset == that.offset
-                    && minBound == that.minBound
-                    && maxBound == that.maxBound
-                    && Objects.equals(subAggregations, that.subAggregations);
+                && offset == that.offset
+                && minBound == that.minBound
+                && maxBound == that.maxBound
+                && Objects.equals(subAggregations, that.subAggregations);
         }
 
         @Override
@@ -203,8 +192,16 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     private final long minDocCount;
     final EmptyBucketInfo emptyBucketInfo;
 
-    InternalHistogram(String name, List<Bucket> buckets, BucketOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo,
-            DocValueFormat formatter, boolean keyed, Map<String, Object> metadata) {
+    public InternalHistogram(
+        String name,
+        List<Bucket> buckets,
+        BucketOrder order,
+        long minDocCount,
+        EmptyBucketInfo emptyBucketInfo,
+        DocValueFormat formatter,
+        boolean keyed,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.buckets = buckets;
         this.order = order;
@@ -272,30 +269,18 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
-    private static class IteratorAndCurrent {
-
-        private final Iterator<Bucket> iterator;
-        private Bucket current;
-
-        IteratorAndCurrent(Iterator<Bucket> iterator) {
-            this.iterator = iterator;
-            current = iterator.next();
-        }
-
-    }
-
     private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
-        final PriorityQueue<IteratorAndCurrent> pq = new PriorityQueue<IteratorAndCurrent>(aggregations.size()) {
+        final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
-            protected boolean lessThan(IteratorAndCurrent a, IteratorAndCurrent b) {
-                return Double.compare(a.current.key, b.current.key) < 0;
+            protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                return Double.compare(a.current().key, b.current().key) < 0;
             }
         };
         for (InternalAggregation aggregation : aggregations) {
             InternalHistogram histogram = (InternalHistogram) aggregation;
             if (histogram.buckets.isEmpty() == false) {
-                pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));
+                pq.add(new IteratorAndCurrent<Bucket>(histogram.buckets.iterator()));
             }
         }
 
@@ -303,12 +288,12 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         if (pq.size() > 0) {
             // list of buckets coming from different shards that have the same key
             List<Bucket> currentBuckets = new ArrayList<>();
-            double key = pq.top().current.key;
+            double key = pq.top().current().key;
 
             do {
-                final IteratorAndCurrent top = pq.top();
+                final IteratorAndCurrent<Bucket> top = pq.top();
 
-                if (Double.compare(top.current.key, key) != 0) {
+                if (Double.compare(top.current().key, key) != 0) {
                     // The key changes, reduce what we already buffered and reset the buffer for current buckets.
                     // Using Double.compare instead of != to handle NaN correctly.
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
@@ -316,15 +301,14 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                         reducedBuckets.add(reduced);
                     }
                     currentBuckets.clear();
-                    key = top.current.key;
+                    key = top.current().key;
                 }
 
-                currentBuckets.add(top.current);
+                currentBuckets.add(top.current());
 
-                if (top.iterator.hasNext()) {
-                    final Bucket next = top.iterator.next();
-                    assert Double.compare(next.key, top.current.key) > 0 : "shards must return data sorted by key";
-                    top.current = next;
+                if (top.hasNext()) {
+                    top.next();
+                    assert Double.compare(top.current().key, key) > 0 : "shards must return data sorted by key";
                     pq.updateTop();
                 } else {
                     pq.pop();
@@ -363,71 +347,113 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         return Math.floor((key - emptyBucketInfo.offset) / emptyBucketInfo.interval) * emptyBucketInfo.interval + emptyBucketInfo.offset;
     }
 
+    /**
+     * When we pre-count the empty buckets we report them periodically
+     * because you can configure the histogram to create more buckets than
+     * there are atoms in the universe. It'd take a while to count that high
+     * only to abort. So we report every couple thousand buckets. It's be
+     * simpler to report every single bucket we plan to allocate one at a time
+     * but that'd cause needless overhead on the circuit breakers. Counting a
+     * couple thousand buckets is plenty fast to fail this quickly in
+     * pathological cases and plenty large to keep the overhead minimal.
+     */
+    private static final int REPORT_EMPTY_EVERY = 10_000;
+
     private void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
-        ListIterator<Bucket> iter = list.listIterator();
+        /*
+         * Make sure we have space for the empty buckets we're going to add by
+         * counting all of the empties we plan to add and firing them into
+         * consumeBucketsAndMaybeBreak.
+         */
+        class Counter implements DoubleConsumer {
+            private int size = list.size();
 
-        // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
+            @Override
+            public void accept(double key) {
+                size++;
+                if (size >= REPORT_EMPTY_EVERY) {
+                    reduceContext.consumeBucketsAndMaybeBreak(size);
+                    size = 0;
+                }
+            }
+        }
+        Counter counter = new Counter();
+        iterateEmptyBuckets(list, list.listIterator(), counter);
+        reduceContext.consumeBucketsAndMaybeBreak(counter.size);
+
+        /*
+         * Now that we're sure we have space we allocate all the buckets.
+         */
         InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(
-                Collections.singletonList(emptyBucketInfo.subAggregations),
-                reduceContext);
+            Collections.singletonList(emptyBucketInfo.subAggregations),
+            reduceContext
+        );
+        ListIterator<Bucket> iter = list.listIterator();
+        iterateEmptyBuckets(list, iter, key -> iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs)));
+    }
 
+    private void iterateEmptyBuckets(List<Bucket> list, ListIterator<Bucket> iter, DoubleConsumer onBucket) {
         if (iter.hasNext() == false) {
             // fill with empty buckets
             for (double key = round(emptyBucketInfo.minBound); key <= emptyBucketInfo.maxBound; key = nextKey(key)) {
-                iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
+                onBucket.accept(key);
             }
-        } else {
-            Bucket first = list.get(iter.nextIndex());
-            if (Double.isFinite(emptyBucketInfo.minBound)) {
-                // fill with empty buckets until the first key
-                for (double key = round(emptyBucketInfo.minBound); key < first.key; key = nextKey(key)) {
-                    iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
-                }
+            return;
+        }
+        Bucket first = list.get(iter.nextIndex());
+        if (Double.isFinite(emptyBucketInfo.minBound)) {
+            // fill with empty buckets until the first key
+            for (double key = round(emptyBucketInfo.minBound); key < first.key; key = nextKey(key)) {
+                onBucket.accept(key);
             }
+        }
 
-            // now adding the empty buckets within the actual data,
-            // e.g. if the data series is [1,2,3,7] there're 3 empty buckets that will be created for 4,5,6
-            Bucket lastBucket = null;
-            do {
-                Bucket nextBucket = list.get(iter.nextIndex());
-                if (lastBucket != null) {
-                    double key = nextKey(lastBucket.key);
-                    while (key < nextBucket.key) {
-                        iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
-                        key = nextKey(key);
-                    }
-                    assert key == nextBucket.key || Double.isNaN(nextBucket.key) : "key: " + key + ", nextBucket.key: " + nextBucket.key;
+        // now adding the empty buckets within the actual data,
+        // e.g. if the data series is [1,2,3,7] there're 3 empty buckets that will be created for 4,5,6
+        Bucket lastBucket = null;
+        do {
+            Bucket nextBucket = list.get(iter.nextIndex());
+            if (lastBucket != null) {
+                double key = nextKey(lastBucket.key);
+                while (key < nextBucket.key) {
+                    onBucket.accept(key);
+                    key = nextKey(key);
                 }
-                lastBucket = iter.next();
-            } while (iter.hasNext());
-
-            // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
-            for (double key = nextKey(lastBucket.key); key <= emptyBucketInfo.maxBound; key = nextKey(key)) {
-                iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
+                assert key == nextBucket.key || Double.isNaN(nextBucket.key) : "key: " + key + ", nextBucket.key: " + nextBucket.key;
             }
+            lastBucket = iter.next();
+        } while (iter.hasNext());
+
+        // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
+        for (double key = nextKey(lastBucket.key); key <= emptyBucketInfo.maxBound; key = nextKey(key)) {
+            onBucket.accept(key);
         }
     }
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
+        boolean alreadyAccountedForBuckets = false;
         if (reduceContext.isFinalReduce()) {
             if (minDocCount == 0) {
                 addEmptyBuckets(reducedBuckets, reduceContext);
+                alreadyAccountedForBuckets = true;
             }
             if (InternalOrder.isKeyDesc(order)) {
                 // we just need to reverse here...
                 List<Bucket> reverse = new ArrayList<>(reducedBuckets);
                 Collections.reverse(reverse);
                 reducedBuckets = reverse;
-            } else if (InternalOrder.isKeyAsc(order) ==  false){
+            } else if (InternalOrder.isKeyAsc(order) == false) {
                 // nothing to do when sorting by key ascending, as data is already sorted since shards return
                 // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
                 // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
                 CollectionUtil.introSort(reducedBuckets, order.comparator());
             }
         }
-        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+        if (false == alreadyAccountedForBuckets) {
+            reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+        }
         return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
@@ -485,11 +511,11 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
         InternalHistogram that = (InternalHistogram) obj;
         return Objects.equals(buckets, that.buckets)
-                && Objects.equals(emptyBucketInfo, that.emptyBucketInfo)
-                && Objects.equals(format, that.format)
-                && Objects.equals(keyed, that.keyed)
-                && Objects.equals(minDocCount, that.minDocCount)
-                && Objects.equals(order, that.order);
+            && Objects.equals(emptyBucketInfo, that.emptyBucketInfo)
+            && Objects.equals(format, that.format)
+            && Objects.equals(keyed, that.keyed)
+            && Objects.equals(minDocCount, that.minDocCount)
+            && Objects.equals(order, that.order);
     }
 
     @Override

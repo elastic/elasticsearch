@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -14,7 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -26,7 +27,9 @@ import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -41,10 +44,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -126,17 +133,19 @@ public class LicenseServiceTests extends ESTestCase {
             .put("discovery.type", "single-node") // So we skip TLS checks
             .build();
 
-        final ClusterState clusterState = Mockito.mock(ClusterState.class);
+        final ClusterState clusterState = mock(ClusterState.class);
         Mockito.when(clusterState.metadata()).thenReturn(Metadata.EMPTY_METADATA);
 
-        final ClusterService clusterService = Mockito.mock(ClusterService.class);
+        final ClusterService clusterService = mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final ResourceWatcherService resourceWatcherService = Mockito.mock(ResourceWatcherService.class);
-        final XPackLicenseState licenseState = Mockito.mock(XPackLicenseState.class);
-        final LicenseService service = new LicenseService(settings, clusterService, clock, env, resourceWatcherService, licenseState);
+        final ResourceWatcherService resourceWatcherService = mock(ResourceWatcherService.class);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        final LicenseService service =
+            new LicenseService(settings, threadPool, clusterService, clock, env, resourceWatcherService, licenseState);
 
         final PutLicenseRequest request = new PutLicenseRequest();
         request.license(spec(licenseType, TimeValue.timeValueDays(randomLongBetween(1, 1000))), XContentType.JSON);
@@ -195,4 +204,32 @@ public class LicenseServiceTests extends ESTestCase {
             .signature(null)
             .build();
     }
+
+    private void assertExpiryWarning(long adjustment, String msg) {
+        long now = System.currentTimeMillis();
+        long expiration = now + adjustment;
+        String warning = LicenseService.getExpiryWarning(expiration, now);
+        if (msg == null) {
+            assertThat(warning, is(nullValue()));
+        } else {
+            assertThat(warning, Matchers.containsString(msg));
+        }
+    }
+
+    public void testNoExpiryWarning() {
+        assertExpiryWarning(LICENSE_EXPIRATION_WARNING_PERIOD.getMillis(), null);
+    }
+
+    public void testExpiryWarningSoon() {
+        assertExpiryWarning(LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() - 1, "Your license will expire in [6] days");
+    }
+
+    public void testExpiryWarningToday() {
+        assertExpiryWarning(1, "Your license expires today");
+    }
+
+    public void testExpiryWarningExpired() {
+        assertExpiryWarning(0, "Your license expired on");
+    }
+
 }

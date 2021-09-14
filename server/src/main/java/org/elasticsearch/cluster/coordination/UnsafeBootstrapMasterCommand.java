@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -25,14 +14,14 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -72,7 +61,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
     protected boolean validateBeforeLock(Terminal terminal, Environment env) {
         Settings settings = env.settings();
         terminal.println(Terminal.Verbosity.VERBOSE, "Checking node.master setting");
-        Boolean master = Node.NODE_MASTER_SETTING.get(settings);
+        Boolean master = DiscoveryNode.isMasterNode(settings);
         if (master == false) {
             throw new ElasticsearchException(NOT_MASTER_NODE_MSG);
         }
@@ -80,8 +69,8 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
         return true;
     }
 
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
-        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
+    protected void processNodePaths(Terminal terminal, Path dataPath, OptionSet options, Environment env) throws IOException {
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPath);
 
         final Tuple<Long, ClusterState> state = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = state.v2();

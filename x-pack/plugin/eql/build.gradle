@@ -1,8 +1,5 @@
-import org.elasticsearch.gradle.info.BuildParams
-
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
+import org.elasticsearch.gradle.internal.info.BuildParams
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-eql'
@@ -13,34 +10,27 @@ esplugin {
 
 ext {
   // EQL dependency versions
-  antlrVersion = "4.5.3"
+  antlrVersion = "4.9.2"
 }
 
 archivesBaseName = 'x-pack-eql'
 
-// All integration tests live in qa modules
-integTest.enabled = false
-
-tasks.named('internalClusterTest').configure {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.eql_feature_flag_registered', 'true'
-  }
-}
-
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  compileOnly(project(':modules:lang-painless')) {
-    exclude group: "org.ow2.asm"
-  }
-  compile "org.antlr:antlr4-runtime:${antlrVersion}"
-  compileOnly project(path: xpackModule('ql'), configuration: 'default')
-  testCompile project(':test:framework')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ql'), configuration: 'testArtifacts')
-  testCompile project(path: ':modules:reindex', configuration: 'runtime')
-  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
-  testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+  compileOnly project(path: xpackModule('core'))
+  compileOnly(project(':modules:lang-painless:spi'))
+  compileOnly project(xpackModule('ql'))
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('ql'))))
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: ':modules:parent-join')
+  testImplementation project(path: ':modules:analysis-common')
+  testImplementation project(path: ':modules:transport-netty4') // for http in RestEqlCancellationIT
+  testImplementation project(path: ':plugins:transport-nio') // for http in RestEqlCancellationIT
+
+  testImplementation 'io.ous:jtoml:2.0.0'
 }
 
 
@@ -49,14 +39,7 @@ dependencies {
  *  TODO: Enable for all builds upon this feature release       *
  ****************************************************************/
 if (BuildParams.isSnapshotBuild()) {
-  // add all sub-projects of the qa sub-project
-  gradle.projectsEvaluated {
-    project.subprojects
-      .find { it.path == project.path + ":qa" }
-      .subprojects
-      .findAll { it.path.startsWith(project.path + ":qa") }
-      .each { check.dependsOn it.check }
-  }
+  addQaCheckDependencies()
 }
 
 /**********************************************
@@ -74,7 +57,15 @@ dependencies {
 String grammarPath = 'src/main/antlr'
 String outputPath = 'src/main/java/org/elasticsearch/xpack/eql/parser'
 
-task cleanGenerated(type: Delete) {
+pluginManager.withPlugin('com.diffplug.spotless') {
+  spotless {
+    java {
+      targetExclude "${outputPath}/*.java"
+    }
+  }
+}
+
+tasks.register("cleanGenerated", Delete) {
   delete fileTree(grammarPath) {
     include '*.tokens'
   }
@@ -83,9 +74,9 @@ task cleanGenerated(type: Delete) {
   }
 }
 
-task regenParser(type: JavaExec) {
-  dependsOn cleanGenerated
-  main = 'org.antlr.v4.Tool'
+tasks.register("regenParser", JavaExec) {
+  dependsOn "cleanGenerated"
+  mainClass = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
   systemProperty 'user.language', 'en'
@@ -99,8 +90,8 @@ task regenParser(type: JavaExec) {
     "${file(grammarPath)}/EqlBase.g4"
 }
 
-task regen {
-  dependsOn regenParser
+tasks.register("regen") {
+  dependsOn "regenParser"
   doLast {
     // moves token files to grammar directory for use with IDE's
     ant.move(file: "${outputPath}/EqlBase.tokens", toDir: grammarPath)

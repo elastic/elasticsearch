@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.store;
@@ -40,15 +29,16 @@ public class StoreFileMetadata implements Writeable {
 
     private final String checksum;
 
-    private final Version writtenBy;
+    private final String writtenBy;
 
     private final BytesRef hash;
 
-    public StoreFileMetadata(String name, long length, String checksum, Version writtenBy) {
+    public StoreFileMetadata(String name, long length, String checksum, String writtenBy) {
         this(name, length, checksum, writtenBy, null);
     }
 
-    public StoreFileMetadata(String name, long length, String checksum, Version writtenBy, BytesRef hash) {
+    public StoreFileMetadata(String name, long length, String checksum, String writtenBy, BytesRef hash) {
+        assert assertValidWrittenBy(writtenBy);
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.length = length;
         this.checksum = Objects.requireNonNull(checksum, "checksum must not be null");
@@ -63,11 +53,7 @@ public class StoreFileMetadata implements Writeable {
         name = in.readString();
         length = in.readVLong();
         checksum = in.readString();
-        try {
-            writtenBy = Version.parse(in.readString());
-        } catch (ParseException e) {
-            throw new AssertionError(e);
-        }
+        writtenBy = in.readString();
         hash = in.readBytesRef();
     }
 
@@ -76,7 +62,7 @@ public class StoreFileMetadata implements Writeable {
         out.writeString(name);
         out.writeVLong(length);
         out.writeString(checksum);
-        out.writeString(writtenBy.toString());
+        out.writeString(writtenBy);
         out.writeBytesRef(hash);
     }
 
@@ -138,13 +124,13 @@ public class StoreFileMetadata implements Writeable {
 
     @Override
     public String toString() {
-        return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "]" ;
+        return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "]";
     }
 
     /**
-     * Returns the Lucene version this file has been written by or <code>null</code> if unknown
+     * Returns a String representation of the Lucene version this file has been written by or <code>null</code> if unknown
      */
-    public Version writtenBy() {
+    public String writtenBy() {
         return writtenBy;
     }
 
@@ -154,5 +140,14 @@ public class StoreFileMetadata implements Writeable {
      */
     public BytesRef hash() {
         return hash;
+    }
+
+    private static boolean assertValidWrittenBy(String writtenBy) {
+        try {
+            Version.parse(writtenBy);
+        } catch (ParseException e) {
+            throw new AssertionError("invalid writtenBy: " + writtenBy, e);
+        }
+        return true;
     }
 }

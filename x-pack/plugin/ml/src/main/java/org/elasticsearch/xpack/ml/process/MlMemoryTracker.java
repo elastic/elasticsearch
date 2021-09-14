@@ -1,31 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
@@ -36,10 +42,12 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Phaser;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -70,6 +78,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private final JobResultsProvider jobResultsProvider;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final Phaser stopPhaser;
+    private volatile AtomicInteger phase = new AtomicInteger(0);
     private volatile boolean isMaster;
     private volatile Instant lastUpdateTime;
     private volatile Duration reassignmentRecheckInterval;
@@ -101,6 +110,11 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     @Override
     public void onMaster() {
         isMaster = true;
+        try {
+            asyncRefresh();
+        } catch (Exception ex) {
+            logger.warn("unexpected failure while attempting asynchronous refresh on new master assignment", ex);
+        }
         logger.trace("ML memory tracker on master");
     }
 
@@ -108,6 +122,39 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void offMaster() {
         isMaster = false;
         logger.trace("ML memory tracker off master");
+        clear();
+    }
+
+    public void awaitAndClear(ActionListener<Void> listener) {
+        // We never terminate the phaser
+        logger.trace("awaiting and clearing memory tracker");
+        assert stopPhaser.isTerminated() == false;
+        // If there are no registered parties or no unarrived parties then there is a flaw
+        // in the register/arrive/unregister logic in another method that uses the phaser
+        assert stopPhaser.getRegisteredParties() > 0;
+        assert stopPhaser.getUnarrivedParties() > 0;
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
+            () -> {
+                try {
+                    // We await all current refreshes to complete, this increments the "current phase" and prevents
+                    // further interaction while we clear contents
+                    int newPhase = stopPhaser.arriveAndAwaitAdvance();
+                    assert newPhase > 0;
+                    clear();
+                    phase.incrementAndGet();
+                    logger.trace("completed awaiting and clearing memory tracker");
+                    listener.onResponse(null);
+                } catch (Exception e) {
+                    logger.warn("failed to wait for all refresh requests to complete", e);
+                    listener.onFailure(e);
+                }
+            }
+        );
+
+    }
+
+    private void clear() {
+        logger.trace("clearing ML Memory tracker contents");
         for (Map<String, Long> memoryRequirementByJob : memoryRequirementByTaskName.values()) {
             memoryRequirementByJob.clear();
         }
@@ -131,19 +178,22 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         logger.debug("ML memory tracker stopped");
     }
 
-    @Override
-    public String executorName() {
-        return MachineLearning.UTILITY_THREAD_POOL_NAME;
+    /**
+     * Is the information in this object sufficiently up to date
+     * for valid task assignment decisions to be made using it?
+     */
+    public boolean isRecentlyRefreshed() {
+        return isRecentlyRefreshed(reassignmentRecheckInterval);
     }
 
     /**
      * Is the information in this object sufficiently up to date
      * for valid task assignment decisions to be made using it?
      */
-    public boolean isRecentlyRefreshed() {
+    public boolean isRecentlyRefreshed(Duration customDuration) {
         Instant localLastUpdateTime = lastUpdateTime;
-        return localLastUpdateTime != null &&
-            localLastUpdateTime.plus(RECENT_UPDATE_THRESHOLD).plus(reassignmentRecheckInterval).isAfter(Instant.now());
+        return isMaster && localLastUpdateTime != null &&
+            localLastUpdateTime.plus(RECENT_UPDATE_THRESHOLD).plus(customDuration).isAfter(Instant.now());
     }
 
     /**
@@ -169,6 +219,24 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     }
 
     /**
+     * Get the memory requirement for a trained model task.
+     * This method only works on the master node.
+     * @param modelId The model ID.
+     * @return The memory requirement of the trained model task specified by {@code modelId},
+     *         or <code>null</code> if it cannot be found.
+     */
+    public Long getTrainedModelAllocationMemoryRequirement(String modelId) {
+        if (isMaster == false) {
+            return null;
+        }
+
+        return Optional.ofNullable(TrainedModelAllocationMetadata.fromState(clusterService.state()).modelAllocations().get(modelId))
+            .map(TrainedModelAllocation::getTaskParams)
+            .map(StartTrainedModelDeploymentAction.TaskParams::estimateMemoryUsageBytes)
+            .orElse(null);
+    }
+
+    /**
      * Get the memory requirement for the type of job corresponding to a specified persistent task name.
      * This method only works on the master node.
      * @param taskName The persistent task name.
@@ -184,9 +252,9 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         Map<String, Long> memoryRequirementByJob = memoryRequirementByTaskName.get(taskName);
         if (memoryRequirementByJob == null) {
+            assert false: "Unknown taskName type [" + taskName +"]";
             return null;
         }
-
         return memoryRequirementByJob.get(id);
     }
 
@@ -222,7 +290,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     aVoid -> logger.trace("Job memory requirement refresh request completed successfully"),
                     e -> logger.warn("Failed to refresh job memory requirements", e)
                 );
-                threadPool.executor(executorName()).execute(
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
                     () -> refresh(clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE), listener));
                 return true;
             } catch (EsRejectedExecutionException e) {
@@ -245,7 +313,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void refreshAnomalyDetectorJobMemoryAndAllOthers(String jobId, ActionListener<Long> listener) {
 
         if (isMaster == false) {
-            listener.onResponse(null);
+            listener.onFailure(new NotMasterException("Request to refresh anomaly detector memory requirements on non-master node"));
             return;
         }
 
@@ -265,7 +333,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(String id, long mem, ActionListener<Void> listener) {
 
         if (isMaster == false) {
-            listener.onResponse(null);
+            listener.onFailure(new NotMasterException("Request to put data frame analytics memory requirement on non-master node"));
             return;
         }
 
@@ -281,7 +349,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * to a race where a job was opened part way through the refresh.  (Instead, entries are removed when
      * jobs are deleted.)
      */
-    void refresh(PersistentTasksCustomMetadata persistentTasks, ActionListener<Void> onCompletion) {
+    public void refresh(PersistentTasksCustomMetadata persistentTasks, ActionListener<Void> onCompletion) {
 
         synchronized (fullRefreshCompletionListeners) {
             fullRefreshCompletionListeners.add(onCompletion);
@@ -292,11 +360,19 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         }
 
         ActionListener<Void> refreshComplete = ActionListener.wrap(aVoid -> {
-            lastUpdateTime = Instant.now();
             synchronized (fullRefreshCompletionListeners) {
                 assert fullRefreshCompletionListeners.isEmpty() == false;
-                for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
-                    listener.onResponse(null);
+                if (isMaster) {
+                    lastUpdateTime = Instant.now();
+                    for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
+                        listener.onResponse(null);
+                    }
+                    logger.trace("ML memory tracker last update time now [{}] and listeners called", lastUpdateTime);
+                } else {
+                    Exception e = new NotMasterException("Node ceased to be master during ML memory tracker refresh");
+                    for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
+                        listener.onFailure(e);
+                    }
                 }
                 fullRefreshCompletionListeners.clear();
             }
@@ -307,6 +383,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                     listener.onFailure(e);
                 }
+                logger.warn("ML memory tracker last update failed and listeners called", e);
                 // It's critical that we empty out the current listener list on
                 // error otherwise subsequent retries to refresh will be ignored
                 fullRefreshCompletionListeners.clear();
@@ -339,7 +416,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     // can occur if the searches happen to be on the local node, as the huge
                     // chain of listeners are all called in the same thread if only one node
                     // is involved
-                    mem -> threadPool.executor(executorName()).execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
+                    mem -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                        .execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
                     refreshComplete::onFailure));
         } else {
             refreshComplete.onResponse(null);
@@ -377,14 +455,18 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      */
     public void refreshAnomalyDetectorJobMemory(String jobId, ActionListener<Long> listener) {
         if (isMaster == false) {
-            listener.onResponse(null);
+            listener.onFailure(new NotMasterException("Request to refresh anomaly detector memory requirement on non-master node"));
             return;
         }
 
         // The phaser prevents searches being started after the memory tracker's stop() method has returned
-        if (stopPhaser.register() != 0) {
-            // Phases above 0 mean we've been stopped, so don't do any operations that involve external interaction
+        // Note: `phase` is incremented if cache is reset via the feature reset API
+        if (stopPhaser.register() != phase.get()) {
+            // Phases above not equal to `phase` mean we've been stopped, so don't do any operations that involve external interaction
             stopPhaser.arriveAndDeregister();
+            logger.info(
+                () -> new ParameterizedMessage("[{}] not refreshing anomaly detector memory as node is shutting down", jobId)
+            );
             listener.onFailure(new EsRejectedExecutionException("Couldn't run ML memory update - node is shutting down"));
             return;
         }
@@ -430,7 +512,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             if (memoryLimitMb == null) {
                 memoryLimitMb = AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB;
             }
-            Long memoryRequirementBytes = ByteSizeUnit.MB.toBytes(memoryLimitMb) + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
+            Long memoryRequirementBytes = ByteSizeValue.ofMb(memoryLimitMb).getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
             memoryRequirementByAnomalyDetectorJob.put(jobId, memoryRequirementBytes);
             listener.onResponse(memoryRequirementBytes);
         }, e -> {

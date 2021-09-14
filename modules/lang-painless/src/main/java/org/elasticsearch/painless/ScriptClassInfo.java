@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -22,11 +11,13 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
@@ -45,6 +36,8 @@ public class ScriptClassInfo {
     private final List<org.objectweb.asm.commons.Method> needsMethods;
     private final List<org.objectweb.asm.commons.Method> getMethods;
     private final List<Class<?>> getReturns;
+    public final List<FunctionTable.LocalFunction> converters;
+    public final FunctionTable.LocalFunction defConverter;
 
     public ScriptClassInfo(PainlessLookup painlessLookup, Class<?> baseClass) {
         this.baseClass = baseClass;
@@ -54,6 +47,8 @@ public class ScriptClassInfo {
         List<org.objectweb.asm.commons.Method> needsMethods = new ArrayList<>();
         List<org.objectweb.asm.commons.Method> getMethods = new ArrayList<>();
         List<Class<?>> getReturns = new ArrayList<>();
+
+        Class<?> returnType = null;
         for (java.lang.reflect.Method m : baseClass.getMethods()) {
             if (m.isDefault()) {
                 continue;
@@ -61,16 +56,19 @@ public class ScriptClassInfo {
             if (m.getName().equals("execute")) {
                 if (executeMethod == null) {
                     executeMethod = m;
+                    returnType = m.getReturnType();
                 } else {
                     throw new IllegalArgumentException(
                             "Painless can only implement interfaces that have a single method named [execute] but [" + baseClass.getName()
                                     + "] has more than one.");
                 }
-            }
-            if (m.getName().startsWith("needs") && m.getReturnType() == boolean.class && m.getParameterTypes().length == 0) {
+            } else if (m.getName().startsWith("needs") &&
+                       m.getReturnType() == boolean.class &&
+                       m.getParameterTypes().length == 0) {
                 needsMethods.add(new org.objectweb.asm.commons.Method(m.getName(), NEEDS_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
-            }
-            if (m.getName().startsWith("get") && m.getName().equals("getClass") == false && Modifier.isStatic(m.getModifiers()) == false) {
+            } else if (m.getName().startsWith("get") &&
+                       m.getName().equals("getClass") == false &&
+                       Modifier.isStatic(m.getModifiers()) == false) {
                 getReturns.add(
                     definitionTypeForClass(painlessLookup, m.getReturnType(), componentType -> "[" + m.getName() + "] has unknown return " +
                         "type [" + componentType.getName() + "]. Painless can only support getters with return types that are " +
@@ -81,6 +79,35 @@ public class ScriptClassInfo {
 
             }
         }
+
+        if (executeMethod == null) {
+            throw new IllegalStateException("no execute method found");
+        }
+        ArrayList<FunctionTable.LocalFunction> converters = new ArrayList<>();
+        FunctionTable.LocalFunction defConverter = null;
+        for (java.lang.reflect.Method m : baseClass.getMethods()) {
+            if (m.getName().startsWith("convertFrom") &&
+                m.getParameterTypes().length == 1 &&
+                m.getReturnType() == returnType &&
+                Modifier.isStatic(m.getModifiers())) {
+
+                if (m.getName().equals("convertFromDef")) {
+                    if (m.getParameterTypes()[0] != Object.class) {
+                        throw new IllegalStateException("convertFromDef must take a single Object as an argument, " +
+                            "not [" + m.getParameterTypes()[0] + "]");
+                    }
+                    defConverter = new FunctionTable.LocalFunction(m.getName(), m.getReturnType(), Arrays.asList(m.getParameterTypes()),
+                                                                   true, true);
+                } else {
+                    converters.add(
+                        new FunctionTable.LocalFunction(m.getName(), m.getReturnType(), Arrays.asList(m.getParameterTypes()), true, true)
+                    );
+                }
+            }
+        }
+        this.defConverter = defConverter;
+        this.converters = unmodifiableList(converters);
+
         MethodType methodType = MethodType.methodType(executeMethod.getReturnType(), executeMethod.getParameterTypes());
         this.executeMethod = new org.objectweb.asm.commons.Method(executeMethod.getName(), methodType.toMethodDescriptorString());
         executeMethodReturnType = definitionTypeForClass(painlessLookup, executeMethod.getReturnType(),

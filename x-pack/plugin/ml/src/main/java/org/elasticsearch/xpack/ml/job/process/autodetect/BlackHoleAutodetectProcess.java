@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
-import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Date;
@@ -72,17 +72,17 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
         if (Arrays.asList(record).contains(MAGIC_FAILURE_VALUE)) {
             open = false;
             onProcessCrash.accept("simulated failure");
-            AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null, null);
+            AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null, null, null);
             results.add(result);
         }
     }
 
     @Override
-    public void writeResetBucketsControlMessage(DataLoadParams params) throws IOException {
+    public void writeResetBucketsControlMessage(DataLoadParams params) {
     }
 
     @Override
-    public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) throws IOException {
+    public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) {
     }
 
     @Override
@@ -90,15 +90,15 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
+    public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) {
     }
 
     @Override
-    public void writeUpdateFiltersMessage(List<MlFilter> filters) throws IOException {
+    public void writeUpdateFiltersMessage(List<MlFilter> filters) {
     }
 
     @Override
-    public void writeUpdateScheduledEventsMessage(List<ScheduledEvent> events, TimeValue bucketSpan) throws IOException {
+    public void writeUpdateScheduledEventsMessage(List<ScheduledEvent> events, TimeValue bucketSpan) {
     }
 
     /**
@@ -107,10 +107,10 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
      * @return {@link #FLUSH_ID}
      */
     @Override
-    public String flushJob(FlushJobParams params) throws IOException {
-        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, null);
+    public String flushJob(FlushJobParams params) {
+        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, 0L);
         AutodetectResult result =
-            new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null,flushAcknowledgement);
+            new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null, null, flushAcknowledgement);
         results.add(result);
         return FLUSH_ID;
     }
@@ -120,21 +120,26 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
+    }
+
+    @Override
     public void flushStream() {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (open) {
             Quantiles quantiles = new Quantiles(jobId, new Date(), "black hole quantiles");
-            AutodetectResult result = new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null, null);
+            AutodetectResult result =
+                new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null, null, null);
             results.add(result);
             open = false;
         }
     }
 
     @Override
-    public void kill() throws IOException {
+    public void kill(boolean awaitCompletion) {
         open = false;
     }
 
@@ -199,6 +204,6 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void forecastJob(ForecastParams params) throws IOException {
+    public void forecastJob(ForecastParams params) {
     }
 }

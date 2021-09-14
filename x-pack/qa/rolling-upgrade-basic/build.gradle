@@ -1,13 +1,13 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
-  testCompile project(':x-pack:qa')
+  testImplementation project(':x-pack:qa')
 }
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
@@ -27,9 +27,9 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
   }
 
-  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${baseName}"
-    mustRunAfter(precommit)
+    mustRunAfter("precommit")
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
@@ -37,7 +37,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   }
 
   String oldVersion = bwcVersion.toString().replace('-SNAPSHOT', '')
-  tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
     useCluster testClusters."${baseName}"
     doFirst {
@@ -50,7 +50,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     systemProperty 'tests.upgrade_from_version', oldVersion
   }
 
-  tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgradedTest"
     useCluster testClusters."${baseName}"
     doFirst {
@@ -63,7 +63,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     systemProperty 'tests.upgrade_from_version', oldVersion
   }
 
-  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdsUpgradedTest"
     useCluster testClusters."${baseName}"
     doFirst {
@@ -78,4 +78,14 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#upgradedClusterTest"
   }
+}
+
+
+// Security is explicitly disabled, do not run tests in FIPS mode
+tasks.withType(Test).configureEach {
+  enabled = BuildParams.inFipsJvm == false
+}
+
+tasks.named("testingConventions").configure {
+  enabled = BuildParams.inFipsJvm == false
 }

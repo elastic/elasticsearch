@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -25,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 
@@ -65,7 +67,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         super(NAME, ShardChangesAction.Response::new);
     }
 
-    public static class Request extends SingleShardRequest<Request> {
+    public static class Request extends SingleShardRequest<Request> implements RawIndexingDataTransportRequest {
 
         private long fromSeqNo;
         private int maxOperationCount;
@@ -447,7 +449,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                         listener.onFailure(new IndexNotFoundException(shardId.getIndex()));
                         return;
                     }
-
+                    checkHistoryUUID(indexShard, request.expectedHistoryUUID);
                     final long mappingVersion = indexMetadata.getMappingVersion();
                     final long settingsVersion = indexMetadata.getSettingsVersion();
                     final long aliasesVersion = indexMetadata.getAliasesVersion();
@@ -493,6 +495,14 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
     static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
+    private static void checkHistoryUUID(IndexShard indexShard, String expectedHistoryUUID) {
+        final String historyUUID = indexShard.getHistoryUUID();
+        if (historyUUID.equals(expectedHistoryUUID) == false) {
+            throw new IllegalStateException(
+                "unexpected history uuid, expected [" + expectedHistoryUUID + "], actual [" + historyUUID + "]");
+        }
+    }
+
     /**
      * Returns at most the specified maximum number of operations from the specified from sequence number. This method will never return
      * operations above the specified global checkpoint.
@@ -519,11 +529,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
-        final String historyUUID = indexShard.getHistoryUUID();
-        if (historyUUID.equals(expectedHistoryUUID) == false) {
-            throw new IllegalStateException("unexpected history uuid, expected [" + expectedHistoryUUID + "], actual [" +
-                historyUUID + "]");
-        }
+        checkHistoryUUID(indexShard, expectedHistoryUUID);
         if (fromSeqNo > globalCheckpoint) {
             throw new IllegalStateException(
                     "not exposing operations from [" + fromSeqNo + "] greater than the global checkpoint [" + globalCheckpoint + "]");
@@ -533,7 +539,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         long toSeqNo = Math.min(globalCheckpoint, (fromSeqNo + maxOperationCount) - 1);
         assert fromSeqNo <= toSeqNo : "invalid range from_seqno[" + fromSeqNo + "] > to_seqno[" + toSeqNo + "]";
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = indexShard.newChangesSnapshot("ccr", fromSeqNo, toSeqNo, true)) {
+        try (Translog.Snapshot snapshot = indexShard.newChangesSnapshot("ccr", fromSeqNo, toSeqNo, true, true)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);

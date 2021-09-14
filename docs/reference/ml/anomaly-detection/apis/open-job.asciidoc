@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-open-job]]
-=== Open {anomaly-jobs} API
+= Open {anomaly-jobs} API
 ++++
 <titleabbrev>Open jobs</titleabbrev>
 ++++
@@ -9,19 +9,18 @@
 Opens one or more {anomaly-jobs}.
 
 [[ml-open-job-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/anomaly_detectors/{job_id}/_open`
 
 [[ml-open-job-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>>.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-open-job-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 An {anomaly-job} must be opened in order for it to be ready to receive and
 analyze data. It can be opened and closed multiple times throughout its
@@ -34,32 +33,32 @@ loaded. The job is ready to resume its analysis from where it left off, once new
 data is received.
 
 [[ml-open-job-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-open-job-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `timeout`::
   (Optional, time) Controls the time to wait until a job has opened. The default
   value is 30 minutes.
 
 [[ml-open-job-response-body]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 `node`::
   (string) The ID of the node that the job was opened on. If the job is allowed to 
 open lazily and has not yet been assigned to a node, this value is an empty string.
 
 `opened`::
-  (boolean) For a successful response, this value is always `true`. On failure, an
+  (Boolean) For a successful response, this value is always `true`. On failure, an
   exception is returned instead.
 
 [[ml-open-job-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

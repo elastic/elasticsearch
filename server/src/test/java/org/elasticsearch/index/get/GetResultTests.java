@@ -1,39 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.get;
 
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -98,6 +89,32 @@ public class GetResultTests extends ESTestCase {
         }
     }
 
+    public void testToCompatibleXContent() throws IOException {
+        {
+            GetResult getResult = new GetResult("index", "id", 0, 1, 1, true, new BytesArray("{ \"field1\" : " +
+                "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
+                singletonList("value1"))), singletonMap("field1", new DocumentField("metafield",
+                singletonList("metavalue"))));
+
+            try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
+                getResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                String output = Strings.toString(builder);
+                assertEquals("{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1," +
+                    "\"metafield\":\"metavalue\",\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"}," +
+                    "\"fields\":{\"field1\":[\"value1\"]}}", output);
+            }
+        }
+        {
+            GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
+
+            try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
+                getResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                String output = Strings.toString(builder);
+                assertEquals("{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"found\":false}", output);
+            }
+        }
+    }
+
     public void testToAndFromXContentEmbedded() throws Exception {
         XContentType xContentType = randomFrom(XContentType.values());
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
@@ -114,7 +131,7 @@ public class GetResultTests extends ESTestCase {
         // Test that we can parse the result of toXContentEmbedded()
         GetResult parsedEmbeddedGetResult;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             parsedEmbeddedGetResult = GetResult.fromXContentEmbedded(parser);
             assertNull(parser.nextToken());
         }
@@ -250,9 +267,9 @@ public class GetResultTests extends ESTestCase {
         Map<String, DocumentField> fields = new HashMap<>(numFields);
         Map<String, DocumentField> expectedFields = new HashMap<>(numFields);
         // As we are using this to construct a GetResult object that already contains
-        // index, type, id, version, seqNo, and source fields, we need to exclude them from random fields
+        // index, id, version, seqNo, and source fields, we need to exclude them from random fields
         Predicate<String> excludeMetaFieldFilter = field ->
-            field.equals(TypeFieldMapper.NAME) || field.equals(IndexFieldMapper.NAME) ||
+            field.equals(IndexFieldMapper.NAME) ||
             field.equals(IdFieldMapper.NAME) || field.equals(VersionFieldMapper.NAME) ||
             field.equals(SourceFieldMapper.NAME) || field.equals(SeqNoFieldMapper.NAME) ;
         while (fields.size() < numFields) {

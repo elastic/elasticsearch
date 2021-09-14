@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -22,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,9 +20,9 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
+import org.elasticsearch.index.search.MatchQueryParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -43,7 +32,12 @@ import java.util.Objects;
  * result of the analysis.
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
-
+    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "cutoff_freqency is not supported. " +
+        "The [match] query can skip block of documents efficiently if the total number of hits is not tracked";
+    public static final ParseField CUTOFF_FREQUENCY_FIELD =
+        new ParseField("cutoff_frequency")
+            .withAllDeprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG)
+        .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
     public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
@@ -82,9 +76,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private String fuzzyRewrite = null;
 
-    private boolean lenient = MatchQuery.DEFAULT_LENIENCY;
+    private boolean lenient = MatchQueryParser.DEFAULT_LENIENCY;
 
-    private MatchQuery.ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
+    private ZeroTermsQueryOption zeroTermsQuery = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
 
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
@@ -114,7 +108,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         maxExpansions = in.readVInt();
         fuzzyTranspositions = in.readBoolean();
         lenient = in.readBoolean();
-        zeroTermsQuery = MatchQuery.ZeroTermsQuery.readFromStream(in);
+        zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
         // optional fields
         analyzer = in.readOptionalString();
         minimumShouldMatch = in.readOptionalString();
@@ -295,10 +289,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     /**
      * Sets query to use in case no query terms are available, e.g. after analysis removed them.
-     * Defaults to {@link MatchQuery.ZeroTermsQuery#NONE}, but can be set to
-     * {@link MatchQuery.ZeroTermsQuery#ALL} instead.
+     * Defaults to {@link ZeroTermsQueryOption#NONE}, but can be set to
+     * {@link ZeroTermsQueryOption#ALL} instead.
      */
-    public MatchQueryBuilder zeroTermsQuery(MatchQuery.ZeroTermsQuery zeroTermsQuery) {
+    public MatchQueryBuilder zeroTermsQuery(ZeroTermsQueryOption zeroTermsQuery) {
         if (zeroTermsQuery == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires zeroTermsQuery to be non-null");
         }
@@ -309,7 +303,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     /**
      * Returns the setting for handling zero terms queries.
      */
-    public MatchQuery.ZeroTermsQuery zeroTermsQuery() {
+    public ZeroTermsQueryOption zeroTermsQuery() {
         return this.zeroTermsQuery;
     }
 
@@ -359,27 +353,27 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         // validate context specific fields
         if (analyzer != null && context.getIndexAnalyzers().get(analyzer) == null) {
             throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
         }
 
-        MatchQuery matchQuery = new MatchQuery(context);
-        matchQuery.setOccur(operator.toBooleanClauseOccur());
+        MatchQueryParser queryParser = new MatchQueryParser(context);
+        queryParser.setOccur(operator.toBooleanClauseOccur());
         if (analyzer != null) {
-            matchQuery.setAnalyzer(analyzer);
+            queryParser.setAnalyzer(analyzer);
         }
-        matchQuery.setFuzziness(fuzziness);
-        matchQuery.setFuzzyPrefixLength(prefixLength);
-        matchQuery.setMaxExpansions(maxExpansions);
-        matchQuery.setTranspositions(fuzzyTranspositions);
-        matchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(fuzzyRewrite, null, LoggingDeprecationHandler.INSTANCE));
-        matchQuery.setLenient(lenient);
-        matchQuery.setZeroTermsQuery(zeroTermsQuery);
-        matchQuery.setAutoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
+        queryParser.setFuzziness(fuzziness);
+        queryParser.setFuzzyPrefixLength(prefixLength);
+        queryParser.setMaxExpansions(maxExpansions);
+        queryParser.setTranspositions(fuzzyTranspositions);
+        queryParser.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(fuzzyRewrite, null, LoggingDeprecationHandler.INSTANCE));
+        queryParser.setLenient(lenient);
+        queryParser.setZeroTermsQuery(zeroTermsQuery);
+        queryParser.setAutoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
 
-        Query query = matchQuery.parse(MatchQuery.Type.BOOLEAN, fieldName, value);
+        Query query = queryParser.parse(MatchQueryParser.Type.BOOLEAN, fieldName, value);
         return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
     }
 
@@ -424,8 +418,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         int maxExpansion = FuzzyQuery.defaultMaxExpansions;
         boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
         String fuzzyRewrite = null;
-        boolean lenient = MatchQuery.DEFAULT_LENIENCY;
-        ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
+        boolean lenient = MatchQueryParser.DEFAULT_LENIENCY;
+        ZeroTermsQueryOption zeroTermsQuery = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
         boolean autoGenerateSynonymsPhraseQuery = true;
         String queryName = null;
         String currentFieldName = null;
@@ -465,9 +459,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                         } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             String zeroTermsValue = parser.text();
                             if ("none".equalsIgnoreCase(zeroTermsValue)) {
-                                zeroTermsQuery = MatchQuery.ZeroTermsQuery.NONE;
+                                zeroTermsQuery = ZeroTermsQueryOption.NONE;
                             } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
-                                zeroTermsQuery = MatchQuery.ZeroTermsQuery.ALL;
+                                zeroTermsQuery = ZeroTermsQueryOption.ALL;
                             } else {
                                 throw new ParsingException(parser.getTokenLocation(),
                                         "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
@@ -476,6 +470,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                             queryName = parser.text();
                         } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName, parser.getDeprecationHandler())) {
                             autoGenerateSynonymsPhraseQuery = parser.booleanValue();
+                        } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                            CUTOFF_FREQUENCY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            throw new ParsingException(parser.getTokenLocation(), CUTOFF_FREQUENCY_DEPRECATION_MSG);
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "[" + NAME + "] query does not support [" + currentFieldName + "]");

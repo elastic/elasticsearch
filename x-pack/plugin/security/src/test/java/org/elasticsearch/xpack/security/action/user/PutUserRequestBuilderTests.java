@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.user;
 
@@ -23,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -144,8 +146,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithValidPasswordHash() throws IOException {
-        final Hasher hasher = Hasher.BCRYPT4; // this is the fastest hasher we officially support
-        final char[] hash = hasher.hash(new SecureString("secret".toCharArray()));
+        final Hasher hasher = getFastStoredHashAlgoForTests();
+        final char[] hash = hasher.hash(new SecureString("secretpassword".toCharArray()));
         final String json = "{\n" +
             "    \"password_hash\": \"" + new String(hash) + "\"," +
             "    \"roles\": []\n" +
@@ -158,10 +160,13 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         assertThat(request.username(), equalTo("hash_user"));
     }
 
-    public void testWithMismatchedPasswordHash() throws IOException {
-        final Hasher systemHasher = Hasher.BCRYPT8;
-        final Hasher userHasher = Hasher.BCRYPT4; // this is the fastest hasher we officially support
-        final char[] hash = userHasher.hash(new SecureString("secret".toCharArray()));
+    public void testWithMismatchedPasswordHashingAlgorithm() throws IOException {
+        final Hasher systemHasher = getFastStoredHashAlgoForTests();
+        Hasher userHasher = getFastStoredHashAlgoForTests();
+        while (userHasher.name().equals(systemHasher.name())){
+            userHasher = getFastStoredHashAlgoForTests();
+        }
+        final char[] hash = userHasher.hash(new SecureString("secretpassword".toCharArray()));
         final String json = "{\n" +
             "    \"password_hash\": \"" + new String(hash) + "\"," +
             "    \"roles\": []\n" +
@@ -191,8 +196,8 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithBothPasswordAndHash() throws IOException {
-        final Hasher hasher = randomFrom(Hasher.BCRYPT4, Hasher.PBKDF2_1000);
-        final String password = randomAlphaOfLength(12);
+        final Hasher hasher = getFastStoredHashAlgoForTests();
+        final String password = randomAlphaOfLength(14);
         final char[] hash = hasher.hash(new SecureString(password.toCharArray()));
         final LinkedHashMap<String, Object> fields = new LinkedHashMap<>();
         fields.put("password", password);

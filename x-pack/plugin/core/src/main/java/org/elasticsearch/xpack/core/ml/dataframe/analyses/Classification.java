@@ -1,23 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldAliasMapper;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -33,7 +44,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 
 public class Classification implements DataFrameAnalysis {
 
@@ -45,8 +55,10 @@ public class Classification implements DataFrameAnalysis {
     public static final ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
     public static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
     public static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
+    public static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
+    public static final ParseField EARLY_STOPPING_ENABLED = new ParseField("early_stopping_enabled");
 
-    private static final String STATE_DOC_ID_SUFFIX = "_classification_state#1";
+    private static final String STATE_DOC_ID_INFIX = "_classification_state#";
 
     private static final String NUM_CLASSES = "num_classes";
 
@@ -58,30 +70,36 @@ public class Classification implements DataFrameAnalysis {
      */
     public static final int MAX_DEPENDENT_VARIABLE_CARDINALITY = 30;
 
+    @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<Classification, Void> createParser(boolean lenient) {
         ConstructingObjectParser<Classification, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
             a -> new Classification(
                 (String) a[0],
-                new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6]),
-                (String) a[7],
-                (ClassAssignmentObjective) a[8],
-                (Integer) a[9],
-                (Double) a[10],
-                (Long) a[11]));
+                new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6],
+                    (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Double) a[11], (Integer) a[12]),
+                (String) a[13],
+                (ClassAssignmentObjective) a[14],
+                (Integer) a[15],
+                (Double) a[16],
+                (Long) a[17],
+                (List<PreProcessor>) a[18],
+                (Boolean) a[19]));
         parser.declareString(constructorArg(), DEPENDENT_VARIABLE);
         BoostedTreeParams.declareFields(parser);
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);
-        parser.declareField(optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return ClassAssignmentObjective.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, CLASS_ASSIGNMENT_OBJECTIVE, ObjectParser.ValueType.STRING);
+        parser.declareString(optionalConstructorArg(), ClassAssignmentObjective::fromString, CLASS_ASSIGNMENT_OBJECTIVE);
         parser.declareInt(optionalConstructorArg(), NUM_TOP_CLASSES);
         parser.declareDouble(optionalConstructorArg(), TRAINING_PERCENT);
         parser.declareLong(optionalConstructorArg(), RANDOMIZE_SEED);
+        parser.declareNamedObjects(optionalConstructorArg(),
+            (p, c, n) -> lenient ?
+                p.namedObject(LenientlyParsedPreProcessor.class, n, new PreProcessor.PreProcessorParseContext(true)) :
+                p.namedObject(StrictlyParsedPreProcessor.class, n, new PreProcessor.PreProcessorParseContext(true)),
+            (classification) -> {/*TODO should we throw if this is not set?*/},
+            FEATURE_PROCESSORS);
+        parser.declareBoolean(optionalConstructorArg(), EARLY_STOPPING_ENABLED);
         return parser;
     }
 
@@ -114,6 +132,29 @@ public class Classification implements DataFrameAnalysis {
         )
     );
 
+    static final Map<String, Object> FEATURE_IMPORTANCE_MAPPING;
+    static {
+        Map<String, Object> classesProperties = new HashMap<>();
+        classesProperties.put("class_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
+        classesProperties.put("importance", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+
+        Map<String, Object> classesMapping = new HashMap<>();
+        classesMapping.put("dynamic", false);
+        classesMapping.put("type", NestedObjectMapper.CONTENT_TYPE);
+        classesMapping.put("properties", classesProperties);
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("feature_name", Collections.singletonMap("type", KeywordFieldMapper.CONTENT_TYPE));
+        properties.put("classes", classesMapping);
+
+        Map<String, Object> mapping = new HashMap<>();
+        mapping.put("dynamic", false);
+        mapping.put("type", NestedObjectMapper.CONTENT_TYPE);
+        mapping.put("properties", properties);
+
+        FEATURE_IMPORTANCE_MAPPING = Collections.unmodifiableMap(mapping);
+    }
+
     private final String dependentVariable;
     private final BoostedTreeParams boostedTreeParams;
     private final String predictionFieldName;
@@ -121,6 +162,8 @@ public class Classification implements DataFrameAnalysis {
     private final int numTopClasses;
     private final double trainingPercent;
     private final long randomizeSeed;
+    private final List<PreProcessor> featureProcessors;
+    private final boolean earlyStoppingEnabled;
 
     public Classification(String dependentVariable,
                           BoostedTreeParams boostedTreeParams,
@@ -128,12 +171,15 @@ public class Classification implements DataFrameAnalysis {
                           @Nullable ClassAssignmentObjective classAssignmentObjective,
                           @Nullable Integer numTopClasses,
                           @Nullable Double trainingPercent,
-                          @Nullable Long randomizeSeed) {
-        if (numTopClasses != null && (numTopClasses < 0 || numTopClasses > 1000)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be an integer in [0, 1000]", NUM_TOP_CLASSES.getPreferredName());
+                          @Nullable Long randomizeSeed,
+                          @Nullable List<PreProcessor> featureProcessors,
+                          @Nullable Boolean earlyStoppingEnabled) {
+        if (numTopClasses != null && (numTopClasses < -1 || numTopClasses > 1000)) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be an integer in [0, 1000] or a special value -1", NUM_TOP_CLASSES.getPreferredName());
         }
-        if (trainingPercent != null && (trainingPercent < 1.0 || trainingPercent > 100.0)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a double in [1, 100]", TRAINING_PERCENT.getPreferredName());
+        if (trainingPercent != null && (trainingPercent <= 0.0 || trainingPercent > 100.0)) {
+            throw ExceptionsHelper.badRequestException("[{}] must be a positive double in (0, 100]", TRAINING_PERCENT.getPreferredName());
         }
         this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
         this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);
@@ -143,10 +189,13 @@ public class Classification implements DataFrameAnalysis {
         this.numTopClasses = numTopClasses == null ? DEFAULT_NUM_TOP_CLASSES : numTopClasses;
         this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
         this.randomizeSeed = randomizeSeed == null ? Randomness.get().nextLong() : randomizeSeed;
+        this.featureProcessors = featureProcessors == null ? Collections.emptyList() : Collections.unmodifiableList(featureProcessors);
+        // Early stopping is true by default
+        this.earlyStoppingEnabled = earlyStoppingEnabled == null ? true : earlyStoppingEnabled;
     }
 
     public Classification(String dependentVariable) {
-        this(dependentVariable, BoostedTreeParams.builder().build(), null, null, null, null, null);
+        this(dependentVariable, BoostedTreeParams.builder().build(), null, null, null, null, null, null, null);
     }
 
     public Classification(StreamInput in) throws IOException {
@@ -165,6 +214,12 @@ public class Classification implements DataFrameAnalysis {
         } else {
             randomizeSeed = Randomness.get().nextLong();
         }
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            featureProcessors = Collections.unmodifiableList(in.readNamedWriteableList(PreProcessor.class));
+        } else {
+            featureProcessors = Collections.emptyList();
+        }
+        earlyStoppingEnabled = in.readBoolean();
     }
 
     public String getDependentVariable() {
@@ -187,12 +242,21 @@ public class Classification implements DataFrameAnalysis {
         return numTopClasses;
     }
 
+    @Override
     public double getTrainingPercent() {
         return trainingPercent;
     }
 
     public long getRandomizeSeed() {
         return randomizeSeed;
+    }
+
+    public List<PreProcessor> getFeatureProcessors() {
+        return featureProcessors;
+    }
+
+    public Boolean getEarlyStoppingEnabled() {
+        return earlyStoppingEnabled;
     }
 
     @Override
@@ -213,6 +277,10 @@ public class Classification implements DataFrameAnalysis {
         if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeOptionalLong(randomizeSeed);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeNamedWriteableList(featureProcessors);
+        }
+        out.writeBoolean(earlyStoppingEnabled);
     }
 
     @Override
@@ -231,6 +299,10 @@ public class Classification implements DataFrameAnalysis {
         if (version.onOrAfter(Version.V_7_6_0)) {
             builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         }
+        if (featureProcessors.isEmpty() == false) {
+            NamedXContentObjectHelper.writeNamedObjects(builder, params, true, FEATURE_PROCESSORS.getPreferredName(), featureProcessors);
+        }
+        builder.field(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
         builder.endObject();
         return builder;
     }
@@ -251,6 +323,11 @@ public class Classification implements DataFrameAnalysis {
         }
         params.put(NUM_CLASSES, fieldInfo.getCardinality(dependentVariable));
         params.put(TRAINING_PERCENT.getPreferredName(), trainingPercent);
+        if (featureProcessors.isEmpty() == false) {
+            params.put(FEATURE_PROCESSORS.getPreferredName(),
+                featureProcessors.stream().map(p -> Collections.singletonMap(p.getName(), p)).collect(Collectors.toList()));
+        }
+        params.put(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
         return params;
     }
 
@@ -314,31 +391,34 @@ public class Classification implements DataFrameAnalysis {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
+    public Map<String, Object> getResultMappings(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> additionalProperties = new HashMap<>();
-        additionalProperties.put(resultsFieldName + ".feature_importance", MapUtils.featureImportanceMapping());
-        Object dependentVariableMapping = extractMapping(dependentVariable, mappingsProperties);
-        if ((dependentVariableMapping instanceof Map) == false) {
-            return additionalProperties;
-        }
-        Map<String, Object> dependentVariableMappingAsMap = (Map) dependentVariableMapping;
-        // If the source field is an alias, fetch the concrete field that the alias points to.
-        if (FieldAliasMapper.CONTENT_TYPE.equals(dependentVariableMappingAsMap.get("type"))) {
-            String path = (String) dependentVariableMappingAsMap.get(FieldAliasMapper.Names.PATH);
-            dependentVariableMapping = extractMapping(path, mappingsProperties);
-        }
-        // We may have updated the value of {@code dependentVariableMapping} in the "if" block above.
-        // Hence, we need to check the "instanceof" condition again.
-        if ((dependentVariableMapping instanceof Map) == false) {
-            return additionalProperties;
-        }
-        additionalProperties.put(resultsFieldName + "." + predictionFieldName, dependentVariableMapping);
-        additionalProperties.put(resultsFieldName + ".top_classes.class_name", dependentVariableMapping);
-        return additionalProperties;
-    }
+        additionalProperties.put(resultsFieldName + ".is_training", Collections.singletonMap("type", BooleanFieldMapper.CONTENT_TYPE));
+        additionalProperties.put(resultsFieldName + ".prediction_probability",
+            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        additionalProperties.put(resultsFieldName + ".prediction_score",
+            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        additionalProperties.put(resultsFieldName + ".feature_importance", FEATURE_IMPORTANCE_MAPPING);
 
-    private static Object extractMapping(String path, Map<String, Object> mappingsProperties) {
-        return extractValue(String.join(".properties.", path.split("\\.")), mappingsProperties);
+        Map<String, FieldCapabilities> dependentVariableFieldCaps = fieldCapabilitiesResponse.getField(dependentVariable);
+        if (dependentVariableFieldCaps == null || dependentVariableFieldCaps.isEmpty()) {
+            throw ExceptionsHelper.badRequestException("no mappings could be found for required field [{}]", DEPENDENT_VARIABLE);
+        }
+        Object dependentVariableMappingType = dependentVariableFieldCaps.values().iterator().next().getType();
+        additionalProperties.put(
+            resultsFieldName + "." + predictionFieldName, Collections.singletonMap("type", dependentVariableMappingType));
+
+        Map<String, Object> topClassesProperties = new HashMap<>();
+        topClassesProperties.put("class_name", Collections.singletonMap("type", dependentVariableMappingType));
+        topClassesProperties.put("class_probability", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        topClassesProperties.put("class_score", Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+
+        Map<String, Object> topClassesMapping = new HashMap<>();
+        topClassesMapping.put("type", NestedObjectMapper.CONTENT_TYPE);
+        topClassesMapping.put("properties", topClassesProperties);
+
+        additionalProperties.put(resultsFieldName + ".top_classes", topClassesMapping);
+        return additionalProperties;
     }
 
     @Override
@@ -352,8 +432,8 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
-    public String getStateDocId(String jobId) {
-        return jobId + STATE_DOC_ID_SUFFIX;
+    public String getStateDocIdPrefix(String jobId) {
+        return jobId + STATE_DOC_ID_INFIX;
     }
 
     @Override
@@ -361,8 +441,24 @@ public class Classification implements DataFrameAnalysis {
         return PROGRESS_PHASES;
     }
 
+    @Override
+    public InferenceConfig inferenceConfig(FieldInfo fieldInfo) {
+        PredictionFieldType predictionFieldType = getPredictionFieldType(fieldInfo.getTypes(dependentVariable));
+        return ClassificationConfig.builder()
+            .setResultsField(predictionFieldName)
+            .setNumTopClasses(numTopClasses)
+            .setNumTopFeatureImportanceValues(getBoostedTreeParams().getNumTopFeatureImportanceValues())
+            .setPredictionFieldType(predictionFieldType)
+            .build();
+    }
+
+    @Override
+    public boolean supportsInference() {
+        return true;
+    }
+
     public static String extractJobIdFromStateDoc(String stateDocId) {
-        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_SUFFIX);
+        int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_INFIX);
         return suffixIndex <= 0 ? null : stateDocId.substring(0, suffixIndex);
     }
 
@@ -376,6 +472,8 @@ public class Classification implements DataFrameAnalysis {
             && Objects.equals(predictionFieldName, that.predictionFieldName)
             && Objects.equals(classAssignmentObjective, that.classAssignmentObjective)
             && Objects.equals(numTopClasses, that.numTopClasses)
+            && Objects.equals(featureProcessors, that.featureProcessors)
+            && Objects.equals(earlyStoppingEnabled, that.earlyStoppingEnabled)
             && trainingPercent == that.trainingPercent
             && randomizeSeed == that.randomizeSeed;
     }
@@ -383,7 +481,8 @@ public class Classification implements DataFrameAnalysis {
     @Override
     public int hashCode() {
         return Objects.hash(dependentVariable, boostedTreeParams, predictionFieldName, classAssignmentObjective,
-                            numTopClasses, trainingPercent, randomizeSeed);
+                            numTopClasses, trainingPercent, randomizeSeed, featureProcessors,
+                            earlyStoppingEnabled);
     }
 
     public enum ClassAssignmentObjective {

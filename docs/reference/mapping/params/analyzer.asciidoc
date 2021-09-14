@@ -19,6 +19,9 @@ We recommend testing analyzers before using them in production. See
 <<test-analyzer>>.
 ====
 
+TIP: The `analyzer` setting can *not* be updated on existing fields
+using the <<indices-put-mapping,update mapping API>>.
+
 [[search-quote-analyzer]]
 ==== `search_quote_analyzer`
 
@@ -33,7 +36,7 @@ To disable stop words for phrases a field utilising three analyzer settings will
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
    "settings":{
       "analysis":{
@@ -74,17 +77,17 @@ PUT my_index
    }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
    "title":"The Quick Brown Fox"
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
    "title":"A Quick Brown Fox"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
    "query":{
       "query_string":{
@@ -93,6 +96,9 @@ GET my_index/_search
    }
 }
 --------------------------------------------------
+
+TIP: The `search_quote_analyzer` setting can be updated on existing fields
+using the <<indices-put-mapping,update mapping API>>.
 
 <1> `my_analyzer` analyzer which tokens all terms including stop words
 <2> `my_stop_analyzer` analyzer which removes stop words

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -117,7 +118,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws IOException {
+    static void assertCount(String index, int count) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");

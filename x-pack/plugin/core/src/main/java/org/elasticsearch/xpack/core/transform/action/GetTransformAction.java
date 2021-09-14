@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,8 +35,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
     public static final GetTransformAction INSTANCE = new GetTransformAction();
     public static final String NAME = "cluster:monitor/transform/get";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(GetTransformAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GetTransformAction.class);
 
     private GetTransformAction() {
         super(NAME, GetTransformAction.Response::new);
@@ -64,8 +65,10 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         public ActionRequestValidationException validate() {
             ActionRequestValidationException exception = null;
             if (getPageParams() != null && getPageParams().getSize() > MAX_SIZE_RETURN) {
-                exception = addValidationError("Param [" + PageParams.SIZE.getPreferredName() +
-                    "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]", exception);
+                exception = addValidationError(
+                    "Param [" + PageParams.SIZE.getPreferredName() + "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]",
+                    exception
+                );
             }
             return exception;
         }
@@ -97,6 +100,10 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
             return getResources().results();
         }
 
+        public long getCount() {
+            return getResources().count();
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             List<String> invalidTransforms = new ArrayList<>();
@@ -107,7 +114,8 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
             builder.startArray();
             for (TransformConfig configResponse : getResources().results()) {
                 configResponse.toXContent(builder, params);
-                if (configResponse.isValid() == false) {
+                ValidationException validationException = configResponse.validate(null);
+                if (validationException != null) {
                     invalidTransforms.add(configResponse.getId());
                 }
             }
@@ -117,7 +125,8 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
                 builder.field(TransformField.COUNT.getPreferredName(), invalidTransforms.size());
                 builder.field(TransformField.TRANSFORMS.getPreferredName(), invalidTransforms);
                 builder.endObject();
-                deprecationLogger.deprecate("invalid_transforms", INVALID_TRANSFORMS_DEPRECATION_WARNING, invalidTransforms.size());
+                deprecationLogger.critical(DeprecationCategory.OTHER, "invalid_transforms",
+                    INVALID_TRANSFORMS_DEPRECATION_WARNING, invalidTransforms.size());
             }
 
             builder.endObject();

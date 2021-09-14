@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -11,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -141,7 +142,7 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
      * Add Watches to the remote cluster.
      */
     @Override
-    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         watches.checkAndPublish(client, listener);
     }
 }

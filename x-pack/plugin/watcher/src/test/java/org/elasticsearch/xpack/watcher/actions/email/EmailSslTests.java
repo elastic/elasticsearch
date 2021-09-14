@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
@@ -13,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -28,10 +28,6 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
-import javax.mail.MessagingException;
-import javax.mail.internet.MimeMessage;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,6 +38,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import javax.mail.MessagingException;
+import javax.mail.internet.MimeMessage;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 
 import static org.hamcrest.Matchers.hasSize;
 
@@ -60,10 +60,7 @@ public class EmailSslTests extends ESTestCase {
         final Path keyPath = tempDir.resolve("test-smtp.pem");
         Files.copy(getDataPath("/org/elasticsearch/xpack/watcher/actions/email/test-smtp.crt"), certPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/watcher/actions/email/test-smtp.pem"), keyPath);
-        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        keyStore.load(null, keystorePassword);
-        keyStore.setKeyEntry("test-smtp", PemUtils.readPrivateKey(keyPath, keystorePassword::clone), keystorePassword,
-            CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
+        KeyStore keyStore = CertParsingUtils.getKeyStoreFromPEM(certPath, keyPath, keystorePassword);
         final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, keystorePassword).build();
         server = EmailServer.localhost(logger, sslContext);
     }
@@ -88,6 +85,7 @@ public class EmailSslTests extends ESTestCase {
     }
 
     public void testCanSendMessageToSmtpServerUsingTrustStore() throws Exception {
+        assumeFalse("Can't use PKCS12 keystores in fips mode", inFipsJvm());
         List<MimeMessage> messages = new ArrayList<>();
         server.addListener(messages::add);
         try {

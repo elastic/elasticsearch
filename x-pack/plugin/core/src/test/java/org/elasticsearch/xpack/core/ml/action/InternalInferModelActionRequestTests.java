@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -11,13 +12,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdateTests;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +45,9 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
         return randomFrom(RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
-            ClassificationConfigUpdateTests.randomClassificationConfigUpdate());
+            ClassificationConfigUpdateTests.randomClassificationConfigUpdate(),
+            ResultsFieldUpdateTests.randomUpdate(),
+            EmptyConfigUpdateTests.testInstance());
     }
 
     private static Map<String, Object> randomMap() {
@@ -69,20 +70,6 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, Version version) {
-        if (version.before(Version.V_7_8_0)) {
-            InferenceConfigUpdate update = null;
-            if (instance.getUpdate() instanceof ClassificationConfigUpdate) {
-                update = ClassificationConfigUpdate.fromConfig((ClassificationConfig) instance.getUpdate().toConfig());
-            }
-            else if (instance.getUpdate() instanceof RegressionConfigUpdate) {
-                update = RegressionConfigUpdate.fromConfig((RegressionConfig) instance.getUpdate().toConfig());
-            }
-            else {
-                fail("unknown update type " + instance.getUpdate().getName());
-            }
-            return new Request(instance.getModelId(), instance.getObjectsToInfer(), update, instance.isPreviouslyLicensed());
-        }
         return instance;
     }
-
 }

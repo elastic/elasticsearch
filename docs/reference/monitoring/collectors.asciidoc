@@ -8,9 +8,9 @@
 {metricbeat} is the recommended method for collecting and shipping monitoring
 data to a monitoring cluster.
 
-If you have previously configured internal collection, you should migrate to
-using {metricbeat} collection. Use either {metricbeat} collection or
-internal collection; do not use both.
+If you have previously configured legacy collection methods, you should migrate
+to using {metricbeat} collection methods. Use either {metricbeat} collection or
+legacy collection methods; do not use both.
 
 Learn more about <<configuring-metricbeat>>.
 =========================
@@ -120,7 +120,7 @@ NOTE: Collection is currently done serially, rather than in parallel, to avoid
 For more information about the configuration options for the collectors, see
 <<monitoring-collection-settings>>.
 
-[float]
+[discrete]
 [[es-monitoring-stack]]
 ==== Collecting data from across the Elastic Stack
 

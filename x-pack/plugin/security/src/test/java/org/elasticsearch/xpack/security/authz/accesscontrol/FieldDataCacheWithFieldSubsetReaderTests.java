@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
@@ -18,16 +19,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -57,13 +55,12 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        IndexSettings indexSettings = createIndexSettings();
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         String name = "_field";
         indexFieldDataCache = new DummyAccountingFieldDataCache();
-        sortedSetOrdinalsIndexFieldData = new SortedSetOrdinalsIndexFieldData(indexSettings,indexFieldDataCache,  name,
-            CoreValuesSourceType.BYTES, circuitBreakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
-        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, name, CoreValuesSourceType.BYTES, indexFieldDataCache,
+        sortedSetOrdinalsIndexFieldData = new SortedSetOrdinalsIndexFieldData(indexFieldDataCache,  name,
+            CoreValuesSourceType.KEYWORD, circuitBreakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(name, CoreValuesSourceType.KEYWORD, indexFieldDataCache,
                 circuitBreakerService, TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
@@ -84,7 +81,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             }
         }
         iw.close();
-        ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId(indexSettings.getIndex(), 0));
+        ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId(new Index("test", "test"), 0));
     }
 
     @After
@@ -152,17 +149,6 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(ir.leaves().size()));
     }
 
-    private IndexSettings createIndexSettings() {
-        Settings settings = Settings.EMPTY;
-        IndexMetadata indexMetadata = IndexMetadata.builder("_name")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .creationDate(System.currentTimeMillis())
-                .build();
-        return new IndexSettings(indexMetadata, settings);
-    }
-
     private static class DummyAccountingFieldDataCache implements IndexFieldDataCache {
 
         private int leafLevelBuilds = 0;
@@ -176,10 +162,11 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
                                                                                           IFD indexFieldData) throws Exception {
             topLevelBuilds++;
-            return (IFD) indexFieldData.localGlobalDirect(indexReader);
+            return (IFD) indexFieldData.loadGlobalDirect(indexReader);
         }
 
         @Override

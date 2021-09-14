@@ -8,14 +8,23 @@
 Returns information about ongoing and completed shard recoveries,
 similar to the <<indices-recovery, index recovery>> API.
 
+For data streams, the API returns information about the stream's backing
+indices.
 
 [[cat-recovery-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/recovery/<index>`
+`GET /_cat/recovery/<target>`
 
 `GET /_cat/recovery`
 
+[[cat-recovery-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API. You must
+also have the `monitor` or `manage` <<privileges-list-indices,index privilege>>
+for any data stream, index, or alias you retrieve.
 
 [[cat-recovery-api-desc]]
 ==== {api-description-title}
@@ -30,8 +39,10 @@ include::{es-repo-dir}/indices/recovery.asciidoc[tag=shard-recovery-desc]
 [[cat-recovery-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
-
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cat-recovery-query-params]]
 ==== {api-query-parms-title}
@@ -65,16 +76,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 ----------------------------------------------------------------------------
-GET _cat/recovery?v
+GET _cat/recovery?v=true
 ----------------------------------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-index   shard time type  stage source_host source_node target_host target_node repository snapshot files files_recovered files_percent files_total bytes bytes_recovered bytes_percent bytes_total translog_ops translog_ops_recovered translog_ops_percent
-twitter 0     13ms store done  n/a         n/a         127.0.0.1   node-0      n/a        n/a      0     0               100%          13          0b    0b              100%          9928b       0            0                      100.0%
+index             shard time type  stage source_host source_node target_host target_node repository snapshot files files_recovered files_percent files_total bytes bytes_recovered bytes_percent bytes_total translog_ops translog_ops_recovered translog_ops_percent
+my-index-000001   0     13ms store done  n/a         n/a         127.0.0.1   node-0      n/a        n/a      0     0               100%          13          0b    0b              100%          9928b       0            0                      100.0%
 ---------------------------------------------------------------------------
 // TESTRESPONSE[s/store/empty_store/]
 // TESTRESPONSE[s/100%/0.0%/]
@@ -94,16 +105,16 @@ host the replicas, you can retrieve information about an ongoing recovery.
 
 [source,console]
 ----------------------------------------------------------------------------
-GET _cat/recovery?v&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
+GET _cat/recovery?v=true&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
 ----------------------------------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
 [source,txt]
 ----------------------------------------------------------------------------
-i       s t      ty   st    shost       thost       f     fp      b  bp
-twitter 0 1252ms peer done  192.168.1.1 192.168.1.2 0     100.0%  0b 100.0%
+i               s t      ty   st    shost       thost       f     fp      b  bp
+my-index-000001 0 1252ms peer done  192.168.1.1 192.168.1.2 0     100.0%  0b 100.0%
 ----------------------------------------------------------------------------
 // TESTRESPONSE[s/peer/empty_store/]
 // TESTRESPONSE[s/192.168.1.2/127.0.0.1/]
@@ -124,7 +135,7 @@ snapshot recovery.
 
 [source,console]
 --------------------------------------------------------------------------------
-GET _cat/recovery?v&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
+GET _cat/recovery?v=true&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
 --------------------------------------------------------------------------------
 // TEST[skip:no need to execute snapshot/restore here]
 
@@ -132,7 +143,7 @@ The API returns the following response with a recovery type of `snapshot`:
 
 [source,txt]
 --------------------------------------------------------------------------------
-i       s t      ty       st    rep     snap   f  fp   b     bp
-twitter 0 1978ms snapshot done  twitter snap_1 79 8.0% 12086 9.0%
+i               s t      ty       st    rep     snap   f  fp   b     bp
+my-index-000001 0 1978ms snapshot done  my-repo snap-1 79 8.0% 12086 9.0%
 --------------------------------------------------------------------------------
 // TESTRESPONSE[non_json]

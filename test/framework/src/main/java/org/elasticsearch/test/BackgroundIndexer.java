@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
@@ -32,7 +21,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -134,13 +123,13 @@ public class BackgroundIndexer implements AutoCloseable {
                     try {
                         startLatch.await();
                         logger.info("**** starting indexing thread {}", indexerId);
-                        while (!stop.get()) {
+                        while (stop.get() == false) {
                             if (batch) {
                                 int batchSize = threadRandom.nextInt(20) + 1;
                                 if (hasBudget.get()) {
                                     // always try to get at least one
                                     batchSize = Math.max(Math.min(batchSize, availableBudget.availablePermits()), 1);
-                                    if (!availableBudget.tryAcquire(batchSize, 250, TimeUnit.MILLISECONDS)) {
+                                    if (availableBudget.tryAcquire(batchSize, 250, TimeUnit.MILLISECONDS) == false) {
                                         // time out -> check if we have to stop.
                                         continue;
                                     }
@@ -173,7 +162,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                 }
                             } else {
 
-                                if (hasBudget.get() && !availableBudget.tryAcquire(250, TimeUnit.MILLISECONDS)) {
+                                if (hasBudget.get() && availableBudget.tryAcquire(250, TimeUnit.MILLISECONDS) == false) {
                                     // time out -> check if we have to stop.
                                     continue;
                                 }
@@ -278,7 +267,7 @@ public class BackgroundIndexer implements AutoCloseable {
      * @param numOfDocs number of document to index before pausing. Set to -1 to have no limit.
      */
     public void start(int numOfDocs) {
-        assert !stop.get() : "background indexer can not be started after it has stopped";
+        assert stop.get() == false : "background indexer can not be started after it has stopped";
         setBudget(numOfDocs);
         startLatch.countDown();
     }

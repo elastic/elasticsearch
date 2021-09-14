@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -46,10 +35,8 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -65,6 +52,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -80,7 +68,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.buildStats;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
@@ -100,8 +90,8 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         final Condition<?> condition = createTestCondition();
         String indexName = randomAlphaOfLengthBetween(5, 7);
-        evaluateConditions(Sets.newHashSet(condition), createMetadata(indexName),
-                createIndicesStatResponse(indexName, docsInShards, docsInPrimaryShards));
+        evaluateConditions(Set.of(condition),
+            buildStats(createMetadata(indexName), createIndicesStatResponse(indexName, docsInShards, docsInPrimaryShards)));
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
 
@@ -109,33 +99,37 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testEvaluateConditions() {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
+            new MaxPrimaryShardSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
         long matchMaxDocs = randomIntBetween(100, 1000);
         long notMatchMaxDocs = randomIntBetween(0, 99);
-        ByteSizeValue notMatchMaxSize = new ByteSizeValue(randomIntBetween(0, 9), ByteSizeUnit.MB);
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
-        final IndexMetadata metadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
-            .settings(settings)
-            .build();
-        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
-        Map<String, Boolean> results = evaluateConditions(conditions,
-            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), metadata);
-        assertThat(results.size(), equalTo(3));
+        ByteSizeValue notMatchMaxSize = ByteSizeValue.ofMb(randomIntBetween(0, 9));
+        long indexCreated = TimeValue.timeValueHours(3).getMillis();
+
+        expectThrows(NullPointerException.class, () -> evaluateConditions(null,
+            new Condition.Stats(0, 0, ByteSizeValue.ofMb(0), ByteSizeValue.ofMb(0))));
+
+        Map<String, Boolean> results = evaluateConditions(conditions, null);
+        assertThat(results.size(), equalTo(4));
+        for (Boolean matched : results.values()) {
+            assertThat(matched, equalTo(false));
+        }
+
+        results = evaluateConditions(conditions,
+            new Condition.Stats(matchMaxDocs, indexCreated, ByteSizeValue.ofMb(120), ByteSizeValue.ofMb(120)));
+        assertThat(results.size(), equalTo(4));
         for (Boolean matched : results.values()) {
             assertThat(matched, equalTo(true));
         }
 
-        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, notMatchMaxSize.getBytes()), metadata);
-        assertThat(results.size(), equalTo(3));
+        results = evaluateConditions(conditions,
+            new Condition.Stats(notMatchMaxDocs, indexCreated, notMatchMaxSize, ByteSizeValue.ofMb(0)));
+        assertThat(results.size(), equalTo(4));
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
             if (entry.getKey().equals(maxAgeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(true));
@@ -143,18 +137,22 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
             } else {
                 fail("unknown condition result found " + entry.getKey());
             }
         }
     }
 
-    public void testEvaluateWithoutDocStats() {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
+    public void testEvaluateWithoutStats() {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
+            new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
-        Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -166,8 +164,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
             .settings(settings)
             .build();
-        Map<String, Boolean> results = evaluateConditions(conditions, null, metadata);
-        assertThat(results.size(), equalTo(3));
+        Map<String, Boolean> results = evaluateConditions(conditions, buildStats(metadata, null));
+        assertThat(results.size(), equalTo(4));
 
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
             if (entry.getKey().equals(maxAgeCondition.toString())) {
@@ -176,6 +174,8 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
             } else {
                 fail("unknown condition result found " + entry.getKey());
             }
@@ -183,16 +183,12 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testEvaluateWithoutMetadata() {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
-
-        long matchMaxDocs = randomIntBetween(100, 1000);
-        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
-        Map<String, Boolean> results = evaluateConditions(conditions,
-            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), null);
-        assertThat(results.size(), equalTo(3));
-        results.forEach((k, v) -> assertFalse(v));
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
+            new MaxPrimaryShardSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -206,11 +202,10 @@ public class TransportRolloverActionTests extends ESTestCase {
             .settings(settings)
             .build();
         IndicesStatsResponse indicesStats = randomIndicesStatsResponse(new IndexMetadata[]{metadata});
-        Map<String, Boolean> results2 = evaluateConditions(conditions, null, indicesStats);
-        assertThat(results2.size(), equalTo(3));
-        results2.forEach((k, v) -> assertFalse(v));
+        Map<String, Boolean> results = evaluateConditions(conditions, buildStats(null, indicesStats));
+        assertThat(results.size(), equalTo(4));
+        results.forEach((k, v) -> assertFalse(v));
     }
-
 
     public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() throws Exception {
         final TransportService mockTransportService = mock(TransportService.class);
@@ -235,29 +230,30 @@ public class TransportRolloverActionTests extends ESTestCase {
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
             assert args.length == 3;
+            @SuppressWarnings("unchecked")
             ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) args[2];
             listener.onResponse(statsResponse);
             return null;
-        }).when(mockClient).execute(eq(IndicesStatsAction.INSTANCE), any(ActionRequest.class), any(ActionListener.class));
+        }).when(mockClient).execute(eq(IndicesStatsAction.INSTANCE), any(ActionRequest.class), anyActionListener());
 
         assert statsResponse.getPrimaries().getDocs().getCount() == 500L;
         assert statsResponse.getTotal().getDocs().getCount() == (total + total);
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
-                .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build()).settings(settings(Version.CURRENT))
-                .numberOfShards(1).numberOfReplicas(1);
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build()).settings(settings(Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(1);
         final IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("logs-index-000002")
-                .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build()).settings(settings(Version.CURRENT))
-                .numberOfShards(1).numberOfReplicas(1);
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build()).settings(settings(Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(1);
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2)).build();
+            .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2)).build();
 
         when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean())).thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
         MetadataRolloverService rolloverService = new MetadataRolloverService(mockThreadPool, mockCreateIndexService,
-            mdIndexAliasesService, mockIndexNameExpressionResolver);
+            mdIndexAliasesService, mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(mockTransportService, mockClusterService,
-                mockThreadPool, mockActionFilters, mockIndexNameExpressionResolver, rolloverService, mockClient);
+            mockThreadPool, mockActionFilters, mockIndexNameExpressionResolver, rolloverService, mockClient);
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count
         // (primaries from only write index is considered)

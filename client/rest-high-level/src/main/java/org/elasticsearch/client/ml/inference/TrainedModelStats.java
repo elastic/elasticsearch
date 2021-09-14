@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.inference;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.client.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,32 +28,36 @@ public class TrainedModelStats implements ToXContentObject {
     public static final ParseField MODEL_ID = new ParseField("model_id");
     public static final ParseField PIPELINE_COUNT = new ParseField("pipeline_count");
     public static final ParseField INGEST_STATS = new ParseField("ingest");
+    public static final ParseField INFERENCE_STATS = new ParseField("inference_stats");
 
     private final String modelId;
     private final Map<String, Object> ingestStats;
     private final int pipelineCount;
+    private final InferenceStats inferenceStats;
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<TrainedModelStats, Void> PARSER =
         new ConstructingObjectParser<>(
             "trained_model_stats",
             true,
-            args -> new TrainedModelStats((String) args[0], (Map<String, Object>) args[1], (Integer) args[2]));
+            args -> new TrainedModelStats((String) args[0], (Map<String, Object>) args[1], (Integer) args[2], (InferenceStats) args[3]));
 
     static {
         PARSER.declareString(constructorArg(), MODEL_ID);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), INGEST_STATS);
         PARSER.declareInt(constructorArg(), PIPELINE_COUNT);
+        PARSER.declareObject(optionalConstructorArg(), InferenceStats.PARSER, INFERENCE_STATS);
     }
 
     public static TrainedModelStats fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public TrainedModelStats(String modelId, Map<String, Object> ingestStats, int pipelineCount) {
+    public TrainedModelStats(String modelId, Map<String, Object> ingestStats, int pipelineCount, InferenceStats inferenceStats) {
         this.modelId = modelId;
         this.ingestStats = ingestStats;
         this.pipelineCount = pipelineCount;
+        this.inferenceStats = inferenceStats;
     }
 
     /**
@@ -89,6 +83,13 @@ public class TrainedModelStats implements ToXContentObject {
         return pipelineCount;
     }
 
+    /**
+     * Inference statistics
+     */
+    public InferenceStats getInferenceStats() {
+        return inferenceStats;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -97,13 +98,16 @@ public class TrainedModelStats implements ToXContentObject {
         if (ingestStats != null) {
             builder.field(INGEST_STATS.getPreferredName(), ingestStats);
         }
+        if (inferenceStats != null) {
+            builder.field(INFERENCE_STATS.getPreferredName(), inferenceStats);
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, ingestStats, pipelineCount);
+        return Objects.hash(modelId, ingestStats, pipelineCount, inferenceStats);
     }
 
     @Override
@@ -117,7 +121,8 @@ public class TrainedModelStats implements ToXContentObject {
         TrainedModelStats other = (TrainedModelStats) obj;
         return Objects.equals(this.modelId, other.modelId)
             && Objects.equals(this.ingestStats, other.ingestStats)
-            && Objects.equals(this.pipelineCount, other.pipelineCount);
+            && Objects.equals(this.pipelineCount, other.pipelineCount)
+            && Objects.equals(this.inferenceStats, other.inferenceStats);
     }
 
 }

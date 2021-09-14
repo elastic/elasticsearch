@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -194,9 +194,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         if (in.readBoolean()) {
             influences = in.readList(Influence::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            geoResults = in.readOptionalWriteable(GeoResults::new);
-        }
+        geoResults = in.readOptionalWriteable(GeoResults::new);
     }
 
     @Override
@@ -240,9 +238,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         if (hasInfluencers) {
             out.writeList(influences);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeOptionalWriteable(geoResults);
-        }
+        out.writeOptionalWriteable(geoResults);
     }
 
     @Override
@@ -334,7 +330,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     }
 
     private void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String fieldName, String fieldValue) {
-        if (!Strings.isNullOrEmpty(fieldName) && fieldValue != null) {
+        if (Strings.isNullOrEmpty(fieldName) == false && fieldValue != null) {
             if (ReservedFieldNames.isValidFieldName(fieldName)) {
                 inputFields.computeIfAbsent(fieldName, k -> new LinkedHashSet<>()).add(fieldValue);
             }

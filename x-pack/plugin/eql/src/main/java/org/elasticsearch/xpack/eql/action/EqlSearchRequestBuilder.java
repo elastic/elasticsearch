@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.action;
@@ -30,33 +31,28 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         return this;
     }
 
+    public EqlSearchRequestBuilder tiebreakerField(String tiebreakerField) {
+        request.tiebreakerField(tiebreakerField);
+        return this;
+    }
+
     public EqlSearchRequestBuilder eventCategoryField(String eventCategoryField) {
         request.eventCategoryField(eventCategoryField);
         return this;
     }
 
-    public EqlSearchRequestBuilder implicitJoinKeyField(String implicitJoinKeyField) {
-        request.implicitJoinKeyField(implicitJoinKeyField);
+    public EqlSearchRequestBuilder size(int size) {
+        request.size(size);
         return this;
     }
 
-    public EqlSearchRequestBuilder fetchSize(int size) {
-        request.fetchSize(size);
-        return this;
-    }
-
-    public EqlSearchRequestBuilder searchAfter(Object[] values) {
-        request.searchAfter(values);
+    public EqlSearchRequestBuilder fetchSize(int fetchSize) {
+        request.fetchSize(fetchSize);
         return this;
     }
 
     public EqlSearchRequestBuilder query(String query) {
         request.query(query);
-        return this;
-    }
-
-    public EqlSearchRequestBuilder query(boolean isCaseSensitive) {
-        request.isCaseSensitive(isCaseSensitive);
         return this;
     }
 }

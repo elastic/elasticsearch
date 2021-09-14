@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
  * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
@@ -19,37 +19,30 @@ description = 'Command line interface to Elasticsearch that speaks SQL'
 dependencies {
 
   // select just the parts of JLine that are needed
-  compile "org.jline:jline-terminal:${jlineVersion}"
-  compile("org.jline:jline-terminal-jna:${jlineVersion}") {
+  api "org.jline:jline-terminal:${jlineVersion}"
+  api( "org.jline:jline-terminal-jna:${jlineVersion}") {
     exclude group: "net.java.dev.jna"
   }
-  compile "org.jline:jline-reader:${jlineVersion}"
-  compile "org.jline:jline-style:${jlineVersion}"
+  api "org.jline:jline-reader:${jlineVersion}"
+  api "org.jline:jline-style:${jlineVersion}"
 
-  compile xpackProject('plugin:sql:sql-client')
-  compile xpackProject('plugin:sql:sql-action')
-  compile project(":libs:elasticsearch-cli")
-  compile project(':libs:elasticsearch-x-content')
-  runtime "org.elasticsearch:jna:${versions.jna}"
-  testCompile project(":test:framework")
+  api xpackProject('plugin:sql:sql-client')
+  api xpackProject('plugin:sql:sql-action')
+  api project(":libs:elasticsearch-cli")
+  api project(':libs:elasticsearch-x-content')
+  runtimeOnly "org.elasticsearch:jna:${versions.jna}"
+  testImplementation project(":test:framework")
 }
 
-dependencyLicenses {
-  mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
-  mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
+tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /sql-action.*/, to: 'elasticsearch'
   mapping from: /sql-client.*/, to: 'elasticsearch'
   mapping from: /jline-.*/, to: 'jline'
-  ignoreSha 'elasticsearch-cli'
-  ignoreSha 'elasticsearch-core'
-  ignoreSha 'elasticsearch'
-  ignoreSha 'sql-action'
-  ignoreSha 'sql-client'
 }
 
-shadowJar {
+tasks.named("shadowJar").configure {
   manifest {
     attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
   }
@@ -61,15 +54,15 @@ tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('src/forbidden/cli-signatures.txt')
 }
 
-task runcli {
+tasks.register("runcli") {
   description = 'Run the CLI and connect to elasticsearch running on 9200'
-  dependsOn shadowJar
+  dependsOn "shadowJar"
   doLast {
     List command = ["${BuildParams.runtimeJavaHome}/bin/java"]
-    if ('true'.equals(System.getProperty('debug', 'false'))) {
+    if ('true'.equals(providers.systemProperty('debug').orElse('false').forUseAtConfigurationTime().get())) {
       command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
     }
-    command += ['-jar', shadowJar.archivePath.absolutePath]
+    command += ['-jar', shadowJar.archiveFile.get().asFile.absolutePath]
     logger.info("running the cli with: ${command}")
 
     new ProcessBuilder(command)

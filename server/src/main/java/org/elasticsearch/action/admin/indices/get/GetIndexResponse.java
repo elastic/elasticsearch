@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,11 +23,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
  * A response for a get index action.
@@ -50,7 +40,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.of();
-    private String[] indices;
+    private final String[] indices;
 
     public GetIndexResponse(String[] indices,
                      ImmutableOpenMap<String, MappingMetadata> mappings,
@@ -81,65 +71,23 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     GetIndexResponse(StreamInput in) throws IOException {
         super(in);
         this.indices = in.readStringArray();
+        mappings = in.readImmutableMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
+                    int numMappings = i.readVInt();
+                    assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
+                    if (numMappings == 1) {
+                        String type = i.readString();
+                        assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
+                        return new MappingMetadata(i);
+                    } else {
+                        return MappingMetadata.EMPTY_MAPPINGS;
+                    }
+                } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS
+        );
 
-        int mappingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappingsMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < mappingsSize; i++) {
-            String index = in.readString();
-            if (in.getVersion().before(Version.V_8_0_0)) {
-                int numMappings = in.readVInt();
-                assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
-                if (numMappings == 1) {
-                    String type = in.readString();
-                    assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
-                    mappingsMapBuilder.put(index, new MappingMetadata(in));
-                }
-                else {
-                    mappingsMapBuilder.put(index, MappingMetadata.EMPTY_MAPPINGS);
-                }
-            } else {
-                boolean hasMapping = in.readBoolean();
-                mappingsMapBuilder.put(index, hasMapping ? new MappingMetadata(in) : MappingMetadata.EMPTY_MAPPINGS);
-            }
-        }
-        mappings = mappingsMapBuilder.build();
-
-        int aliasesSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliasesMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < aliasesSize; i++) {
-            String key = in.readString();
-            int valueSize = in.readVInt();
-            List<AliasMetadata> aliasEntryBuilder = new ArrayList<>(valueSize);
-            for (int j = 0; j < valueSize; j++) {
-                aliasEntryBuilder.add(new AliasMetadata(in));
-            }
-            aliasesMapBuilder.put(key, Collections.unmodifiableList(aliasEntryBuilder));
-        }
-        aliases = aliasesMapBuilder.build();
-
-        int settingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < settingsSize; i++) {
-            String key = in.readString();
-            settingsMapBuilder.put(key, Settings.readSettingsFromStream(in));
-        }
-        settings = settingsMapBuilder.build();
-
-        ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
-        int defaultSettingsSize = in.readVInt();
-        for (int i = 0; i < defaultSettingsSize; i++) {
-            defaultSettingsMapBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
-        }
-        defaultSettings = defaultSettingsMapBuilder.build();
-
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            ImmutableOpenMap.Builder<String, String> dataStreamsMapBuilder = ImmutableOpenMap.builder();
-            int dataStreamsSize = in.readVInt();
-            for (int i = 0; i < dataStreamsSize; i++) {
-                dataStreamsMapBuilder.put(in.readString(), in.readOptionalString());
-            }
-            dataStreams = dataStreamsMapBuilder.build();
-        }
+        aliases = in.readImmutableMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
+        settings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
+        defaultSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
+        dataStreams = in.readImmutableMap(StreamInput::readString, StreamInput::readOptionalString);
     }
 
     public String[] indices() {
@@ -221,47 +169,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
-        out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, MappingMetadata> indexEntry : mappings) {
-            out.writeString(indexEntry.key);
-            if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeVInt(indexEntry.value == MappingMetadata.EMPTY_MAPPINGS ? 0 : 1);
-                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
-                    out.writeString(MapperService.SINGLE_MAPPING_NAME);
-                    indexEntry.value.writeTo(out);
-                }
-            } else {
-                out.writeBoolean(indexEntry.value != MappingMetadata.EMPTY_MAPPINGS);
-                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
-                    indexEntry.value.writeTo(out);
-                }
-            }
-        }
-        out.writeVInt(aliases.size());
-        for (ObjectObjectCursor<String, List<AliasMetadata>> indexEntry : aliases) {
-            out.writeString(indexEntry.key);
-            out.writeVInt(indexEntry.value.size());
-            for (AliasMetadata aliasEntry : indexEntry.value) {
-                aliasEntry.writeTo(out);
-            }
-        }
-        out.writeVInt(settings.size());
-        for (ObjectObjectCursor<String, Settings> indexEntry : settings) {
-            out.writeString(indexEntry.key);
-            Settings.writeSettingsToStream(indexEntry.value, out);
-        }
-        out.writeVInt(defaultSettings.size());
-        for (ObjectObjectCursor<String, Settings> indexEntry : defaultSettings) {
-            out.writeString(indexEntry.key);
-            Settings.writeSettingsToStream(indexEntry.value, out);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeVInt(dataStreams.size());
-            for (ObjectObjectCursor<String, String> indexEntry : dataStreams) {
-                out.writeString(indexEntry.key);
-                out.writeOptionalString(indexEntry.value);
-            }
-        }
+        MappingMetadata.writeMappingMetadata(out, mappings);
+        out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeMap(settings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
+        out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
+        out.writeMap(dataStreams, StreamOutput::writeString, StreamOutput::writeOptionalString);
     }
 
     @Override
@@ -284,7 +196,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     if (indexMappings == null) {
                         builder.startObject("mappings").endObject();
                     } else {
-                        builder.field("mappings", indexMappings.sourceAsMap());
+                        if (builder.getRestApiVersion() == RestApiVersion.V_7 &&
+                            params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+                            builder.startObject("mappings");
+                            builder.field(MapperService.SINGLE_MAPPING_NAME, indexMappings.sourceAsMap());
+                            builder.endObject();
+                        } else {
+                            builder.field("mappings", indexMappings.sourceAsMap());
+                        }
                     }
 
                     builder.startObject("settings");

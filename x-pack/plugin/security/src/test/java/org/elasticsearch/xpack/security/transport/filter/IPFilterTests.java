@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
@@ -14,14 +15,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
@@ -50,7 +52,7 @@ import static org.mockito.Mockito.when;
 
 public class IPFilterTests extends ESTestCase {
     private IPFilter ipFilter;
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
     private AuditTrail auditTrail;
     private AuditTrailService auditTrailService;
     private Transport transport;
@@ -59,10 +61,9 @@ public class IPFilterTests extends ESTestCase {
 
     @Before
     public void init() {
-        licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_IP_FILTERING)).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
+        licenseState = TestUtils.newMockLicenceState();
+        when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         auditTrail = mock(AuditTrail.class);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(
@@ -252,7 +253,7 @@ public class IPFilterTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("xpack.security.transport.filter.deny", "_all")
                 .build();
-        when(licenseState.isAllowed(Feature.SECURITY_IP_FILTERING)).thenReturn(false);
+        when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(false);
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 
@@ -263,13 +264,14 @@ public class IPFilterTests extends ESTestCase {
         verifyZeroInteractions(auditTrail);
 
         // for sanity enable license and check that it is denied
-        when(licenseState.isAllowed(Feature.SECURITY_IP_FILTERING)).thenReturn(true);
+        when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 
         assertAddressIsDeniedForProfile("default", "8.8.8.8");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62298")
     public void testThatNodeStartsWithIPFilterDisabled() throws Exception {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())

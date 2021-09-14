@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
@@ -51,6 +52,7 @@ public class MatchProcessorTests extends ESTestCase {
         MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
         MatchProcessor processor = new MatchProcessor(
             "_tag",
+            null,
             mockSearch,
             "_name",
             str("domain"),
@@ -103,7 +105,18 @@ public class MatchProcessorTests extends ESTestCase {
 
     public void testNoMatch() throws Exception {
         MockSearchFunction mockSearch = mockedSearchFunction();
-        MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", str("domain"), str("entry"), true, false, "domain", 1);
+        MatchProcessor processor = new MatchProcessor(
+            "_tag",
+            null,
+            mockSearch,
+            "_name",
+            str("domain"),
+            str("entry"),
+            true,
+            false,
+            "domain",
+            1
+        );
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
@@ -139,7 +152,18 @@ public class MatchProcessorTests extends ESTestCase {
     public void testSearchFailure() throws Exception {
         String indexName = ".enrich-_name";
         MockSearchFunction mockSearch = mockedSearchFunction(new IndexNotFoundException(indexName));
-        MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", str("domain"), str("entry"), true, false, "domain", 1);
+        MatchProcessor processor = new MatchProcessor(
+            "_tag",
+            null,
+            mockSearch,
+            "_name",
+            str("domain"),
+            str("entry"),
+            true,
+            false,
+            "domain",
+            1
+        );
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
@@ -181,6 +205,7 @@ public class MatchProcessorTests extends ESTestCase {
         {
             MatchProcessor processor = new MatchProcessor(
                 "_tag",
+                null,
                 mockedSearchFunction(),
                 "_name",
                 str("domain"),
@@ -201,6 +226,7 @@ public class MatchProcessorTests extends ESTestCase {
         {
             MatchProcessor processor = new MatchProcessor(
                 "_tag",
+                null,
                 mockedSearchFunction(),
                 "_name",
                 str("domain"),
@@ -225,7 +251,18 @@ public class MatchProcessorTests extends ESTestCase {
 
     public void testExistingFieldWithOverrideDisabled() throws Exception {
         MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
-        MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", str("domain"), str("entry"), false, false, "domain", 1);
+        MatchProcessor processor = new MatchProcessor(
+            "_tag",
+            null,
+            mockSearch,
+            "_name",
+            str("domain"),
+            str("entry"),
+            false,
+            false,
+            "domain",
+            1
+        );
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld")), Map.of());
         IngestDocument[] resultHolder = new IngestDocument[1];
@@ -241,7 +278,18 @@ public class MatchProcessorTests extends ESTestCase {
 
     public void testExistingNullFieldWithOverrideDisabled() throws Exception {
         MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
-        MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", str("domain"), str("entry"), false, false, "domain", 1);
+        MatchProcessor processor = new MatchProcessor(
+            "_tag",
+            null,
+            mockSearch,
+            "_name",
+            str("domain"),
+            str("entry"),
+            false,
+            false,
+            "domain",
+            1
+        );
 
         Map<String, Object> source = new HashMap<>();
         source.put("domain", "elastic.co");
@@ -260,7 +308,18 @@ public class MatchProcessorTests extends ESTestCase {
 
     public void testNumericValue() {
         MockSearchFunction mockSearch = mockedSearchFunction(Map.of(2, Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
-        MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", str("domain"), str("entry"), false, true, "domain", 1);
+        MatchProcessor processor = new MatchProcessor(
+            "_tag",
+            null,
+            mockSearch,
+            "_name",
+            str("domain"),
+            str("entry"),
+            false,
+            true,
+            "domain",
+            1
+        );
         IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of("domain", 2));
 
         // Execute
@@ -288,7 +347,18 @@ public class MatchProcessorTests extends ESTestCase {
         MockSearchFunction mockSearch = mockedSearchFunction(
             Map.of(List.of("1", "2"), Map.of("globalRank", 451, "tldRank", 23, "tld", "co"))
         );
-        MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", str("domain"), str("entry"), false, true, "domain", 1);
+        MatchProcessor processor = new MatchProcessor(
+            "_tag",
+            null,
+            mockSearch,
+            "_name",
+            str("domain"),
+            str("entry"),
+            false,
+            true,
+            "domain",
+            1
+        );
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",

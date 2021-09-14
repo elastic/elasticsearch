@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.env;
 
@@ -28,14 +17,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -43,12 +32,16 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.env.NodeRepurposeCommand.NO_CLEANUP;
 import static org.elasticsearch.env.NodeRepurposeCommand.NO_DATA_TO_CLEAN_UP_FOUND;
 import static org.elasticsearch.env.NodeRepurposeCommand.NO_SHARD_DATA_TO_CLEAN_UP_FOUND;
+import static org.elasticsearch.test.NodeRoles.masterNode;
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -58,7 +51,6 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     private static final Index INDEX = new Index("testIndex", "testUUID");
     private Settings dataMasterSettings;
     private Environment environment;
-    private Path[] nodePaths;
     private Settings dataNoMasterSettings;
     private Settings noDataNoMasterSettings;
     private Settings noDataMasterSettings;
@@ -68,28 +60,17 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         dataMasterSettings = buildEnvSettings(Settings.EMPTY);
         environment = TestEnvironment.newEnvironment(dataMasterSettings);
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
-            nodePaths = nodeEnvironment.nodeDataPaths();
+            Path nodePath = nodeEnvironment.nodeDataPath();
             final String nodeId = randomAlphaOfLength(10);
-            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
+            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePath, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
                 new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
             }
         }
-        dataNoMasterSettings = Settings.builder()
-            .put(dataMasterSettings)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .build();
-        noDataNoMasterSettings = Settings.builder()
-            .put(dataMasterSettings)
-            .put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .build();
-        noDataMasterSettings = Settings.builder()
-            .put(dataMasterSettings)
-            .put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), true)
-            .build();
+        dataNoMasterSettings = nonMasterNode(dataMasterSettings);
+        noDataNoMasterSettings = removeRoles(nonDataNode(dataMasterSettings), Set.of(DiscoveryNodeRole.MASTER_ROLE));
+        noDataMasterSettings = masterNode(nonDataNode(dataMasterSettings));
     }
 
     public void testEarlyExitNoCleanup() throws Exception {
@@ -107,7 +88,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         if (randomBoolean()) {
             try (NodeEnvironment env = new NodeEnvironment(noDataMasterSettings, environment)) {
                 try (PersistedClusterStateService.Writer writer =
-                         ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPaths()).createWriter()) {
+                         ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPath()).createWriter()) {
                     writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
                 }
             }
@@ -138,7 +119,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
         String messageText = NodeRepurposeCommand.noMasterMessage(
             1,
-            environment.dataFiles().length*shardCount,
+            shardCount,
             0);
 
         Matcher<String> outputMatcher = allOf(
@@ -165,7 +146,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
         Matcher<String> matcher = allOf(
-            containsString(NodeRepurposeCommand.shardMessage(environment.dataFiles().length * shardCount, 1)),
+            containsString(NodeRepurposeCommand.shardMessage(shardCount, 1)),
             conditionalNot(containsString("testUUID"), verbose == false),
             conditionalNot(containsString("testIndex"), verbose == false || hasClusterState == false),
             conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
@@ -235,7 +216,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         try (NodeEnvironment env = new NodeEnvironment(settings, environment)) {
             if (writeClusterState) {
                 try (PersistedClusterStateService.Writer writer =
-                         ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPaths()).createWriter()) {
+                         ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPath()).createWriter()) {
                     writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT)
                         .metadata(Metadata.builder().put(IndexMetadata.builder(INDEX.getName())
                             .settings(Settings.builder().put("index.version.created", Version.CURRENT)
@@ -245,11 +226,10 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                         .build());
                 }
             }
-            for (Path path : env.indexPaths(INDEX)) {
-                for (int i = 0; i < shardCount; ++i) {
-                    Files.createDirectories(path.resolve(Integer.toString(shardDataDirNumber)));
-                    shardDataDirNumber += randomIntBetween(1,10);
-                }
+            Path path = env.indexPath(INDEX);
+            for (int i = 0; i < shardCount; ++i) {
+                Files.createDirectories(path.resolve(Integer.toString(shardDataDirNumber)));
+                shardDataDirNumber += randomIntBetween(1,10);
             }
         }
     }
@@ -262,8 +242,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     }
 
     private long digestPaths() {
-        // use a commutative digest to avoid dependency on file system order.
-        return Arrays.stream(environment.dataFiles()).mapToLong(this::digestPath).sum();
+        return digestPath(environment.dataFile());
     }
 
     private long digestPath(Path path) {

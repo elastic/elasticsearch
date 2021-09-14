@@ -1,6 +1,6 @@
-evaluationDependsOn(xpackModule('core'))
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
-apply plugin: 'elasticsearch.esplugin'
 esplugin {
   name 'x-pack-ql'
   description 'Elasticsearch infrastructure plugin for EQL and SQL for Elasticsearch'
@@ -8,29 +8,18 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
+ext {
+  antlrVersion = "4.9.2"
+}
+
 archivesBaseName = 'x-pack-ql'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(':test:framework')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(project(xpackModule('ql:test-fixtures'))) {
+    exclude group: 'org.elasticsearch.plugin', module: 'ql'
+  }
+  api "org.antlr:antlr4-runtime:${antlrVersion}"
 }
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-}
-
-task testJar(type: Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives jar
-  testArtifacts testJar
-}
-
-
-// disable integration tests for now
-integTest.enabled = false

@@ -1,39 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -41,12 +28,13 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.LongFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds.BucketOrdsEnum;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForLong;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -54,6 +42,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
 public class NumericTermsAggregator extends TermsAggregator {
     private final ResultStrategy<?, ?> resultStrategy;
@@ -69,19 +58,18 @@ public class NumericTermsAggregator extends TermsAggregator {
         DocValueFormat format,
         BucketOrder order,
         BucketCountThresholds bucketCountThresholds,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         SubAggCollectionMode subAggCollectMode,
         IncludeExclude.LongFilter longFilter,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
-    )
-        throws IOException {
-        super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
+    ) throws IOException {
+        super(name, factories, context, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override
@@ -251,7 +239,7 @@ public class NumericTermsAggregator extends TermsAggregator {
          * Collect extra entries for "zero" hit documents if they were requested
          * and required.
          */
-        abstract void collectZeroDocEntriesIfNeeded(long ord) throws IOException;
+        abstract void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException;
 
         /**
          * Turn the buckets into an aggregation result.
@@ -296,15 +284,15 @@ public class NumericTermsAggregator extends TermsAggregator {
         abstract B buildEmptyBucket();
 
         @Override
-        final void collectZeroDocEntriesIfNeeded(long ord) throws IOException {
+        final void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {
             if (bucketCountThresholds.getMinDocCount() != 0) {
                 return;
             }
-            if (InternalOrder.isCountDesc(order) && bucketOrds.bucketsInOrd(ord) >= bucketCountThresholds.getRequiredSize()) {
+            if (InternalOrder.isCountDesc(order) && bucketOrds.bucketsInOrd(owningBucketOrd) >= bucketCountThresholds.getRequiredSize()) {
                 return;
             }
             // we need to fill-in the blanks
-            for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
+            for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
                 SortedNumericDocValues values = getValues(ctx);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
                     if (values.advanceExact(docId)) {
@@ -312,7 +300,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                         for (int v = 0; v < valueCount; ++v) {
                             long value = values.nextValue();
                             if (longFilter == null || longFilter.accept(value)) {
-                                bucketOrds.add(ord, value);
+                                bucketOrds.add(owningBucketOrd, value);
                             }
                         }
                     }
@@ -363,8 +351,16 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         LongTerms buildResult(long owningBucketOrd, long otherDocCount, LongTerms.Bucket[] topBuckets) {
+            final BucketOrder reduceOrder;
+            if (isKeyOrder(order) == false) {
+                reduceOrder = InternalOrder.key(true);
+                Arrays.sort(topBuckets, reduceOrder.comparator());
+            } else {
+                reduceOrder = order;
+            }
             return new LongTerms(
                 name,
+                reduceOrder,
                 order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
@@ -374,7 +370,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
-                0
+                null
             );
         }
 
@@ -382,6 +378,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         LongTerms buildEmptyResult() {
             return new LongTerms(
                 name,
+                order,
                 order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
@@ -391,12 +388,13 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 0,
                 emptyList(),
-                0
+                0L
             );
         }
     }
 
     class DoubleTermsResults extends StandardTermsResultStrategy<DoubleTerms, DoubleTerms.Bucket> {
+
         DoubleTermsResults(boolean showTermDocCountError) {
             super(showTermDocCountError);
         }
@@ -435,8 +433,16 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         DoubleTerms buildResult(long owningBucketOrd, long otherDocCount, DoubleTerms.Bucket[] topBuckets) {
+            final BucketOrder reduceOrder;
+            if (isKeyOrder(order) == false) {
+                reduceOrder = InternalOrder.key(true);
+                Arrays.sort(topBuckets, reduceOrder.comparator());
+            } else {
+                reduceOrder = order;
+            }
             return new DoubleTerms(
                 name,
+                reduceOrder,
                 order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
@@ -446,7 +452,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 otherDocCount,
                 List.of(topBuckets),
-                0
+                null
             );
         }
 
@@ -454,6 +460,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         DoubleTerms buildEmptyResult() {
             return new DoubleTerms(
                 name,
+                order,
                 order,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
@@ -463,27 +470,26 @@ public class NumericTermsAggregator extends TermsAggregator {
                 showTermDocCountError,
                 0,
                 emptyList(),
-                0
+                0L
             );
         }
     }
 
     class SignificantLongTermsResults extends ResultStrategy<SignificantLongTerms, SignificantLongTerms.Bucket> {
-        private final BackgroundFrequencies backgroundFrequencies;
+        private final BackgroundFrequencyForLong backgroundFrequencies;
         private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
         private LongArray subsetSizes;
 
         SignificantLongTermsResults(
-            SignificantTermsAggregatorFactory termsAggFactory,
+            SignificanceLookup significanceLookup,
             SignificanceHeuristic significanceHeuristic,
-            boolean collectsFromSingleBucket
+            CardinalityUpperBound cardinality
         ) {
-            LookupBackgroundFrequencies lookup = new LookupBackgroundFrequencies(termsAggFactory);
-            backgroundFrequencies = collectsFromSingleBucket ? lookup : new CacheBackgroundFrequencies(lookup, context.bigArrays());
-            supersetSize = termsAggFactory.getSupersetNumDocs();
+            backgroundFrequencies = significanceLookup.longLookup(bigArrays(), cardinality);
+            supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
-            subsetSizes = context.bigArrays().newLongArray(1, true);
+            subsetSizes = bigArrays().newLongArray(1, true);
         }
 
         @Override
@@ -502,7 +508,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     super.collect(doc, owningBucketOrd);
-                    subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
+                    subsetSizes = bigArrays().grow(subsetSizes, owningBucketOrd + 1);
                     subsetSizes.increment(owningBucketOrd, 1);
                 }
             };
@@ -546,10 +552,10 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        void collectZeroDocEntriesIfNeeded(long ord) throws IOException {}
+        void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {}
 
         @Override
-        SignificantLongTerms buildResult(long owningBucketOrd, long otherDocCounts, SignificantLongTerms.Bucket[] topBuckets) {
+        SignificantLongTerms buildResult(long owningBucketOrd, long otherDocCoun, SignificantLongTerms.Bucket[] topBuckets) {
             return new SignificantLongTerms(
                 name,
                 bucketCountThresholds.getRequiredSize(),
@@ -565,10 +571,6 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         SignificantLongTerms buildEmptyResult() {
-            // We need to account for the significance of a miss in our global stats - provide corpus size as context
-            ContextIndexSearcher searcher = context.searcher();
-            IndexReader topReader = searcher.getIndexReader();
-            int supersetSize = topReader.numDocs();
             return new SignificantLongTerms(
                 name,
                 bucketCountThresholds.getRequiredSize(),
@@ -588,66 +590,4 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
     }
 
-    /**
-     * Lookup frequencies for terms.
-     */
-    private interface BackgroundFrequencies extends Releasable {
-        long freq(long term) throws IOException;
-    }
-
-    /**
-     * Lookup frequencies for terms.
-     */
-    private static class LookupBackgroundFrequencies implements BackgroundFrequencies {
-        // TODO a reference to the factory is weird - probably should be reference to what we need from it.
-        private final SignificantTermsAggregatorFactory termsAggFactory;
-
-        LookupBackgroundFrequencies(SignificantTermsAggregatorFactory termsAggFactory) {
-            this.termsAggFactory = termsAggFactory;
-        }
-
-        @Override
-        public long freq(long term) throws IOException {
-            return termsAggFactory.getBackgroundFrequency(term);
-        }
-
-        @Override
-        public void close() {
-            termsAggFactory.close();
-        }
-    }
-
-    /**
-     * Lookup and cache background frequencies for terms.
-     */
-    private static class CacheBackgroundFrequencies implements BackgroundFrequencies {
-        private final LookupBackgroundFrequencies lookup;
-        private final BigArrays bigArrays;
-        private final LongHash termToPosition;
-        private LongArray positionToFreq;
-
-        CacheBackgroundFrequencies(LookupBackgroundFrequencies lookup, BigArrays bigArrays) {
-            this.lookup = lookup;
-            this.bigArrays = bigArrays;
-            termToPosition = new LongHash(1, bigArrays);
-            positionToFreq = bigArrays.newLongArray(1, false);
-        }
-
-        @Override
-        public long freq(long term) throws IOException {
-            long position = termToPosition.add(term);
-            if (position < 0) {
-                return positionToFreq.get(-1 - position);
-            }
-            long freq = lookup.freq(term);
-            positionToFreq = bigArrays.grow(positionToFreq, position + 1);
-            positionToFreq.set(position, freq);
-            return freq;
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(lookup, termToPosition, positionToFreq);
-        }
-    }
 }

@@ -1,0 +1,24 @@
+{
+  "security.get_builtin_privileges":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-builtin-privileges.html",
+      "description":"Retrieves the list of cluster privileges and index privileges that are available in this version of Elasticsearch."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/privilege/_builtin",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

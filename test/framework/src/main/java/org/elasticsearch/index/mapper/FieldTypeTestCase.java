@@ -1,129 +1,69 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /** Base test case for subclasses of MappedFieldType */
-public abstract class FieldTypeTestCase<T extends MappedFieldType> extends ESTestCase {
+public abstract class FieldTypeTestCase extends ESTestCase {
 
-    public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(true);
-    public static final QueryShardContext MOCK_QSC_DISALLOW_EXPENSIVE = createMockQueryShardContext(false);
+    public static final SearchExecutionContext MOCK_CONTEXT = createMockSearchExecutionContext(true);
+    public static final SearchExecutionContext MOCK_CONTEXT_DISALLOW_EXPENSIVE = createMockSearchExecutionContext(false);
 
-    /** Create a default constructed fieldtype */
-    protected abstract T createDefaultFieldType();
-
-    T createNamedDefaultFieldType() {
-        T fieldType = createDefaultFieldType();
-        fieldType.setName("foo");
-        return fieldType;
+    protected SearchExecutionContext randomMockContext() {
+        return randomFrom(MOCK_CONTEXT, MOCK_CONTEXT_DISALLOW_EXPENSIVE);
     }
 
-    @SuppressWarnings("unchecked")
-    private final List<EqualsHashCodeTestUtils.MutateFunction<T>> modifiers = new ArrayList<>(List.of(
-        t -> {
-            MappedFieldType copy = t.clone();
-            copy.setName(t.name() + "-mutated");
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            copy.setBoost(t.boost() + 1);
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            NamedAnalyzer a = t.searchAnalyzer();
-            if (a == null) {
-                copy.setSearchAnalyzer(new NamedAnalyzer("mutated", AnalyzerScope.INDEX, new StandardAnalyzer()));
-                return (T) copy;
-            }
-            copy.setSearchAnalyzer(new NamedAnalyzer(a.name() + "-mutated", a.scope(), a.analyzer()));
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            NamedAnalyzer a = t.searchQuoteAnalyzer();
-            if (a == null) {
-                copy.setSearchQuoteAnalyzer(new NamedAnalyzer("mutated", AnalyzerScope.INDEX, new StandardAnalyzer()));
-                return (T) copy;
-            }
-            copy.setSearchQuoteAnalyzer(new NamedAnalyzer(a.name() + "-mutated", a.scope(), a.analyzer()));
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            copy.setNullValue(new Object());
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            copy.setEagerGlobalOrdinals(t.eagerGlobalOrdinals() == false);
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            Map<String, String> meta = new HashMap<>(t.meta());
-            meta.put("bogus", "bogus");
-            copy.setMeta(meta);
-            return (T) copy;
-        }
-    ));
-
-    protected void addModifier(EqualsHashCodeTestUtils.MutateFunction<T> modifier) {
-        modifiers.add(modifier);
+    private static SearchExecutionContext createMockSearchExecutionContext(boolean allowExpensiveQueries) {
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
+        SourceLookup sourceLookup = mock(SourceLookup.class);
+        SearchLookup searchLookup = mock(SearchLookup.class);
+        when(searchLookup.source()).thenReturn(sourceLookup);
+        when(searchExecutionContext.lookup()).thenReturn(searchLookup);
+        return searchExecutionContext;
     }
 
-    protected QueryShardContext randomMockShardContext() {
-        return randomFrom(MOCK_QSC, MOCK_QSC_DISALLOW_EXPENSIVE);
+    public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue) throws IOException {
+        return fetchSourceValue(fieldType, sourceValue, null);
     }
 
-    static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries) {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
-        return queryShardContext;
+    public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
+        String field = fieldType.name();
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+
+        ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
+        SourceLookup lookup = new SourceLookup();
+        lookup.setSource(Collections.singletonMap(field, sourceValue));
+        return fetcher.fetchValues(lookup);
     }
 
-    public void testClone() {
-        MappedFieldType fieldType = createNamedDefaultFieldType();
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(fieldType, MappedFieldType::clone);
-    }
+    public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {
+        String field = fieldType.name();
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
-    @SuppressWarnings("unchecked")
-    public void testEquals() {
-        for (EqualsHashCodeTestUtils.MutateFunction<T> modifier : modifiers) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createNamedDefaultFieldType(),
-                t -> (T) t.clone(), modifier);
-        }
+        ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
+        SourceLookup lookup = new SourceLookup();
+        lookup.setSource(Collections.singletonMap(field, List.of(values)));
+        return fetcher.fetchValues(lookup);
     }
-
 }

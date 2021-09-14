@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.protocol.xpack;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.license.License;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -41,10 +44,11 @@ public class XPackInfoRequest extends ActionRequest {
     private boolean verbose;
     private EnumSet<Category> categories = EnumSet.noneOf(Category.class);
 
-    public XPackInfoRequest() {}
+    public XPackInfoRequest() {
+    }
 
     public XPackInfoRequest(StreamInput in) throws IOException {
-        // NOTE: this does *not* call super, THIS IS A BUG
+        super(in);
         this.verbose = in.readBoolean();
         EnumSet<Category> categories = EnumSet.noneOf(Category.class);
         int size = in.readVInt();
@@ -52,6 +56,9 @@ public class XPackInfoRequest extends ActionRequest {
             categories.add(Category.valueOf(in.readString()));
         }
         this.categories = categories;
+        if (hasLicenseVersionField(in.getVersion())) {
+            int ignoredLicenseVersion = in.readVInt();
+        }
     }
 
     public void setVerbose(boolean verbose) {
@@ -77,10 +84,18 @@ public class XPackInfoRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeBoolean(verbose);
         out.writeVInt(categories.size());
         for (Category category : categories) {
             out.writeString(category.name());
         }
+        if (hasLicenseVersionField(out.getVersion())) {
+            out.writeVInt(License.VERSION_CURRENT);
+        }
+    }
+
+    private static boolean hasLicenseVersionField(Version streamVersion) {
+        return streamVersion.onOrAfter(Version.V_7_8_1) && streamVersion.before(Version.V_8_0_0);
     }
 }

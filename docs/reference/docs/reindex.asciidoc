@@ -4,15 +4,20 @@
 <titleabbrev>Reindex</titleabbrev>
 ++++
 
-Copies documents from one index to another. 
+Copies documents from a source to a destination.
+
+The source can be any existing index, alias, or data stream. The destination
+must differ from the source. For example, you cannot reindex a data stream into
+itself.
 
 [IMPORTANT]
 =================================================
 Reindex requires <<mapping-source-field,`_source`>> to be enabled for
-all documents in the source index.
+all documents in the source.
 
-You must set up the destination index before calling `_reindex`.
-Reindex does not copy the settings from the source index. 
+The destination should be configured as wanted before calling `_reindex`.
+Reindex does not copy the settings from the source or its associated template.
+
 Mappings, shard counts, replicas, and so on must be configured ahead of time.
 =================================================
 
@@ -21,14 +26,14 @@ Mappings, shard counts, replicas, and so on must be configured ahead of time.
 POST _reindex
 {
   "source": {
-    "index": "twitter"
+    "index": "my-index-000001"
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 ////
 
@@ -63,51 +68,89 @@ POST _reindex
 
 `POST /_reindex`
 
+[[docs-reindex-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the following
+security privileges:
+
+** The `read` <<privileges-list-indices,index privilege>> for the source data
+stream, index, or alias.
+
+** The `write` index privilege for the destination data stream, index, or index
+alias.
+
+** To automatically create a data stream or index with an reindex API request,
+you must have the `auto_configure`, `create_index`, or `manage` index
+privilege for the destination data stream, index, or alias.
+
+** If reindexing from a remote cluster, the `source.remote.user` must have the
+`monitor` <<privileges-list-cluster,cluster privilege>> and the `read` index
+privilege for the source data stream, index, or alias.
+
+* If reindexing from a remote cluster, you must explicitly allow the remote host
+in the `reindex.remote.whitelist` setting of `elasticsearch.yml`. See
+<<reindex-from-remote>>.
+
+* Automatic data stream creation requires a matching index template with data
+stream enabled. See <<set-up-a-data-stream>>.
+
 [[docs-reindex-api-desc]]
 ==== {api-description-title}
 
-Extracts the document source from the source index and indexes the documents into the destination index. 
-You can copy all documents to the destination index, or reindex a subset of the documents. 
+// tag::docs-reindex-api-desc-tag[]
+Extracts the <<mapping-source-field,document source>> from the source index and indexes the documents into the destination index.
+You can copy all documents to the destination index, or reindex a subset of the documents.
+// end::docs-reindex-api-desc-tag[]
+
 
 Just like <<docs-update-by-query,`_update_by_query`>>, `_reindex` gets a
-snapshot of the source index but its target must be a **different** index so
+snapshot of the source but its destination must be **different** so
 version conflicts are unlikely. The `dest` element can be configured like the
 index API to control optimistic concurrency control. Omitting
 `version_type` or setting it to `internal` causes Elasticsearch
-to blindly dump documents into the target, overwriting any that happen to have
+to blindly dump documents into the destination, overwriting any that happen to have
 the same ID.
 
 Setting `version_type` to `external` causes Elasticsearch to preserve the
 `version` from the source, create any documents that are missing, and update
-any documents that have an older version in the destination index than they do
-in the source index.
+any documents that have an older version in the destination than they do
+in the source.
 
 Setting `op_type` to `create` causes `_reindex` to only create missing
-documents in the target index. All existing documents will cause a version
-conflict. 
+documents in the destination. All existing documents will cause a version
+conflict.
 
-By default, version conflicts abort the `_reindex` process. 
-To continue reindexing if there are conflicts, set the `"conflicts"` request body parameter to `proceed`. 
+IMPORTANT: Because data streams are <<data-streams-append-only,append-only>>,
+any reindex request to a destination data stream must have an `op_type`
+of`create`. A reindex can only add new documents to a destination data stream.
+It cannot update existing documents in a destination data stream.
+
+By default, version conflicts abort the `_reindex` process.
+To continue reindexing if there are conflicts, set the `"conflicts"` request body parameter to `proceed`.
 In this case, the response includes a count of the version conflicts that were encountered.
 Note that the handling of other error types is unaffected by the `"conflicts"` parameter.
+Additionally, if you opt to count version conflicts the operation could attempt to reindex more documents
+from the source than `max_docs` until it has successfully indexed `max_docs` documents into the target, or it has gone
+through every document in the source query.
 
 [[docs-reindex-task-api]]
 ===== Running reindex asynchronously
 
 If the request contains `wait_for_completion=false`, {es}
 performs some preflight checks, launches the request, and returns a
-<<tasks,`task`>> you can use to cancel or get the status of the task. 
-{es} creates a record of this task as a document at `.tasks/task/${taskId}`. 
-When you are done with a task, you should delete the task document so 
+<<tasks,`task`>> you can use to cancel or get the status of the task.
+{es} creates a record of this task as a document at `_tasks/<task_id>`.
+When you are done with a task, you should delete the task document so
 {es} can reclaim the space.
 
-[[docs-reindex-many-indices]]
-===== Reindexing many indices
-If you have many indices to reindex it is generally better to reindex them
-one at a time rather than using a glob pattern to pick up many indices. That
+[[docs-reindex-from-multiple-sources]]
+===== Reindex from multiple sources
+If you have many sources to reindex it is generally better to reindex them
+one at a time rather than using a glob pattern to pick up multiple sources. That
 way you can resume the process if there are any errors by removing the
-partially completed index and starting over at that index. It also makes
-parallelizing the process fairly simple: split the list of indices to reindex
+partially completed source and starting over. It also makes
+parallelizing the process fairly simple: split the list of sources to reindex
 and run each list in parallel.
 
 One-off bash scripts seem to work nicely for this:
@@ -132,7 +175,7 @@ done
 
 Set `requests_per_second` to any positive decimal number (`1.4`, `6`,
 `1000`, etc.) to throttle the rate at which `_reindex` issues batches of index
-operations. Requests are throttled by padding each batch with a wait time. 
+operations. Requests are throttled by padding each batch with a wait time.
 To disable throttling, set `requests_per_second` to `-1`.
 
 The throttling is done by waiting between batches so that the `scroll` that `_reindex`
@@ -147,7 +190,7 @@ target_time = 1000 / 500 per second = 2 seconds
 wait_time = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
 --------------------------------------------------
 
-Since the batch is issued as a single `_bulk` request, large batch sizes 
+Since the batch is issued as a single `_bulk` request, large batch sizes
 cause Elasticsearch to create many requests and then wait for a while before
 starting the next set. This is "bursty" instead of "smooth".
 
@@ -174,13 +217,15 @@ timeouts.
 [[docs-reindex-slice]]
 ===== Slicing
 
-Reindex supports <<sliced-scroll>> to parallelize the reindexing process.
+Reindex supports <<slice-scroll>> to parallelize the reindexing process.
 This parallelization can improve efficiency and provide a convenient way to
 break the request down into smaller parts.
 
+// tag::remote-reindex-slicing[]
 NOTE: Reindexing from remote clusters does not support
-<<docs-reindex-manual-slice, manual>> or
-<<docs-reindex-automatic-slice, automatic slicing>>.
+<<docs-reindex-manual-slice, manual>> or <<docs-reindex-automatic-slice,
+automatic slicing>>.
+// end::remote-reindex-slicing[]
 
 [[docs-reindex-manual-slice]]
 ====== Manual slicing
@@ -192,38 +237,38 @@ slices to each request:
 POST _reindex
 {
   "source": {
-    "index": "twitter",
+    "index": "my-index-000001",
     "slice": {
       "id": 0,
       "max": 2
     }
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 POST _reindex
 {
   "source": {
-    "index": "twitter",
+    "index": "my-index-000001",
     "slice": {
       "id": 1,
       "max": 2
     }
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 You can verify this works by:
 
 [source,console]
 ----------------------------------------------------------------
 GET _refresh
-POST new_twitter/_search?size=0&filter_path=hits.total
+POST my-new-index-000001/_search?size=0&filter_path=hits.total
 ----------------------------------------------------------------
 // TEST[continued]
 
@@ -244,7 +289,7 @@ which results in a sensible `total` like this one:
 [[docs-reindex-automatic-slice]]
 ====== Automatic slicing
 
-You can also let `_reindex` automatically parallelize using <<sliced-scroll>> to
+You can also let `_reindex` automatically parallelize using <<slice-scroll>> to
 slice on `_id`. Use `slices` to specify the number of slices to use:
 
 [source,console]
@@ -252,20 +297,20 @@ slice on `_id`. Use `slices` to specify the number of slices to use:
 POST _reindex?slices=5&refresh
 {
   "source": {
-    "index": "twitter"
+    "index": "my-index-000001"
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
-You can also this verify works by:
+You can also verify this works by:
 
 [source,console]
 ----------------------------------------------------------------
-POST new_twitter/_search?size=0&filter_path=hits.total
+POST my-new-index-000001/_search?size=0&filter_path=hits.total
 ----------------------------------------------------------------
 // TEST[continued]
 
@@ -283,10 +328,11 @@ which results in a sensible `total` like this one:
 }
 ----------------------------------------------------------------
 
-Setting `slices` to `auto` will let Elasticsearch choose the number of slices
-to use. This setting will use one slice per shard, up to a certain limit. If
-there are multiple source indices, it will choose the number of slices based
-on the index with the smallest number of shards.
+Setting `slices` to `auto` will let Elasticsearch choose the number of slices to
+use. This setting will use one slice per shard, up to a certain limit. If there
+are multiple sources, it will choose the number of
+slices based on the index or <<data-streams,backing index>> with the smallest
+number of shards.
 
 Adding `slices` to `_reindex` just automates the manual process used in the
 section above, creating sub-requests which means it has some quirks:
@@ -295,7 +341,7 @@ section above, creating sub-requests which means it has some quirks:
 sub-requests are "child" tasks of the task for the request with `slices`.
 * Fetching the status of the task for the request with `slices` only contains
 the status of completed slices.
-* These sub-requests are individually addressable for things like cancelation
+* These sub-requests are individually addressable for things like cancellation
 and rethrottling.
 * Rethrottling the request with `slices` will rethrottle the unfinished
 sub-request proportionally.
@@ -308,7 +354,7 @@ be larger than others. Expect larger slices to have a more even distribution.
 the point above about distribution being uneven and you should conclude that
 using `max_docs` with `slices` might not result in exactly `max_docs` documents
 being reindexed.
-* Each sub-request gets a slightly different snapshot of the source index,
+* Each sub-request gets a slightly different snapshot of the source,
 though these are all taken at approximately the same time.
 
 [[docs-reindex-picking-slices]]
@@ -352,7 +398,7 @@ Sets the routing on the bulk request sent for each match to all text after
 the `=`.
 
 For example, you can use the following request to copy all documents from
-the `source` index with the company name `cat` into the `dest` index with
+the `source` with the company name `cat` into the `dest`  with
 routing set to `cat`.
 
 [source,console]
@@ -396,6 +442,9 @@ POST _reindex
 --------------------------------------------------
 // TEST[s/^/PUT source\n/]
 
+[[reindex-with-an-ingest-pipeline]]
+===== Reindex with an ingest pipeline
+
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
 
@@ -417,15 +466,34 @@ POST _reindex
 [[docs-reindex-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, Boolean) If `true`, the request refreshes affected shards to make
+this operation visible to search. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
++
+--
+(Optional, <<time-units, time units>>)
+Period each indexing waits for the following operations:
+
+* <<index-creation,Automatic index creation>>
+* <<dynamic-mapping,Dynamic mapping>> updates
+* <<index-wait-for-active-shards,Waiting for active shards>>
+
+Defaults to `1m` (one minute). This guarantees {es} waits for at least the
+timeout before failing. The actual wait time could be longer, particularly when
+multiple waits occur.
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request blocks until the operation is complete.
+Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
 
@@ -436,17 +504,20 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=max_docs]
 [[docs-reindex-api-request-body]]
 ==== {api-request-body-title}
 
+[[conflicts]]
 `conflicts`::
-(Optional, enum) Set to `proceed` to continue reindexing even if there are conflicts. 
+(Optional, enum) Set to `proceed` to continue reindexing even if there are conflicts.
 Defaults to `abort`.
 
 `source`::
 `index`:::
-(Required, string) The name of the index you are copying _from_. 
-Also accepts a comma-separated list of indices to reindex from multiple sources.  
+(Required, string) The name of the data stream, index, or alias you are copying
+_from_. Also accepts a comma-separated list to reindex from multiple sources.
 
 `max_docs`:::
-(Optional, integer) The maximum number of documents to reindex.
+(Optional, integer) The maximum number of documents to reindex. If <<conflicts, conflicts>> is equal to
+`proceed`, reindex could attempt to reindex more documents from the source than `max_docs` until it has successfully
+indexed `max_docs` documents into the target, or it has gone through every document in the source query.
 
 `query`:::
 (Optional, <<query-dsl, query object>>) Specifies the documents to reindex using the Query DSL.
@@ -458,22 +529,22 @@ Required when indexing from remote.
 `username`::::
 (Optional, string) The username to use for authentication with the remote host.
 `password`::::
-(Optional, string) The password to use for authentication with the remote host. 
-`socket_timeout`:::: 
+(Optional, string) The password to use for authentication with the remote host.
+`socket_timeout`::::
 (Optional, <<time-units, time units>>) The remote socket read timeout. Defaults to 30 seconds.
-`connect_timeout`:::: 
+`connect_timeout`::::
 (Optional, <<time-units, time units>>) The remote connection timeout. Defaults to 30 seconds.
 
 `size`:::
-{Optional, integer) The number of documents to index per batch. 
-Use when indexing from remote to ensure that the batches fit within the on-heap buffer, 
-which defaults to a maximum size of 100 MB. 
+{Optional, integer) The number of documents to index per batch.
+Use when indexing from remote to ensure that the batches fit within the on-heap buffer,
+which defaults to a maximum size of 100 MB.
 
 `slice`:::
 `id`::::
-(Optional, integer) Slice ID for <<docs-reindex-manual-slice, manual slicing>>. 
+(Optional, integer) Slice ID for <<docs-reindex-manual-slice, manual slicing>>.
 `max`::::
-(Optional, integer) Total number of slices. 
+(Optional, integer) Total number of slices.
 
 `sort`:::
 +
@@ -485,28 +556,31 @@ deprecated::[7.6, Sort in reindex is deprecated. Sorting in reindex was never gu
 --
 
 `_source`:::
-(Optional, string) If `true` reindexes all source fields. 
-Set to a list to reindex select fields. 
-Defaults to `true`. 
+(Optional, string) If `true` reindexes all source fields.
+Set to a list to reindex select fields.
+Defaults to `true`.
 
 `dest`::
 `index`:::
-(Required, string) The name of the index you are copying _to_.
+(Required, string) The name of the data stream, index, or index alias you are copying _to_.
 
 `version_type`:::
-(Optional, enum) The versioning to use for the indexing operation.  
-Valid values: `internal`, `external`, `external_gt`, `external_gte`. 
+(Optional, enum) The versioning to use for the indexing operation.
+Valid values: `internal`, `external`, `external_gt`, `external_gte`.
 See <<index-version-types>> for more information.
 
-`op_type`::: 
-(Optional, enum) Set to create to only index documents that do not already exist (put if absent). 
+`op_type`:::
+(Optional, enum) Set to create to only index documents that do not already exist (put if absent).
 Valid values: `index`, `create`. Defaults to `index`.
++
+IMPORTANT: To reindex to a data stream destination, this argument must be
+`create`.
 
 `script`::
-`source`::: 
-(Optional, string) The script to run to update the document source or metadata when reindexing. 
+`source`:::
+(Optional, string) The script to run to update the document source or metadata when reindexing.
 `lang`:::
-(Optional, enum) The script language: `painless`, `expression`, `mustache`, `java`. 
+(Optional, enum) The script language: `painless`, `expression`, `mustache`, `java`.
 For more information, see <<modules-scripting>>.
 
 
@@ -519,7 +593,7 @@ For more information, see <<modules-scripting>>.
 
 `timed_out`::
 
-{boolean) This flag is set to `true` if any of the requests executed during the
+{Boolean) This flag is set to `true` if any of the requests executed during the
 reindex timed out.
 
 `total`::
@@ -586,33 +660,33 @@ the `conflicts` option to prevent reindex from aborting on version conflicts.
 ===== Reindex select documents with a query
 
 You can limit the documents by adding a query to the `source`.
-For example, the following request only copies tweets made by `kimchy` into `new_twitter`:
+For example, the following request only copies documents with a `user.id` of `kimchy` into `my-new-index-000001`:
 
 [source,console]
 --------------------------------------------------
 POST _reindex
 {
   "source": {
-    "index": "twitter",
+    "index": "my-index-000001",
     "query": {
       "term": {
-        "user": "kimchy"
+        "user.id": "kimchy"
       }
     }
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-reindex-select-max-docs]]
 ===== Reindex select documents with `max_docs`
 
-You can limit the number of processed documents by setting `max_docs`. 
-For example, this request copies a single document from `twitter` to
-`new_twitter`:
+You can limit the number of processed documents by setting `max_docs`.
+For example, this request copies a single document from `my-index-000001` to
+`my-new-index-000001`:
 
 [source,console]
 --------------------------------------------------
@@ -620,36 +694,36 @@ POST _reindex
 {
   "max_docs": 1,
   "source": {
-    "index": "twitter"
+    "index": "my-index-000001"
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-[[docs-reindex-multiple-indices]]
-===== Reindex from multiple indices
+[[docs-reindex-multiple-sources]]
+===== Reindex from multiple sources
 
-The `index` attribute in `source` can be a list, allowing you to copy from lots 
+The `index` attribute in `source` can be a list, allowing you to copy from lots
 of sources in one request. This will copy documents from the
-`twitter` and `blog` indices:
+`my-index-000001` and `my-index-000002` indices:
 
 [source,console]
 --------------------------------------------------
 POST _reindex
 {
   "source": {
-    "index": ["twitter", "blog"]
+    "index": ["my-index-000001", "my-index-000002"]
   },
   "dest": {
-    "index": "all_together"
+    "index": "my-new-index-000002"
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
-// TEST[s/^/PUT blog\/_doc\/post1?refresh\n{"test": "foo"}\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000002\/_doc\/post1?refresh\n{"test": "foo"}\n/]
 
 NOTE: The Reindex API makes no effort to handle ID collisions so the last
 document written will "win" but the order isn't usually predictable so it is
@@ -660,22 +734,22 @@ using a script.
 ===== Reindex select fields with a source filter
 
 You can use source filtering to reindex a subset of the fields in the original documents.
-For example, the following request only reindexes the `user` and `_doc` fields of each document:
+For example, the following request only reindexes the `user.id` and `_doc` fields of each document:
 
 [source,console]
 --------------------------------------------------
 POST _reindex
 {
   "source": {
-    "index": "twitter",
-    "_source": ["user", "_doc"]
+    "index": "my-index-000001",
+    "_source": ["user.id", "_doc"]
   },
   "dest": {
-    "index": "new_twitter"
+    "index": "my-new-index-000001"
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[docs-reindex-change-name]]
 ===== Reindex to change the name of a field
@@ -685,7 +759,7 @@ create an index containing documents that look like this:
 
 [source,console]
 --------------------------------------------------
-POST test/_doc/1?refresh
+POST my-index-000001/_doc/1?refresh
 {
   "text": "words words",
   "flag": "foo"
@@ -700,10 +774,10 @@ but you don't like the name `flag` and want to replace it with `tag`.
 POST _reindex
 {
   "source": {
-    "index": "test"
+    "index": "my-index-000001"
   },
   "dest": {
-    "index": "test2"
+    "index": "my-new-index-000001"
   },
   "script": {
     "source": "ctx._source.tag = ctx._source.remove(\"flag\")"
@@ -716,7 +790,7 @@ Now you can get the new document:
 
 [source,console]
 --------------------------------------------------
-GET test2/_doc/1
+GET my-new-index-000001/_doc/1
 --------------------------------------------------
 // TEST[continued]
 
@@ -727,7 +801,7 @@ which will return:
 {
   "found": true,
   "_id": "1",
-  "_index": "test2",
+  "_index": "my-new-index-000001",
   "_version": 1,
   "_seq_no": 44,
   "_primary_term": 1,
@@ -794,9 +868,9 @@ The previous method can also be used in conjunction with <<docs-reindex-change-n
 to load only the existing data into the new index and rename any fields if needed.
 
 [[docs-reindex-api-subset]]
-===== Extract a random subset of an index
+===== Extract a random subset of the source
 
-`_reindex` can be used to extract a random subset of an index for testing:
+`_reindex` can be used to extract a random subset of the source for testing:
 
 [source,console]
 ----------------------------------------------------------------
@@ -804,7 +878,7 @@ POST _reindex
 {
   "max_docs": 10,
   "source": {
-    "index": "twitter",
+    "index": "my-index-000001",
     "query": {
       "function_score" : {
         "random_score" : {},
@@ -813,11 +887,11 @@ POST _reindex
     }
   },
   "dest": {
-    "index": "random_twitter"
+    "index": "my-new-index-000001"
   }
 }
 ----------------------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 <1> You may need to adjust the `min_score` depending on the relative amount of
 data extracted from source.
@@ -834,10 +908,10 @@ document's metadata. This example bumps the version of the source document:
 POST _reindex
 {
   "source": {
-    "index": "twitter"
+    "index": "my-index-000001"
   },
   "dest": {
-    "index": "new_twitter",
+    "index": "my-new-index-000001",
     "version_type": "external"
   },
   "script": {
@@ -846,21 +920,21 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Just as in `_update_by_query`, you can set `ctx.op` to change the
-operation that is executed on the destination index:
+operation that is executed on the destination:
 
 `noop`::
 
 Set `ctx.op = "noop"` if your script decides that the document doesn't have
-to be indexed in the destination index. This no operation will be reported
+to be indexed in the destination. This no operation will be reported
 in the `noop` counter in the <<docs-reindex-api-response-body, response body>>.
 
 `delete`::
 
 Set `ctx.op = "delete"` if your script decides that the document must be
- deleted from the destination index. The deletion will be reported in the
+ deleted from the destination. The deletion will be reported in the
  `deleted` counter in the <<docs-reindex-api-response-body, response body>>.
 
 Setting `ctx.op` to anything else will return an error, as will setting any
@@ -876,7 +950,7 @@ change:
 
 Setting `_version` to `null` or clearing it from the `ctx` map is just like not
 sending the version in an indexing request; it will cause the document to be
-overwritten in the target index regardless of the version on the target or the
+overwritten in the destination regardless of the version on the target or the
 version type you use in the `_reindex` request.
 
 [[reindex-from-remote]]
@@ -894,7 +968,7 @@ POST _reindex
       "username": "user",
       "password": "pass"
     },
-    "index": "source",
+    "index": "my-index-000001",
     "query": {
       "match": {
         "test": "data"
@@ -902,12 +976,12 @@ POST _reindex
     }
   },
   "dest": {
-    "index": "dest"
+    "index": "my-new-index-000001"
   }
 }
 --------------------------------------------------
 // TEST[setup:host]
-// TEST[s/^/PUT source\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 // TEST[s/otherhost:9200",/\${host}"/]
 // TEST[s/"username": "user",//]
 // TEST[s/"password": "pass"//]
@@ -920,11 +994,10 @@ using basic auth or the password will be sent in plain text.
 There are a range of <<reindex-ssl,settings>> available to configure the behaviour of the
  `https` connection.
 
-Remote hosts have to be explicitly whitelisted in elasticsearch.yml using the
+Remote hosts have to be explicitly allowed in elasticsearch.yml using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
-of allowed remote `host` and `port` combinations (e.g.
-`otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*`). Scheme is
-ignored by the whitelist -- only host and port are used, for example:
+of allowed remote `host` and `port` combinations. Scheme is
+ignored, only the host and port are used. For example:
 
 
 [source,yaml]
@@ -932,19 +1005,20 @@ ignored by the whitelist -- only host and port are used, for example:
 reindex.remote.whitelist: "otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"
 --------------------------------------------------
 
-The whitelist must be configured on any nodes that will coordinate the reindex.
+The list of allowed hosts must be configured on any nodes that will coordinate the reindex.
 
 This feature should work with remote clusters of any version of Elasticsearch
 you are likely to find. This should allow you to upgrade from any version of
 Elasticsearch to the current version by reindexing from a cluster of the old
 version.
 
+WARNING: {es} does not support forward compatibility across major versions. For
+example, you cannot reindex from a 7.x cluster into a 6.x cluster.
+
 To enable queries sent to older versions of Elasticsearch the `query` parameter
 is sent directly to the remote host without validation or modification.
 
-NOTE: Reindexing from remote clusters does not support
-<<docs-reindex-manual-slice, manual>> or
-<<docs-reindex-automatic-slice, automatic slicing>>.
+include::{es-ref-dir}/docs/reindex.asciidoc[tag=remote-reindex-slicing]
 
 Reindexing from a remote server uses an on-heap buffer that defaults to a
 maximum size of 100mb. If the remote index includes very large documents you'll
@@ -1019,7 +1093,7 @@ It is not possible to configure SSL in the body of the `_reindex` request.
 The following settings are supported:
 
 `reindex.ssl.certificate_authorities`::
-List of paths to PEM encoded certificate files that should be trusted. 
+List of paths to PEM encoded certificate files that should be trusted.
 You cannot specify both `reindex.ssl.certificate_authorities` and
 `reindex.ssl.truststore.path`.
 
@@ -1044,7 +1118,7 @@ or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `reindex.ssl.verification_mode`::
 Indicates the type of verification to protect against man in the middle attacks
-and certificate forgery. 
+and certificate forgery.
 One of `full` (verify the hostname and the certificate path), `certificate`
 (verify the certificate path, but not the hostname) or `none` (perform no
 verification - this is strongly discouraged in production environments).
@@ -1064,12 +1138,12 @@ You cannot specify both `reindex.ssl.key` and `reindex.ssl.keystore.path`.
 `reindex.ssl.key_passphrase`::
 Specifies the passphrase to decrypt the PEM encoded private key
 (`reindex.ssl.key`) if it is encrypted.
-Cannot be used with `reindex.ssl.secure_key_passphrase`. 
+Cannot be used with `reindex.ssl.secure_key_passphrase`.
 
 `reindex.ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
 Specifies the passphrase to decrypt the PEM encoded private key
 (`reindex.ssl.key`) if it is encrypted.
-Cannot be used with `reindex.ssl.key_passphrase`. 
+Cannot be used with `reindex.ssl.key_passphrase`.
 
 `reindex.ssl.keystore.path`::
 Specifies the path to the keystore that contains a private key and certificate
@@ -1079,11 +1153,11 @@ You cannot specify both `reindex.ssl.key` and `reindex.ssl.keystore.path`.
 
 `reindex.ssl.keystore.type`::
 The type of the keystore (`reindex.ssl.keystore.path`). Must be either `jks` or `PKCS12`.
-If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults 
+If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults
 to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `reindex.ssl.keystore.password`::
-The password to the keystore (`reindex.ssl.keystore.path`). This setting cannot be used 
+The password to the keystore (`reindex.ssl.keystore.path`). This setting cannot be used
 with `reindex.ssl.keystore.secure_password`.
 
 `reindex.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
@@ -1092,10 +1166,10 @@ This setting cannot be used with `reindex.ssl.keystore.password`.
 
 `reindex.ssl.keystore.key_password`::
 The password for the key in the keystore (`reindex.ssl.keystore.path`).
-Defaults to the keystore password. This setting cannot be used with 
+Defaults to the keystore password. This setting cannot be used with
 `reindex.ssl.keystore.secure_key_password`.
 
 `reindex.ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
 The password for the key in the keystore (`reindex.ssl.keystore.path`).
-Defaults to the keystore password. This setting cannot be used with 
+Defaults to the keystore password. This setting cannot be used with
 `reindex.ssl.keystore.key_password`.

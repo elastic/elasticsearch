@@ -1,26 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
@@ -29,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Superclass for {@link ObjectParser} and {@link ConstructingObjectParser}. Defines most of the "declare" methods so they can be shared.
@@ -209,6 +198,12 @@ public abstract class AbstractObjectParser<Value, Context> {
         declareField(consumer, p -> p.longValue(), field, ValueType.LONG);
     }
 
+    public void declareLongOrNull(BiConsumer<Value, Long> consumer, long nullValue, ParseField field) {
+        // Using a method reference here angers some compilers
+        declareField(consumer, p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? nullValue : p.longValue(),
+            field, ValueType.LONG_OR_NULL);
+    }
+
     public void declareInt(BiConsumer<Value, Integer> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.intValue(), field, ValueType.INT);
@@ -222,9 +217,16 @@ public abstract class AbstractObjectParser<Value, Context> {
                 field, ValueType.INT_OR_NULL);
     }
 
-
     public void declareString(BiConsumer<Value, String> consumer, ParseField field) {
         declareField(consumer, XContentParser::text, field, ValueType.STRING);
+    }
+
+    /**
+     * Declare a field of type {@code T} parsed from string and converted to {@code T} using provided function.
+     * Throws if the next token is not a string.
+     */
+    public <T> void declareString(BiConsumer<Value, T> consumer, Function<String, T> fromStringFunction, ParseField field) {
+        declareField(consumer, p -> fromStringFunction.apply(p.text()), field, ValueType.STRING);
     }
 
     public void declareStringOrNull(BiConsumer<Value, String> consumer, ParseField field) {

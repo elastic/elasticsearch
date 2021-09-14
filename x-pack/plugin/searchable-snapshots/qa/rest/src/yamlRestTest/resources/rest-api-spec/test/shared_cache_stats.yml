@@ -1,0 +1,96 @@
+---
+setup:
+  - skip:
+      version: " - 7.12.99"
+      reason: node-level cache statistics added in 7.13.0
+
+  - do:
+      indices.create:
+        index: docs
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: docs
+              _id:    1
+          - field: foo
+          - index:
+              _index: docs
+              _id:    2
+          - field: bar
+          - index:
+              _index: docs
+              _id:    3
+          - field: baz
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.delete:
+        index: docs
+
+---
+"Node Cache Stats API with Frozen Indices":
+
+  - do:
+      cluster.state: {}
+  - set: { master_node: node_id }
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: docs
+          renamed_index: frozen-docs
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      searchable_snapshots.cache_stats:
+        human: true
+
+  - is_true: nodes.$node_id
+  - is_true: nodes.$node_id.shared_cache
+  - gte: { nodes.$node_id.shared_cache.reads: 0 }
+  - gte: { nodes.$node_id.shared_cache.bytes_read: "0b" }
+  - gte: { nodes.$node_id.shared_cache.bytes_read_in_bytes: 0 }
+  - gte: { nodes.$node_id.shared_cache.writes: 0 }
+  - gte: { nodes.$node_id.shared_cache.bytes_written: "0b" }
+  - gte: { nodes.$node_id.shared_cache.bytes_written_in_bytes: 0 }
+  - gte: { nodes.$node_id.shared_cache.evictions: 0 }
+  - match: { nodes.$node_id.shared_cache.num_regions: 64 }
+  - match: { nodes.$node_id.shared_cache.size: "16mb" }
+  - match: { nodes.$node_id.shared_cache.size_in_bytes: 16777216 }
+  - match: { nodes.$node_id.shared_cache.region_size: "256kb" }
+  - match: { nodes.$node_id.shared_cache.region_size_in_bytes: 262144 }
+

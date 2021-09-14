@@ -1,19 +1,20 @@
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 
-import org.elasticsearch.gradle.http.WaitForHttpResource
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(':x-pack:plugin:core')
-  testCompile project(':client:rest-high-level')
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(':modules:transport-netty4')
+  testImplementation project(':client:rest-high-level')
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
-task copyXPackPluginProps(type: Copy) {
+def copyXPackPluginProps = tasks.register("copyXPackPluginProps", Copy) {
   from project(xpackModule('core')).file('src/main/plugin-metadata')
   from project(xpackModule('core')).tasks.pluginProperties
   into outputDir
@@ -30,7 +31,7 @@ File clientKey = file("$keystoreDir/testclient.pem")
 File clientCert = file("$keystoreDir/testclient.crt")
 
 // Add keystores to test classpath: it expects it there
-task copyKeyCerts(type: Copy) {
+def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
   from('./') {
     include '*.crt', '*.pem', '*.jks'
   }
@@ -38,12 +39,23 @@ task copyKeyCerts(type: Copy) {
 }
 // Add keystores to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
 
-integTest.runner.dependsOn(copyKeyCerts)
+['processTestResources', 'integTest', 'filepermissions', 'forbiddenPatterns'].each {
+  tasks.named(it).configure {
+    dependsOn(copyKeyCerts)
+  }
+}
 
-def pluginsCount = 0
-testClusters.integTest {
+ext.pluginPaths = []
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
+      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
+      return
+    }
+  pluginPaths << pluginProject.path
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
 
@@ -67,25 +79,20 @@ testClusters.integTest {
   user username: "test_user", password: "x-pack-test-password"
   user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
 
-  project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-    if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
-      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
-      return
-    }
-    plugin pluginProject.tasks.bundlePlugin.archiveFile
-    tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
-    pluginsCount += 1
+  pluginPaths.each { pluginPath ->
+    plugin pluginPath
   }
 }
 
 ext.expansions = [
-  'expected.plugins.count': pluginsCount
+  'expected.plugins.count': pluginPaths.size()
 ]
 
-processTestResources {
+tasks.named("processTestResources").configure {
   from(sourceSets.test.resources.srcDirs) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
-    MavenFilteringHack.filter(it, expansions)
+    filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
   }
 }

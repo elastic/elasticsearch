@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.mapping.put;
@@ -75,6 +64,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private Index concreteIndex;
 
+    private boolean writeIndexOnly;
+
     public PutMappingRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
@@ -88,6 +79,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         source = in.readString();
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            writeIndexOnly = in.readBoolean();
+        }
     }
 
     public PutMappingRequest() {
@@ -129,7 +123,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * Sets a concrete index for this put mapping request.
      */
     public PutMappingRequest setConcreteIndex(Index index) {
-        Objects.requireNonNull(indices, "index must not be null");
+        Objects.requireNonNull(index, "index must not be null");
         this.concreteIndex = index;
         return this;
     }
@@ -157,6 +151,11 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     public PutMappingRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     /**
@@ -285,6 +284,15 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         }
     }
 
+    public PutMappingRequest writeIndexOnly(boolean writeIndexOnly) {
+        this.writeIndexOnly = writeIndexOnly;
+        return this;
+    }
+
+    public boolean writeIndexOnly() {
+        return writeIndexOnly;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -296,5 +304,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeString(source);
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeBoolean(writeIndexOnly);
+        }
     }
 }

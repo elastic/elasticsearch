@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test;
 
@@ -10,14 +11,16 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
+import org.elasticsearch.xpack.core.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
@@ -55,8 +58,8 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.hamcrest.Matcher;
 
-import javax.mail.internet.AddressException;
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -72,6 +75,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public final class WatcherTestUtils {
 
@@ -149,7 +153,8 @@ public final class WatcherTestUtils {
 
 
     public static Watch createTestWatch(String watchName, Client client, HttpClient httpClient, EmailService emailService,
-                                        WatcherSearchTemplateService searchTemplateService, Logger logger) throws AddressException {
+                                        WatcherSearchTemplateService searchTemplateService, Logger logger) {
+        ActionThrottler actionThrottler = new ActionThrottler(Clock.systemUTC(), null, mock(XPackLicenseState.class));
         List<ActionWrapper> actions = new ArrayList<>();
         TextTemplateEngine engine = new MockTextTemplateEngine();
 
@@ -157,8 +162,8 @@ public final class WatcherTestUtils {
         httpRequest.method(HttpMethod.POST);
         httpRequest.path(new TextTemplate("/foobarbaz/{{ctx.watch_id}}"));
         httpRequest.body(new TextTemplate("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits"));
-        actions.add(new ActionWrapper("_webhook", null, null, null, new ExecutableWebhookAction(new WebhookAction(httpRequest.build()),
-                logger, httpClient, engine), null, null));
+        actions.add(new ActionWrapper("_webhook", actionThrottler, null, null,
+            new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, httpClient, engine), null, null));
 
 
         EmailTemplate email = EmailTemplate.builder().from("from@test.com").to("to@test.com").build();
@@ -166,7 +171,7 @@ public final class WatcherTestUtils {
         EmailAction action = new EmailAction(email, "testaccount", auth, Profile.STANDARD, null, null);
         ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, engine,
                 new HtmlSanitizer(Settings.EMPTY), Collections.emptyMap());
-        actions.add(new ActionWrapper("_email", null, null, null, executale, null, null));
+        actions.add(new ActionWrapper("_email", actionThrottler, null, null, executale, null, null));
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Map<String, ActionStatus> statuses = new HashMap<>();

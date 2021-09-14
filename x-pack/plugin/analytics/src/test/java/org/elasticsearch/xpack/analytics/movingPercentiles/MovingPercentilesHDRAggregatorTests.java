@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.movingPercentiles;
 
@@ -27,7 +28,6 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 
 import java.io.IOException;
 
-
 public class MovingPercentilesHDRAggregatorTests extends MovingPercentilesAbstractAggregatorTests {
 
     @Override
@@ -36,8 +36,7 @@ public class MovingPercentilesHDRAggregatorTests extends MovingPercentilesAbstra
     }
 
     @Override
-    protected  void executeTestCase(int window, int shift, Query query,
-                                 DateHistogramAggregationBuilder aggBuilder) throws IOException {
+    protected void executeTestCase(int window, int shift, Query query, DateHistogramAggregationBuilder aggBuilder) throws IOException {
 
         DoubleHistogram[] states = new DoubleHistogram[datasetTimes.size()];
         try (Directory directory = newDirectory()) {
@@ -48,7 +47,7 @@ public class MovingPercentilesHDRAggregatorTests extends MovingPercentilesAbstra
                     states[counter] = new DoubleHistogram(1);
                     final int numberDocs = randomIntBetween(5, 50);
                     long instant = asLong(date);
-                    for (int i =0; i < numberDocs; i++) {
+                    for (int i = 0; i < numberDocs; i++) {
                         if (frequently()) {
                             indexWriter.commit();
                         }
@@ -67,18 +66,11 @@ public class MovingPercentilesHDRAggregatorTests extends MovingPercentilesAbstra
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-                DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(aggBuilder.field());
-
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-                valueFieldType.setHasDocValues(true);
-                valueFieldType.setName("value_field");
+                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(aggBuilder.field());
+                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.DOUBLE);
 
                 InternalDateHistogram histogram;
-                histogram = searchAndReduce(indexSearcher, query, aggBuilder, 1000,
-                    new MappedFieldType[]{fieldType, valueFieldType});
+                histogram = searchAndReduce(indexSearcher, query, aggBuilder, 1000, new MappedFieldType[] { fieldType, valueFieldType });
                 for (int i = 0; i < histogram.getBuckets().size(); i++) {
                     InternalDateHistogram.Bucket bucket = histogram.getBuckets().get(i);
                     InternalHDRPercentiles values = bucket.getAggregations().get("MovingPercentiles");

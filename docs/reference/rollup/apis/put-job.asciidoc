@@ -101,7 +101,7 @@ hourly (`60m`) intervals are configured, <<rollup-search,rollup search>>
 can execute aggregations with 60m or greater (weekly, monthly, etc) intervals.
 So define the interval as the smallest unit that you wish to later query. For
 more information about the difference between calendar and fixed time
-intervals, see <<rollup-understanding-group-intervals>>.
+intervals, see <<calendar_and_fixed_intervals>>.
 +
 --
 NOTE: Smaller, more granular intervals take up proportionally more space.
@@ -237,6 +237,10 @@ the indexer.
 be shared with other {rollup-jobs}. The data is stored so that it doesn't
 interfere with unrelated jobs.
 
+`timeout`::
+(Optional, <<time-units,time value>>)
+Time to wait for the request to complete. Defaults to `20s` (20 seconds).
+
 [[rollup-put-job-api-example]]
 ==== {api-example-title}
 
@@ -247,30 +251,30 @@ The following example creates a {rollup-job} named `sensor`, targeting the
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
-    "index_pattern": "sensor-*",
-    "rollup_index": "sensor_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : { <1>
-      "date_histogram": {
-        "field": "timestamp",
-        "fixed_interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["node"]
-      }
+  "index_pattern": "sensor-*",
+  "rollup_index": "sensor_rollup",
+  "cron": "*/30 * * * * ?",
+  "page_size": 1000,
+  "groups": { <1>
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "1h",
+      "delay": "7d"
     },
-    "metrics": [ <2>
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        },
-        {
-            "field": "voltage",
-            "metrics": ["avg"]
-        }
-    ]
+    "terms": {
+      "fields": [ "node" ]
+    }
+  },
+  "metrics": [ <2>
+      {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "voltage",
+      "metrics": [ "avg" ]
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[setup:sensor_index]

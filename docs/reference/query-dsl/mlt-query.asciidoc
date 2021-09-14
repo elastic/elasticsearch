@@ -19,14 +19,14 @@ fields, limiting the number of selected terms to 12.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "more_like_this" : {
-            "fields" : ["title", "description"],
-            "like" : "Once upon a time",
-            "min_term_freq" : 1,
-            "max_query_terms" : 12
-        }
+  "query": {
+    "more_like_this" : {
+      "fields" : ["title", "description"],
+      "like" : "Once upon a time",
+      "min_term_freq" : 1,
+      "max_query_terms" : 12
     }
+  }
 }
 --------------------------------------------------
 
@@ -38,24 +38,24 @@ similar to the one used in the <<docs-multi-get,Multi GET API>>.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "more_like_this" : {
-            "fields" : ["title", "description"],
-            "like" : [
-            {
-                "_index" : "imdb",
-                "_id" : "1"
-            },
-            {
-                "_index" : "imdb",
-                "_id" : "2"
-            },
-            "and potentially some more text here as well"
-            ],
-            "min_term_freq" : 1,
-            "max_query_terms" : 12
-        }
+  "query": {
+    "more_like_this": {
+      "fields": [ "title", "description" ],
+      "like": [
+        {
+          "_index": "imdb",
+          "_id": "1"
+        },
+        {
+          "_index": "imdb",
+          "_id": "2"
+        },
+        "and potentially some more text here as well"
+      ],
+      "min_term_freq": 1,
+      "max_query_terms": 12
     }
+  }
 }
 --------------------------------------------------
 
@@ -67,29 +67,29 @@ present in the index, the syntax is similar to <<docs-termvectors-artificial-doc
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "more_like_this" : {
-            "fields" : ["name.first", "name.last"],
-            "like" : [
-            {
-                "_index" : "marvel",
-                "doc" : {
-                    "name": {
-                        "first": "Ben",
-                        "last": "Grimm"
-                    },
-                    "_doc": "You got no idea what I'd... what I'd give to be invisible."
-                  }
+  "query": {
+    "more_like_this": {
+      "fields": [ "name.first", "name.last" ],
+      "like": [
+        {
+          "_index": "marvel",
+          "doc": {
+            "name": {
+              "first": "Ben",
+              "last": "Grimm"
             },
-            {
-                "_index" : "marvel",
-                "_id" : "2"
-            }
-            ],
-            "min_term_freq" : 1,
-            "max_query_terms" : 12
+            "_doc": "You got no idea what I'd... what I'd give to be invisible."
+          }
+        },
+        {
+          "_index": "marvel",
+          "_id": "2"
         }
+      ],
+      "min_term_freq": 1,
+      "max_query_terms": 12
     }
+  }
 }
 --------------------------------------------------
 
@@ -121,27 +121,27 @@ default, but there will be no speed up on analysis for these fields.
 --------------------------------------------------
 PUT /imdb
 {
-    "mappings": {
-        "properties": {
-            "title": {
-                "type": "text",
-                "term_vector": "yes"
-            },
-            "description": {
-                "type": "text"
-            },
-            "tags": {
-                "type": "text",
-                "fields" : {
-                    "raw": {
-                        "type" : "text",
-                        "analyzer": "keyword",
-                        "term_vector" : "yes"
-                    }
-                }
-            }
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "term_vector": "yes"
+      },
+      "description": {
+        "type": "text"
+      },
+      "tags": {
+        "type": "text",
+        "fields": {
+          "raw": {
+            "type": "text",
+            "analyzer": "keyword",
+            "term_vector": "yes"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -151,7 +151,7 @@ The only required parameter is `like`, all other parameters have sensible
 defaults. There are three types of parameters: one to specify the document
 input, the other one for term selection and for query formation.
 
-[float]
+[discrete]
 ==== Document Input Parameters
 
 [horizontal]
@@ -175,9 +175,12 @@ for documents `like: "Apple"`, but `unlike: "cake crumble tree"`. The syntax
 is the same as `like`.
 
 `fields`::
-A list of fields to fetch and analyze the text from.
+A list of fields to fetch and analyze the text from. Defaults to the
+`index.query.default_field` index setting, which has a default value of `*`. The
+`*` value matches all fields eligible for <<term-level-queries,term-level
+queries>>, excluding metadata fields.
 
-[float]
+[discrete]
 [[mlt-query-term-selection]]
 ==== Term Selection Parameters
 
@@ -202,12 +205,11 @@ such as stop words. Defaults to unbounded (`Integer.MAX_VALUE`, which is `2^31-1
 or 2147483647).
 
 `min_word_length`::
-The minimum word length below which the terms will be ignored. The old name
-`min_word_len` is deprecated. Defaults to `0`.
+The minimum word length below which the terms will be ignored. Defaults to `0`.
 
 `max_word_length`::
-The maximum word length above which the terms will be ignored. The old name
-`max_word_len` is deprecated. Defaults to unbounded (`0`).
+The maximum word length above which the terms will be ignored. Defaults to
+unbounded (`0`).
 
 `stop_words`::
 An array of stop words. Any word in this set is considered "uninteresting" and
@@ -219,7 +221,7 @@ reasonable to assume that "a stop word is never interesting".
 The analyzer that is used to analyze the free form text. Defaults to the
 analyzer associated with the first field in `fields`.
 
-[float]
+[discrete]
 ==== Query Formation Parameters
 
 [horizontal]

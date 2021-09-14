@@ -5,6 +5,11 @@
       "description":"Allow to shrink an existing index into a new index with fewer primary shards."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

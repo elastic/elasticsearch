@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -27,11 +17,11 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class GetIndexTemplatesResponse extends ActionResponse implements ToXContentObject {
 
@@ -39,11 +29,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
 
     public GetIndexTemplatesResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        indexTemplates = new ArrayList<>();
-        for (int i = 0 ; i < size ; i++) {
-            indexTemplates.add(IndexTemplateMetadata.readFrom(in));
-        }
+        indexTemplates = in.readList(IndexTemplateMetadata::readFrom);
     }
 
     public GetIndexTemplatesResponse(List<IndexTemplateMetadata> indexTemplates) {
@@ -81,7 +67,12 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
 
         builder.startObject();
         for (IndexTemplateMetadata indexTemplateMetadata : getIndexTemplates()) {
-            IndexTemplateMetadata.Builder.toXContent(indexTemplateMetadata, builder, params);
+            if(builder.getRestApiVersion() == RestApiVersion.V_7 &&
+                params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, false)) {
+                IndexTemplateMetadata.Builder.toXContentWithTypes(indexTemplateMetadata, builder, params);
+            } else {
+                IndexTemplateMetadata.Builder.toXContent(indexTemplateMetadata, builder, params);
+            }
         }
         builder.endObject();
         return builder;

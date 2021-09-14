@@ -1,29 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -98,6 +86,7 @@ public class JvmInfo implements ReportingService.Info {
         String onOutOfMemoryError = null;
         String useCompressedOops = "unknown";
         String useG1GC = "unknown";
+        long g1RegisionSize = -1;
         String useSerialGC = "unknown";
         long configuredInitialHeapSize = -1;
         long configuredMaxHeapSize = -1;
@@ -130,6 +119,8 @@ public class JvmInfo implements ReportingService.Info {
             try {
                 Object useG1GCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseG1GC");
                 useG1GC = (String) valueMethod.invoke(useG1GCVmOptionObject);
+                Object regionSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "G1HeapRegionSize");
+                g1RegisionSize = Long.parseLong((String) valueMethod.invoke(regionSizeVmOptionObject));
             } catch (Exception ignored) {
             }
 
@@ -180,8 +171,10 @@ public class JvmInfo implements ReportingService.Info {
                 onOutOfMemoryError,
                 useCompressedOops,
                 useG1GC,
-                useSerialGC);
+                useSerialGC,
+                g1RegisionSize);
     }
+
 
     @SuppressForbidden(reason = "PathUtils#get")
     private static boolean usingBundledJdk() {
@@ -192,7 +185,7 @@ public class JvmInfo implements ReportingService.Info {
         final String javaHome = System.getProperty("java.home");
         final String userDir = System.getProperty("user.dir");
         if (Constants.MAC_OS_X) {
-            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk/Contents/Home").toAbsolutePath());
+            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk.app/Contents/Home").toAbsolutePath());
         } else {
             return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
         }
@@ -229,12 +222,13 @@ public class JvmInfo implements ReportingService.Info {
     private final String useCompressedOops;
     private final String useG1GC;
     private final String useSerialGC;
+    private final long g1RegionSize;
 
     private JvmInfo(long pid, String version, String vmName, String vmVersion, String vmVendor, boolean bundledJdk, Boolean usingBundledJdk,
                     long startTime, long configuredInitialHeapSize, long configuredMaxHeapSize, Mem mem, String[] inputArguments,
                     String bootClassPath, String classPath, Map<String, String> systemProperties, String[] gcCollectors,
                     String[] memoryPools, String onError, String onOutOfMemoryError, String useCompressedOops, String useG1GC,
-                    String useSerialGC) {
+                    String useSerialGC, long g1RegionSize) {
         this.pid = pid;
         this.version = version;
         this.vmName = vmName;
@@ -257,6 +251,7 @@ public class JvmInfo implements ReportingService.Info {
         this.useCompressedOops = useCompressedOops;
         this.useG1GC = useG1GC;
         this.useSerialGC = useSerialGC;
+        this.g1RegionSize = g1RegionSize;
     }
 
     public JvmInfo(StreamInput in) throws IOException {
@@ -265,13 +260,8 @@ public class JvmInfo implements ReportingService.Info {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            bundledJdk = in.readBoolean();
-            usingBundledJdk = in.readOptionalBoolean();
-        } else {
-            bundledJdk = false;
-            usingBundledJdk = null;
-        }
+        bundledJdk = in.readBoolean();
+        usingBundledJdk = in.readOptionalBoolean();
         startTime = in.readLong();
         inputArguments = new String[in.readInt()];
         for (int i = 0; i < inputArguments.length; i++) {
@@ -291,6 +281,7 @@ public class JvmInfo implements ReportingService.Info {
         this.onOutOfMemoryError = null;
         this.useG1GC = "unknown";
         this.useSerialGC = "unknown";
+        this.g1RegionSize = -1;
     }
 
     @Override
@@ -300,10 +291,8 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(bundledJdk);
-            out.writeOptionalBoolean(usingBundledJdk);
-        }
+        out.writeBoolean(bundledJdk);
+        out.writeOptionalBoolean(usingBundledJdk);
         out.writeLong(startTime);
         out.writeInt(inputArguments.length);
         for (String inputArgument : inputArguments) {
@@ -349,7 +338,7 @@ public class JvmInfo implements ReportingService.Info {
             int i = 0;
             StringBuilder sVersion = new StringBuilder();
             for (; i < version.length(); i++) {
-                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
+                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
                     break;
                 }
                 if (version.charAt(i) != '.') {
@@ -370,7 +359,7 @@ public class JvmInfo implements ReportingService.Info {
             int i = 0;
             StringBuilder sVersion = new StringBuilder();
             for (; i < version.length(); i++) {
-                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
+                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
                     break;
                 }
                 if (version.charAt(i) != '.') {
@@ -393,7 +382,7 @@ public class JvmInfo implements ReportingService.Info {
                 return -1;
             }
             for (; i < version.length(); i++) {
-                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
+                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
                     break;
                 }
             }
@@ -484,6 +473,10 @@ public class JvmInfo implements ReportingService.Info {
 
     public String useSerialGC() {
         return this.useSerialGC;
+    }
+
+    public long getG1RegionSize() {
+        return g1RegionSize;
     }
 
     public String[] getGcCollectors() {

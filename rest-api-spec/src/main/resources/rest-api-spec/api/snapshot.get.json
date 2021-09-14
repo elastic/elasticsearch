@@ -5,6 +5,10 @@
       "description":"Returns information about a snapshot."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -33,6 +37,14 @@
       "ignore_unavailable":{
         "type":"boolean",
         "description":"Whether to ignore unavailable snapshots, defaults to false which means a SnapshotMissingException is thrown"
+      },
+      "index_details":{
+        "type":"boolean",
+        "description":"Whether to include details of each index in the snapshot, if those details are available. Defaults to false."
+      },
+      "include_repository":{
+        "type":"boolean",
+        "description":"Whether to include the repository name in the snapshot info. Defaults to true."
       },
       "verbose":{
         "type":"boolean",

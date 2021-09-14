@@ -4,8 +4,8 @@
 <titleabbrev>cat count</titleabbrev>
 ++++
 
-Provides quick access to a document count of individual indices or all indices
-in a cluster.
+Provides quick access to a document count for a data stream, an index, or an
+entire cluster.
 
 NOTE: The document count only includes live documents, not deleted documents
 which have not yet been removed by the merge process.
@@ -14,16 +14,24 @@ which have not yet been removed by the merge process.
 [[cat-count-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/count/<index>`
+`GET /_cat/count/<target>`
 
 `GET /_cat/count`
 
+[[cat-count-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for any data stream, index, or alias
+you retrieve.
 
 [[cat-count-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
-
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cat-count-api-query-params]]
 ==== {api-query-parms-title}
@@ -43,16 +51,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ==== {api-examples-title}
 
 [[cat-count-api-example-ind]]
-===== Example with an individual index
+===== Example with an individual data stream or index
 
-The following `count` API request retrieves the document count of a single
-index, `twitter`.
+The following `count` API request retrieves the document count for the 
+`my-index-000001` data stream or index.
 
 [source,console,id=cat-count-individual-example]
 --------------------------------------------------
-GET /_cat/count/twitter?v
+GET /_cat/count/my-index-000001?v=true
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 
 
 The API returns the following response:
@@ -65,16 +73,16 @@ epoch      timestamp count
 // TESTRESPONSE[s/1475868259 15:24:20/\\d+ \\d+:\\d+:\\d+/ non_json]
 
 [[cat-count-api-example-all]]
-===== Example with all indices in a cluster
+===== Example with all data streams and indices in a cluster
 
-The following `count` API request retrieves the document count of all indices in
-the cluster.
+The following `count` API request retrieves the document count for all data
+streams and indices in the cluster.
 
 [source,console,id=cat-count-all-example]
 --------------------------------------------------
-GET /_cat/count?v
+GET /_cat/count?v=true
 --------------------------------------------------
-// TEST[setup:big_twitter]
+// TEST[setup:my_index_big]
 // TEST[s/^/POST test\/_doc\?refresh\n{"test": "test"}\n/]
 
 The API returns the following response:

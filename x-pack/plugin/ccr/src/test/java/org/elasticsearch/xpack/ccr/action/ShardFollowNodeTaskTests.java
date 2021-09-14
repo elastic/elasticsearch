@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -19,8 +21,11 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -79,6 +85,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     private Queue<Long> followerGlobalCheckpoints;
     private Queue<Long> maxSeqNos;
     private Queue<Integer> responseSizes;
+    private Queue<ActionListener<BulkShardOperationsResponse>> pendingBulkShardRequests;
 
     public void testCoordinateReads() {
         ShardFollowTaskParams params = new ShardFollowTaskParams();
@@ -599,6 +606,55 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
     }
 
+    public void testHandlePartialResponses() {
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 10;
+        params.maxOutstandingReadRequests = 2;
+        params.maxOutstandingWriteRequests = 1;
+        params.maxWriteBufferCount = 3;
+
+        ShardFollowNodeTask task = createShardFollowTask(params);
+        startTask(task, 99, -1);
+
+        task.coordinateReads();
+        assertThat(shardChangesRequests.size(), equalTo(2));
+        assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
+        assertThat(shardChangesRequests.get(0)[1], equalTo(10L));
+        assertThat(shardChangesRequests.get(1)[0], equalTo(10L));
+        assertThat(shardChangesRequests.get(1)[1], equalTo(10L));
+
+        task.innerHandleReadResponse(0L, 9L, generateShardChangesResponse(0L, 5L, 0L, 0L, 1L, 99L));
+        assertThat(pendingBulkShardRequests, hasSize(1));
+        assertThat("continue the partial request", shardChangesRequests, hasSize(3));
+        assertThat(shardChangesRequests.get(2)[0], equalTo(6L));
+        assertThat(shardChangesRequests.get(2)[1], equalTo(4L));
+        assertThat(pendingBulkShardRequests, hasSize(1));
+        task.innerHandleReadResponse(10, 19L, generateShardChangesResponse(10L, 17L, 0L, 0L, 1L, 99L));
+        assertThat("do not continue partial reads as the buffer is full", shardChangesRequests, hasSize(3));
+        task.innerHandleReadResponse(6L, 9L, generateShardChangesResponse(6L, 8L, 0L, 0L, 1L, 99L));
+        assertThat("do not continue partial reads as the buffer is full", shardChangesRequests, hasSize(3));
+        pendingBulkShardRequests.remove().onResponse(new BulkShardOperationsResponse());
+        assertThat(pendingBulkShardRequests, hasSize(1));
+
+        assertThat("continue two partial requests as the buffer is empty after sending", shardChangesRequests, hasSize(5));
+        assertThat(shardChangesRequests.get(3)[0], equalTo(9L));
+        assertThat(shardChangesRequests.get(3)[1], equalTo(1L));
+        assertThat(shardChangesRequests.get(4)[0], equalTo(18L));
+        assertThat(shardChangesRequests.get(4)[1], equalTo(2L));
+
+        task.innerHandleReadResponse(18L, 19L, generateShardChangesResponse(18L, 19L, 0L, 0L, 1L, 99L));
+        assertThat("start new range as the buffer has empty slots", shardChangesRequests, hasSize(6));
+        assertThat(shardChangesRequests.get(5)[0], equalTo(20L));
+        assertThat(shardChangesRequests.get(5)[1], equalTo(10L));
+
+        task.innerHandleReadResponse(9L, 9L, generateShardChangesResponse(9L, 9L, 0L, 0L, 1L, 99L));
+        assertThat("do not start new range as the buffer is full", shardChangesRequests, hasSize(6));
+        pendingBulkShardRequests.remove().onResponse(new BulkShardOperationsResponse());
+        assertThat("start new range as the buffer is empty after sending", shardChangesRequests, hasSize(7));
+        assertThat(shardChangesRequests.get(6)[0], equalTo(30L));
+        assertThat(shardChangesRequests.get(6)[1], equalTo(10L));
+    }
+
     public void testMappingUpdate() {
         ShardFollowTaskParams params = new ShardFollowTaskParams();
         params.maxReadRequestOperationCount = 64;
@@ -953,7 +1009,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
     }
 
-    public void testNonRetryableError() {
+    public void testNonRetryableError() throws Exception {
         ShardFollowTaskParams params = new ShardFollowTaskParams();
         params.maxReadRequestOperationCount = 64;
         params.maxOutstandingReadRequests = 1;
@@ -977,6 +1033,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.outstandingWriteRequests(), equalTo(1));
         assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
+        assertBusy(() -> assertNull(task.getRenewable()));
     }
 
     public void testMaxWriteRequestSize() {
@@ -996,7 +1053,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 1L, 64L);
         // Also invokes coordinatesWrites()
-        task.innerHandleReadResponse(0L, 64L, response);
+        task.innerHandleReadResponse(0L, 63L, response);
 
         assertThat(bulkShardOperationRequests.size(), equalTo(64));
     }
@@ -1071,6 +1128,117 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         }
     }
 
+    public void testUpdateMappingSettingsAndAliasesConcurrently() throws Exception {
+        final ShardFollowTask followTask = new ShardFollowTask(
+            "test",
+            new ShardId("leader_index", "", 0),
+            new ShardId("follow_index", "", 0),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            new ByteSizeValue(Long.MAX_VALUE),
+            new ByteSizeValue(Long.MAX_VALUE),
+            Integer.MAX_VALUE,
+            new ByteSizeValue(Long.MAX_VALUE),
+            TimeValue.ZERO,
+            TimeValue.ZERO,
+            Collections.emptyMap()
+        );
+        final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName());
+        final AtomicLong leaderMappingVersion = new AtomicLong(0L);
+        final AtomicLong followerMappingVersion = new AtomicLong(0L);
+        final AtomicLong leaderSettingsVersion = new AtomicLong(0L);
+        final AtomicLong followerSettingsVersion = new AtomicLong(0L);
+        final AtomicLong leaderAliasesVersion = new AtomicLong(0L);
+        final AtomicLong followerAliasesVersion = new AtomicLong(0L);
+
+        final Phaser updates = new Phaser(1);
+        final ShardFollowNodeTask shardFollowNodeTask = new ShardFollowNodeTask(
+            1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), followTask, scheduler, System::nanoTime) {
+            @Override
+            protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
+                updates.register();
+                final long fetchedVersion = randomLongBetween(minRequiredMappingVersion, leaderMappingVersion.get());
+                followerMappingVersion.updateAndGet(curr -> Math.max(curr, fetchedVersion));
+                threadPool.generic().execute(() -> {
+                    handler.accept(fetchedVersion);
+                    updates.arriveAndDeregister();
+                });
+            }
+
+            @Override
+            protected void innerUpdateSettings(LongConsumer handler, Consumer<Exception> errorHandler) {
+                updates.register();
+                final long fetchedVersion = randomLongBetween(0L, leaderSettingsVersion.get());
+                followerSettingsVersion.updateAndGet(curr -> Math.max(curr, fetchedVersion));
+                threadPool.generic().execute(() -> {
+                    handler.accept(fetchedVersion);
+                    updates.arriveAndDeregister();
+                });
+            }
+
+            @Override
+            protected void innerUpdateAliases(LongConsumer handler, Consumer<Exception> errorHandler) {
+                updates.register();
+                final long fetchedVersion = randomLongBetween(0L, leaderAliasesVersion.get());
+                followerAliasesVersion.updateAndGet(curr -> Math.max(curr, fetchedVersion));
+                threadPool.generic().execute(() -> {
+                    handler.accept(fetchedVersion);
+                    updates.arriveAndDeregister();
+                });
+            }
+
+            @Override
+            protected void innerSendBulkShardOperationsRequest(String followerHistoryUUID,
+                                                               List<Translog.Operation> operations,
+                                                               long leaderMaxSeqNoOfUpdatesOrDeletes,
+                                                               Consumer<BulkShardOperationsResponse> handler,
+                                                               Consumer<Exception> errorHandler) {
+
+            }
+
+            @Override
+            protected void innerSendShardChangesRequest(long from, int maxOperationCount,
+                                                        Consumer<ShardChangesAction.Response> handler,
+                                                        Consumer<Exception> errorHandler) {
+
+            }
+
+            @Override
+            protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(LongSupplier followerGlobalCheckpoint) {
+                return null;
+            }
+
+            @Override
+            synchronized void coordinateReads() {
+
+            }
+        };
+        int responses = between(10, 5000);
+        for (int i = 0; i < responses; i++) {
+            ShardChangesAction.Response response = new ShardChangesAction.Response(
+                leaderMappingVersion.addAndGet(between(0, Integer.MAX_VALUE)),
+                leaderSettingsVersion.addAndGet(between(0, Integer.MAX_VALUE)),
+                leaderAliasesVersion.addAndGet(between(0, Integer.MAX_VALUE)),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                SequenceNumbers.NO_OPS_PERFORMED,
+                -1,
+                new Translog.Operation[0],
+                randomLong()
+            );
+            shardFollowNodeTask.handleReadResponse(0, -1, response);
+        }
+        try {
+            updates.arriveAndAwaitAdvance();
+            final ShardFollowNodeTaskStatus status = shardFollowNodeTask.getStatus();
+            assertThat(status.followerMappingVersion(), equalTo(followerMappingVersion.get()));
+            assertThat(status.followerSettingsVersion(), equalTo(followerSettingsVersion.get()));
+            assertThat(status.followerAliasesVersion(), equalTo(followerAliasesVersion.get()));
+        } finally {
+            terminate(threadPool);
+        }
+    }
 
     static final class ShardFollowTaskParams {
         private String remoteCluster = null;
@@ -1122,6 +1290,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         followerGlobalCheckpoints = new LinkedList<>();
         maxSeqNos = new LinkedList<>();
         responseSizes = new LinkedList<>();
+        pendingBulkShardRequests = new LinkedList<>();
         return new ShardFollowNodeTask(
                 1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), followTask, scheduler, System::nanoTime) {
 
@@ -1185,6 +1354,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                     response.setGlobalCheckpoint(followerGlobalCheckpoint);
                     response.setMaxSeqNo(followerGlobalCheckpoint);
                     handler.accept(response);
+                } else {
+                    pendingBulkShardRequests.add(ActionListener.wrap(handler::accept, errorHandler));
                 }
             }
 
@@ -1219,7 +1390,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             @Override
             protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(final LongSupplier followerGlobalCheckpoint) {
                 if (scheduleRetentionLeaseRenewal.get()) {
-                    final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+                    final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
                     final ScheduledFuture<?> future = scheduler.scheduleWithFixedDelay(
                             () -> retentionLeaseRenewal.accept(followerGlobalCheckpoint.getAsLong()),
                             0,

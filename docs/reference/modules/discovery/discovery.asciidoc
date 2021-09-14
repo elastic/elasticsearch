@@ -32,7 +32,7 @@ these occur quickly enough then the node will retry after
 
 By default the cluster formation module offers two seed hosts providers to
 configure the list of seed nodes: a _settings_-based and a _file_-based seed
-hosts provider.  It can be extended to support cloud environments and other
+hosts provider. It can be extended to support cloud environments and other
 forms of seed hosts providers via {plugins}/discovery.html[discovery plugins].
 Seed hosts providers are configured using the `discovery.seed_providers`
 setting, which defaults to the _settings_-based hosts provider. This setting
@@ -52,7 +52,7 @@ the timeout for each lookup is controlled by `discovery.seed_resolver.timeout`
 which defaults to `5s`. Note that DNS lookups are subject to
 <<networkaddress-cache-ttl,JVM DNS caching>>.
 
-[float]
+[discrete]
 [[settings-based-hosts-provider]]
 ===== Settings-based seed hosts provider
 
@@ -76,7 +76,7 @@ discovery.seed_hosts:
 <2> If a hostname resolves to multiple IP addresses, {es} will attempt to
     connect to every resolved address.
 
-[float]
+[discrete]
 [[file-based-hosts-provider]]
 ===== File-based seed hosts provider
 
@@ -107,7 +107,7 @@ supplied in `unicast_hosts.txt`.
 The `unicast_hosts.txt` file contains one node entry per line. Each node entry
 consists of the host (host name or IP address) and an optional transport port
 number. If the port number is specified, is must come immediately after the
-host (on the same line) separated by a `:`.  If the port number is not
+host (on the same line) separated by a `:`. If the port number is not
 specified, {es} will implicitly use the first port in the port range given by
 `transport.profiles.default.port`, or by `transport.port` if
 `transport.profiles.default.port` is not set.
@@ -132,7 +132,7 @@ needed, coming after the brackets.
 You can also add comments to this file. All comments must appear on their lines
 starting with `#` (i.e. comments cannot start in the middle of a line).
 
-[float]
+[discrete]
 [[ec2-hosts-provider]]
 ===== EC2 hosts provider
 
@@ -140,14 +140,14 @@ The {plugins}/discovery-ec2.html[EC2 discovery plugin] adds a hosts provider
 that uses the https://github.com/aws/aws-sdk-java[AWS API] to find a list of
 seed nodes.
 
-[float]
+[discrete]
 [[azure-classic-hosts-provider]]
 ===== Azure Classic hosts provider
 
 The {plugins}/discovery-azure-classic.html[Azure Classic discovery plugin] adds
 a hosts provider that uses the Azure Classic API find a list of seed nodes.
 
-[float]
+[discrete]
 [[gce-hosts-provider]]
 ===== Google Compute Engine hosts provider
 

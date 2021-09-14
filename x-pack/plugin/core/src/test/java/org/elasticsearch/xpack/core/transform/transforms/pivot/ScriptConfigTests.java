@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -18,13 +20,17 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.xpack.core.transform.transforms.AbstractSerializingTransformTestCase;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ScriptConfigTests extends AbstractSerializingTransformTestCase<ScriptConfig> {
 
@@ -89,7 +95,9 @@ public class ScriptConfigTests extends AbstractSerializingTransformTestCase<Scri
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             ScriptConfig scriptConfig = ScriptConfig.fromXContent(parser, true);
-            assertFalse(scriptConfig.isValid());
+            ValidationException validationException = scriptConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("script must not be null"));
         }
 
         // strict throws

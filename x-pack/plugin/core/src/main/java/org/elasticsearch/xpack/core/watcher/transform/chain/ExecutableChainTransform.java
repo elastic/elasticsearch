@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.transform.chain;
 
@@ -22,6 +23,7 @@ import java.util.List;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransform.TYPE;
 
+@SuppressWarnings("rawtypes")
 public class ExecutableChainTransform extends ExecutableTransform<ChainTransform, ChainTransform.Result> {
 
     private final List<ExecutableTransform> transforms;
@@ -49,7 +51,6 @@ public class ExecutableChainTransform extends ExecutableTransform<ChainTransform
             return new ChainTransform.Result(e, results);
         }
     }
-
 
     ChainTransform.Result doExecute(WatchExecutionContext ctx, Payload payload, List<Transform.Result> results) throws IOException {
         for (ExecutableTransform transform : transforms) {

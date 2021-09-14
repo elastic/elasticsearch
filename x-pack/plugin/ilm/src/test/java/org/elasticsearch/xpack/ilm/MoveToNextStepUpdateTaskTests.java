@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
@@ -64,7 +65,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
     public void testExecuteSuccessfullyMoved() {
         long now = randomNonNegativeLong();
-        List<Step> steps = lifecyclePolicy.toSteps(null);
+        List<Step> steps = lifecyclePolicy.toSteps(null, null);
         StepKey currentStepKey = steps.get(0).getKey();
         StepKey nextStepKey = steps.get(0).getNextStepKey();
 
@@ -108,7 +109,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
     public void testExecuteSuccessfulMoveWithInvalidNextStep() {
         long now = randomNonNegativeLong();
-        List<Step> steps = lifecyclePolicy.toSteps(null);
+        List<Step> steps = lifecyclePolicy.toSteps(null, null);
         StepKey currentStepKey = steps.get(0).getKey();
         StepKey invalidNextStep = new StepKey("next-invalid", "next-invalid", "next-invalid");
 
@@ -151,7 +152,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
     private static class AlwaysExistingStepRegistry extends PolicyStepsRegistry {
 
         AlwaysExistingStepRegistry() {
-            super(new NamedXContentRegistry(Collections.emptyList()), null);
+            super(new NamedXContentRegistry(Collections.emptyList()), null, null);
         }
 
         @Override

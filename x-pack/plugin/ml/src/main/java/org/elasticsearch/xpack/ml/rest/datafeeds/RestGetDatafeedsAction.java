@@ -1,39 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction.Request;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetDatafeedsAction extends BaseRestHandler {
 
-    @Override
+     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}"),
-            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "datafeeds",
-                GET, MachineLearning.PRE_V7_BASE_PATH + "datafeeds")
+            new Route(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}"),
+            new Route(GET, BASE_PATH + "datafeeds")
         );
     }
 
@@ -48,9 +45,19 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
         if (datafeedId == null) {
             datafeedId = GetDatafeedsAction.ALL;
         }
-        GetDatafeedsAction.Request request = new GetDatafeedsAction.Request(datafeedId);
-        request.setAllowNoDatafeeds(restRequest.paramAsBoolean(GetDatafeedsAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName(),
-                request.allowNoDatafeeds()));
+        Request request = new Request(datafeedId);
+        if (restRequest.hasParam(Request.ALLOW_NO_DATAFEEDS)) {
+            LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, Request.ALLOW_NO_DATAFEEDS, Request.ALLOW_NO_MATCH);
+        }
+        request.setAllowNoMatch(
+            restRequest.paramAsBoolean(
+                Request.ALLOW_NO_MATCH,
+                restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())));
         return channel -> client.execute(GetDatafeedsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Collections.singleton(EXCLUDE_GENERATED);
     }
 }

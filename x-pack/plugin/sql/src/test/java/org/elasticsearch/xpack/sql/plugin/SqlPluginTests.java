@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plugin;
 
@@ -29,12 +30,12 @@ public class SqlPluginTests extends ESTestCase {
         SqlPlugin plugin = new SqlPlugin(settings);
         assertThat(plugin.createComponents(mock(Client.class), "cluster", new NamedWriteableRegistry(Cursors.getNamedWriteables())),
             hasSize(3));
-        assertThat(plugin.getActions(), hasSize(6));
+        assertThat(plugin.getActions(), hasSize(8));
         assertThat(
             plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, new SettingsFilter(Collections.emptyList()),
                 mock(IndexNameExpressionResolver.class), () -> mock(DiscoveryNodes.class)),
-            hasSize(4));
+            hasSize(7));
     }
 }

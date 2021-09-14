@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,11 +29,13 @@ import java.util.Objects;
 public class GetDatafeedRequest implements Validatable, ToXContentObject {
 
     public static final ParseField DATAFEED_IDS = new ParseField("datafeed_ids");
-    public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     private static final String ALL_DATAFEEDS = "_all";
     private final List<String> datafeedIds;
-    private Boolean allowNoDatafeeds;
+    private Boolean allowNoMatch;
+    private Boolean excludeGenerated;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -53,7 +44,7 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), DATAFEED_IDS);
-        PARSER.declareBoolean(GetDatafeedRequest::setAllowNoDatafeeds, ALLOW_NO_DATAFEEDS);
+        PARSER.declareBoolean(GetDatafeedRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
     /**
@@ -89,20 +80,36 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
     /**
      * Whether to ignore if a wildcard expression matches no datafeeds.
      *
-     * @param allowNoDatafeeds If this is {@code false}, then an error is returned when a wildcard (or {@code _all})
+     * @param allowNoMatch If this is {@code false}, then an error is returned when a wildcard (or {@code _all})
      *                        does not match any datafeeds
      */
-    public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-        this.allowNoDatafeeds = allowNoDatafeeds;
+    public void setAllowNoMatch(boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
-    public Boolean getAllowNoDatafeeds() {
-        return allowNoDatafeeds;
+    public Boolean getAllowNoMatch() {
+        return allowNoMatch;
+    }
+
+    /**
+     * Setting this flag to `true` removes certain fields from the configuration on retrieval.
+     *
+     * This is useful when getting the configuration and wanting to put it in another cluster.
+     *
+     * Default value is false.
+     * @param excludeGenerated Boolean value indicating if certain fields should be removed
+     */
+    public void setExcludeGenerated(boolean excludeGenerated) {
+        this.excludeGenerated = excludeGenerated;
+    }
+
+    public Boolean getExcludeGenerated() {
+        return excludeGenerated;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(datafeedIds, allowNoDatafeeds);
+        return Objects.hash(datafeedIds, excludeGenerated, allowNoMatch);
     }
 
     @Override
@@ -117,7 +124,8 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
 
         GetDatafeedRequest that = (GetDatafeedRequest) other;
         return Objects.equals(datafeedIds, that.datafeedIds) &&
-            Objects.equals(allowNoDatafeeds, that.allowNoDatafeeds);
+            Objects.equals(allowNoMatch, that.allowNoMatch) &&
+            Objects.equals(excludeGenerated, that.excludeGenerated);
     }
 
     @Override
@@ -128,8 +136,8 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
             builder.field(DATAFEED_IDS.getPreferredName(), datafeedIds);
         }
 
-        if (allowNoDatafeeds != null) {
-            builder.field(ALLOW_NO_DATAFEEDS.getPreferredName(), allowNoDatafeeds);
+        if (allowNoMatch != null) {
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
         }
 
         builder.endObject();

@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.annotations;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,7 +43,8 @@ public class Annotation implements ToXContentObject, Writeable {
         USER,
         DELAYED_DATA,
         MODEL_SNAPSHOT_STORED,
-        MODEL_CHANGE;
+        MODEL_CHANGE,
+        CATEGORIZATION_STATUS_CHANGE;
 
         public static Event fromString(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));
@@ -103,18 +104,8 @@ public class Annotation implements ToXContentObject, Writeable {
         STRICT_PARSER.declareField(Builder::setModifiedTime,
             p -> TimeUtils.parseTimeField(p, MODIFIED_TIME.getPreferredName()), MODIFIED_TIME, ObjectParser.ValueType.VALUE);
         STRICT_PARSER.declareString(Builder::setModifiedUsername, MODIFIED_USERNAME);
-        STRICT_PARSER.declareField(Builder::setType, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Type.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, TYPE, ObjectParser.ValueType.STRING);
-        STRICT_PARSER.declareField(Builder::setEvent, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Event.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, EVENT, ObjectParser.ValueType.STRING);
+        STRICT_PARSER.declareString(Builder::setType, Type::fromString, TYPE);
+        STRICT_PARSER.declareString(Builder::setEvent, Event::fromString, EVENT);
         STRICT_PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
         STRICT_PARSER.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME);
         STRICT_PARSER.declareString(Builder::setPartitionFieldValue, PARTITION_FIELD_VALUE);
@@ -189,25 +180,14 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         modifiedUsername = in.readOptionalString();
         type = Type.fromString(in.readString());
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-            event = in.readBoolean() ? in.readEnum(Event.class) : null;
-            detectorIndex = in.readOptionalInt();
-            partitionFieldName = in.readOptionalString();
-            partitionFieldValue = in.readOptionalString();
-            overFieldName = in.readOptionalString();
-            overFieldValue = in.readOptionalString();
-            byFieldName = in.readOptionalString();
-            byFieldValue = in.readOptionalString();
-        } else {
-            event = null;
-            detectorIndex = null;
-            partitionFieldName = null;
-            partitionFieldValue = null;
-            overFieldName = null;
-            overFieldValue = null;
-            byFieldName = null;
-            byFieldValue = null;
-        }
+        event = in.readBoolean() ? in.readEnum(Event.class) : null;
+        detectorIndex = in.readOptionalInt();
+        partitionFieldName = in.readOptionalString();
+        partitionFieldValue = in.readOptionalString();
+        overFieldName = in.readOptionalString();
+        overFieldValue = in.readOptionalString();
+        byFieldName = in.readOptionalString();
+        byFieldValue = in.readOptionalString();
     }
 
     @Override
@@ -231,21 +211,19 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         out.writeOptionalString(modifiedUsername);
         out.writeString(type.toString());
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            if (event != null) {
-                out.writeBoolean(true);
-                out.writeEnum(event);
-            } else {
-                out.writeBoolean(false);
-            }
-            out.writeOptionalInt(detectorIndex);
-            out.writeOptionalString(partitionFieldName);
-            out.writeOptionalString(partitionFieldValue);
-            out.writeOptionalString(overFieldName);
-            out.writeOptionalString(overFieldValue);
-            out.writeOptionalString(byFieldName);
-            out.writeOptionalString(byFieldValue);
+        if (event != null) {
+            out.writeBoolean(true);
+            out.writeEnum(event);
+        } else {
+            out.writeBoolean(false);
         }
+        out.writeOptionalInt(detectorIndex);
+        out.writeOptionalString(partitionFieldName);
+        out.writeOptionalString(partitionFieldValue);
+        out.writeOptionalString(overFieldName);
+        out.writeOptionalString(overFieldValue);
+        out.writeOptionalString(byFieldName);
+        out.writeOptionalString(byFieldValue);
     }
 
     public String getAnnotation() {

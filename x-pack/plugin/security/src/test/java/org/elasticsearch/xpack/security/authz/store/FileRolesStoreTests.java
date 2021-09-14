@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -67,6 +71,8 @@ import static org.mockito.Mockito.when;
 
 public class FileRolesStoreTests extends ESTestCase {
 
+    public Automaton reservedNamesAutomaton = Automatons.EMPTY;
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(singletonList(new NamedXContentRegistry.Entry(QueryBuilder.class,
@@ -77,13 +83,13 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = getDataPath("roles.yml");
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
-                .build(), new XPackLicenseState(Settings.EMPTY), xContentRegistry());
+                .build(), TestUtils.newTestLicenseState(), xContentRegistry());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(9));
 
         RoleDescriptor descriptor = roles.get("role1");
         assertNotNull(descriptor);
-        Role role = Role.builder(descriptor, null).build();
+        Role role = Role.builder(descriptor, null, reservedNamesAutomaton).build();
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role1" }));
         assertThat(role.cluster(), notNullValue());
@@ -111,7 +117,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role1.ab");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null).build();
+        role = Role.builder(descriptor, null, reservedNamesAutomaton).build();
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role1.ab" }));
         assertThat(role.cluster(), notNullValue());
@@ -123,7 +129,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role2");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null).build();
+        role = Role.builder(descriptor, null, reservedNamesAutomaton).build();
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role2" }));
         assertThat(role.cluster(), notNullValue());
@@ -134,7 +140,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role3");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null).build();
+        role = Role.builder(descriptor, null, reservedNamesAutomaton).build();
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role3" }));
         assertThat(role.cluster(), notNullValue());
@@ -158,7 +164,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role_run_as");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null).build();
+        role = Role.builder(descriptor, null, reservedNamesAutomaton).build();
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_run_as" }));
         assertThat(role.cluster(), notNullValue());
@@ -171,7 +177,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role_run_as1");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null).build();
+        role = Role.builder(descriptor, null, reservedNamesAutomaton).build();
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_run_as1" }));
         assertThat(role.cluster(), notNullValue());
@@ -184,7 +190,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role_fields");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null).build();
+        role = Role.builder(descriptor, null, reservedNamesAutomaton).build();
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_fields" }));
         assertThat(role.cluster(), notNullValue());
@@ -206,7 +212,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role_query");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null).build();
+        role = Role.builder(descriptor, null, reservedNamesAutomaton).build();
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_query" }));
         assertThat(role.cluster(), notNullValue());
@@ -227,7 +233,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
         descriptor = roles.get("role_query_fields");
         assertNotNull(descriptor);
-        role = Role.builder(descriptor, null).build();
+        role = Role.builder(descriptor, null, reservedNamesAutomaton).build();
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_query_fields" }));
         assertThat(role.cluster(), notNullValue());
@@ -258,7 +264,7 @@ public class FileRolesStoreTests extends ESTestCase {
         events.clear();
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), false)
-                .build(), new XPackLicenseState(Settings.EMPTY), xContentRegistry());
+                .build(), TestUtils.newTestLicenseState(), xContentRegistry());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(6));
         assertThat(roles.get("role_fields"), nullValue());
@@ -288,8 +294,7 @@ public class FileRolesStoreTests extends ESTestCase {
         List<String> events = CapturingLogger.output(logger.getName(), Level.WARN);
         events.clear();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(false);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, licenseState, xContentRegistry());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(9));
@@ -314,7 +319,7 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testDefaultRolesFile() throws Exception {
         // TODO we should add the config dir to the resources so we don't copy this stuff around...
         Path path = getDataPath("default_roles.yml");
-        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, new XPackLicenseState(Settings.EMPTY),
+        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, TestUtils.newTestLicenseState(),
             xContentRegistry());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(0));
@@ -345,7 +350,7 @@ public class FileRolesStoreTests extends ESTestCase {
             FileRolesStore store = new FileRolesStore(settings, env, watcherService, roleSet -> {
                     modifiedRoles.addAll(roleSet);
                     latch.countDown();
-                }, new XPackLicenseState(Settings.EMPTY), xContentRegistry());
+                }, TestUtils.newTestLicenseState(), xContentRegistry());
 
             Set<RoleDescriptor> descriptors = store.roleDescriptors(Collections.singleton("role1"));
             assertThat(descriptors, notNullValue());
@@ -376,7 +381,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 writer.append("    - 'MONITOR'");
             }
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("Waited too long for the updated file to be picked up");
             }
 
@@ -387,7 +392,7 @@ public class FileRolesStoreTests extends ESTestCase {
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());
-            Role role = Role.builder(descriptors.iterator().next(), null).build();
+            Role role = Role.builder(descriptors.iterator().next(), null, reservedNamesAutomaton).build();
             assertThat(role, notNullValue());
             assertThat(role.names(), equalTo(new String[] { "role5" }));
             assertThat(role.cluster().check("cluster:monitor/foo/bar", request, authentication), is(true));
@@ -401,7 +406,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 if (roleSet.contains("dummy1")) {
                     truncateLatch.countDown();
                 }
-            }, new XPackLicenseState(Settings.EMPTY), xContentRegistry());
+            }, TestUtils.newTestLicenseState(), xContentRegistry());
 
             final Set<String> allRolesPreTruncate = store.getAllRoleNames();
             assertTrue(allRolesPreTruncate.contains("role5"));
@@ -430,7 +435,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 if (roleSet.contains("dummy2")) {
                     modifyLatch.countDown();
                 }
-            }, new XPackLicenseState(Settings.EMPTY), xContentRegistry());
+            }, TestUtils.newTestLicenseState(), xContentRegistry());
 
             try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING)) {
                 writer.append("role5:").append(System.lineSeparator());
@@ -458,7 +463,7 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         Path file = createTempFile();
         Files.write(file, Collections.singletonList("#"), StandardCharsets.UTF_8);
-        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(file, logger, Settings.EMPTY, new XPackLicenseState(Settings.EMPTY),
+        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(file, logger, Settings.EMPTY, TestUtils.newTestLicenseState(),
             xContentRegistry());
         assertThat(roles.keySet(), is(empty()));
     }
@@ -468,13 +473,13 @@ public class FileRolesStoreTests extends ESTestCase {
         Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR, null);
         List<String> entries = CapturingLogger.output(logger.getName(), Level.ERROR);
         entries.clear();
-        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, new XPackLicenseState(Settings.EMPTY),
+        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, TestUtils.newTestLicenseState(),
             xContentRegistry());
         assertThat(roles.size(), is(1));
         assertThat(roles, hasKey("valid_role"));
         RoleDescriptor descriptor = roles.get("valid_role");
         assertNotNull(descriptor);
-        Role role = Role.builder(descriptor, null).build();
+        Role role = Role.builder(descriptor, null, reservedNamesAutomaton).build();
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "valid_role" }));
 
@@ -511,7 +516,7 @@ public class FileRolesStoreTests extends ESTestCase {
         List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         events.clear();
         Path path = getDataPath("reserved_roles.yml");
-        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, new XPackLicenseState(Settings.EMPTY),
+        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, TestUtils.newTestLicenseState(),
             xContentRegistry());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(1));
@@ -543,7 +548,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), flsDlsEnabled)
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        FileRolesStore store = new FileRolesStore(settings, env, mock(ResourceWatcherService.class), new XPackLicenseState(Settings.EMPTY),
+        FileRolesStore store = new FileRolesStore(settings, env, mock(ResourceWatcherService.class), TestUtils.newTestLicenseState(),
             xContentRegistry());
 
         Map<String, Object> usageStats = store.usageStats();

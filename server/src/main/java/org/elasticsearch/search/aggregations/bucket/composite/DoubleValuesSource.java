@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -22,11 +11,11 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
@@ -44,18 +33,25 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     private double currentValue;
     private boolean missingCurrentValue;
 
-    DoubleValuesSource(BigArrays bigArrays, MappedFieldType fieldType,
-                       CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
-                       DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
-        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
+    DoubleValuesSource(
+        BigArrays bigArrays,
+        MappedFieldType fieldType,
+        CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
+        DocValueFormat format,
+        boolean missingBucket,
+        MissingOrder missingOrder,
+        int size,
+        int reverseMul
+    ) {
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
-        this.bits = missingBucket ? new BitArray(100, bigArrays) : null;
+        this.bits = this.missingBucket ? new BitArray(100, bigArrays) : null;
         this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
     }
 
     @Override
     void copyCurrent(int slot) {
-        values = bigArrays.grow(values, slot+1);
+        values = bigArrays.grow(values, slot + 1);
         if (missingBucket && missingCurrentValue) {
             bits.clear(slot);
         } else {
@@ -71,9 +67,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     int compare(int from, int to) {
         if (missingBucket) {
             if (bits.get(from) == false) {
-                return bits.get(to) ? -1 * reverseMul : 0;
+                return bits.get(to) ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (bits.get(to) == false) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(values.get(from), values.get(to));
@@ -83,9 +79,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     int compareCurrent(int slot) {
         if (missingBucket) {
             if (missingCurrentValue) {
-                return bits.get(slot) ? -1 * reverseMul : 0;
+                return bits.get(slot) ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (bits.get(slot) == false) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, values.get(slot));
@@ -95,9 +91,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     int compareCurrentWithAfter() {
         if (missingBucket) {
             if (missingCurrentValue) {
-                return afterValue != null ? -1 * reverseMul : 0;
+                return afterValue != null ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (afterValue == null) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, afterValue);
@@ -126,15 +122,17 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     }
 
     @Override
-    void setAfter(Comparable value) {
+    void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value instanceof Number) {
             afterValue = ((Number) value).doubleValue();
         } else {
-            afterValue = format.parseDouble(value.toString(), false, () -> {
-                throw new IllegalArgumentException("now() is not supported in [after] key");
-            });
+            afterValue = format.parseDouble(
+                value.toString(),
+                false,
+                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
+            );
         }
     }
 
@@ -169,7 +167,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable<Double> value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != Double.class) {
             throw new IllegalArgumentException("Expected Double, got " + value.getClass());
         }

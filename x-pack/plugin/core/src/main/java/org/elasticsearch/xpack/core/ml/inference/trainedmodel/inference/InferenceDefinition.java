@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
@@ -26,7 +27,7 @@ import static org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition.T
 
 public class InferenceDefinition {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceDefinition.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceDefinition.class);
 
     public static final String NAME = "inference_model_definition";
     private final InferenceModel trainedModel;
@@ -41,7 +42,7 @@ public class InferenceDefinition {
             (p, c, n) -> p.namedObject(InferenceModel.class, n, null),
             TRAINED_MODEL);
         PARSER.declareNamedObjects(InferenceDefinition.Builder::setPreProcessors,
-            (p, c, n) -> p.namedObject(LenientlyParsedPreProcessor.class, n, null),
+            (p, c, n) -> p.namedObject(LenientlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT),
             (trainedModelDefBuilder) -> {},
             PREPROCESSORS);
     }
@@ -95,10 +96,20 @@ public class InferenceDefinition {
                 return decoderMap;
             }
             this.decoderMap = preProcessors.stream()
+                .filter(p -> p.isCustom() == false)
                 .map(PreProcessor::reverseLookup)
                 .collect(HashMap::new, Map::putAll, Map::putAll);
             return decoderMap;
         }
+    }
+
+    @Override
+    public String toString() {
+        return "InferenceDefinition{" +
+            "trainedModel=" + trainedModel +
+            ", preProcessors=" + preProcessors +
+            ", decoderMap=" + decoderMap +
+            '}';
     }
 
     public static Builder builder() {

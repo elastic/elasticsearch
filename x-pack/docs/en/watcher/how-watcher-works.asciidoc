@@ -14,7 +14,7 @@ search in the logs data indicates that there are too many 503 errors in the last
 
 This topic describes the elements of a watch and how watches operate.
 
-[float]
+[discrete]
 [[watch-definition]]
 === Watch definition
 
@@ -43,9 +43,8 @@ Specify what happens when the watch condition is met.
 
 [[watch-definition-example]]
 
-For example, the following snippet shows a
-<<watcher-api-put-watch,put watch>> request that defines a watch that
-looks for log error events:
+For example, the following snippet shows a <<watcher-api-put-watch,create or
+update watch>> request that defines a watch that looks for log error events:
 
 [source,console]
 --------------------------------------------------
@@ -71,7 +70,7 @@ PUT _watcher/watch/log_errors
     }
   },
   "condition" : { <4>
-    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 5 }}
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 5 }}
   },
   "transform" : { <5>
     "search" : {
@@ -90,13 +89,13 @@ PUT _watcher/watch/log_errors
         "host" : "mylisteninghost",
         "port" : 9200,
         "path" : "/{{watch_id}}",
-        "body" : "Encountered {{ctx.payload.hits.total.value}} errors"
+        "body" : "Encountered {{ctx.payload.hits.total}} errors"
       }
     },
     "email_administrator" : {
       "email" : {
         "to" : "sys.admino@host.domain",
-        "subject" : "Encountered {{ctx.payload.hits.total.value}} errors",
+        "subject" : "Encountered {{ctx.payload.hits.total}} errors",
         "body" : "Too many error in the system, see attached data",
         "attachments" : {
           "attached_data" : {
@@ -129,7 +128,7 @@ PUT _watcher/watch/log_errors
                 The watch payload that contains the errors is attached to the
                 email.
 
-[float]
+[discrete]
 [[watch-execution]]
 === Watch execution
 
@@ -144,7 +143,7 @@ bound to the watcher lifecycle runs. Even though all primaries and replicas are
 taken into account, when a watch is triggered, watcher also ensures, that each
 watch is only triggered on one of those shards. The more replica shards you
 add, the more distributed the watches can be executed. If you add or remove
-replicas, all watches need to be reloaded.  If a shard is relocated, the
+replicas, all watches need to be reloaded. If a shard is relocated, the
 primary and all replicas of this particular shard will reload.
 
 Because the watches are executed on the node, where the watch shards are, you can create
@@ -196,7 +195,7 @@ The following diagram shows the watch execution process:
 
 image::images/watch-execution.jpg[align="center"]
 
-[float]
+[discrete]
 [[watch-acknowledgment-throttling]]
 === Watch acknowledgment and throttling
 
@@ -216,7 +215,7 @@ the watch actions normally.
 
 For more information, see <<actions-ack-throttle>>.
 
-[float]
+[discrete]
 [[watch-active-state]]
 === Watch active state
 
@@ -245,7 +244,7 @@ reporting availability issues during the maintenance window.
 Deactivating a watch also enables you to keep it around for future use without
 deleting it from the system.
 
-[float]
+[discrete]
 [[scripts-templates]]
 === Scripts and templates
 
@@ -261,7 +260,7 @@ and cached by Elasticsearch to optimize recurring execution. Autoloading is also
 supported. For more information, see <<modules-scripting>> and
 <<modules-scripting-using>>.
 
-[float]
+[discrete]
 [[watch-execution-context]]
 ==== Watch execution context
 
@@ -295,7 +294,7 @@ The following snippet shows the basic structure of the _Watch Execution Context_
     (i.e they're not persisted and can't be used between different executions
     of the same watch)
 
-[float]
+[discrete]
 [[scripts]]
 ==== Using scripts
 
@@ -320,7 +319,7 @@ For example, if the watch metadata contains a `color` field
 condition or transform definition (e.g. `"params" : {"color": "red"}`), you can
 access its value via the `color` variable.
 
-[float]
+[discrete]
 [[templates]]
 ==== Using templates
 
@@ -350,7 +349,7 @@ in sent emails:
 ----------------------------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[inline-templates-scripts]]
 ===== Inline templates and scripts
 
@@ -412,11 +411,11 @@ The formal object definition for a script would be:
 ----------------------------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[stored-templates-scripts]]
 ===== Stored templates and scripts
 
-If you <<modules-scripting-stored-scripts,store>>
+If you <<modules-scripting-using,store>>
 your templates and scripts, you can reference them by id.
 
 To reference a stored script or template, you use the formal object definition

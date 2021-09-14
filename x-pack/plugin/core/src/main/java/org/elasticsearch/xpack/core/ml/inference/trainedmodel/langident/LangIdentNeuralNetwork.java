@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
@@ -134,19 +136,22 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         double[] probabilities = softMax(scores);
 
         ClassificationConfig classificationConfig = (ClassificationConfig) config;
-        Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
+        Tuple<InferenceHelpers.TopClassificationValue, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
             probabilities,
             LANGUAGE_NAMES,
             null,
             classificationConfig.getNumTopClasses(),
             PredictionFieldType.STRING);
-        assert topClasses.v1() >= 0 && topClasses.v1() < LANGUAGE_NAMES.size() :
+        final InferenceHelpers.TopClassificationValue classificationValue = topClasses.v1();
+        assert classificationValue.getValue() >= 0 && classificationValue.getValue() < LANGUAGE_NAMES.size() :
             "Invalid language predicted. Predicted language index " + topClasses.v1();
-        return new ClassificationInferenceResults(topClasses.v1(),
-            LANGUAGE_NAMES.get(topClasses.v1()),
+        return new ClassificationInferenceResults(classificationValue.getValue(),
+            LANGUAGE_NAMES.get(classificationValue.getValue()),
             topClasses.v2(),
             Collections.emptyList(),
-            classificationConfig);
+            classificationConfig,
+            classificationValue.getProbability(),
+            classificationValue.getScore());
     }
 
     @Override

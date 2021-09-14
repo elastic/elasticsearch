@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
@@ -13,7 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -35,7 +36,7 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
     private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
     private PutTransformAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -69,20 +70,8 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (config.getPivotConfig() != null
-                && config.getPivotConfig().getMaxPageSearchSize() != null
-                && (config.getPivotConfig().getMaxPageSearchSize() < 10 || config.getPivotConfig().getMaxPageSearchSize() > 10_000)) {
-                validationException = addValidationError(
-                    "pivot.max_page_search_size ["
-                        + config.getPivotConfig().getMaxPageSearchSize()
-                        + "] must be greater than 10 and less than 10,000",
-                    validationException
-                );
-            }
-            for (String failure : config.getPivotConfig().aggFieldValidation()) {
-                validationException = addValidationError(failure, validationException);
-            }
 
+            validationException = config.validate(validationException);
             validationException = SourceDestValidator.validateRequest(validationException, config.getDestination().getIndex());
 
             if (TransformStrings.isValidId(config.getId()) == false) {

@@ -62,30 +62,31 @@ sold and lowers the price by 2:
 --------------------------------------------------
 POST /seats/_update_by_query
 {
-    "query": {
-        "bool": {
-            "filter": [
-            {
-                "range": {
-                    "row": {
-                        "lte": 3
-                    }
-                }
-            },
-            {
-                "match": {
-                    "sold": false
-                }
-            }]
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "range": {
+            "row": {
+              "lte": 3
+            }
+          }
+        },
+        {
+          "match": {
+            "sold": false
+          }
         }
-    },
-    "script": {
-        "source": "ctx._source.cost -= params.discount",
-        "lang": "painless",
-        "params": {
-            "discount": 2
-        }
+      ]
     }
+  },
+  "script": {
+    "source": "ctx._source.cost -= params.discount",
+    "lang": "painless",
+    "params": {
+      "discount": 2
+    }
+  }
 }
 --------------------------------------------------
 // TEST[setup:seats]

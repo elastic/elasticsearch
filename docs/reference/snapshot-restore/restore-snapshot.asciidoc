@@ -87,15 +87,27 @@ DELETE my-index
 
 # Delete a data stream
 DELETE _data_stream/logs-my_app-default
+----
+// TEST[setup:setup-snapshots]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
 
-# Restore the index and data stream from a snapshot
+You can then restore the index or data stream from the snapshot.
+
+We recommend you only restore specific indices and data streams. If you use the
+<<restore-snapshot-api,restore snapshot API>>, specify the `indices` parameter
+with a value other than `*`. If you use `*` or the default `indices` value, the
+request attempts to restore all indices and data streams, including system
+indices. If your cluster contains any existing system indices, the request will
+return an error. To restore all indices and data streams except system indices,
+use `*,-.*`
+
+[source,console]
+----
 POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
 {
   "indices": "my-index,logs-my_app-default"
 }
 ----
-// TEST[setup:setup-snapshots]
-// TEST[s/_restore/_restore?wait_for_completion=true/]
 
 [discrete]
 [[close-restore]]

@@ -22,20 +22,20 @@ setup:
         index: to_categorize
         refresh: true
         body: |
-          { "index": {} }
-          { "product": "server","text": "Node 2 stopping" }
-          { "index": {} }
-          { "product": "server", "text": "Node 2 starting"}
-          { "index": {} }
-          { "product": "server", "text": "Node 4 stopping"}
-          { "index": {} }
-          { "product": "server", "text": "Node 5 stopping"}
-          { "index": {} }
-          { "product": "user", "text": "User Foo logging on" }
-          { "index": {} }
-          { "product": "user", "text": "User Foo logging on" }
-          { "index": {} }
-          { "product": "user", "text": "User Foo logging off" }
+          {"index": {}}
+          {"product": "server","text": "Node 2 stopping"}
+          {"index": {}}
+          {"product": "server", "text": "Node 2 starting"}
+          {"index": {}}
+          {"product": "server", "text": "Node 4 stopping"}
+          {"index": {}}
+          {"product": "server", "text": "Node 5 stopping"}
+          {"index": {}}
+          {"product": "user", "text": "User Foo logging on"}
+          {"index": {}}
+          {"product": "user", "text": "User Foo logging on"}
+          {"index": {}}
+          {"product": "user", "text": "User Foo logging off"}
 
 ---
 "Test categorization agg simple":
@@ -49,8 +49,7 @@ setup:
             "aggs": {
               "categories": {
                 "categorize_text": {
-                  "field": "text",
-                  "size": 10
+                  "field": "text"
                 }
               }
             }

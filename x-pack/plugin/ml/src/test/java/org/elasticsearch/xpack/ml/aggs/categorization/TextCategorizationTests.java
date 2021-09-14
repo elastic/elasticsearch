@@ -8,35 +8,34 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class LogGroupTests extends ESTestCase {
+public class TextCategorizationTests extends ESTestCase {
 
     public void testSimilarity() {
-        LogGroup lg = new LogGroup(getTokens("foo", "bar", "baz", "biz"), 1, 1);
-        Tuple<Double, Integer> sims = lg.calculateSimilarity(getTokens("not", "matching", "anything", "nope"));
-        assertThat(sims.v1(), equalTo(0.0));
-        assertThat(sims.v2(), equalTo(0));
+        TextCategorization lg = new TextCategorization(getTokens("foo", "bar", "baz", "biz"), 1, 1);
+        TextCategorization.Similarity sims = lg.calculateSimilarity(getTokens("not", "matching", "anything", "nope"));
+        assertThat(sims.getSimilarity(), equalTo(0.0));
+        assertThat(sims.getWildCardCount(), equalTo(0));
 
         sims = lg.calculateSimilarity(getTokens("foo", "bar", "baz", "biz"));
-        assertThat(sims.v1(), equalTo(1.0));
-        assertThat(sims.v2(), equalTo(0));
+        assertThat(sims.getSimilarity(), equalTo(1.0));
+        assertThat(sims.getWildCardCount(), equalTo(0));
 
         sims = lg.calculateSimilarity(getTokens("foo", "fooagain", "notbar", "biz"));
-        assertThat(sims.v1(), closeTo(0.5, 0.0001));
-        assertThat(sims.v2(), equalTo(0));
+        assertThat(sims.getSimilarity(), closeTo(0.5, 0.0001));
+        assertThat(sims.getWildCardCount(), equalTo(0));
     }
 
     public void testAddLog() {
-        LogGroup lg = new LogGroup(getTokens("foo", "bar", "baz", "biz"), 1, 1);
+        TextCategorization lg = new TextCategorization(getTokens("foo", "bar", "baz", "biz"), 1, 1);
         lg.addLog(getTokens("foo", "bar", "baz", "bozo"), 2);
         assertThat(lg.getCount(), equalTo(3L));
-        assertThat(lg.getLogEvent(), arrayContaining(getTokens("foo", "bar", "baz", "*")));
+        assertThat(lg.getCategorization(), arrayContaining(getTokens("foo", "bar", "baz", "*")));
     }
 
     static BytesRef[] getTokens(String... tokens) {

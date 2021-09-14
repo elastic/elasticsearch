@@ -96,9 +96,10 @@ public abstract class AggregationContext implements Releasable {
         return new FieldContext(field, buildFieldData(ft), ft);
     }
 
-    public AnalysisRegistry getAnalysisRegistry() {
-        return null;
-    }
+    /**
+     * @return The analysis registry for the node. Allows specialized aggregations to build custom analyzers for tokenizing text
+     */
+    public abstract AnalysisRegistry getAnalysisRegistry();
 
     /**
      * Lookup the context for an already resolved field type.

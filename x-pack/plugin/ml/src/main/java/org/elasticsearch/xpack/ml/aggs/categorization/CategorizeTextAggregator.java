@@ -12,7 +12,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -41,7 +40,6 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SourceLookup sourceLookup;
-    private final BigArrays bigArrays;
     private final MappedFieldType fieldType;
     private final CategorizationAnalyzer analyzer;
     private final String sourceFieldName;
@@ -73,7 +71,6 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             categorizationFilters
         );
         this.analyzer = new CategorizationAnalyzer(context.getAnalysisRegistry(), categorizationAnalyzerConfig);
-        this.bigArrays = context.bigArrays();
         this.categorizers = bigArrays().newObjectArray(1);
         this.maxChildren = maxChildren;
         this.maxDepth = maxDepth;
@@ -93,7 +90,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         InternalCategorizationAggregation.Bucket[][] topBucketsPerOrd =
             new InternalCategorizationAggregation.Bucket[ordsToCollect.length][];
         for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
+            int size = (int) Math.min(bucketOrds.bucketsInOrd(ordIdx), bucketCountThresholds.getShardSize());
             PriorityQueue<InternalCategorizationAggregation.Bucket> ordered =
                 new InternalCategorizationAggregation.BucketCountPriorityQueue(size);
             CategorizationTokenTree categorizationTokenTree = categorizers.get(ordsToCollect[ordIdx]);
@@ -167,40 +164,40 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             }
 
             private void processTokenStream(long owningBucketOrd, TokenStream ts, int doc) throws IOException {
+                ArrayList<BytesRef> tokens = new ArrayList<>();
                 try {
                     CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
                     ts.reset();
-                    ArrayList<BytesRef> tokens = new ArrayList<>();
                     while (ts.incrementToken()) {
                         tokens.add(new BytesRef(termAtt));
                     }
                     if (tokens.isEmpty()) {
                         return;
                     }
-                    categorizers = bigArrays.grow(categorizers, owningBucketOrd + 1);
-                    CategorizationTokenTree categorizer = categorizers.get(owningBucketOrd);
-                    if (categorizer == null) {
-                        categorizer = new CategorizationTokenTree(maxChildren, maxDepth, similarityThreshold);
-                        addRequestCircuitBreakerBytes(categorizer.ramBytesUsed());
-                        categorizers.set(owningBucketOrd, categorizer);
-                    }
-                    long previousSize = categorizer.ramBytesUsed();
-                    LogGroup lg = categorizer.parseLogLine(tokens.toArray(BytesRef[]::new), docCountProvider.getDocCount(doc));
-                    long newSize = categorizer.ramBytesUsed();
-                    if (newSize - previousSize > 0) {
-                        addRequestCircuitBreakerBytes(newSize - previousSize);
-                    }
-
-                    long bucketOrd = bucketOrds.add(owningBucketOrd, lg.getId());
-                    if (bucketOrd < 0) { // already seen
-                        bucketOrd = -1 - bucketOrd;
-                        collectExistingBucket(sub, doc, bucketOrd);
-                    } else {
-                        lg.bucketOrd = bucketOrd;
-                        collectBucket(sub, doc, bucketOrd);
-                    }
                 } finally {
                     ts.close();
+                }
+                categorizers = bigArrays().grow(categorizers, owningBucketOrd + 1);
+                CategorizationTokenTree categorizer = categorizers.get(owningBucketOrd);
+                if (categorizer == null) {
+                    categorizer = new CategorizationTokenTree(maxChildren, maxDepth, similarityThreshold);
+                    addRequestCircuitBreakerBytes(categorizer.ramBytesUsed());
+                    categorizers.set(owningBucketOrd, categorizer);
+                }
+                long previousSize = categorizer.ramBytesUsed();
+                TextCategorization lg = categorizer.parseLogLine(tokens.toArray(BytesRef[]::new), docCountProvider.getDocCount(doc));
+                long newSize = categorizer.ramBytesUsed();
+                if (newSize - previousSize > 0) {
+                    addRequestCircuitBreakerBytes(newSize - previousSize);
+                }
+
+                long bucketOrd = bucketOrds.add(owningBucketOrd, lg.getId());
+                if (bucketOrd < 0) { // already seen
+                    bucketOrd = -1 - bucketOrd;
+                    collectExistingBucket(sub, doc, bucketOrd);
+                } else {
+                    lg.bucketOrd = bucketOrd;
+                    collectBucket(sub, doc, bucketOrd);
                 }
             }
         };

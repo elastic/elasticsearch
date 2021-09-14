@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.ml.aggs.categorization.LogGroupTests.getTokens;
+import static org.elasticsearch.xpack.ml.aggs.categorization.TextCategorizationTests.getTokens;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -21,62 +21,62 @@ public class InnerTreeNodeTests extends ESTestCase {
 
     public void testAddLog() {
         TreeNode.InnerTreeNode innerTreeNode = new TreeNode.InnerTreeNode(1, 0, 3);
-        LogGroup group = innerTreeNode.addLog(getTokens("foo", "bar", "baz", "biz"), 1, factory);
-        assertThat(group.getLogEvent(), arrayContaining(getTokens("foo", "bar", "baz", "biz")));
+        TextCategorization group = innerTreeNode.addLog(getTokens("foo", "bar", "baz", "biz"), 1, factory);
+        assertThat(group.getCategorization(), arrayContaining(getTokens("foo", "bar", "baz", "biz")));
 
         assertThat(
-            innerTreeNode.addLog(getTokens("foo2", "bar", "baz", "biz"), 1, factory).getLogEvent(),
+            innerTreeNode.addLog(getTokens("foo2", "bar", "baz", "biz"), 1, factory).getCategorization(),
             arrayContaining(getTokens("foo2", "bar", "baz", "biz"))
         );
         assertThat(
-            innerTreeNode.addLog(getTokens("foo3", "bar", "baz", "biz"), 1, factory).getLogEvent(),
+            innerTreeNode.addLog(getTokens("foo3", "bar", "baz", "biz"), 1, factory).getCategorization(),
             arrayContaining(getTokens("foo3", "bar", "baz", "biz"))
         );
         assertThat(
-            innerTreeNode.addLog(getTokens("foo4", "bar", "baz", "biz"), 1, factory).getLogEvent(),
+            innerTreeNode.addLog(getTokens("foo4", "bar", "baz", "biz"), 1, factory).getCategorization(),
             arrayContaining(getTokens("*", "bar", "baz", "biz"))
         );
         assertThat(
-            innerTreeNode.addLog(getTokens("foo", "bar", "baz", "bizzy"), 1, factory).getLogEvent(),
+            innerTreeNode.addLog(getTokens("foo", "bar", "baz", "bizzy"), 1, factory).getCategorization(),
             arrayContaining(getTokens("foo", "bar", "baz", "*"))
         );
     }
 
     public void testAddLogWithLargerIncoming() {
         TreeNode.InnerTreeNode innerTreeNode = new TreeNode.InnerTreeNode(1, 0, 3);
-        LogGroup group = innerTreeNode.addLog(getTokens("foo", "bar", "baz", "biz"), 100, factory);
-        assertThat(group.getLogEvent(), arrayContaining(getTokens("foo", "bar", "baz", "biz")));
+        TextCategorization group = innerTreeNode.addLog(getTokens("foo", "bar", "baz", "biz"), 100, factory);
+        assertThat(group.getCategorization(), arrayContaining(getTokens("foo", "bar", "baz", "biz")));
 
         assertThat(
-            innerTreeNode.addLog(getTokens("foo2", "bar", "baz", "biz"), 100, factory).getLogEvent(),
+            innerTreeNode.addLog(getTokens("foo2", "bar", "baz", "biz"), 100, factory).getCategorization(),
             arrayContaining(getTokens("foo2", "bar", "baz", "biz"))
         );
         assertThat(
-            innerTreeNode.addLog(getTokens("foosmall", "bar", "baz", "biz"), 1, factory).getLogEvent(),
+            innerTreeNode.addLog(getTokens("foosmall", "bar", "baz", "biz"), 1, factory).getCategorization(),
             arrayContaining(getTokens("foosmall", "bar", "baz", "biz"))
         );
         assertThat(
-            innerTreeNode.addLog(getTokens("foobigun", "bar", "baz", "biz"), 1000, factory).getLogEvent(),
+            innerTreeNode.addLog(getTokens("foobigun", "bar", "baz", "biz"), 1000, factory).getCategorization(),
             arrayContaining(getTokens("foobigun", "bar", "baz", "biz"))
         );
         assertThat(
-            innerTreeNode.getLogGroup(getTokens("foosmall", "bar", "baz", "biz")).getLogEvent(),
+            innerTreeNode.getLogGroup(getTokens("foosmall", "bar", "baz", "biz")).getCategorization(),
             equalTo(getTokens("*", "bar", "baz", "biz"))
         );
     }
 
     public void testCollapseTinyChildren() {
         TreeNode.InnerTreeNode innerTreeNode = new TreeNode.InnerTreeNode(1000, 0, 4);
-        LogGroup group = innerTreeNode.addLog(getTokens("foo", "bar", "baz", "biz"), 1000, factory);
-        assertThat(group.getLogEvent(), arrayContaining(getTokens("foo", "bar", "baz", "biz")));
+        TextCategorization group = innerTreeNode.addLog(getTokens("foo", "bar", "baz", "biz"), 1000, factory);
+        assertThat(group.getCategorization(), arrayContaining(getTokens("foo", "bar", "baz", "biz")));
 
         assertThat(
-            innerTreeNode.addLog(getTokens("foo2", "bar", "baz", "biz"), 1000, factory).getLogEvent(),
+            innerTreeNode.addLog(getTokens("foo2", "bar", "baz", "biz"), 1000, factory).getCategorization(),
             arrayContaining(getTokens("foo2", "bar", "baz", "biz"))
         );
         innerTreeNode.incCount(1000);
         assertThat(
-            innerTreeNode.addLog(getTokens("foosmall", "bar", "baz", "biz"), 1, factory).getLogEvent(),
+            innerTreeNode.addLog(getTokens("foosmall", "bar", "baz", "biz"), 1, factory).getCategorization(),
             arrayContaining(getTokens("foosmall", "bar", "baz", "biz"))
         );
         innerTreeNode.incCount(1);
@@ -102,7 +102,7 @@ public class InnerTreeNodeTests extends ESTestCase {
         innerTreeNode.mergeWith(mergeWith);
         assertThat(innerTreeNode.hasChild(new BytesRef("*")), is(true));
         assertThat(
-            innerTreeNode.getLogGroup(getTokens("footiny", "bar", "baz", "biz")).getLogEvent(),
+            innerTreeNode.getLogGroup(getTokens("footiny", "bar", "baz", "biz")).getCategorization(),
             arrayContaining(getTokens("*", "bar", "baz", "biz"))
         );
     }

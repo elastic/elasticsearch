@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -350,6 +351,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             @Override
             public long nowInMillis() {
                 return 0;
+            }
+
+            @Override
+            public AnalysisRegistry getAnalysisRegistry() {
+                return null;
             }
 
             @Override

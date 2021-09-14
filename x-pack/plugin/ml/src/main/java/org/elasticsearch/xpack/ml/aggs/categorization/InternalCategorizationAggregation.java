@@ -89,6 +89,29 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
         private final BytesRef[] key;
 
+        static BucketKey withCollapsedWildcards(BytesRef[] key) {
+            if (key.length <= 1) {
+                return new BucketKey(key);
+            }
+            List<BytesRef> collapsedWildCards = new ArrayList<>();
+            boolean previousTokenWildCard = false;
+            for (BytesRef token : key) {
+                if (token.equals(WILD_CARD)) {
+                    if (previousTokenWildCard == false) {
+                        previousTokenWildCard = true;
+                        collapsedWildCards.add(WILD_CARD);
+                    }
+                } else {
+                    previousTokenWildCard = false;
+                    collapsedWildCards.add(token);
+                }
+            }
+            if (collapsedWildCards.size() == key.length) {
+                return new BucketKey(key);
+            }
+            return new BucketKey(collapsedWildCards.toArray(BytesRef[]::new));
+        }
+
         BucketKey(BytesRef[] key) {
             this.key = key;
         }
@@ -143,28 +166,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return Arrays.compare(key, o.key);
         }
 
-        private BucketKey collapseWildCards() {
-            if (key.length <= 1) {
-                return this;
-            }
-            List<BytesRef> collapsedWildCards = new ArrayList<>();
-            boolean previousTokenWildCard = false;
-            for (BytesRef token : key) {
-                if (token.equals(WILD_CARD)) {
-                    if (previousTokenWildCard == false) {
-                        previousTokenWildCard = true;
-                        collapsedWildCards.add(WILD_CARD);
-                    }
-                } else {
-                    previousTokenWildCard = false;
-                    collapsedWildCards.add(token);
-                }
-            }
-            if (collapsedWildCards.size() == key.length) {
-                return this;
-            }
-            return new BucketKey(collapsedWildCards.toArray(BytesRef[]::new));
-        }
     }
 
     public static class Bucket extends InternalBucket implements MultiBucketsAggregation.Bucket, Comparable<Bucket> {
@@ -351,20 +352,21 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         categorizationTokenTree.mergeSmallestChildren();
         Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>(aggregations.size(), 1.0f);
         for (DelayedCategorizationBucket delayedBucket : reduced.values()) {
-            LogGroup group = categorizationTokenTree.parseLogLineConst(delayedBucket.key.keyAsTokens());
+            TextCategorization group = categorizationTokenTree.parseLogLineConst(delayedBucket.key.keyAsTokens());
             if (group == null) {
                 throw new AggregationExecutionException(
                     "Unexpected null categorization group for bucket [" + delayedBucket.key.asString() + "]"
                 );
             }
-            BucketKey key = new BucketKey(group.getLogEvent());
-            mergedBuckets.computeIfAbsent(
-                reduceContext.isFinalReduce() ? key.collapseWildCards() : key,
-                k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L)
-            ).add(delayedBucket);
+
+            BucketKey key = reduceContext.isFinalReduce() ?
+                BucketKey.withCollapsedWildcards(group.getCategorization()) :
+                new BucketKey(group.getCategorization());
+            mergedBuckets.computeIfAbsent(key, k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L))
+                .add(delayedBucket);
         }
 
-        final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
+        final int size = reduceContext.isFinalReduce() == false ? mergedBuckets.size() : Math.min(requiredSize, mergedBuckets.size());
         final PriorityQueue<Bucket> pq = new BucketCountPriorityQueue(size);
         for (Map.Entry<BucketKey, DelayedCategorizationBucket> keyAndBuckets : mergedBuckets.entrySet()) {
             final BucketKey key = keyAndBuckets.getKey();
@@ -395,12 +397,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             metadata,
             Arrays.asList(bucketList)
         );
-    }
-
-    @Override
-    public Object getProperty(List<String> path) {
-        // TODO anything special?
-        return super.getProperty(path);
     }
 
     @Override

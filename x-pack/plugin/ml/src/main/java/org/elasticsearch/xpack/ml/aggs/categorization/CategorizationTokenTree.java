@@ -12,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,7 +83,7 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
     public List<InternalCategorizationAggregation.Bucket> toIntermediateBuckets() {
         return root.values().stream().flatMap(c -> c.getAllChildrenLogGroups().stream()).map(lg -> {
             InternalCategorizationAggregation.Bucket bucket = new InternalCategorizationAggregation.Bucket(
-                new InternalCategorizationAggregation.BucketKey(lg.getLogEvent()),
+                new InternalCategorizationAggregation.BucketKey(lg.getCategorization()),
                 lg.getCount(),
                 InternalAggregations.EMPTY
             );
@@ -92,30 +92,15 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
         }).collect(Collectors.toList());
     }
 
-    public List<InternalCategorizationAggregation.Bucket> toBuckets(Map<Long, InternalAggregations> internalAggregations) {
-        return root.values()
-            .stream()
-            .flatMap(c -> c.getAllChildrenLogGroups().stream())
-            .map(
-                lg -> new InternalCategorizationAggregation.Bucket(
-                    new InternalCategorizationAggregation.BucketKey(lg.getLogEvent()),
-                    lg.getCount(),
-                    internalAggregations.get(lg.getId())
-                )
-            )
-            .sorted()
-            .collect(Collectors.toList());
-    }
-
     void mergeSmallestChildren() {
         root.values().forEach(TreeNode::collapseTinyChildren);
     }
 
-    public LogGroup parseLogLine(final BytesRef[] logTokens) {
+    public TextCategorization parseLogLine(final BytesRef[] logTokens) {
         return parseLogLine(logTokens, 1);
     }
 
-    public LogGroup parseLogLineConst(final BytesRef[] logTokens) {
+    public TextCategorization parseLogLineConst(final BytesRef[] logTokens) {
         TreeNode currentNode = this.root.get(logTokens.length);
         if (currentNode == null) { // we are missing an entire sub tree. New log length found
             return null;
@@ -123,8 +108,10 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
         return currentNode.getLogGroup(logTokens);
     }
 
-    public LogGroup parseLogLine(final BytesRef[] logTokens, long docCount) {
-        LOGGER.trace("parsing tokens [{}]", Strings.arrayToDelimitedString(logTokens, " "));
+    public TextCategorization parseLogLine(final BytesRef[] logTokens, long docCount) {
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("parsing tokens [{}]", Arrays.stream(logTokens).map(BytesRef::utf8ToString).collect(Collectors.joining(" ")));
+        }
         TreeNode currentNode = this.root.get(logTokens.length);
         if (currentNode == null) { // we are missing an entire sub tree. New log length found
             currentNode = newNode(docCount, 0, logTokens);
@@ -146,8 +133,8 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
     }
 
     @Override
-    public LogGroup newGroup(long docCount, BytesRef[] logTokens) {
-        LogGroup group = new LogGroup(logTokens, docCount, idGen.incrementAndGet());
+    public TextCategorization newGroup(long docCount, BytesRef[] logTokens) {
+        TextCategorization group = new TextCategorization(logTokens, docCount, idGen.incrementAndGet());
         // Get the regular size bytes from the LogGroup and how much it costs to reference it
         sizeInBytes += group.ramBytesUsed() + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
         return group;

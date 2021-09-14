@@ -142,6 +142,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return Collections.singletonList(TestGeoShapeFieldMapperPlugin.class);
     }
 
+    /**
+     * Allows additional plugins other than the required `TestGeoShapeFieldMapperPlugin`
+     * Could probably be removed when dependencies against geo_shape is decoupled
+     */
     protected Collection<Class<? extends Plugin>> getExtraPlugins() {
         return Collections.emptyList();
     }

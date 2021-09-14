@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationToken
  *
  * Two major node types exist:
  *  - Inner: which are nodes that have children token nodes
- *  - Leaf: Which collection multiple {@link LogGroup} based on similarity restrictions
+ *  - Leaf: Which collection multiple {@link TextCategorization} based on similarity restrictions
  */
 abstract class TreeNode implements Accountable {
 
@@ -60,26 +60,21 @@ abstract class TreeNode implements Accountable {
     }
 
     // TODO add option for calculating the cost of adding the new group
-    abstract LogGroup addLog(BytesRef[] logTokens, long docCount, TreeNodeFactory treeNodeFactory);
+    abstract TextCategorization addLog(BytesRef[] logTokens, long docCount, TreeNodeFactory treeNodeFactory);
 
-    abstract LogGroup getLogGroup(BytesRef[] logTokens);
+    abstract TextCategorization getLogGroup(BytesRef[] logTokens);
 
-    abstract List<LogGroup> getAllChildrenLogGroups();
+    abstract List<TextCategorization> getAllChildrenLogGroups();
 
     abstract void collapseTinyChildren();
 
-    @Override
-    public long ramBytesUsed() {
-        return Long.BYTES; // count
-    }
-
     static class LeafTreeNode extends TreeNode {
-        private final List<LogGroup> logGroups;
+        private final List<TextCategorization> textCategorizations;
         private final double similarityThreshold;
 
         LeafTreeNode(long count, double similarityThreshold) {
             super(count);
-            this.logGroups = new ArrayList<>();
+            this.textCategorizations = new ArrayList<>();
             this.similarityThreshold = similarityThreshold;
         }
 
@@ -99,8 +94,8 @@ abstract class TreeNode implements Accountable {
             }
             incCount(treeNode.getCount());
             LeafTreeNode otherLeaf = (LeafTreeNode) treeNode;
-            for (LogGroup group : otherLeaf.logGroups) {
-                if (getAndUpdateLogGroup(group.getLogEvent(), group.getCount()).isPresent() == false) {
+            for (TextCategorization group : otherLeaf.textCategorizations) {
+                if (getAndUpdateLogGroup(group.getCategorization(), group.getCount()).isPresent() == false) {
                     putNewLogGroup(group);
                 }
             }
@@ -108,30 +103,31 @@ abstract class TreeNode implements Accountable {
 
         @Override
         public long ramBytesUsed() {
-            return super.ramBytesUsed() + NUM_BYTES_OBJECT_REF // list reference
+            return Long.BYTES // count
+                + NUM_BYTES_OBJECT_REF // list reference
                 + Double.BYTES  // similarityThreshold
-                + sizeOfCollection(logGroups);
+                + sizeOfCollection(textCategorizations);
         }
 
         @Override
-        public LogGroup addLog(BytesRef[] logTokens, long docCount, TreeNodeFactory treeNodeFactory) {
+        public TextCategorization addLog(BytesRef[] logTokens, long docCount, TreeNodeFactory treeNodeFactory) {
             return getAndUpdateLogGroup(logTokens, docCount).orElseGet(() -> {
                 // Need to update the tree if possible
-                LogGroup group = treeNodeFactory.newGroup(docCount, logTokens);
+                TextCategorization group = treeNodeFactory.newGroup(docCount, logTokens);
                 LOGGER.trace(() -> new ParameterizedMessage("created group! [{}]", group));
                 return putNewLogGroup(group);
             });
         }
 
         @Override
-        List<LogGroup> getAllChildrenLogGroups() {
-            return logGroups;
+        List<TextCategorization> getAllChildrenLogGroups() {
+            return textCategorizations;
         }
 
         @Override
         void collapseTinyChildren() {}
 
-        private Optional<LogGroup> getAndUpdateLogGroup(BytesRef[] logTokens, long docCount) {
+        private Optional<TextCategorization> getAndUpdateLogGroup(BytesRef[] logTokens, long docCount) {
             return getBestLogGroup(logTokens).map(bestGroupAndSimilarity -> {
                 if (bestGroupAndSimilarity.v2() >= similarityThreshold) {
                     bestGroupAndSimilarity.v1().addLog(logTokens, docCount);
@@ -141,37 +137,34 @@ abstract class TreeNode implements Accountable {
             });
         }
 
-        LogGroup putNewLogGroup(LogGroup group) {
-            logGroups.add(group);
+        TextCategorization putNewLogGroup(TextCategorization group) {
+            textCategorizations.add(group);
             return group;
         }
 
-        private Optional<Tuple<LogGroup, Double>> getBestLogGroup(BytesRef[] logTokens) {
-            if (logGroups.isEmpty()) {
+        private Optional<Tuple<TextCategorization, Double>> getBestLogGroup(BytesRef[] logTokens) {
+            if (textCategorizations.isEmpty()) {
                 return Optional.empty();
             }
-            if (logGroups.size() == 1) {
-                return Optional.of(new Tuple<>(logGroups.get(0), logGroups.get(0).calculateSimilarity(logTokens).v1()));
+            if (textCategorizations.size() == 1) {
+                return Optional.of(
+                    new Tuple<>(textCategorizations.get(0), textCategorizations.get(0).calculateSimilarity(logTokens).getSimilarity())
+                );
             }
-            double maxSimilarity = 0.0;
-            int maxParamMatch = 0;
-            LogGroup bestGroup = null;
-            for (LogGroup logGroup : this.logGroups) {
-                Tuple<Double, Integer> groupSimilarity = logGroup.calculateSimilarity(logTokens);
-                if (groupSimilarity.v1() > maxSimilarity) {
-                    maxSimilarity = groupSimilarity.v1();
-                    maxParamMatch = groupSimilarity.v2();
-                    bestGroup = logGroup;
-                } else if (groupSimilarity.v1() == maxSimilarity && groupSimilarity.v2() > maxParamMatch) {
-                    maxParamMatch = groupSimilarity.v2();
-                    bestGroup = logGroup;
+            TextCategorization.Similarity maxSimilarity = null;
+            TextCategorization bestGroup = null;
+            for (TextCategorization textCategorization : this.textCategorizations) {
+                TextCategorization.Similarity groupSimilarity = textCategorization.calculateSimilarity(logTokens);
+                if (maxSimilarity == null || groupSimilarity.compareTo(maxSimilarity) > 0) {
+                    maxSimilarity = groupSimilarity;
+                    bestGroup = textCategorization;
                 }
             }
-            return Optional.of(new Tuple<>(bestGroup, maxSimilarity));
+            return Optional.of(new Tuple<>(bestGroup, maxSimilarity.getSimilarity()));
         }
 
         @Override
-        public LogGroup getLogGroup(final BytesRef[] logTokens) {
+        public TextCategorization getLogGroup(final BytesRef[] logTokens) {
             return getBestLogGroup(logTokens).map(Tuple::v1).orElse(null);
         }
 
@@ -180,12 +173,13 @@ abstract class TreeNode implements Accountable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             LeafTreeNode that = (LeafTreeNode) o;
-            return Double.compare(that.similarityThreshold, similarityThreshold) == 0 && Objects.equals(logGroups, that.logGroups);
+            return Double.compare(that.similarityThreshold, similarityThreshold) == 0
+                && Objects.equals(textCategorizations, that.textCategorizations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(logGroups, similarityThreshold);
+            return Objects.hash(textCategorizations, similarityThreshold);
         }
     }
 
@@ -209,7 +203,7 @@ abstract class TreeNode implements Accountable {
         }
 
         @Override
-        public LogGroup getLogGroup(final BytesRef[] logTokens) {
+        public TextCategorization getLogGroup(final BytesRef[] logTokens) {
             return getChild(logTokens[childrenTokenPos]).or(() -> getChild(WILD_CARD))
                 .map(node -> node.getLogGroup(logTokens))
                 .orElse(null);
@@ -217,7 +211,8 @@ abstract class TreeNode implements Accountable {
 
         @Override
         public long ramBytesUsed() {
-            return super.ramBytesUsed() + NUM_BYTES_OBJECT_REF // children reference
+            return Long.BYTES // count
+                + NUM_BYTES_OBJECT_REF // children reference
                 + Integer.BYTES // childrenTokenPos
                 + Integer.BYTES // maxChildren
                 + NUM_BYTES_OBJECT_REF // smallestChildReference
@@ -227,7 +222,7 @@ abstract class TreeNode implements Accountable {
         }
 
         @Override
-        public LogGroup addLog(final BytesRef[] logTokens, final long docCount, final TreeNodeFactory treeNodeFactory) {
+        public TextCategorization addLog(final BytesRef[] logTokens, final long docCount, final TreeNodeFactory treeNodeFactory) {
             BytesRef currentToken = logTokens[childrenTokenPos];
             TreeNode child = getChild(currentToken).map(node -> {
                 node.incCount(docCount);
@@ -370,7 +365,7 @@ abstract class TreeNode implements Accountable {
             return node == null ? Optional.empty() : Optional.of(node);
         }
 
-        public List<LogGroup> getAllChildrenLogGroups() {
+        public List<TextCategorization> getAllChildrenLogGroups() {
             return children.values().stream().flatMap(c -> c.getAllChildrenLogGroups().stream()).collect(Collectors.toList());
         }
 

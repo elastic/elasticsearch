@@ -12,5 +12,5 @@ import org.apache.lucene.util.BytesRef;
 interface TreeNodeFactory {
     TreeNode newNode(long docCount, int tokenPos, BytesRef[] logTokens);
 
-    LogGroup newGroup(long docCount, BytesRef[] logTokens);
+    TextCategorization newGroup(long docCount, BytesRef[] logTokens);
 }

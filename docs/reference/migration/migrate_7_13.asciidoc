@@ -327,8 +327,8 @@ configuration will result in an error on startup.
 *Details* +
 The `path.shared_data` node setting and `index.data_path` index setting are
 now deprecated. {es} previously used these settings for
-{ref-bare}/5.6/indices-shadow-replicas.html[shadow replicas]. Shadow replicas
-were deprecated in 5.2 and removed in 6.0.
+{ref-bare}/5.6/indices-shadow-replicas.html[shadow replicas]. The shadow
+replicas feature was deprecated in 5.2 and removed in 6.0.
 
 *Impact* +
 To avoid deprecation warnings, discontinue use of the deprecated settings.

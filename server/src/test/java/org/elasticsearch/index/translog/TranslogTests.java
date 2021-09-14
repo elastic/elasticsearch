@@ -65,6 +65,7 @@ import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -2094,6 +2095,9 @@ public class TranslogTests extends ESTestCase {
             this.writtenOperations = writtenOperations;
             this.seqNoGenerator = seqNoGenerator;
             this.threadExceptions = threadExceptions;
+            if (randomBoolean()) {
+                setName("[" + ThreadPool.Names.WRITE + "]" + getName());
+            }
         }
 
         @Override

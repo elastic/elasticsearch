@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -35,15 +36,12 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -81,11 +79,19 @@ public class JoinHelper {
 
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
 
-    JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService, TransportService transportService,
-               LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
-               BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
-               Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, RerouteService rerouteService,
-               NodeHealthService nodeHealthService) {
+    JoinHelper(
+        Settings settings,
+        AllocationService allocationService,
+        MasterService masterService,
+        TransportService transportService,
+        LongSupplier currentTermSupplier,
+        Supplier<ClusterState> currentStateSupplier,
+        BiConsumer<JoinRequest, ActionListener<Void>> joinHandler,
+        Function<StartJoinRequest, Join> joinLeaderInTerm,
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
+        RerouteService rerouteService,
+        NodeHealthService nodeHealthService
+    ) {
         this.masterService = masterService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
@@ -117,8 +123,14 @@ public class JoinHelper {
 
         };
 
-        transportService.registerRequestHandler(JOIN_ACTION_NAME, ThreadPool.Names.GENERIC, false, false, JoinRequest::new,
-            (request, channel, task) -> joinHandler.accept(request, transportJoinCallback(request, channel)));
+        transportService.registerRequestHandler(
+            JOIN_ACTION_NAME,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            JoinRequest::new,
+            (request, channel, task) -> joinHandler.accept(request,
+                new ChannelActionListener<Empty, JoinRequest>(channel, JOIN_ACTION_NAME, request).map(ignored -> Empty.INSTANCE)));
 
         transportService.registerRequestHandler(START_JOIN_ACTION_NAME, Names.GENERIC, false, false,
             StartJoinRequest::new,
@@ -145,35 +157,6 @@ public class JoinHelper {
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
             });
-    }
-
-    private JoinCallback transportJoinCallback(TransportRequest request, TransportChannel channel) {
-        return new JoinCallback() {
-
-            @Override
-            public void onSuccess() {
-                try {
-                    channel.sendResponse(Empty.INSTANCE);
-                } catch (IOException e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    channel.sendResponse(e);
-                } catch (Exception inner) {
-                    inner.addSuppressed(e);
-                    logger.warn("failed to send back failure on join request", inner);
-                }
-            }
-
-            @Override
-            public String toString() {
-                return "JoinCallback{request=" + request + "}";
-            }
-        };
     }
 
     boolean isJoinPending() {
@@ -339,29 +322,23 @@ public class JoinHelper {
                 new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
-    public interface JoinCallback {
-        void onSuccess();
-
-        void onFailure(Exception e);
-    }
-
     static class JoinTaskListener implements ClusterStateTaskListener {
         private final JoinTaskExecutor.Task task;
-        private final JoinCallback joinCallback;
+        private final ActionListener<Void> joinListener;
 
-        JoinTaskListener(JoinTaskExecutor.Task task, JoinCallback joinCallback) {
+        JoinTaskListener(JoinTaskExecutor.Task task, ActionListener<Void> joinListener) {
             this.task = task;
-            this.joinCallback = joinCallback;
+            this.joinListener = joinListener;
         }
 
         @Override
         public void onFailure(String source, Exception e) {
-            joinCallback.onFailure(e);
+            joinListener.onFailure(e);
         }
 
         @Override
         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-            joinCallback.onSuccess();
+            joinListener.onResponse(null);
         }
 
         @Override
@@ -371,7 +348,7 @@ public class JoinHelper {
     }
 
     interface JoinAccumulator {
-        void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback);
+        void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener);
 
         default void close(Mode newMode) {
         }
@@ -379,11 +356,11 @@ public class JoinHelper {
 
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
+        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
             final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, "join existing leader");
             assert joinTaskExecutor != null;
             masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT),
-                joinTaskExecutor, new JoinTaskListener(task, joinCallback));
+                joinTaskExecutor, new JoinTaskListener(task, joinListener));
         }
 
         @Override
@@ -394,9 +371,9 @@ public class JoinHelper {
 
     static class InitialJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
+        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
             assert false : "unexpected join from " + sender + " during initialisation";
-            joinCallback.onFailure(new CoordinationStateRejectedException("join target is not initialised yet"));
+            joinListener.onFailure(new CoordinationStateRejectedException("join target is not initialised yet"));
         }
 
         @Override
@@ -407,8 +384,8 @@ public class JoinHelper {
 
     static class FollowerJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
-            joinCallback.onFailure(new CoordinationStateRejectedException("join target is a follower"));
+        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
+            joinListener.onFailure(new CoordinationStateRejectedException("join target is a follower"));
         }
 
         @Override
@@ -419,13 +396,13 @@ public class JoinHelper {
 
     class CandidateJoinAccumulator implements JoinAccumulator {
 
-        private final Map<DiscoveryNode, JoinCallback> joinRequestAccumulator = new HashMap<>();
+        private final Map<DiscoveryNode, ActionListener<Void>> joinRequestAccumulator = new HashMap<>();
         boolean closed;
 
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
+        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
             assert closed == false : "CandidateJoinAccumulator closed";
-            JoinCallback prev = joinRequestAccumulator.put(sender, joinCallback);
+            ActionListener<Void> prev = joinRequestAccumulator.put(sender, joinListener);
             if (prev != null) {
                 prev.onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
             }

@@ -21,6 +21,10 @@ public class FilterPathBasedFilter extends TokenFilter {
      * or value matches one of the filter paths.
      */
     private static final TokenFilter MATCHING = new TokenFilter() {
+        @Override
+        public String toString() {
+            return "MATCHING";
+        }
     };
 
     /**
@@ -28,6 +32,10 @@ public class FilterPathBasedFilter extends TokenFilter {
      * property names/values matches one of the filter paths.
      */
     private static final TokenFilter NO_MATCHING = new TokenFilter() {
+        @Override
+        public String toString() {
+            return "NO_MATCHING";
+        }
     };
 
     private final FilterPath[] filters;

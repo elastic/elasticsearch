@@ -138,4 +138,9 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest imp
     public boolean decRef() {
         return content.decRef();
     }
+
+    @Override
+    public boolean hasReferences() {
+        return content.hasReferences();
+    }
 }

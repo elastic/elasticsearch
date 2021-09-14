@@ -25,12 +25,15 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
+import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
+import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
 
@@ -85,6 +88,9 @@ public class YamlRestTestPlugin implements Plugin<Project> {
             cluster.plugin(bundle.flatMap(Zip::getArchiveFile));
             yamlRestTestTask.configure(t -> t.dependsOn(bundle));
         });
+
+        // Wire up to check task
+        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(yamlRestTestTask));
     }
 
     private static void setupDefaultDependencies(
@@ -107,7 +113,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         SourceSet testSourceSet,
         ElasticsearchCluster cluster
     ) {
-        return project.getTasks().register("yamlRestTest", StandaloneRestIntegTestTask.class, task -> {
+        return project.getTasks().register(YAML_REST_TEST, StandaloneRestIntegTestTask.class, task -> {
             task.useCluster(cluster);
             task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
             task.setClasspath(testSourceSet.getRuntimeClasspath());

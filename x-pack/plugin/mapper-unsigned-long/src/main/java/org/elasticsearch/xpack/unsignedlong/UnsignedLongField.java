@@ -22,6 +22,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 
 public class UnsignedLongField extends LongField {
+
+    /* ---- Conversion Class From Other Fields ----*/
+
     public static final Converter<Long, UnsignedLongField> UnsignedLong = new Converter<Long, UnsignedLongField>() {
         @Override
         public UnsignedLongField convert(Field<?> sourceField) {
@@ -46,7 +49,30 @@ public class UnsignedLongField extends LongField {
         }
     };
 
-    static UnsignedLongField BigIntegerToUnsignedLong(BigIntegerField sourceField) {
+    /* ---- Conversion Helpers To Other Fields ---- */
+
+    public static BigIntegerField UnsignedLongToBigInteger(UnsignedLongField sourceField) {
+        FieldValues<Long> fv = sourceField.getFieldValues();
+        return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<java.math.BigInteger, Long>(fv) {
+            private BigInteger toBigInteger(long formatted) {
+                return java.math.BigInteger.valueOf(formatted).and(BIGINTEGER_2_64_MINUS_ONE);
+            }
+
+            @Override
+            public List<BigInteger> getValues() {
+                return values.getValues().stream().map(this::toBigInteger).collect(Collectors.toList());
+            }
+
+            @Override
+            public BigInteger getNonPrimitiveValue() {
+                return toBigInteger(values.getLongValue());
+            }
+        });
+    }
+
+    /* ---- Conversion Helpers From Other Fields ---- */
+
+    public static UnsignedLongField BigIntegerToUnsignedLong(BigIntegerField sourceField) {
         FieldValues<BigInteger> fv = sourceField.getFieldValues();
         return new UnsignedLongField(sourceField.getName(), new DelegatingFieldValues<>(fv) {
             @Override
@@ -97,6 +123,8 @@ public class UnsignedLongField extends LongField {
         });
     }
 
+    /* ---- Unsigned Long Field Members ---- */
+
     public UnsignedLongField(String name, FieldValues<Long> values) {
         super(name, values);
     }
@@ -110,45 +138,5 @@ public class UnsignedLongField extends LongField {
         }
 
         return super.as(converter);
-    }
-
-    static BigIntegerField UnsignedLongToBigInteger(UnsignedLongField sourceField) {
-        FieldValues<Long> fv = sourceField.getFieldValues();
-        return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<java.math.BigInteger, Long>(fv) {
-            private BigInteger toBigInteger(long formatted) {
-                return java.math.BigInteger.valueOf(formatted).and(BIGINTEGER_2_64_MINUS_ONE);
-            }
-
-            @Override
-            public List<BigInteger> getValues() {
-                return values.getValues().stream().map(this::toBigInteger).collect(Collectors.toList());
-            }
-
-            @Override
-            public BigInteger getNonPrimitiveValue() {
-                return toBigInteger(values.getLongValue());
-            }
-        });
-    }
-
-    public static class UnsignedLongConverter implements Converter<Long, UnsignedLongField> {
-        @Override
-        public UnsignedLongField convert(Field<?> sourceField) {
-            if (sourceField instanceof BigIntegerField) {
-                return BigIntegerToUnsignedLong((BigIntegerField) sourceField);
-            }
-
-            throw new InvalidConversion(sourceField.getClass(), getFieldClass());
-        }
-
-        @Override
-        public Class<UnsignedLongField> getFieldClass() {
-            return UnsignedLongField.class;
-        }
-
-        @Override
-        public Class<Long> getTargetClass() {
-            return Long.class;
-        }
     }
 }

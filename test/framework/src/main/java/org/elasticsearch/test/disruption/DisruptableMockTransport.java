@@ -104,44 +104,61 @@ public abstract class DisruptableMockTransport extends MockTransport {
         assert destinationTransport.getLocalNode().equals(getLocalNode()) == false :
             "non-local message from " + getLocalNode() + " to itself";
 
+        request.incRef();
+
         destinationTransport.execute(new RebootSensitiveRunnable() {
             @Override
             public void run() {
-                final ConnectionStatus connectionStatus = getConnectionStatus(destinationTransport.getLocalNode());
-                switch (connectionStatus) {
-                    case BLACK_HOLE:
-                    case BLACK_HOLE_REQUESTS_ONLY:
-                        onBlackholedDuringSend(requestId, action, destinationTransport);
-                        break;
+                try {
+                    final ConnectionStatus connectionStatus = getConnectionStatus(destinationTransport.getLocalNode());
+                    switch (connectionStatus) {
+                        case BLACK_HOLE:
+                        case BLACK_HOLE_REQUESTS_ONLY:
+                            onBlackholedDuringSend(requestId, action, destinationTransport);
+                            break;
 
-                    case DISCONNECTED:
-                        onDisconnectedDuringSend(requestId, action, destinationTransport);
-                        break;
+                        case DISCONNECTED:
+                            onDisconnectedDuringSend(requestId, action, destinationTransport);
+                            break;
 
-                    case CONNECTED:
-                        onConnectedDuringSend(requestId, action, request, destinationTransport);
-                        break;
+                        case CONNECTED:
+                            onConnectedDuringSend(requestId, action, request, destinationTransport);
+                            break;
 
-                    default:
-                        throw new AssertionError("unexpected status: " + connectionStatus);
+                        default:
+                            throw new AssertionError("unexpected status: " + connectionStatus);
+                    }
+                } finally {
+                    request.decRef();
                 }
             }
 
             @Override
             public void ifRebooted() {
-                deterministicTaskQueue.scheduleNow(() -> execute(new Runnable() {
+                request.decRef();
+                deterministicTaskQueue.scheduleNow(new Runnable() {
                     @Override
                     public void run() {
-                        handleRemoteError(
-                            requestId,
-                            new NodeNotConnectedException(destinationTransport.getLocalNode(), "node rebooted"));
+                        execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                handleRemoteError(
+                                    requestId,
+                                    new NodeNotConnectedException(destinationTransport.getLocalNode(), "node rebooted"));
+                            }
+
+                            @Override
+                            public String toString() {
+                                return "error response (reboot) to " + internalToString();
+                            }
+                        });
                     }
 
                     @Override
                     public String toString() {
-                        return "error response (reboot) to " + internalToString();
+                        return "scheduling of error response (reboot) to " + internalToString();
                     }
-                }));
+                });
             }
 
             @Override

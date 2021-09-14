@@ -360,6 +360,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
                                 RemoteClusterService remoteClusterService, ThreadPool threadPool, ActionListener<SearchResponse> listener,
                                 BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer) {
+
         if (localIndices == null && remoteIndices.size() == 1) {
             //if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             //and we directly perform final reduction in the remote cluster
@@ -367,10 +368,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             OriginalIndices indices = entry.getValue();
-
             SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
-
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
@@ -408,38 +407,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 String clusterAlias = entry.getKey();
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
                 OriginalIndices indices = entry.getValue();
-                SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
-                    parentTaskId,
-                    searchRequest,
-                    indices.indices(),
-                    clusterAlias,
-                    timeProvider.getAbsoluteStartMillis(),
-                    false
-                );
-                ActionListener<SearchResponse> ccsListener = createCCSListener(
-                    clusterAlias,
-                    skipUnavailable,
-                    countDown,
-                    skippedClusters,
-                    exceptions,
-                    searchResponseMerger,
-                    totalClusters,
-                    listener
-                );
+                SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, indices.indices(),
+                    clusterAlias, timeProvider.getAbsoluteStartMillis(), false);
+                ActionListener<SearchResponse> ccsListener = createCCSListener(clusterAlias, skipUnavailable, countDown,
+                    skippedClusters, exceptions, searchResponseMerger, totalClusters,  listener);
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
             }
             if (localIndices != null) {
-                ActionListener<SearchResponse> ccsListener = createCCSListener(
-                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                    false,
-                    countDown,
-                    skippedClusters,
-                    exceptions,
-                    searchResponseMerger,
-                    totalClusters,
-                    listener
-                );
+                ActionListener<SearchResponse> ccsListener = createCCSListener(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    false, countDown, skippedClusters, exceptions, searchResponseMerger, totalClusters, listener);
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(parentTaskId, searchRequest, localIndices.indices(),
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
                 localSearchConsumer.accept(ccsLocalSearchRequest, ccsListener);
@@ -479,10 +456,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             Client clusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             final String[] indices = entry.getValue().indices();
-
             ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
                 .indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
-
             clusterClient.admin().cluster().searchShards(searchShardsRequest,
                 new CCSActionListener<ClusterSearchShardsResponse, Map<String, ClusterSearchShardsResponse>>(
                     clusterAlias, skipUnavailable, responsesCountDown, skippedClusters, exceptions, listener) {

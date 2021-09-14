@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -564,6 +565,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(false));
                     assertThat(nodeId + " has no STATE_NOT_RECOVERED_BLOCK",
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK), equalTo(false));
+
+                    for (final ClusterNode otherNode : clusterNodes) {
+                        if (isConnectedPair(leader, otherNode) && isConnectedPair(otherNode, clusterNode)) {
+                            assertTrue(otherNode.getId() + " is connected to healthy node " + clusterNode.getId(),
+                                otherNode.transportService.nodeConnected(clusterNode.localNode));
+                        }
+                    }
                 } else {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertThat(nodeId + " has no master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(), nullValue());
@@ -571,6 +579,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(true));
                     assertFalse(nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
+
+                    for (final ClusterNode otherNode : clusterNodes) {
+                        if (isConnectedPair(leader, otherNode)) {
+                            assertFalse(otherNode.getId() + " is not connected to removed node " + clusterNode.getId(),
+                                otherNode.transportService.nodeConnected(clusterNode.localNode));
+                        }
+                    }
                 }
             }
 
@@ -1401,13 +1416,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         @Override
-        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
+        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ActionListener<Void> listener) {
             if (clusterStateApplyResponse == ClusterStateApplyResponse.HANG) {
                 if (randomBoolean()) {
                     // apply cluster state, but don't notify listener
-                    super.onNewClusterState(source, clusterStateSupplier, e -> {
-                        // ignore result
-                    });
+                    super.onNewClusterState(
+                        source,
+                        clusterStateSupplier,
+                        ActionListener.wrap(() -> {
+                            // ignore result
+                        }));
                 }
             } else {
                 super.onNewClusterState(source, clusterStateSupplier, listener);
@@ -1416,7 +1434,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         protected void connectToNodesAndWait(ClusterState newClusterState) {
-            // don't do anything, and don't block
+            connectToNodesAsync(newClusterState, () -> {
+                // no need to block waiting for handshakes etc. to complete, it's enough to let the NodeConnectionsService take charge of
+                // these connections
+            });
         }
 
         @Override

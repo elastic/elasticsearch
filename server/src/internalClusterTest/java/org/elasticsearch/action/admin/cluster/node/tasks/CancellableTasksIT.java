@@ -331,7 +331,9 @@ public class CancellableTasksIT extends ESIntegTestCase {
                     if (bannedParent.getNodeId().equals(node.getId()) && randomBoolean()) {
                         Collection<Transport.Connection> childConns = taskManager.startBanOnChildTasks(bannedParent.getId(), "", () -> {});
                         for (Transport.Connection connection : randomSubsetOf(childConns)) {
-                            connection.close();
+                            if (connection.getNode().equals(node) == false) {
+                                connection.close();
+                            }
                         }
                     }
                 }

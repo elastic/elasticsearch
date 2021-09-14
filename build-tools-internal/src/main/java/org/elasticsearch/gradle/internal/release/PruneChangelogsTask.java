@@ -127,7 +127,7 @@ public class PruneChangelogsTask extends DefaultTask {
             if (failedToDelete.isEmpty() == false) {
                 throw new GradleException(
                     "Failed to delete some files:\n\n"
-                        + failedToDelete.stream().map(file -> "\t" + file.getName()).collect(Collectors.joining("\n"))
+                        + failedToDelete.stream().map(file -> "\t" + rootDir.relativize(file.toPath())).collect(Collectors.joining("\n"))
                         + "\n"
                 );
             }

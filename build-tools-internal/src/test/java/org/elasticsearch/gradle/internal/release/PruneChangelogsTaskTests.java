@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.release;
 
 import org.elasticsearch.gradle.internal.release.PruneChangelogsTask.DeleteHelper;
 import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.gradle.api.GradleException;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -19,6 +20,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.internal.release.PruneChangelogsTask.findAndDeleteFiles;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -161,5 +163,37 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
         verify(gitWrapper).listVersions("v7.*");
         verify(gitWrapper, times(2)).listFiles(anyString(), anyString());
         verify(deleteHelper).deleteFiles(Set.of(new File("rootDir/docs/changelog/1234.yml"), new File("rootDir/docs/changelog/5678.yml")));
+    }
+
+    /**
+     * Check that if there are files to delete, and the user has confirmed the delete action
+     * via the CLI option, but some deletes fail, then the task throws an exception.
+     */
+    @Test
+    public void findAndDeleteFiles_withFilesToDeleteButDeleteFails_throwsException() {
+        // given:
+        when(gitWrapper.listVersions(anyString())).thenReturn(Stream.of(QualifiedVersion.of("7.14.0"), QualifiedVersion.of("7.15.0")));
+        when(gitWrapper.listFiles(anyString(), anyString())).thenAnswer(
+            args -> Stream.of("docs/changelog/1234.yml", "docs/changelog/5678.yml")
+        );
+        // Simulate a delete failure
+        when(deleteHelper.deleteFiles(any())).thenReturn(Set.of(new File("rootDir/docs/changelog/1234.yml")));
+
+        // when:
+        GradleException e = expectThrows(GradleException.class, () ->
+            findAndDeleteFiles(
+                gitWrapper,
+                deleteHelper,
+                QualifiedVersion.of("7.16.0"),
+                Set.of(
+                    new File("rootDir/docs/changelog/1234.yml"),
+                    new File("rootDir/docs/changelog/5678.yml"),
+                    new File("rootDir/docs/changelog/9123.yml")
+                ),
+                true,
+                Path.of("rootDir")
+            ));
+
+        assertThat(e.getMessage(), equalTo("Failed to delete some files:\n\n\tdocs/changelog/1234.yml\n"));
     }
 }

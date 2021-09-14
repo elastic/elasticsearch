@@ -13,15 +13,21 @@ import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigTests;
 import org.elasticsearch.client.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfigTests;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.client.transform.transforms.SourceConfigTests.randomSourceConfig;
@@ -32,12 +38,35 @@ import static org.hamcrest.Matchers.containsString;
 public class PreviewTransformRequestTests extends AbstractXContentTestCase<PreviewTransformRequest> {
     @Override
     protected PreviewTransformRequest createTestInstance() {
-        return new PreviewTransformRequest(TransformConfigTests.randomTransformConfig());
+        return randomBoolean()
+            ? new PreviewTransformRequest(randomAlphaOfLengthBetween(1, 10))
+            : new PreviewTransformRequest(TransformConfigTests.randomTransformConfig());
     }
 
     @Override
     protected PreviewTransformRequest doParseInstance(XContentParser parser) throws IOException {
-        return new PreviewTransformRequest(TransformConfig.fromXContent(parser));
+        return fromXContent(parser);
+    }
+
+    public static PreviewTransformRequest fromXContent(XContentParser parser) throws IOException {
+        Map<String, Object> content = parser.map();
+        if (content.size() == 1 && content.containsKey(TransformConfig.ID.getPreferredName())) {
+            // The request only contains transform id so instead of parsing TransformConfig (which is pointless in this case),
+            // let's just fetch the transform config by id later on.
+            String transformId = (String) content.get(TransformConfig.ID.getPreferredName());
+            return new PreviewTransformRequest(transformId);
+        }
+        try (
+            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
+            XContentParser newParser = XContentType.JSON.xContent()
+                .createParser(
+                    parser.getXContentRegistry(),
+                    LoggingDeprecationHandler.INSTANCE,
+                    BytesReference.bytes(xContentBuilder).streamInput()
+                )
+        ) {
+            return new PreviewTransformRequest(TransformConfig.fromXContent(newParser));
+        }
     }
 
     @Override
@@ -54,10 +83,13 @@ public class PreviewTransformRequestTests extends AbstractXContentTestCase<Previ
         return new NamedXContentRegistry(namedXContents);
     }
 
+    public void testConstructorThrowsNPE() {
+        expectThrows(NullPointerException.class, () -> new PreviewTransformRequest((String) null));
+        expectThrows(NullPointerException.class, () -> new PreviewTransformRequest((TransformConfig) null));
+    }
+
     public void testValidate() {
         assertThat(new PreviewTransformRequest(TransformConfigTests.randomTransformConfig()).validate(), isEmpty());
-        assertThat(new PreviewTransformRequest(null).validate().get().getMessage(),
-                containsString("preview requires a non-null transform config"));
 
         // null id and destination is valid
         TransformConfig config = TransformConfig.forPreview(randomSourceConfig(), PivotConfigTests.randomPivotConfig());

@@ -28,11 +28,18 @@ public class RestTestUtil {
     }
 
     /**
-     * Creates a task with the source set name of type {@link RestIntegTestTask}
+     * Creates a {@link RestIntegTestTask} task with the source set of the same name
      */
     public static Provider<RestIntegTestTask> registerTestTask(Project project, SourceSet sourceSet) {
+        return registerTestTask(project, sourceSet, sourceSet.getName());
+    }
+
+    /**
+     * Creates a {@link RestIntegTestTask} task with a custom name for the provided source set
+     */
+    public static Provider<RestIntegTestTask> registerTestTask(Project project, SourceSet sourceSet, String taskName) {
         // lazily create the test task
-        return project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
+        return project.getTasks().register(taskName, RestIntegTestTask.class, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             testTask.setDescription("Runs the REST tests against an external cluster");
             project.getPlugins().withType(JavaPlugin.class, t ->

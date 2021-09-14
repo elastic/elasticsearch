@@ -43,6 +43,7 @@ public class LessThanOrEqualToAssertion  extends Assertion {
     }
 
     @Override
+    @SuppressWarnings({"rawtypes", "unchecked"})
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is less than or equal to [{}] (field: [{}])", actualValue, expectedValue, getField());
         assertThat("value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])",

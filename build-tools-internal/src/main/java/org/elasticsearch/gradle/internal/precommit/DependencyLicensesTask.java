@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -115,6 +116,11 @@ public class DependencyLicensesTask extends DefaultTask {
     private Set<String> ignoreShas = new HashSet<>();
 
     /**
+     *  Names of files that should be ignored by the check
+     */
+    private LinkedHashSet<String> ignoreFiles = new LinkedHashSet<>();
+
+    /**
      * Add a mapping from a regex pattern for the jar name, to a prefix to find
      * the LICENSE and NOTICE file for that jar.
      */
@@ -164,6 +170,13 @@ public class DependencyLicensesTask extends DefaultTask {
         ignoreShas.add(dep);
     }
 
+    /**
+     * Add a file that should be ignored by the check. This should be used for additional license files not tied to jar dependency
+     */
+    public void ignoreFile(String file) {
+        ignoreFiles.add(file);
+    }
+
     @TaskAction
     public void checkDependencies() throws IOException, NoSuchAlgorithmException {
         if (dependencies == null) {
@@ -201,6 +214,10 @@ public class DependencyLicensesTask extends DefaultTask {
                 sources.put(name, false);
             }
         }
+
+        licenses.keySet().removeAll(ignoreFiles);
+        notices.keySet().removeAll(ignoreFiles);
+        sources.keySet().removeAll(ignoreFiles);
 
         checkDependencies(licenses, notices, sources, shaFiles);
 
@@ -336,6 +353,12 @@ public class DependencyLicensesTask extends DefaultTask {
         }
 
         return fileName;
+    }
+
+    @Input
+    @Optional
+    public LinkedHashSet<String> getIgnoreFiles() {
+        return new LinkedHashSet<>(ignoreFiles);
     }
 
     @Input

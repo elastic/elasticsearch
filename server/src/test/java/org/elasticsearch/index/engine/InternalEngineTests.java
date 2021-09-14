@@ -76,7 +76,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -333,6 +332,9 @@ public class InternalEngineTests extends EngineTestCase {
             final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
             // now, optimize and wait for merges, see that we have no merge flag
             engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+
+            // ensure that we have released the older segments with a refresh so they can be removed
+            assertFalse(engine.refreshNeeded());
 
             for (Segment segment : engine.segments(false)) {
                 assertThat(segment.getMergeId(), nullValue());
@@ -2601,7 +2603,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSettings() {
-        CodecService codecService = new CodecService(null, logger);
+        CodecService codecService = new CodecService(null);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -2933,7 +2935,7 @@ public class InternalEngineTests extends EngineTestCase {
                 newMergePolicy(),
                 config.getAnalyzer(),
                 config.getSimilarity(),
-                new CodecService(null, logger),
+                new CodecService(null),
                 config.getEventListener(),
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -2946,7 +2948,8 @@ public class InternalEngineTests extends EngineTestCase {
                 () -> UNASSIGNED_SEQ_NO,
                 () -> RetentionLeases.EMPTY,
                 primaryTerm::get,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                null);
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
@@ -5666,7 +5669,6 @@ public class InternalEngineTests extends EngineTestCase {
             indexer.join();
             refresher.join();
         }
-        assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
     }
 
     public void testPruneAwayDeletedButRetainedIds() throws Exception {
@@ -6016,11 +6018,11 @@ public class InternalEngineTests extends EngineTestCase {
                 createTempDir(), config.getTranslogConfig().getIndexSettings(), config.getTranslogConfig().getBigArrays());
             EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getThreadPool(),
                 config.getIndexSettings(), warmer, store, config.getMergePolicy(), config.getAnalyzer(),
-                config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
+                config.getSimilarity(), new CodecService(null), config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), translogConfig, config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(expectThrows(Throwable.class, () -> engine.acquireSearcher("test")).getMessage(),

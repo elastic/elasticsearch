@@ -15,7 +15,9 @@ import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.GeneralScriptException;
+import org.elasticsearch.script.LeafReaderContextSupplier;
 import org.elasticsearch.script.NumberSortScript;
 
 /**
@@ -37,10 +39,18 @@ class ExpressionNumberSortScript implements NumberSortScript.LeafFactory {
     }
 
     @Override
-    public NumberSortScript newInstance(final LeafReaderContext leaf) throws IOException {
+    public NumberSortScript newInstance(final DocReader reader) throws IOException {
+        // Use DocReader to get the leaf context while transitioning to DocReader for Painless.  DocReader for expressions should follow.
+        if (reader instanceof LeafReaderContextSupplier == false) {
+            throw new IllegalStateException(
+                "Expected LeafReaderContextSupplier when creating expression NumberSortScript instead of [" + reader + "]"
+            );
+        }
+        final LeafReaderContext ctx = ((LeafReaderContextSupplier) reader).getLeafReaderContext();
+
         return new NumberSortScript() {
             // Fake the scorer until setScorer is called.
-            DoubleValues values = source.getValues(leaf, new DoubleValues() {
+            DoubleValues values = source.getValues(ctx, new DoubleValues() {
                 @Override
                 public double doubleValue() {
                     return 0.0D;

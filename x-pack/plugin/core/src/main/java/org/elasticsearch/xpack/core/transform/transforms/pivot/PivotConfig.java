@@ -8,18 +8,21 @@
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -27,8 +30,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -85,7 +88,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
         this.maxPageSearchSize = maxPageSearchSize;
 
         if (maxPageSearchSize != null) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.API,
                 TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
                 "[max_page_search_size] is deprecated inside pivot please use settings instead"
@@ -109,23 +112,6 @@ public class PivotConfig implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    public void toCompositeAggXContent(XContentBuilder builder) throws IOException {
-        builder.startObject();
-        builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
-        builder.startArray();
-
-        for (Entry<String, SingleGroupSource> groupBy : groups.getGroups().entrySet()) {
-            builder.startObject();
-            builder.startObject(groupBy.getKey());
-            builder.field(groupBy.getValue().getType().value(), groupBy.getValue());
-            builder.endObject();
-            builder.endObject();
-        }
-
-        builder.endArray();
-        builder.endObject(); // sources
     }
 
     @Override
@@ -191,6 +177,25 @@ public class PivotConfig implements Writeable, ToXContentObject {
             validationException = addValidationError(failure, validationException);
         }
         return validationException;
+    }
+
+    public void checkForDeprecations(String id, NamedXContentRegistry namedXContentRegistry, Consumer<DeprecationIssue> onDeprecation) {
+        if (maxPageSearchSize != null) {
+            onDeprecation.accept(
+                // max_page_search_size got deprecated in 7.8, still accepted for 8.x, to be removed in 9.x
+                new DeprecationIssue(
+                    Level.WARNING,
+                    "Transform [" + id + "] uses deprecated max_page_search_size",
+                    TransformDeprecations.BREAKING_CHANGES_BASE_URL,
+                    "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                    false,
+                    null
+                )
+            );
+        }
+
+        groups.checkForDeprecations(id, namedXContentRegistry, onDeprecation);
+        aggregationConfig.checkForDeprecations(id, namedXContentRegistry, onDeprecation);
     }
 
     public static PivotConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {

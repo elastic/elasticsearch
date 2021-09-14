@@ -58,7 +58,7 @@ public class WatchParser {
     private final InputRegistry inputRegistry;
     private final CryptoService cryptoService;
     private final Clock clock;
-    private final ExecutableInput defaultInput;
+    private final ExecutableInput<?, ?> defaultInput;
     private final ExecutableCondition defaultCondition;
     private final List<ActionWrapper> defaultActions;
 
@@ -131,10 +131,10 @@ public class WatchParser {
     public Watch parse(String id, boolean includeStatus, WatcherXContentParser parser, long sourceSeqNo, long sourcePrimaryTerm)
         throws IOException {
         Trigger trigger = null;
-        ExecutableInput input = defaultInput;
+        ExecutableInput<?, ?> input = defaultInput;
         ExecutableCondition condition = defaultCondition;
         List<ActionWrapper> actions = defaultActions;
-        ExecutableTransform transform = null;
+        ExecutableTransform<?, ?> transform = null;
         TimeValue throttlePeriod = null;
         Map<String, Object> metatdata = null;
         WatchStatus status = null;
@@ -146,7 +146,7 @@ public class WatchParser {
                 throw new ElasticsearchParseException("could not parse watch [{}]. null token", id);
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == null || currentFieldName == null) {
+            } else if (currentFieldName == null) {
                 throw new ElasticsearchParseException("could not parse watch [{}], unexpected token [{}]", id, token);
             } else if (WatchField.TRIGGER.match(currentFieldName, parser.getDeprecationHandler())) {
                 trigger = triggerService.parseTrigger(id, parser);

@@ -40,6 +40,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -140,6 +141,15 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
     }
 
+    @Override
+    protected void createRepository(String repoName, String type, Settings.Builder settings, boolean verify) {
+        // add use for peer recovery setting randomly to verify that these features work together.
+        Settings.Builder newSettings = randomBoolean()
+            ? settings
+            : Settings.builder().put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true).put(settings.build());
+        super.createRepository(repoName, type, newSettings, verify);
+    }
+
     protected String mountSnapshot(String repositoryName, String snapshotName, String indexName, Settings restoredIndexSettings)
         throws Exception {
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -224,12 +234,11 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
 
     protected void assertShardFolders(String indexName, boolean snapshotDirectory) throws IOException {
         final Index restoredIndex = resolveIndex(indexName);
-        final String customDataPath = resolveCustomDataPath(indexName);
         final ShardId shardId = new ShardId(restoredIndex, 0);
         boolean shardFolderFound = false;
         for (String node : internalCluster().getNodeNames()) {
             final NodeEnvironment service = internalCluster().getInstance(NodeEnvironment.class, node);
-            final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, customDataPath);
+            final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, null);
             if (shardPath != null && Files.exists(shardPath.getDataPath())) {
                 shardFolderFound = true;
                 assertEquals(snapshotDirectory, Files.notExists(shardPath.resolveIndex()));

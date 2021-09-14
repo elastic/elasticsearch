@@ -55,6 +55,8 @@ import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasProperty;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -307,8 +309,10 @@ public class TransportCloseJobActionTests extends ESTestCase {
             TransportCloseJobAction.buildWaitForCloseRequest(
                 openJobIds, closingJobIds, tasksBuilder.build(), mock(AnomalyDetectionAuditor.class));
         assertEquals(waitForCloseRequest.jobsToFinalize, Arrays.asList("openjob1", "openjob2"));
-        assertEquals(waitForCloseRequest.persistentTaskIds,
-                Arrays.asList("job-openjob1", "job-openjob2", "job-closingjob1"));
+        assertThat(waitForCloseRequest.persistentTasks, containsInAnyOrder(
+            hasProperty("id", equalTo("job-openjob1")),
+            hasProperty("id", equalTo("job-openjob2")),
+            hasProperty("id", equalTo("job-closingjob1"))));
         assertTrue(waitForCloseRequest.hasJobsToWaitFor());
 
         waitForCloseRequest = TransportCloseJobAction.buildWaitForCloseRequest(Collections.emptyList(), Collections.emptyList(),

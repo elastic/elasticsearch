@@ -8,10 +8,10 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -38,8 +38,10 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
 
     private static final ParseField COMPRESSION_FIELD = new ParseField("compression");
 
-    public static final ObjectParser<MedianAbsoluteDeviationAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, MedianAbsoluteDeviationAggregationBuilder::new);
+    public static final ObjectParser<MedianAbsoluteDeviationAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        MedianAbsoluteDeviationAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(MedianAbsoluteDeviationAggregationBuilder::compression, COMPRESSION_FIELD);
@@ -60,9 +62,11 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
         compression = in.readDouble();
     }
 
-    protected MedianAbsoluteDeviationAggregationBuilder(MedianAbsoluteDeviationAggregationBuilder clone,
-                                                        AggregatorFactories.Builder factoriesBuilder,
-                                                        Map<String, Object> metadata) {
+    protected MedianAbsoluteDeviationAggregationBuilder(
+        MedianAbsoluteDeviationAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.compression = clone.compression;
     }
@@ -80,7 +84,8 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     public MedianAbsoluteDeviationAggregationBuilder compression(double compression) {
         if (compression <= 0d) {
             throw new IllegalArgumentException(
-                "[" + COMPRESSION_FIELD.getPreferredName() + "] must be greater than 0. Found [" + compression + "] in [" + name + "]");
+                "[" + COMPRESSION_FIELD.getPreferredName() + "] must be greater than 0. Found [" + compression + "] in [" + name + "]"
+            );
         }
         this.compression = compression;
         return this;
@@ -102,17 +107,26 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder)
-        throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
 
-        MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry()
+            .getAggregator(REGISTRY_KEY, config);
 
-        return new MedianAbsoluteDeviationAggregatorFactory(name, config, context,
-            parent, subFactoriesBuilder, metadata, compression, aggregatorSupplier);
+        return new MedianAbsoluteDeviationAggregatorFactory(
+            name,
+            config,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            compression,
+            aggregatorSupplier
+        );
     }
 
     @Override

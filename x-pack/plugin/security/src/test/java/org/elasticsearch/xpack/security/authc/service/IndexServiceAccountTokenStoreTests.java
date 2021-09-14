@@ -112,6 +112,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = new FilterClient(mockClient) {
             @Override
+            @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 requestHolder.set(request);
@@ -135,12 +136,12 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         store = new IndexServiceAccountTokenStore(Settings.EMPTY,
             threadPool,
             Clock.systemUTC(),
@@ -385,9 +386,14 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
 
     private BulkResponse createSingleBulkResponse() {
         return new BulkResponse(new BulkItemResponse[] {
-            new BulkItemResponse(randomInt(), OpType.CREATE, new IndexResponse(
+           BulkItemResponse.success(randomInt(), OpType.CREATE, new IndexResponse(
                 mock(ShardId.class), randomAlphaOfLengthBetween(3, 8), randomLong(), randomLong(), randomLong(), true
             ))
         }, randomLong());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
     }
 }

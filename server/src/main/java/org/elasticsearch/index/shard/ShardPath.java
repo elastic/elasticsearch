@@ -19,7 +19,6 @@ import org.elasticsearch.index.IndexSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -165,8 +164,7 @@ public final class ShardPath {
         }
     }
 
-    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, IndexSettings indexSettings,
-                                                  long avgShardSizeInBytes, Map<Path,Integer> dataPathToShardCount) throws IOException {
+    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, IndexSettings indexSettings) {
 
         final Path dataPath;
         final Path statePath;

@@ -27,7 +27,7 @@ public class MultiLineStringBuilderTests extends AbstractShapeBuilderTestCase<Mu
     }
 
     static MultiLineStringBuilder mutate(MultiLineStringBuilder original) throws IOException {
-        MultiLineStringBuilder mutation = (MultiLineStringBuilder) copyShape(original);
+        MultiLineStringBuilder mutation = copyShape(original);
         Coordinate[][] coordinates = mutation.coordinates();
         if (coordinates.length > 0) {
             int lineToChange = randomInt(coordinates.length - 1);

@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotFeatureSetUsage;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
+
 public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final XPackLicenseState licenseState;
@@ -71,7 +73,7 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
         listener.onResponse(
             new XPackUsageFeatureResponse(
                 new SearchableSnapshotFeatureSetUsage(
-                    licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS),
+                    SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState),
                     numFullCopySnapIndices,
                     numSharedCacheSnapIndices
                 )

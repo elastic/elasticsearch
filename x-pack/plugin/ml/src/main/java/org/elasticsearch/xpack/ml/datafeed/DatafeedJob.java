@@ -53,7 +53,6 @@ class DatafeedJob {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
-    static final long MISSING_DATA_CHECK_INTERVAL_MS = 900_000; //15 minutes in ms
 
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
@@ -67,6 +66,7 @@ class DatafeedJob {
     private final Supplier<Long> currentTimeSupplier;
     private final DelayedDataDetector delayedDataDetector;
     private final Integer maxEmptySearches;
+    private final long delayedDataCheckFreq;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
@@ -76,12 +76,13 @@ class DatafeedJob {
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
+    private volatile long consecutiveDelayedDataBuckets;
 
     DatafeedJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
                 DataExtractorFactory dataExtractorFactory, DatafeedTimingStatsReporter timingStatsReporter, Client client,
                 AnomalyDetectionAuditor auditor, AnnotationPersister annotationPersister, Supplier<Long> currentTimeSupplier,
                 DelayedDataDetector delayedDataDetector, Integer maxEmptySearches, long latestFinalBucketEndTimeMs, long latestRecordTimeMs,
-                boolean haveSeenDataPreviously) {
+                boolean haveSeenDataPreviously, long delayedDataCheckFreq) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
@@ -100,6 +101,7 @@ class DatafeedJob {
             lastEndTimeMs = lastEndTime;
         }
         this.haveEverSeenData = haveSeenDataPreviously;
+        this.delayedDataCheckFreq = delayedDataCheckFreq;
     }
 
     void isolate() {
@@ -223,10 +225,27 @@ class DatafeedJob {
                     && annotation.getEndTimestamp().equals(lastDataCheckAnnotationWithId.v2().getEndTimestamp())) {
                     return;
                 }
-
-                // Creating a warning in addition to updating/creating our annotation. This allows the issue to be plainly visible
-                // in the job list page.
-                auditor.warning(jobId, msg);
+                if (lastDataCheckAnnotationWithId != null) {
+                    // NOTE: this check takes advantage of the following:
+                    // * Bucket span is constant
+                    // * The endtime has changed since our previous annotation
+                    // * DatafeedJob objects only ever move forward in time
+                    // All that to say, checking if the lastBucket overlaps the previous annotation end-time, that means that this current
+                    // bucket with missing data is consecutive to the previous one.
+                    if (lastBucket.getEpoch() * 1000 <= (lastDataCheckAnnotationWithId.v2().getEndTimestamp().getTime() + 1)) {
+                        consecutiveDelayedDataBuckets++;
+                    } else {
+                        consecutiveDelayedDataBuckets = 0;
+                    }
+                } else {
+                    consecutiveDelayedDataBuckets = 0;
+                }
+                // to prevent audit log spam on many consecutive buckets missing data, we should throttle writing the messages
+                if (shouldWriteDelayedDataAudit()) {
+                    // Creating a warning in addition to updating/creating our annotation. This allows the issue to be plainly visible
+                    // in the job list page.
+                    auditor.warning(jobId, msg);
+                }
 
                 if (lastDataCheckAnnotationWithId == null) {
                     lastDataCheckAnnotationWithId = annotationPersister.persistAnnotation(null, annotation);
@@ -237,6 +256,16 @@ class DatafeedJob {
                 }
             }
         }
+    }
+
+    private boolean shouldWriteDelayedDataAudit() {
+        if (consecutiveDelayedDataBuckets < 3) {
+            return true;
+        }
+        if (consecutiveDelayedDataBuckets < 100) {
+            return consecutiveDelayedDataBuckets % 10 == 0;
+        }
+        return consecutiveDelayedDataBuckets % 100 == 0;
     }
 
     private Annotation createDelayedDataAnnotation(Date startTime, Date endTime, String msg) {
@@ -266,7 +295,7 @@ class DatafeedJob {
     }
 
     /**
-     * We wait a static interval of 15 minutes till the next missing data check.
+     * We wait for `delayedDataCheckFreq` interval till the next missing data check.
      *
      * However, if our delayed data window is smaller than that, we will probably want to check at every available window (if freq. allows).
      * This is to help to miss as few buckets in the delayed data check as possible.
@@ -276,8 +305,7 @@ class DatafeedJob {
      * probably not even be noticeable at such a large timescale.
      */
     private boolean checkForMissingDataTriggered() {
-        return this.currentTimeSupplier.get() > this.lastDataCheckTimeMs
-            + Math.min(MISSING_DATA_CHECK_INTERVAL_MS, delayedDataDetector.getWindow());
+        return this.currentTimeSupplier.get() > this.lastDataCheckTimeMs + Math.min(delayedDataCheckFreq, delayedDataDetector.getWindow());
     }
 
     /**

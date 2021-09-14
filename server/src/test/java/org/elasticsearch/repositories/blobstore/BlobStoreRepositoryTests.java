@@ -15,7 +15,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -29,6 +31,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -50,6 +53,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -199,6 +203,31 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 2L));
     }
 
+    public void testCorruptIndexLatestFile() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+
+        final long generation = randomLong();
+        final byte[] generationBytes = Numbers.longToBytes(generation);
+
+        final byte[] buffer = new byte[16];
+        System.arraycopy(generationBytes, 0, buffer, 0, 8);
+
+        for (int i = 0; i < 16; i++) {
+            repository.blobContainer().writeBlob(BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
+            if (i == 8) {
+                assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(generation));
+            } else {
+                assertThat(
+                    expectThrows(RepositoryException.class, repository::readSnapshotIndexLatestBlob).getMessage(),
+                    allOf(
+                        containsString("exception reading blob [index.latest]: expected 8 bytes"),
+                        i < 8 ? containsString("blob was " + i + " bytes") : containsString("blob was longer")
+                    )
+                );
+            }
+        }
+    }
+
     public void testRepositoryDataConcurrentModificationNotAllowed() throws Exception {
         final BlobStoreRepository repository = setupRepo();
 
@@ -337,7 +366,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             int numIndices = inclIndices ? randomIntBetween(0, 20) : 0;
             final ShardGenerations.Builder builder = ShardGenerations.builder();
             for (int j = 0; j < numIndices; j++) {
-                builder.put(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), 0, "1");
+                builder.put(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), 0, new ShardGeneration(1L));
             }
             final ShardGenerations shardGenerations = builder.build();
             final Map<IndexId, String> indexLookup = shardGenerations.indices()

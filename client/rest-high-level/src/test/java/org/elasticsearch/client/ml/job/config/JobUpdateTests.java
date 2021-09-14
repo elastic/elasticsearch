@@ -26,7 +26,7 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
 
     /**
      * Creates a completely random update when the job is null
-     * or a random update that is is valid for the given job
+     * or a random update that is valid for the given job
      */
     public static JobUpdate createRandom(String jobId) {
         JobUpdate.Builder update = new JobUpdate.Builder(jobId);
@@ -73,6 +73,9 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
         }
         if (randomBoolean()) {
             update.setAllowLazyOpen(randomBoolean());
+        }
+        if (randomBoolean()) {
+            update.setModelPruneWindow(TimeValue.timeValueDays(randomIntBetween(1, 100)));
         }
 
         return update.build();

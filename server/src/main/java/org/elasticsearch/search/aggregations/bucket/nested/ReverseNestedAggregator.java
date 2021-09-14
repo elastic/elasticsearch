@@ -14,9 +14,9 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -37,9 +37,15 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
     private final Query parentFilter;
     private final BitSetProducer parentBitsetProducer;
 
-    public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper,
-            AggregationContext context, Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
-            throws IOException {
+    public ReverseNestedAggregator(
+        String name,
+        AggregatorFactories factories,
+        NestedObjectMapper objectMapper,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
         if (objectMapper == null) {
             parentFilter = Queries.newNonNestedFilter();
@@ -82,8 +88,15 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalReverseNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalReverseNested(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
+        );
     }
 
     @Override

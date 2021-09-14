@@ -248,6 +248,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
+
+        // We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+        // other if we allow them to set the number of available processors as it's set-once in Netty.
+        System.setProperty("es.set.netty.runtime.available.processors", "false");
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -1091,6 +1095,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Returns size random values
      */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> List<T> randomSubsetOf(int size, T... values) {
         List<T> list = arrayAsArrayList(values);
         return randomSubsetOf(size, list);

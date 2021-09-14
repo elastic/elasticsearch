@@ -2,6 +2,9 @@
 [[breaking_80_packaging_changes]]
 ==== Packaging changes
 
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
 .Java 11 is required.
 [%collapsible]
@@ -14,9 +17,7 @@ line tools.
 Use Java 11 or higher. Attempts to run {es} 8.0 using earlier Java versions will
 fail.
 ====
-//end::notable-breaking-changes[]
 
-//tag::notable-breaking-changes[]
 .JAVA_HOME is no longer supported.
 [%collapsible]
 ====

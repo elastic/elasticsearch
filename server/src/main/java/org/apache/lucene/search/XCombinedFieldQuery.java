@@ -18,6 +18,8 @@
  */
 package org.apache.lucene.search;
 
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
@@ -42,6 +44,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -67,6 +70,9 @@ import java.util.TreeMap;
  * be encoded using {@link SmallFloat#intToByte4}. These requirements hold for all similarities that
  * compute norms the same way as {@link SimilarityBase#computeNorm}, which includes {@link
  * BM25Similarity} and {@link DFRSimilarity}. Per-field similarities are not supported.
+ *
+ * <p>The query also requires that either all fields or no fields have norms enabled. Having only
+ * some fields with norms enabled can result in errors.
  *
  * <p>The scoring is based on BM25F's simple formula described in:
  * http://www.staff.city.ac.uk/~sb317/papers/foundations_bm25_review.pdf. This query implements the
@@ -134,6 +140,19 @@ public final class XCombinedFieldQuery extends Query implements Accountable {
       this.field = field;
       this.weight = weight;
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+      FieldAndWeight that = (FieldAndWeight) o;
+      return Float.compare(that.weight, weight) == 0 && Objects.equals(field, that.field);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(field, weight);
+    }
   }
 
   // sorted map for fields.
@@ -199,13 +218,19 @@ public final class XCombinedFieldQuery extends Query implements Accountable {
   }
 
   @Override
-  public int hashCode() {
-    return 31 * classHash() + Arrays.hashCode(terms);
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (sameClassAs(o) == false) return false;
+    XCombinedFieldQuery that = (XCombinedFieldQuery) o;
+    return Objects.equals(fieldAndWeights, that.fieldAndWeights) && Arrays.equals(terms, that.terms);
   }
 
   @Override
-  public boolean equals(Object other) {
-    return sameClassAs(other) && Arrays.equals(terms, ((XCombinedFieldQuery) other).terms);
+  public int hashCode() {
+    int result = classHash();
+    result = 31 * result + Objects.hash(fieldAndWeights);
+    result = 31 * result + Arrays.hashCode(terms);
+    return result;
   }
 
   @Override
@@ -244,12 +269,36 @@ public final class XCombinedFieldQuery extends Query implements Accountable {
   @Override
   public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost)
       throws IOException {
+    validateConsistentNorms(searcher.getIndexReader());
     if (scoreMode.needsScores()) {
       return new CombinedFieldWeight(this, searcher, scoreMode, boost);
     } else {
       // rewrite to a simple disjunction if the score is not needed.
       Query bq = rewriteToBoolean();
       return searcher.rewrite(bq).createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, boost);
+    }
+  }
+
+   private void validateConsistentNorms(IndexReader reader) {
+    boolean allFieldsHaveNorms = true;
+    boolean noFieldsHaveNorms = true;
+
+    for (LeafReaderContext context : reader.leaves()) {
+      FieldInfos fieldInfos = context.reader().getFieldInfos();
+      for (String field : fieldAndWeights.keySet()) {
+        FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
+        if (fieldInfo != null) {
+          allFieldsHaveNorms &= fieldInfo.hasNorms();
+          noFieldsHaveNorms &= fieldInfo.omitsNorms();
+        }
+      }
+    }
+
+    if (allFieldsHaveNorms == false && noFieldsHaveNorms == false) {
+      throw new IllegalArgumentException(
+          getClass().getSimpleName()
+              + " requires norms to be consistent across fields: some fields cannot "
+              + " have norms enabled, while others have norms disabled");
     }
   }
 

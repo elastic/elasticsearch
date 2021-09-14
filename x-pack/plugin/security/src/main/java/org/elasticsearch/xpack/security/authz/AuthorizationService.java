@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -42,6 +43,8 @@ import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -84,6 +87,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -181,7 +185,8 @@ public class AuthorizationService {
          * When the returned {@code StoredContext} is closed, ALL the original headers are restored.
          */
         try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false,
-                ACTION_SCOPE_AUTHORIZATION_KEYS)) { // this does not clear {@code AuthorizationServiceField.ORIGINATING_ACTION_KEY}
+                ACTION_SCOPE_AUTHORIZATION_KEYS)) {
+            // this does not clear {@code AuthorizationServiceField.ORIGINATING_ACTION_KEY}
             // prior to doing any authorization lets set the originating action in the thread context
             // the originating action is the current action if no originating action has yet been set in the current thread context
             // if there is already an original action, that stays put (eg. the current action is a child action)
@@ -273,18 +278,39 @@ public class AuthorizationService {
         final String action = requestInfo.getAction();
         final AuthorizationEngine authzEngine = getAuthorizationEngine(authentication);
         final AuditTrail auditTrail = auditTrailService.get();
+
         if (ClusterPrivilegeResolver.isClusterAction(action)) {
             final ActionListener<AuthorizationResult> clusterAuthzListener =
                 wrapPreservingContext(new AuthorizationResultListener<>(result -> {
                         threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                         listener.onResponse(null);
                     }, listener::onFailure, requestInfo, requestId, authzInfo), threadContext);
-            authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener);
+            authzEngine.authorizeClusterAction(requestInfo, authzInfo, ActionListener.wrap(result -> {
+                if (false == result.isGranted() && QueryApiKeyAction.NAME.equals(action)) {
+                    assert request instanceof QueryApiKeyRequest : "request does not match action";
+                    final QueryApiKeyRequest queryApiKeyRequest = (QueryApiKeyRequest) request;
+                    if (false == queryApiKeyRequest.isFilterForCurrentUser()) {
+                        queryApiKeyRequest.setFilterForCurrentUser();
+                        authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener);
+                        return;
+                    }
+                }
+                clusterAuthzListener.onResponse(result);
+            }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
-            final AsyncSupplier<Set<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener ->
-                authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metadata.getIndicesLookup(),
-                    authzIndicesListener));
+            final AsyncSupplier<Set<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener -> {
+                LoadAuthorizedIndiciesTimeChecker timeChecker = LoadAuthorizedIndiciesTimeChecker.start(requestInfo, authzInfo);
+                authzEngine.loadAuthorizedIndices(
+                    requestInfo,
+                    authzInfo,
+                    metadata.getIndicesLookup(),
+                    authzIndicesListener.map(authzIndices -> {
+                        timeChecker.done(authzIndices);
+                        return authzIndices;
+                    })
+                );
+            });
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener ->
                     authorizedIndicesSupplier.getAsync(
                         ActionListener.wrap(
@@ -402,8 +428,8 @@ public class AuthorizationService {
     }
 
     private AuthorizationEngine getAuthorizationEngineForUser(final User user) {
-        if (rbacEngine != authorizationEngine && licenseState.isSecurityEnabled() &&
-            licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)) {
+        if (rbacEngine != authorizationEngine
+            && licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)) {
             if (ClientReservedRealm.isReserved(user.principal(), settings) || isInternal(user)) {
                 return rbacEngine;
             } else {
@@ -732,6 +758,57 @@ public class AuthorizationService {
                 }
             }
             valueFuture.addListener(listener);
+        }
+    }
+
+    static class LoadAuthorizedIndiciesTimeChecker {
+        private static final int WARN_THRESHOLD_MS = 200;
+        private static final int INFO_THRESHOLD_MS = 50;
+        private static final int DEBUG_THRESHOLD_MS = 10;
+
+        private final long startNanos;
+        private final RequestInfo requestInfo;
+
+        LoadAuthorizedIndiciesTimeChecker(long startNanos, RequestInfo requestInfo) {
+            this.startNanos = startNanos;
+            this.requestInfo = requestInfo;
+        }
+
+        public static LoadAuthorizedIndiciesTimeChecker start(RequestInfo requestInfo, AuthorizationInfo authzInfo) {
+            return new LoadAuthorizedIndiciesTimeChecker(System.nanoTime(), requestInfo);
+        }
+
+        public void done(Collection<String> indices) {
+            final long end = System.nanoTime();
+            final long millis = TimeUnit.NANOSECONDS.toMillis(end - startNanos);
+            if (millis > WARN_THRESHOLD_MS) {
+                logger.warn(
+                    "Resolving [{}] indices for action [{}] and user [{}] took [{}ms] which is greater than the threshold of {}ms;"
+                        + " The index privileges for this user may be too complex for this cluster.",
+                    indices.size(),
+                    requestInfo.getAction(),
+                    requestInfo.getAuthentication().getUser().principal(),
+                    millis,
+                    WARN_THRESHOLD_MS
+                );
+            } else {
+                final Level level;
+                if (millis > INFO_THRESHOLD_MS) {
+                    level = Level.INFO;
+                } else if (millis > DEBUG_THRESHOLD_MS) {
+                    level = Level.DEBUG;
+                } else {
+                    level = Level.TRACE;
+                }
+                logger.log(
+                    level,
+                    "Took [{}ms] to resolve [{}] indices for action [{}] and user [{}]",
+                    millis,
+                    indices.size(),
+                    requestInfo.getAction(),
+                    requestInfo.getAuthentication().getUser().principal()
+                );
+            }
         }
     }
 

@@ -227,10 +227,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         boolean runConnect = false;
         final ActionListener<Void> listener =
             ContextPreservingActionListener.wrapPreservingContext(connectListener, transportService.getThreadPool().getThreadContext());
-        boolean closed;
+        boolean isCurrentlyClosed;
         synchronized (mutex) {
-            closed = this.closed.get();
-            if (closed) {
+            isCurrentlyClosed = this.closed.get();
+            if (isCurrentlyClosed) {
                 assert listeners.isEmpty();
             } else {
                 if (listeners.size() >= maxPendingConnectionListeners) {
@@ -243,7 +243,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 runConnect = listeners.size() == 1;
             }
         }
-        if (closed) {
+        if (isCurrentlyClosed) {
             connectListener.onFailure(new AlreadyClosedException("connect handler is already closed"));
             return;
         }

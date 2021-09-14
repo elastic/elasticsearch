@@ -82,11 +82,16 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     );
                 }
 
+                final boolean nodeSeen = currentState.getNodes().nodeExists(request.getNodeId());
+
                 SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
                     .setNodeId(request.getNodeId())
                     .setType(request.getType())
                     .setReason(request.getReason())
                     .setStartedAtMillis(System.currentTimeMillis())
+                    .setNodeSeen(nodeSeen)
+                    .setAllocationDelay(request.getAllocationDelay())
+                    .setTargetNodeName(request.getTargetNodeName())
                     .build();
 
                 return ClusterState.builder(currentState)
@@ -105,7 +110,8 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())) {
+                if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())
+                    || SingleNodeShutdownMetadata.Type.REPLACE.equals(request.getType())) {
                     clusterService.getRerouteService()
                         .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
                             @Override

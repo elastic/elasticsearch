@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.vectortile.feature;
 
-import com.wdtinc.mapbox_vector_tile.VectorTile;
-import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
-
 import org.apache.lucene.geo.GeoTestUtil;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SimpleFeatureFactory;
+import org.elasticsearch.common.geo.SphericalMercatorUtils;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
@@ -36,21 +36,19 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         SimpleFeatureFactory builder = new SimpleFeatureFactory(z, x, y, extent);
         FeatureFactory factory = new FeatureFactory(z, x, y, extent);
         List<Point> points = new ArrayList<>();
+        List<GeoPoint> geoPoints = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             double lat = randomValueOtherThanMany((l) -> rectangle.getMinY() > l || rectangle.getMaxY() < l, GeoTestUtil::nextLatitude);
             double lon = randomValueOtherThanMany((l) -> rectangle.getMinX() > l || rectangle.getMaxX() < l, GeoTestUtil::nextLongitude);
             byte[] b1 = builder.point(lon, lat);
             Point point = new Point(lon, lat);
-            List<VectorTile.Tile.Feature> features = factory.getFeatures(point, new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(1));
-            byte[] b2 = features.get(0).toByteArray();
+            byte[] b2 = factory.getFeatures(point).get(0);
             assertArrayEquals(b1, b2);
             points.add(point);
+            geoPoints.add(new GeoPoint(lat, lon));
         }
-        byte[] b1 = builder.points(points);
-        List<VectorTile.Tile.Feature> features = factory.getFeatures(new MultiPoint(points), new UserDataIgnoreConverter());
-        assertThat(features.size(), Matchers.equalTo(1));
-        byte[] b2 = features.get(0).toByteArray();
+        byte[] b1 = builder.points(geoPoints);
+        byte[] b2 = factory.getFeatures(new MultiPoint(points)).get(0);
         assertArrayEquals(b1, b2);
     }
 
@@ -67,9 +65,7 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         FeatureFactory factory = new FeatureFactory(z, x, y, extent);
         byte[] b1 = builder.point(lon, lat);
         Point point = new Point(lon, lat);
-        List<VectorTile.Tile.Feature> features = factory.getFeatures(point, new UserDataIgnoreConverter());
-        assertThat(features.size(), Matchers.equalTo(1));
-        byte[] b2 = features.get(0).toByteArray();
+        byte[] b2 = factory.getFeatures(point).get(0);
         assertThat(Arrays.equals(b1, b2), Matchers.equalTo(false));
     }
 
@@ -90,9 +86,7 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
         for (int i = 0; i < extent; i++) {
             byte[] b1 = builder.box(r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
-            List<VectorTile.Tile.Feature> features = factory.getFeatures(r, new UserDataIgnoreConverter());
-            assertThat(features.size(), Matchers.equalTo(1));
-            byte[] b2 = features.get(0).toByteArray();
+            byte[] b2 = factory.getFeatures(r).get(0);
             assertArrayEquals(extent + "", b1, b2);
         }
     }

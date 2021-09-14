@@ -133,10 +133,11 @@ public class CollapsingTopDocsCollectorSearchAfterTests extends ESTestCase {
             currentValue = fieldDoc.fields[0];
         }
 
-        if (docsWithMissingField == false) {
-            assertEquals(expectedNumGroups, collapseTopFieldDocs.scoreDocs.length - 1);
-            assertEquals(topDocs.scoreDocs.length - 1, topDocsIndex);
+        for (; topDocsIndex < topDocs.scoreDocs.length; topDocsIndex++) {
+            FieldDoc fieldDoc = (FieldDoc) topDocs.scoreDocs[topDocsIndex];
+            assertEquals(fieldDoc.fields[0], currentValue);
         }
+
         w.close();
         reader.close();
         dir.close();

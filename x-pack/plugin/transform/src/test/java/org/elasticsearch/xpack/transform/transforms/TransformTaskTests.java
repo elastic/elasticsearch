@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -76,6 +77,7 @@ public class TransformTaskTests extends ESTestCase {
         TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         TransformConfigManager transformsConfigManager = new InMemoryTransformConfigManager();
         TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(
+            Clock.systemUTC(),
             Settings.EMPTY,
             new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
             transformsConfigManager,
@@ -120,8 +122,7 @@ public class TransformTaskTests extends ESTestCase {
         ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder();
         indexerBuilder.setClient(new ParentTaskAssigningClient(client, TaskId.EMPTY_TASK_ID))
             .setTransformConfig(transformConfig)
-            .setTransformServices(transformServices)
-            .setFieldMappings(Collections.emptyMap());
+            .setTransformServices(transformServices);
 
         transformTask.initializeIndexer(indexerBuilder);
         TransformState state = transformTask.getState();

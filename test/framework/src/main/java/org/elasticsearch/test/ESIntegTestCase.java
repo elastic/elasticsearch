@@ -18,6 +18,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -685,12 +686,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (numberOfReplicas >= 0) {
             builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
         }
-        // 30% of the time
-        if (randomInt(9) < 3) {
-            final String dataPath = randomAlphaOfLength(10);
-            logger.info("using custom data_path for index: [{}]", dataPath);
-            builder.put(IndexMetadata.SETTING_DATA_PATH, dataPath);
-        }
         // always default delayed allocation to 0 to make sure we have tests are not delayed
         builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
         if (randomBoolean()) {
@@ -1224,6 +1219,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
+    protected final ActionFuture<IndexResponse> startIndex(String index, String id, BytesReference source, XContentType type) {
+        return client().prepareIndex(index).setId(id).setSource(source, type).execute();
+    }
     /**
      * Syntactic sugar for:
      * <pre>

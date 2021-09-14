@@ -65,6 +65,7 @@ import static java.util.Collections.unmodifiableList;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  */
+@SuppressWarnings("rawtypes")
 public final class Errors {
 
     /**

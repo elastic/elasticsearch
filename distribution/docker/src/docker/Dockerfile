@@ -47,7 +47,7 @@ RUN set -eux ; \\
     sha256sum -c \${tini_bin}.sha256sum ; \\
     rm \${tini_bin}.sha256sum ; \\
     mv \${tini_bin} /bin/tini ; \\
-    chmod +x /bin/tini
+    chmod 0555 /bin/tini
 
 <% } else if (docker_base == 'iron_bank') { %>
 ################################################################################
@@ -55,14 +55,16 @@ RUN set -eux ; \\
 # Extract Elasticsearch artifact
 ################################################################################
 
-${build_args}
+ARG BASE_REGISTRY=registry1.dso.mil
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
+ARG BASE_TAG=8.4
 
 FROM ${base_image} AS builder
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
 COPY tini /bin/tini
-RUN chmod 0755 /bin/tini
+RUN chmod 0555 /bin/tini
 
 <% } else { %>
 
@@ -171,7 +173,7 @@ RUN set -e ; \\
     sha256sum -c "\${TINI_BIN}.sha256sum" ; \\
     rm "\${TINI_BIN}.sha256sum" ; \\
     mv "\${TINI_BIN}" /rootfs/bin/tini ; \\
-    chmod +x /rootfs/bin/tini ; \\
+    chmod 0555 /rootfs/bin/tini ; \\
     curl --retry 10 -L -O \\
       # Here we're fetching the same binaries used for the official busybox docker image from their GtiHub repository
       "https://github.com/docker-library/busybox/raw/\${BUSYBOX_COMMIT}/stable/musl/busybox.tar.xz" ; \\
@@ -221,41 +223,64 @@ FROM ${base_image} AS builder
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
-<% /*
-  Fetch the appropriate Elasticsearch distribution for this architecture.
-  Keep this command on one line - it is replaced with a `COPY` during local builds.
-  It uses the `arch` command to fetch the correct distro for the build machine.
-*/ %>
-RUN curl --retry 10 -S -L --output /opt/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
+<% if (docker_base == "iron_bank") {
+  // Iron Bank always copies the local artifact
+%>
+COPY elasticsearch-${version}-linux-x86_64.tar.gz /tmp/elasticsearch.tar.gz
+<% } else {
+  // Fetch the appropriate Elasticsearch distribution for this architecture.
+  // Keep this command on one line - it is replaced with a `COPY` during local builds.
+  // It uses the `arch` command to fetch the correct distro for the build machine.
+%>
+RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
+<% } %>
 
-RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
+RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
 
 # The distribution includes a `config` directory, no need to create it
 COPY ${config_dir}/elasticsearch.yml config/
 COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 
 #  1. Configure the distribution for Docker
-#  2. Ensure directories are created. Most already are, but make sure
-#  3. Apply correct permissions
-#  4. Move the distribution's default logging config aside
-#  5. Generate a docker logging config, to be used by default
-#  6. Apply more correct permissions
-#  7. The JDK's directories' permissions don't allow `java` to be executed under a different
-#     group to the default. Fix this.
-#  8. Remove write permissions from all files under `lib`, `bin`, `jdk` and `modules`
-#  9. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-# 10. Ensure all files are world-readable by default. It should be possible to
-#     examine the contents of the image under any UID:GID
+#  2. Create required directory
+#  3. Move the distribution's default logging config aside
+#  4. Move the generated docker logging config so that it is the default
+#  5. Reset permissions on all directories
+#  6. Reset permissions on all files
+#  7. Make CLI tools executable
+#  8. Make some directories writable. `bin` must be writable because
+#     plugins can install their own CLI utilities.
+#  9. Make some files writable
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
-    mkdir -p config/jvm.options.d data logs plugins && \\
-    chmod 0775 config config/jvm.options.d data logs plugins && \\
+    mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
     mv config/log4j2.docker.properties config/log4j2.properties && \\
-    chmod 0660 config/elasticsearch.yml config/log4j2*.properties && \\
-    find ./jdk -type d -exec chmod 0755 {} + && \\
-    chmod -R a-w lib bin jdk modules && \\
-    find . -xdev -perm -4000 -exec chmod ug-s {} + && \\
-    find . -type f -exec chmod o+r {} +
+    find . -type d -exec chmod 0555 {} + && \\
+    find . -type f -exec chmod 0444 {} + && \\
+    chmod 0555 bin/* jdk/bin/* jdk/lib/jspawnhelper modules/x-pack-ml/platform/linux-*/bin/* && \\
+    chmod 0775 bin config config/jvm.options.d data logs plugins && \\
+    find config -type f -exec chmod 0664 {} +
+
+<% if (docker_base == "cloud") { %>
+# Preinstall common plugins
+COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /tmp/
+RUN bin/elasticsearch-plugin install --batch \\
+    file:/tmp/repository-s3-${version}.zip \\
+    file:/tmp/repository-gcs-${version}.zip \\
+    file:/tmp/repository-azure-${version}.zip
+
+<% /*  I tried to use `ADD` here, but I couldn't force it to do what I wanted */ %>
+COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
+RUN mkdir -p /opt/filebeat /opt/metricbeat && \\
+    tar xf /tmp/filebeat-${version}.tar.gz -C /opt/filebeat --strip-components=1 && \\
+    tar xf /tmp/metricbeat-${version}.tar.gz -C /opt/metricbeat --strip-components=1
+
+# Add plugins infrastructure
+RUN mkdir -p /opt/plugins/archive
+COPY bin/plugin-wrapper.sh /opt/plugins
+# These are the correct permissions for both the directories and the script
+RUN chmod -R 0555 /opt/plugins
+<% } %>
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 
@@ -293,8 +318,7 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
 
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
-    chmod 0775 /usr/share/elasticsearch && \\
-    chown -R 1000:0 /usr/share/elasticsearch
+    chown -R 0:0 /usr/share/elasticsearch
 
 <% } else { %>
 
@@ -310,18 +334,21 @@ COPY --from=rootfs /rootfs /
 RUN addgroup -g 1000 elasticsearch && \\
     adduser -D -u 1000 -G elasticsearch -g elasticsearch -h /usr/share/elasticsearch elasticsearch && \\
     addgroup elasticsearch root && \\
-    chmod 0775 /usr/share/elasticsearch && \\
-    chgrp 0 /usr/share/elasticsearch
+    chown -R 0:0 /usr/share/elasticsearch
 
 <% } %>
 
 ENV ELASTIC_CONTAINER true
 
 WORKDIR /usr/share/elasticsearch
-COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticsearch
+COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
+<% } %>
+
+<% if (docker_base == 'cloud') { %>
+COPY --from=builder --chown=0:0 /opt /opt
 <% } %>
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
@@ -335,10 +362,16 @@ COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # 4. Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 #    vendor. The latter is superior in several ways.
 #    REF: https://github.com/elastic/elasticsearch-docker/issues/171
+# 5. Tighten up permissions on the ES home dir (the permissions of the contents are handled earlier)
+# 6. You can't install plugins that include configuration when running as `elasticsearch` and the `config`
+#    dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
+#    config directory.
 RUN chmod g=u /etc/passwd && \\
-    chmod 0775 /usr/local/bin/docker-entrypoint.sh && \\
+    chmod 0555 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
-    ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
+    ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts && \\
+    chmod 0775 /usr/share/elasticsearch && \\
+    chown elasticsearch bin config config/jvm.options.d data logs plugins
 
 EXPOSE 9200 9300
 
@@ -381,14 +414,23 @@ RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
-USER elasticsearch:root
+<% if (docker_base == "cloud") { %>
+ENTRYPOINT ["/bin/tini", "--"]
+CMD ["/app/elasticsearch.sh"]
+# Generate a stub command that will be overwritten at runtime
+RUN mkdir /app && \\
+    echo -e '#!/bin/sh\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
+    chmod 0555 /app/elasticsearch.sh
 
+<% } else { %>
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.
 ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
-
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
+<% } %>
+
+USER elasticsearch:root
 
 <% if (docker_base == 'iron_bank') { %>
 HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1

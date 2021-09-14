@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
@@ -351,7 +352,7 @@ public class IndexNameExpressionResolver {
 
         if (resolvedSystemIndices.isEmpty() == false) {
             Collections.sort(resolvedSystemIndices);
-            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access",
+            deprecationLogger.critical(DeprecationCategory.API, "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system " +
                     "indices will be prevented by default", resolvedSystemIndices);
         }
@@ -552,39 +553,55 @@ public class IndexNameExpressionResolver {
             return null;
         }
 
-        final ImmutableOpenMap<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
-        final AliasMetadata[] aliasCandidates;
-        if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
-            // faster to iterate indexAliases
-            aliasCandidates = StreamSupport.stream(Spliterators.spliteratorUnknownSize(indexAliases.values().iterator(), 0), false)
+        IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
+        if (ia.getParentDataStream() != null) {
+            DataStream dataStream = ia.getParentDataStream().getDataStream();
+            Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreamAliases();
+            Stream<DataStreamAlias> stream;
+            if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
+                stream = dataStreamAliases.values().stream()
+                    .filter(dataStreamAlias -> resolvedExpressions.contains(dataStreamAlias.getName()));
+            } else {
+                stream = resolvedExpressions.stream().map(dataStreamAliases::get).filter(Objects::nonNull);
+            }
+            return stream.filter(dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName()))
+                .filter(dataStreamAlias -> dataStreamAlias.getFilter() != null)
+                .map(DataStreamAlias::getName)
+                .toArray(String[]::new);
+        } else {
+            final ImmutableOpenMap<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
+            final AliasMetadata[] aliasCandidates;
+            if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
+                // faster to iterate indexAliases
+                aliasCandidates = StreamSupport.stream(Spliterators.spliteratorUnknownSize(indexAliases.values().iterator(), 0), false)
                     .map(cursor -> cursor.value)
                     .filter(aliasMetadata -> resolvedExpressions.contains(aliasMetadata.alias()))
                     .toArray(AliasMetadata[]::new);
-        } else {
-            // faster to iterate resolvedExpressions
-            aliasCandidates = resolvedExpressions.stream()
+            } else {
+                // faster to iterate resolvedExpressions
+                aliasCandidates = resolvedExpressions.stream()
                     .map(indexAliases::get)
                     .filter(Objects::nonNull)
                     .toArray(AliasMetadata[]::new);
-        }
-
-        List<String> aliases = null;
-        for (AliasMetadata aliasMetadata : aliasCandidates) {
-            if (requiredAlias.test(aliasMetadata)) {
-                // If required - add it to the list of aliases
-                if (aliases == null) {
-                    aliases = new ArrayList<>();
+            }
+            List<String> aliases = null;
+            for (AliasMetadata aliasMetadata : aliasCandidates) {
+                if (requiredAlias.test(aliasMetadata)) {
+                    // If required - add it to the list of aliases
+                    if (aliases == null) {
+                        aliases = new ArrayList<>();
+                    }
+                    aliases.add(aliasMetadata.alias());
+                } else {
+                    // If not, we have a non required alias for this index - no further checking needed
+                    return null;
                 }
-                aliases.add(aliasMetadata.alias());
-            } else {
-                // If not, we have a non required alias for this index - no further checking needed
+            }
+            if (aliases == null) {
                 return null;
             }
+            return aliases.toArray(new String[aliases.size()]);
         }
-        if (aliases == null) {
-            return null;
-        }
-        return aliases.toArray(new String[aliases.size()]);
     }
 
     /**
@@ -768,6 +785,10 @@ public class IndexNameExpressionResolver {
             systemIndexAccessLevelPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext);
         }
         return systemIndexAccessLevelPredicate;
+    }
+
+    public Automaton getSystemNameAutomaton() {
+        return systemIndices.getSystemNameAutomaton();
     }
 
     public Predicate<String> getNetNewSystemIndexPredicate() {

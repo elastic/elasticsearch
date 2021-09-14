@@ -116,7 +116,7 @@ a bike theft. This is a significant seven-fold increase in frequency and so this
 The problem with using a query to spot anomalies is it only gives us one subset to use for comparisons.
 To discover all the other police forces' anomalies we would have to repeat the query for each of the different forces.
 
-This can be a tedious way to look for unusual patterns in an index
+This can be a tedious way to look for unusual patterns in an index.
 
 
 
@@ -385,6 +385,94 @@ Google normalized distance as described in https://arxiv.org/pdf/cs/0412098v3.pd
 // NOTCONSOLE
 `gnd` also accepts the `background_is_superset` parameter.
 
+[role="xpack"]
+[[p-value-score]]
+===== p-value score
+
+The p-value is the probability of obtaining test results at least as extreme as 
+the results actually observed, under the assumption that the null hypothesis is 
+correct. The p-value is calculated assuming that the foreground set and the 
+background set are independent 
+https://en.wikipedia.org/wiki/Bernoulli_trial[Bernoulli trials], with the null 
+hypothesis that the probabilities are the same.
+
+====== Example usage
+
+This example calculates the p-value score for terms `user_agent.version` given 
+the foreground set of "ended in failure" versus "NOT ended in failure".
+
+`"background_is_superset": false` indicates that the background set does 
+not contain the counts of the foreground set as they are filtered out.
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "term": {
+            "event.outcome": "failure"
+          }
+        },
+        {
+          "range": {
+            "@timestamp": {
+              "gte": "2021-02-01",
+              "lt": "2021-02-04"
+            }
+          }
+        },
+        {
+          "term": {
+            "service.name": {
+              "value": "frontend-node"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "aggs": {
+    "failure_p_value": {
+      "significant_terms": {
+        "field": "user_agent.version",
+        "background_filter": {
+          "bool": {
+            "must_not": [
+              {
+                "term": {
+                  "event.outcome": "failure"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "2021-02-01",
+                    "lt": "2021-02-04"
+                  }
+                }
+              },
+              {
+                "term": {
+                  "service.name": {
+                    "value": "frontend-node"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "p_value": {"background_is_superset": false}
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[s/_search/_search?size=0/]
 
 ===== Percentage
 A simple calculation of the number of documents in the foreground sample with a term divided by the number of documents in the background with the term.

@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.analytics.movingPercentiles;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -20,16 +20,18 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public class MovingPercentilesPipelineAggregationBuilder
-        extends AbstractPipelineAggregationBuilder<MovingPercentilesPipelineAggregationBuilder> {
+public class MovingPercentilesPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<
+    MovingPercentilesPipelineAggregationBuilder> {
     public static final String NAME = "moving_percentiles";
     private static final ParseField WINDOW = new ParseField("window");
     private static final ParseField SHIFT = new ParseField("shift");
 
     public static final ConstructingObjectParser<MovingPercentilesPipelineAggregationBuilder, String> PARSER =
-            new ConstructingObjectParser<>(NAME, false, (args, name) -> {
-                return new MovingPercentilesPipelineAggregationBuilder(name, (String) args[0], (int) args[1]);
-            });
+        new ConstructingObjectParser<>(
+            NAME,
+            false,
+            (args, name) -> { return new MovingPercentilesPipelineAggregationBuilder(name, (String) args[0], (int) args[1]); }
+        );
     static {
         PARSER.declareString(constructorArg(), BUCKETS_PATH_FIELD);
         PARSER.declareInt(constructorArg(), WINDOW);

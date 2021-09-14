@@ -145,6 +145,22 @@ To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
 [discrete]
+[[breaking_710_cluster_deprecations]]
+==== Cluster deprecations
+
+[[deprecate-cluster-join-timeout]]
+.The `cluster.join.timeout` setting is deprecated.
+[%collapsible]
+====
+*Details* +
+The `cluster.join.timeout` node setting is setting is now deprecated. In 7.x
+clusters, join attempts no longer time out.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the setting.
+====
+
+[discrete]
 [[breaking_710_indices_changes]]
 ==== Indices deprecations
 

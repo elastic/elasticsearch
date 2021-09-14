@@ -769,7 +769,7 @@ The API returns the following response:
       "start_time_in_millis": 1593093628851,
       "end_time": "2020-07-06T21:55:18.130Z",
       "end_time_in_millis": 1593093628851,
-      "duration_in_millis": 1,
+      "duration_in_millis": 0,
       "failures": [],
       "shards": {
         "total": 0,

@@ -387,7 +387,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
         final SyncPluginsCommand command = new SyncPluginsCommand();
         final UserException exception = expectThrows(UserException.class, () -> command.execute(terminal, env.v2(), false, null, null));
 
-        assertThat(exception.getMessage(), startsWith("Plugin manifest file missing:"));
+        assertThat(exception.getMessage(), startsWith("Plugins config file missing:"));
         assertThat(exception.exitCode, equalTo(ExitCodes.CONFIG));
     }
 

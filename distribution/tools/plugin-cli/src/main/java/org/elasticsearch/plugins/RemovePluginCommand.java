@@ -38,11 +38,11 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
-        final Path pluginsDescriptor = env.configFile().resolve("elasticsearch-plugins.yml");
-        if (Files.exists(pluginsDescriptor)) {
+        final Path pluginsConfig = env.configFile().resolve("elasticsearch-plugins.yml");
+        if (Files.exists(pluginsConfig)) {
             throw new UserException(
                 ExitCodes.USAGE,
-                "Plugins descriptor [" + pluginsDescriptor + "] exists, please use [elasticsearch-plugin sync] instead"
+                "Plugins config [" + pluginsConfig + "] exists, please use [elasticsearch-plugin sync] instead"
             );
         }
 

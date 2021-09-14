@@ -32,12 +32,12 @@ import java.util.Set;
  * that ought to be installed in an Elasticsearch instance, and where to find them if they are not an official
  * Elasticsearch plugin.
  */
-public class PluginsManifest {
+public class PluginsConfig {
     private final List<PluginDescriptor> plugins;
     private final String proxy;
 
     @JsonCreator
-    public PluginsManifest(@JsonProperty("plugins") List<PluginDescriptor> plugins, @JsonProperty("proxy") String proxy) {
+    public PluginsConfig(@JsonProperty("plugins") List<PluginDescriptor> plugins, @JsonProperty("proxy") String proxy) {
         this.plugins = plugins == null ? List.of() : plugins;
         this.proxy = proxy;
     }
@@ -50,18 +50,18 @@ public class PluginsManifest {
      *     <li>Unofficial plugins must have URLs</li>
      * </ul>
      *
-     * @param manifestPath the path to the file used to create this instance. Used to construct error messages.
+     * @param configPath the path to the file used to create this instance. Used to construct error messages.
      * @throws UserException if validation problems are found
      */
-    public void validate(Path manifestPath) throws UserException {
+    public void validate(Path configPath) throws UserException {
         if (this.plugins.stream().anyMatch(each -> each == null || each.getId() == null || each.getId().isBlank())) {
-            throw new RuntimeException("Cannot have null or empty plugin IDs in: " + manifestPath);
+            throw new RuntimeException("Cannot have null or empty plugin IDs in: " + configPath);
         }
 
         final Set<String> uniquePluginIds = new HashSet<>();
         for (final PluginDescriptor plugin : plugins) {
             if (uniquePluginIds.add(plugin.getId()) == false) {
-                throw new UserException(ExitCodes.USAGE, "Duplicate plugin ID [" + plugin.getId() + "] found in: " + manifestPath);
+                throw new UserException(ExitCodes.USAGE, "Duplicate plugin ID [" + plugin.getId() + "] found in: " + configPath);
             }
         }
 
@@ -69,7 +69,7 @@ public class PluginsManifest {
             if (InstallPluginAction.OFFICIAL_PLUGINS.contains(plugin.getId()) == false && plugin.getLocation() == null) {
                 throw new UserException(
                     ExitCodes.CONFIG,
-                    "Must specify location for non-official plugin [" + plugin.getId() + "] in " + manifestPath
+                    "Must specify location for non-official plugin [" + plugin.getId() + "] in " + configPath
                 );
             }
         }
@@ -77,11 +77,11 @@ public class PluginsManifest {
         if (this.proxy != null) {
             final String[] parts = this.proxy.split(":");
             if (parts.length != 2) {
-                throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port] in: " + manifestPath);
+                throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port] in: " + configPath);
             }
 
             if (ProxyUtils.validateProxy(parts[0], parts[1]) == false) {
-                throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port] in: " + manifestPath);
+                throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port] in: " + configPath);
             }
         }
 
@@ -97,31 +97,31 @@ public class PluginsManifest {
     }
 
     /**
-     * Constructs a {@link PluginsManifest} instance from the specified YAML file, and validates the contents.
+     * Constructs a {@link PluginsConfig} instance from the specified YAML file, and validates the contents.
      * @param env the environment to use in order to locate the config file.
-     * @return a validated manifest
+     * @return a validated config
      * @throws UserException if there is a problem finding, parsing or validating the file
      */
-    public static PluginsManifest parseManifest(Environment env) throws UserException {
-        final Path manifestPath = env.configFile().resolve("elasticsearch-plugins.yml");
-        if (Files.exists(manifestPath) == false) {
-            throw new UserException(ExitCodes.CONFIG, "Plugin manifest file missing: " + manifestPath);
+    public static PluginsConfig parseConfig(Environment env) throws UserException {
+        final Path configPath = env.configFile().resolve("elasticsearch-plugins.yml");
+        if (Files.exists(configPath) == false) {
+            throw new UserException(ExitCodes.CONFIG, "Plugins config file missing: " + configPath);
         }
 
         final YAMLFactory yamlFactory = new YAMLFactory();
         final ObjectMapper mapper = new ObjectMapper(yamlFactory);
 
-        PluginsManifest pluginsManifest;
+        PluginsConfig pluginsConfig;
         try {
-            byte[] manifestBytes = Files.readAllBytes(manifestPath);
-            pluginsManifest = mapper.readValue(manifestBytes, PluginsManifest.class);
+            byte[] configBytes = Files.readAllBytes(configPath);
+            pluginsConfig = mapper.readValue(configBytes, PluginsConfig.class);
         } catch (IOException e) {
-            throw new UserException(ExitCodes.CONFIG, "Cannot parse plugin manifest file [" + manifestPath + "]: " + e.getMessage());
+            throw new UserException(ExitCodes.CONFIG, "Cannot parse plugins config file [" + configPath + "]: " + e.getMessage());
         }
 
-        pluginsManifest.validate(manifestPath);
+        pluginsConfig.validate(configPath);
 
-        return pluginsManifest;
+        return pluginsConfig;
     }
 
     public List<PluginDescriptor> getPlugins() {
@@ -140,7 +140,7 @@ public class PluginsManifest {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        PluginsManifest that = (PluginsManifest) o;
+        PluginsConfig that = (PluginsConfig) o;
         return plugins.equals(that.plugins) && Objects.equals(proxy, that.proxy);
     }
 

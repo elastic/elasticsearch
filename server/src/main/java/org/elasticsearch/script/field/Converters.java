@@ -6,23 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.script.field;
+
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.script.Field.BigIntegerField;
-import static org.elasticsearch.script.Field.BooleanField;
-import static org.elasticsearch.script.Field.DoubleField;
-import static org.elasticsearch.script.Field.DateMillisField;
-import static org.elasticsearch.script.Field.DateNanosField;
-import static org.elasticsearch.script.Field.LongField;
-import static org.elasticsearch.script.Field.StringField;
 
 /**
  * {@link Converters} for scripting fields.  These constants are exposed as static fields on {@link Field} to

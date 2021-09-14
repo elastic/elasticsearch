@@ -607,7 +607,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "mappings for index test contains deprecated geo_shape properties that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
+                    "#_deprecated_literal_geo_shape_literal_parameters",
                 "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter " +
                     "[strategy] in field [location]]]", false, null)
         ));
@@ -626,7 +627,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "mappings for index test contains deprecated geo_shape properties that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
+                    "#_deprecated_literal_geo_shape_literal_parameters",
                 "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter " +
                     "[strategy] in field [location]]]", false, null)
         ));

@@ -1080,12 +1080,11 @@ buildRestTests.setups['categorize_text'] = '''
               number_of_shards: 1
               number_of_replicas: 0
             mappings:
-              metric:
-                properties:
-                  time:
-                    type: date
-                  message:
-                    type: text
+              properties:
+                time:
+                  type: date
+                message:
+                  type: text
 
   - do:
         bulk:

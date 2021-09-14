@@ -19,8 +19,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Base64;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -31,6 +33,7 @@ public class CreateApiKeyResponseTests extends ESTestCase {
         final String name = randomAlphaOfLength(5);
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
         final Instant expiration = randomBoolean() ? null : Instant.ofEpochMilli(10000);
+        final String encoded = Base64.getEncoder().encodeToString((id + ":" + apiKey).getBytes(StandardCharsets.UTF_8));
 
         final XContentType xContentType = randomFrom(XContentType.values());
         final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
@@ -44,6 +47,9 @@ public class CreateApiKeyResponseTests extends ESTestCase {
         } finally {
             Arrays.fill(charBytes, (byte) 0);
         }
+        if (randomBoolean()) {
+            builder.field("encoded", encoded);
+        }
         builder.endObject();
         BytesReference xContent = BytesReference.bytes(builder);
 
@@ -51,6 +57,7 @@ public class CreateApiKeyResponseTests extends ESTestCase {
         assertThat(response.getId(), equalTo(id));
         assertThat(response.getName(), equalTo(name));
         assertThat(response.getKey(), equalTo(apiKey));
+        assertThat(response.getEncoded().toString(), equalTo(encoded));
         if (expiration != null) {
             assertThat(response.getExpiration(), equalTo(expiration));
         }

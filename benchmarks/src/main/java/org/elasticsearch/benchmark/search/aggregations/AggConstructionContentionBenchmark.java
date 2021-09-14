@@ -22,6 +22,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -195,6 +196,11 @@ public class AggConstructionContentionBenchmark {
         @Override
         public long nowInMillis() {
             return 0;
+        }
+
+        @Override
+        public AnalysisRegistry getAnalysisRegistry() {
+            return null;
         }
 
         @Override

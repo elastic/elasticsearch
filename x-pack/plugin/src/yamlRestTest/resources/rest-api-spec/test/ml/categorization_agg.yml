@@ -86,7 +86,7 @@ setup:
 "Test categorization aggregation with poor settings":
 
   - do:
-      catch: /\[max_children\] must be greater than 0/
+      catch: /\[max_children\] must be greater than 0 and less than \[100\]/
       search:
         index: to_categorize
         body: >
@@ -102,7 +102,7 @@ setup:
             }
           }
   - do:
-      catch: /\[max_depth\] must be greater than 0/
+      catch: /\[max_depth\] must be greater than 0 and less than \[100\]/
       search:
         index: to_categorize
         body: >

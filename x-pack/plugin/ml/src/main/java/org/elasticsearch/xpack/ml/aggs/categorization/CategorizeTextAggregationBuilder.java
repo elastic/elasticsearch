@@ -27,6 +27,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME;
+import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME;
+import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME;
+import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME;
+
 public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder<CategorizeTextAggregationBuilder> {
 
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
@@ -35,6 +40,9 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         10,
         -1
     );
+
+    static final int MAX_MAX_CHILDREN = 100;
+    static final int MAX_MAX_DEPTH = 100;
     public static final String NAME = "categorize_text";
 
     static final ParseField FIELD_NAME = new ParseField("field");
@@ -56,7 +64,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         PARSER.declareInt(CategorizeTextAggregationBuilder::shardSize, TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME);
         PARSER.declareLong(CategorizeTextAggregationBuilder::minDocCount, TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME);
         PARSER.declareLong(CategorizeTextAggregationBuilder::shardMinDocCount, TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
-        PARSER.declareInt(CategorizeTextAggregationBuilder::size, TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
+        PARSER.declareInt(CategorizeTextAggregationBuilder::size, REQUIRED_SIZE_FIELD_NAME);
     }
 
     public static CategorizeTextAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
@@ -107,7 +115,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     public CategorizeTextAggregationBuilder setMaxChildren(int maxChildren) {
         this.maxChildren = maxChildren;
         if (maxChildren <= 0) {
-            throw new IllegalArgumentException("[" + MAX_CHILDREN.getPreferredName() + "] must be greater than 0");
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be greater than 0 and less than [{}]. Found [{}] in [{}]",
+                MAX_CHILDREN.getPreferredName(),
+                MAX_MAX_CHILDREN,
+                maxChildren,
+                name
+            );
         }
         return this;
     }
@@ -119,7 +133,12 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     public CategorizeTextAggregationBuilder setSimilarityThreshold(double similarityThreshold) {
         this.similarityThreshold = similarityThreshold;
         if (similarityThreshold < 0.1 || similarityThreshold > 1.0) {
-            throw new IllegalArgumentException("[" + SIMILARITY_THRESHOLD.getPreferredName() + "] must be in the range [0.1, 1.0]");
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be in the range [0.1, 1.0]. Found [{}] in [{}]",
+                SIMILARITY_THRESHOLD.getPreferredName(),
+                similarityThreshold,
+                name
+            );
         }
         return this;
     }
@@ -140,7 +159,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     public CategorizeTextAggregationBuilder setMaxDepth(int maxDepth) {
         this.maxDepth = maxDepth;
         if (maxDepth <= 0) {
-            throw new IllegalArgumentException("[" + MAX_DEPTH.getPreferredName() + "] must be greater than 0");
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be greater than 0 and less than [{}]. Found [{}] in [{}]",
+                MAX_DEPTH.getPreferredName(),
+                MAX_MAX_DEPTH,
+                maxDepth,
+                name
+            );
         }
         return this;
     }
@@ -150,7 +175,12 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
      */
     public CategorizeTextAggregationBuilder size(int size) {
         if (size <= 0) {
-            throw new IllegalArgumentException("[size] must be greater than 0. Found [" + size + "] in [" + name + "]");
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be greater than 0. Found [{}] in [{}]",
+                REQUIRED_SIZE_FIELD_NAME.getPreferredName(),
+                size,
+                name
+            );
         }
         bucketCountThresholds.setRequiredSize(size);
         return this;
@@ -164,7 +194,12 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
      */
     public CategorizeTextAggregationBuilder shardSize(int shardSize) {
         if (shardSize <= 0) {
-            throw new IllegalArgumentException("[shardSize] must be greater than  0. Found [" + shardSize + "] in [" + name + "]");
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be greater than 0. Found [{}] in [{}]",
+                SHARD_SIZE_FIELD_NAME.getPreferredName(),
+                shardSize,
+                name
+            );
         }
         bucketCountThresholds.setShardSize(shardSize);
         return this;
@@ -176,8 +211,11 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
      */
     public CategorizeTextAggregationBuilder minDocCount(long minDocCount) {
         if (minDocCount < 0) {
-            throw new IllegalArgumentException(
-                "[minDocCount] must be greater than or equal to 0. Found [" + minDocCount + "] in [" + name + "]"
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be greater than or equal to 0. Found [{}] in [{}]",
+                MIN_DOC_COUNT_FIELD_NAME.getPreferredName(),
+                minDocCount,
+                name
             );
         }
         bucketCountThresholds.setMinDocCount(minDocCount);
@@ -190,8 +228,11 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
      */
     public CategorizeTextAggregationBuilder shardMinDocCount(long shardMinDocCount) {
         if (shardMinDocCount < 0) {
-            throw new IllegalArgumentException(
-                "[shardMinDocCount] must be greater than or equal to 0. Found [" + shardMinDocCount + "] in [" + name + "]"
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be greater than or equal to 0. Found [{}] in [{}]",
+                SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(),
+                shardMinDocCount,
+                name
             );
         }
         bucketCountThresholds.setShardMinDocCount(shardMinDocCount);

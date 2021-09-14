@@ -6,7 +6,10 @@ connected clusters and configure Transport Layer Security (TLS) on every node.
 All connected clusters must trust one another and be mutually authenticated at
 the TLS level. This means that the local cluster trusts the certificate 
 authority (CA) of the remote cluster, and the remote cluster trusts the CA of
-the local cluster.
+the local cluster. When establishing a connection, all nodes will verify
+certificates from the nodes they are connecting to. This mutual trust is
+required to connect a remote cluster, because all connected nodes effectively
+form a single security domain.
 
 User authentication is performed on the local cluster and the user and user’s 
 roles names are passed to the remote clusters. A remote cluster checks the user’s
@@ -28,7 +31,7 @@ steps to configure security.
 +
 NOTE: This procedure uses the same CA to generate certificates for all nodes.
 Alternatively, you can add the CA certificates from the local cluster as a
-trusted CA in each remote cluster. 
+trusted CA in each remote cluster. The opposite is also true.
 
 . Connect <<remote-clusters-connect,remote clusters>> from a local cluster.
 

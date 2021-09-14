@@ -3,7 +3,7 @@
 == Securing clients and integrations
 
 You will need to update the configuration for several <<http-clients,clients>>
-to work with a secure {es} cluster.
+to work with a secured {es} cluster.
 
 The {es} {security-features} enable you to secure your {es} cluster. But
 {es} itself is only one product within the {stack}. It is often the case that

@@ -18,7 +18,6 @@ retrieve roles dynamically. When you use the APIs to manage roles in the
 The following requests use the
 <<security-api-put-role,create or update roles API>>.
 
-
 [[remote-clusters-privileges-ccr]]
 //tag::configure-ccr-privileges[]
 ==== Configure privileges for {ccr}
@@ -29,9 +28,9 @@ to.
 
 [discrete]
 ===== Remote cluster
-On the remote cluster that contains the leader index, the `ccr_user` requires
-the `read_ccr` cluster privilege, and `monitor` and `read` privileges on the
-leader index.
+On the remote cluster that contains the leader index, the `remote-replication`
+role requires the `read_ccr` cluster privilege, and `monitor` and `read`
+privileges on the leader index.
 
 NOTE: If requests will be issued <<run-as-privilege,on behalf of other users>>,
 then the the authenticating user must have the `run_as` privilege on the remote 
@@ -39,7 +38,7 @@ cluster.
 
 [source,console]
 ----
-PUT /_security/role/ccr_user
+PUT /_security/role/remote-replication
 {
   "cluster": [
     "read_ccr"
@@ -60,9 +59,9 @@ PUT /_security/role/ccr_user
 
 [discrete]
 ===== Local cluster
-On the local cluster that contains the follower index, the `ccr_user` requires
-the `manage_ccr` cluster privilege, and `monitor`, `read`, `write`, and
-`manage_follow_index` privileges on the follower index.
+On the local cluster that contains the follower index, the `remote-replication`
+role requires the `manage_ccr` cluster privilege, and `monitor`, `read`, `write`,
+and `manage_follow_index` privileges on the follower index.
 
 NOTE: If you are managing
 <<remote-clusters-connect,connecting to the remote cluster>> using
@@ -71,7 +70,7 @@ cluster privilege.
 
 [source,console]
 ----
-PUT /_security/role/ccr_user
+PUT /_security/role/remote-replication
 {
   "cluster": [
     "manage_ccr"
@@ -91,30 +90,26 @@ PUT /_security/role/ccr_user
   ]
 }
 ----
-// TEST[setup:admin_role]
 
-After creating the `ccr_user` role on each cluster,
+After creating the `remote-replication` role on each cluster,
 <<security-api-put-role-mapping,map the role>> to each user that requires {ccr}
 capabilities. For example, the following request assigns the
-`ccr_user` role to a user named `my_admin_role`:
+`remote-replication` role to a user named `cross-cluster-user`:
 
 [source,console]
 ----
-PUT /_security/role_mapping/mapping1
+POST /_security/user/cross-cluster-user
 {
-  "roles": [ "ccr_user"],
-  "enabled": true, 
-  "rules": {
-    "field" : { "username" : "my_admin_role" }
-  }
+  "password" : "l0ng-r4nd0m-p@ssw0rd",
+  "roles" : [ "remote-replication" ]
 }
 ----
 // TEST[continued]
 
 //end::configure-ccr-privileges[]
 
-You can then <<ccr-getting-started-tutorial,configure {ccr}>> to replicate your data
-across datacenters. 
+You can then <<ccr-getting-started-tutorial,configure {ccr}>> to replicate your
+data across datacenters. 
 
 [[remote-clusters-privileges-ccs]]
 ==== Configure privileges for {ccs}
@@ -125,7 +120,7 @@ to.
 
 [discrete]
 ===== Remote cluster
-On the remote cluster, the `ccs_user` requires the `read` and
+On the remote cluster, the `remote-search` role requires the `read` and
 `read_cross_cluster` privileges for the target indices.
 
 NOTE: If requests will be issued <<run-as-privilege,on behalf of other users>>,
@@ -134,7 +129,7 @@ cluster.
 
 [source,console]
 ----
-PUT /_security/role/ccs_user
+PUT /_security/role/remote-search
 {
   "indices": [
     {
@@ -153,35 +148,31 @@ PUT /_security/role/ccs_user
 [discrete]
 ===== Local cluster
 On the local cluster, which is the cluster used to initiate cross cluster
-search, a user only needs the `ccs_user` role. The role privileges for this user
-can be empty.
+search, a user only needs the `remote-search` role. The role privileges can be
+empty.
 
 [source,console]
 ----
-PUT /_security/role/ccs_user
+PUT /_security/role/remote-search
 {}
 ----
-// TEST[setup:admin_role]
 
 After creating the `ccs_user` role on each cluster,
 <<security-api-put-role-mapping,map the role>> to each user that requires {ccs}
-capabilities. For example, the following request assigns the `ccs_user` role to
-a user named `my_admin_role`:
+capabilities. For example, the following request assigns the `remote-search`
+role to a user named `cross-search-user`:
 
 [source,console]
 ----
-PUT /_security/role_mapping/mapping2
+POST /_security/user/cross-search-user
 {
-  "roles": [ "ccs_user"],
-  "enabled": true, 
-  "rules": {
-    "field" : { "username" : "my_admin_role" }
-  }
+  "password" : "l0ng-r4nd0m-p@ssw0rd",
+  "roles" : [ "remote-search" ]
 }
 ----
 // TEST[continued]
 
-Users with the `ccs_user` role can then
+Users with the `remote-search` role can then
 <<modules-cross-cluster-search,search across clusters>>.
 
 [[clusters-privileges-ccs-kibana]]

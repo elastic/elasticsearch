@@ -6,6 +6,8 @@ establish <<long-lived-connections,long-lived>> TCP connections with specific
 nodes in the remote cluster. {es} requires these connections to remain open,
 even if the connections are idle for an extended period.
 
+NOTE: You must have the `manage` cluster privilege to connect remote clusters.
+
 To configure a remote cluster from Stack Management in {kib}:
 
 . Select *Remote Clusters* from the side navigation.
@@ -17,7 +19,11 @@ Alternatively, use the <<cluster-update-settings,cluster update settings API>>
 to add a remote cluster. You can also use this API to apply and update settings 
 across the entire remote cluster. 
 
-The following request adds a remote cluster with an alias of `leader`:
+The following request adds a remote cluster with an alias of `leader`. This
+_cluster alias_ represents the connection to the remote cluster and is used 
+subsequently to distinguish between local and remote indices. When adding a
+remote cluster in {kib}, the cluster alias serves as a unique identifier for the
+remote cluster.
 
 [source,console]
 ----
@@ -131,9 +137,10 @@ PUT _cluster/settings
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 
-You can dynamically update the compression and ping schedule settings. However,
-you must include the `seeds` or `proxy_address` in the settings update request.
-For example:
+You can dynamically update other cluster settings for a cluster, such as
+<<transport-settings,transport settings>>. The following request updates the
+compression settings for `cluster_two`, and the compression and ping schedule
+settings for `cluster_three`:
 
 [source,console]
 ----
@@ -142,21 +149,10 @@ PUT _cluster/settings
   "persistent": {
     "cluster": {
       "remote": {
-        "cluster_one": {
-          "seeds": [
-            "127.0.0.1:9300"
-          ]
-        },
         "cluster_two": {
-          "mode": "sniff",
-          "seeds": [
-            "127.0.0.1:9301"
-          ],
           "transport.compress": false
         },
         "cluster_three": {
-          "mode": "proxy",
-          "proxy_address": "127.0.0.1:9302",
           "transport.compress": true,
           "transport.ping_schedule": "60s"
         }
@@ -167,14 +163,14 @@ PUT _cluster/settings
 ----
 // TEST[continued]
 
-NOTE: When the compression or ping schedule settings change, all the existing
+NOTE: When the compression or ping schedule settings change, all existing
 node connections must close and re-open, which can cause in-flight requests to
 fail.
 
 You can delete a remote cluster from the cluster settings by passing `null`
 values for each remote cluster setting. The following request removes
 `cluster_two` from the cluster settings, leaving `cluster_one` and 
-`cluster_three` intact.:
+`cluster_three` intact:
 
 [source,console]
 ----
@@ -203,7 +199,7 @@ those settings can connect to the remote cluster and serve remote cluster
 requests.
 
 In the following example, `cluster_one`, `cluster_two`, and `cluster_three` are 
-arbitrary _cluster aliases_ representing the connection to each cluster. These 
+arbitrary cluster aliases representing the connection to each cluster. These 
 names are subsequently used to distinguish between local and remote indices.
 
 [source,yaml]

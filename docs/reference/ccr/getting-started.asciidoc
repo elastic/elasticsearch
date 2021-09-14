@@ -72,6 +72,7 @@ can <<modules-cross-cluster-search,search across clusters>> and set up {ccr}.
 ==== Prerequisites
 To complete this tutorial, you need:
 
+* The `manage` cluster privilege on the local cluster.
 * A license on both clusters that includes {ccr}. {kibana-ref}/managing-licenses.html[Activate a free 30-day trial].
 * An index on the remote cluster that contains the data you want to replicate.
 This tutorial uses the sample eCommerce orders data set.

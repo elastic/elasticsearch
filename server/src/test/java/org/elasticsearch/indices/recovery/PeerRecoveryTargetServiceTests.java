@@ -582,18 +582,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             writeSnapshotFileFuture.get();
         }
 
-        String[] fileNamesAfterRecoveringSnapshotFiles = directory.listAll();
-
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        final boolean deleteRecoveredFiles = randomBoolean();
         recoveryTarget.receiveFileInfo(emptyList(), emptyList(), emptyList(), emptyList(), 0, future);
         future.get();
 
-        if (deleteRecoveredFiles) {
-            assertThat(fileNamesBeforeRecoveringSnapshotFiles, is(equalTo(directory.listAll())));
-        } else {
-            assertThat(fileNamesAfterRecoveringSnapshotFiles, is(equalTo(directory.listAll())));
-        }
+        assertThat(fileNamesBeforeRecoveringSnapshotFiles, is(equalTo(directory.listAll())));
 
         recoveryTarget.decRef();
         closeShards(shard);

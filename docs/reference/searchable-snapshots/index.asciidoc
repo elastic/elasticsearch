@@ -203,8 +203,8 @@ cache can only have a single <<path-settings,data path>>.
 === Reduce costs with {search-snaps}
 
 In most cases, {search-snaps} reduce the cost of running a cluster by removing
-the need for replica shards and for shard data to be copied between nodes.
-However, if it's particularly expensive to retrieve data from a snapshot
+the need for replica shards to exist and for shard data to be copied between
+nodes. However, if it's particularly expensive to retrieve data from a snapshot
 repository in your environment then {search-snaps} may be more costly than
 regular indices. Ensure that the cost structure of your operating environment is
 compatible with {search-snaps} before using them.
@@ -214,16 +214,16 @@ compatible with {search-snaps} before using them.
 ==== Replica costs
 
 For resiliency, a regular index requires multiple redundant copies of each shard
-across multiple nodes. If a node fails, {es} uses the redundant copies to
-rebuild any lost shard copies. A {search-snap} index doesn't require replicas.
-If a node containing a {search-snap} index fails, {es} can rebuild the lost
-shard copy from the snapshot repository.
+across multiple nodes. If a node fails, {es} uses the redundancy to rebuild any
+lost shard copies. A {search-snap} index doesn't require replicas. If a node
+containing a {search-snap} index fails, {es} can rebuild the lost shard copy
+from the snapshot repository.
 
 Without replicas, rarely-accessed {search-snap} indices require far fewer
 resources. A cold data tier that contains replica-free fully-mounted
 {search-snap} indices requires half the nodes and disk space of a tier
-containing equivalent regular indices. The frozen tier, which contains only
-partially-mounted {search-snap} indices, requires even fewer resources.
+containing the same data in regular indices. The frozen tier, which contains
+only partially-mounted {search-snap} indices, requires even fewer resources.
 
 [discrete]
 [[snapshot-retrieval-costs]]

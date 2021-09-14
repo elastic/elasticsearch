@@ -9,7 +9,7 @@ subprojects { p ->
       enabled = false
     }
   }
-  
+
   // configure project dependencies for yaml rest test plugin.
   // plugin defaults to external available artifacts
   p.getPluginManager().withPlugin("elasticsearch.yaml-rest-test", new Action<AppliedPlugin>() {
@@ -17,6 +17,15 @@ subprojects { p ->
     void execute(AppliedPlugin appliedPlugin) {
         p.dependencies.add("yamlRestTestImplementation", project(":test:framework"))
         p.dependencies.add("restTestSpecs", p.dependencies.project(path:':rest-api-spec', configuration:'basicRestSpecs'))
+    }
+  })
+
+  // configure project dependencies for java rest test plugin.
+  // plugin defaults to external available artifacts
+  p.getPluginManager().withPlugin("elasticsearch.java-rest-test", new Action<AppliedPlugin>() {
+    @Override
+    void execute(AppliedPlugin appliedPlugin) {
+      p.dependencies.add("javaRestTestImplementation", project(":test:framework"))
     }
   })
 }

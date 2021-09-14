@@ -437,17 +437,15 @@ my.other.secure.setting
 endif::[]
 
 If you've already created the keystore and don't need to update it, you can
-bind-mount the `elasticsearch.keystore` file directly. For example, you can
-add the following to `docker-compose.yml`:
+bind-mount the `elasticsearch.keystore` file directly. You can use the
+`KEYSTORE_PASSWORD` environment variable to provide the keystore password to the
+container at startup. For example, a `docker run` command might have the
+following options:
 
-[source,yaml]
+[source,sh]
 ----
-...
-  volumes:
-    ...
-    - type: bind
-      source: full_path_to/config/elasticsearch.keystore
-      target: /usr/share/elasticsearch/config/elasticsearch.keystore
+-v full_path_to/config/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore
+-e KEYSTORE_PASSWORD=mypassword
 ----
 
 [[_c_customized_image]]
@@ -529,10 +527,10 @@ To resolve this error:
 Exception in thread "main" java.nio.file.FileSystemException: /usr/share/elasticsearch/config/elasticsearch.keystore.tmp -> /usr/share/elasticsearch/config/elasticsearch.keystore: Device or resource busy
 ----
 
-A <<docker-keystore-bind-mount,keystore-related>> `docker run` command attempted
-to directly bind-mount the `elasticsearch.keystore` file. To update the
-keystore, the container requires access to other files in the `config`
-directory, such as `keystore.tmp`.
+A `docker run` command attempted to <<docker-keystore-bind-mount,update the
+keystore>> while directly bind-mounting the `elasticsearch.keystore` file. To
+update the keystore, the container requires access to other files in the
+`config` directory, such as `keystore.tmp`.
 
 To resolve this error:
 

@@ -73,10 +73,11 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
         DocValueFormat format,
         boolean missingBucket,
+        MissingOrder missingOrder,
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, type, missingBucket, size, reverseMul);
+        super(bigArrays, format, type, missingBucket, missingOrder, size, reverseMul);
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.valuesOrd = bigArrays.newLongArray(Math.min(size, 100), false);
@@ -145,20 +146,20 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     int compare(int from, int to) {
         assert from < numSlots && to < numSlots;
-        return compareInternal(valuesOrd.get(from), valuesOrd.get(to), valuesUnmapped.get(from), valuesUnmapped.get(to)) * reverseMul;
+        return compareInternal(valuesOrd.get(from), valuesOrd.get(to), valuesUnmapped.get(from), valuesUnmapped.get(to));
     }
 
     @Override
     int compareCurrent(int slot) {
         assert currentValueOrd != null;
         assert slot < numSlots;
-        return compareInternal(currentValueOrd, valuesOrd.get(slot), currentValueUnmapped, valuesUnmapped.get(slot)) * reverseMul;
+        return compareInternal(currentValueOrd, valuesOrd.get(slot), currentValueUnmapped, valuesUnmapped.get(slot));
     }
 
     @Override
     int compareCurrentWithAfter() {
         assert currentValueOrd != null && afterValueOrd != null;
-        return compareInternal(currentValueOrd, afterValueOrd, currentValueUnmapped, afterValue) * reverseMul;
+        return compareInternal(currentValueOrd, afterValueOrd, currentValueUnmapped, afterValue);
     }
 
     @Override
@@ -175,31 +176,31 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     private int compareInternal(long ord1, long ord2, BytesRef bytesRef1, BytesRef bytesRef2) {
         if (ord1 >= 0 && ord2 >= 0) {
-            return Long.compare(ord1, ord2);
+            return Long.compare(ord1, ord2) * reverseMul;
         } else if (ord1 == Long.MIN_VALUE || ord2 == Long.MIN_VALUE) {
-            return Long.compare(ord1, ord2);
+            return Long.compare(ord1, ord2) * missingOrder.compareAnyValueToMissing(reverseMul);
         } else if (ord1 < 0 && ord2 < 0) {
             if (ord1 == ord2) {
                 // we need to compare actual terms to properly order
                 assert bytesRef1 != null && bytesRef2 != null;
                 return bytesRef1.compareTo(bytesRef2);
             }
-            return Long.compare(-ord1 - 1, -ord2 - 1);
+            return Long.compare(-ord1 - 1, -ord2 - 1) * reverseMul;
         } else {
             if (ord1 < 0) {
                 assert ord1 < 0 && ord2 >= 0;
                 int cmp = Long.compare(-ord1 - 1, ord2);
                 if (cmp == 0) {
-                    return -1;
+                    return -1 * reverseMul;
                 }
-                return cmp;
+                return cmp * reverseMul;
             } else {
                 assert ord1 >= 0 && ord2 < 0;
                 int cmp = Long.compare(ord1, -ord2 - 1);
                 if (cmp == 0) {
-                    return 1;
+                    return reverseMul;
                 }
-                return cmp;
+                return cmp * reverseMul;
             }
         }
     }

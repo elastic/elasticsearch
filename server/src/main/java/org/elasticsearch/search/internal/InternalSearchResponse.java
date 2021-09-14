@@ -40,13 +40,13 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
 
     public InternalSearchResponse(StreamInput in) throws IOException {
         super(
-                new SearchHits(in),
-                in.readBoolean() ? InternalAggregations.readFrom(in) : null,
-                in.readBoolean() ? new Suggest(in) : null,
-                in.readBoolean(),
-                in.readOptionalBoolean(),
-                in.readOptionalWriteable(SearchProfileResults::new),
-                in.readVInt()
+            new SearchHits(in),
+            in.readBoolean() ? InternalAggregations.readFrom(in) : null,
+            in.readBoolean() ? new Suggest(in) : null,
+            in.readBoolean(),
+            in.readOptionalBoolean(),
+            in.readOptionalWriteable(SearchProfileResults::new),
+            in.readVInt()
         );
     }
 

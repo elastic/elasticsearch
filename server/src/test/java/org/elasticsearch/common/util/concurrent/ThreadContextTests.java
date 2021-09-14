@@ -10,6 +10,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -694,5 +695,161 @@ public class ThreadContextTests extends ESTestCase {
                 r.run();
             }
         };
+    }
+
+    public void testThreadNamingWithTracingIds() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        Runnable withContext;
+
+        // an abstract runnable that has X-Opaque-Id in its header.
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "some_id");
+            withContext = threadContext.preserveContext(new AbstractRunnable() {
+
+                @Override
+                public void onAfter() {
+                    assertFalse(Thread.currentThread().getName().contains("some_id"));
+                    assertFalse(Thread.currentThread().getName().contains(Task.X_OPAQUE_ID));
+                    assertFalse(Thread.currentThread().getName().contains(ThreadContext.WithTracingIdsInThreadName.ID_LABEL));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new RuntimeException("from onFailure", e);
+                }
+
+                @Override
+                protected void doRun() {
+                    // Assertions are errors, turn this into exception to make sure we get the error on failure
+                    try {
+                        assertTrue(Thread.currentThread().getName().contains("some_id"));
+                        assertTrue(Thread.currentThread().getName().contains(Task.X_OPAQUE_ID));
+                        assertTrue(Thread.currentThread().getName().contains(ThreadContext.WithTracingIdsInThreadName.ID_LABEL));
+                    } catch (Throwable t) {
+                        throw new RuntimeException("Assertion failed " + t.getMessage());
+                    }
+                }
+            });
+        }
+
+        withContext.run();
+
+        // an abstract runnable that has trace.id in its header
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader(Task.TRACE_ID, "some_trace_id");
+            withContext = threadContext.preserveContext(new AbstractRunnable() {
+
+                @Override
+                public void onAfter() {
+                    assertFalse(Thread.currentThread().getName().contains("some_trace_id"));
+                    assertFalse(Thread.currentThread().getName().contains(Task.TRACE_ID));
+                    assertFalse(Thread.currentThread().getName().contains(ThreadContext.WithTracingIdsInThreadName.ID_LABEL));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new RuntimeException("from onFailure", e);
+                }
+
+                @Override
+                protected void doRun() {
+                    try {
+                        assertTrue(Thread.currentThread().getName().contains("some_trace_id"));
+                        assertTrue(Thread.currentThread().getName().contains(Task.TRACE_ID));
+                        assertTrue(Thread.currentThread().getName().contains(ThreadContext.WithTracingIdsInThreadName.ID_LABEL));
+                    } catch (Throwable t) {
+                        throw new RuntimeException("Assertion failed " + t.getMessage());
+                    }
+                }
+            });
+        }
+
+        withContext.run();
+
+        // an abstract runnable that has both X-Opaque-Id and trace.id in its headers,
+        // but this time they are in the parent caller context
+        ThreadContext outsideContext = new ThreadContext(Settings.EMPTY);
+        outsideContext.putHeader(Task.TRACE_ID, "some_trace_id");
+        outsideContext.putHeader(Task.X_OPAQUE_ID, "some_opaque_id");
+
+        try (ThreadContext.StoredContext ignored = outsideContext.stashContext()) {
+            withContext = outsideContext.preserveContext(new AbstractRunnable() {
+
+                @Override
+                public void onAfter() {
+                    assertFalse(Thread.currentThread().getName().contains("some_trace_id"));
+                    assertFalse(Thread.currentThread().getName().contains("some_opaque_id"));
+                    assertFalse(Thread.currentThread().getName().contains(Task.TRACE_ID));
+                    assertFalse(Thread.currentThread().getName().contains(Task.X_OPAQUE_ID));
+                    assertFalse(Thread.currentThread().getName().contains(ThreadContext.WithTracingIdsInThreadName.ID_LABEL));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new RuntimeException("from onFailure", e);
+                }
+
+                @Override
+                protected void doRun() {
+                    try {
+                        assertTrue(Thread.currentThread().getName().contains("some_trace_id"));
+                        assertTrue(Thread.currentThread().getName().contains("some_opaque_id"));
+                        assertTrue(Thread.currentThread().getName().contains(Task.TRACE_ID));
+                        assertTrue(Thread.currentThread().getName().contains(Task.X_OPAQUE_ID));
+                        assertTrue(Thread.currentThread().getName().contains(ThreadContext.WithTracingIdsInThreadName.ID_LABEL));
+                    } catch (Throwable t) {
+                        throw new RuntimeException("Assertion failed " + t.getMessage());
+                    }
+                }
+            });
+        }
+
+        withContext.run();
+
+        // Make sure naming works with Runnable that's not wrapped in AbstractRunnable
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "foo-bar-id");
+            withContext = threadContext.preserveContext(() -> {
+                assertTrue(Thread.currentThread().getName().contains("foo-bar-id"));
+                assertTrue(Thread.currentThread().getName().contains(Task.X_OPAQUE_ID));
+                assertTrue(Thread.currentThread().getName().contains(ThreadContext.WithTracingIdsInThreadName.ID_LABEL));
+            });
+        }
+
+        withContext.run();
+
+        // Ensure we cleaned up the thread name in case of an exception in the runnable
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "some_id");
+            withContext = threadContext.preserveContext(new AbstractRunnable() {
+
+                @Override
+                public void onAfter() {
+                    assertFalse(Thread.currentThread().getName().contains("some_id"));
+                    assertFalse(Thread.currentThread().getName().contains(Task.X_OPAQUE_ID));
+                    assertFalse(Thread.currentThread().getName().contains(ThreadContext.WithTracingIdsInThreadName.ID_LABEL));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertFalse(Thread.currentThread().getName().contains("some_id"));
+                    assertFalse(Thread.currentThread().getName().contains(Task.X_OPAQUE_ID));
+                    assertFalse(Thread.currentThread().getName().contains(ThreadContext.WithTracingIdsInThreadName.ID_LABEL));
+                    throw new RuntimeException("from onFailure", e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    assertTrue(Thread.currentThread().getName().contains("some_id"));
+                    assertTrue(Thread.currentThread().getName().contains(Task.X_OPAQUE_ID));
+                    assertTrue(Thread.currentThread().getName().contains(ThreadContext.WithTracingIdsInThreadName.ID_LABEL));
+                    throw new Exception("from doRun");
+                }
+            });
+        }
+
+        RuntimeException e = expectThrows(RuntimeException.class, withContext::run);
+        assertEquals("from onFailure", e.getMessage());
+        assertEquals("from doRun", e.getCause().getMessage());
     }
 }

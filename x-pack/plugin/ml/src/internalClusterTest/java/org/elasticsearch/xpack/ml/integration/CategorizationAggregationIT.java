@@ -82,7 +82,7 @@ public class CategorizationAggregationIT extends BaseMlIntegTestCase {
             .setTrackTotalHits(false)
             .addAggregation(
                 new CategorizeTextAggregationBuilder("categorize", "msg")
-                    .setSimilarityThreshold(0.11)
+                    .setSimilarityThreshold(11)
                     .setMaxChildren(2)
                     .setMaxDepth(1)
                     .subAggregation(AggregationBuilders.max("max").field("time"))

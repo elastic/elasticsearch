@@ -31,10 +31,11 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
@@ -46,7 +47,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     private ObjectArray<CategorizationTokenTree> categorizers;
     private final int maxChildren;
     private final int maxDepth;
-    private final double similarityThreshold;
+    private final int similarityThreshold;
     private final LongKeyedBucketOrds bucketOrds;
 
     protected CategorizeTextAggregator(
@@ -59,18 +60,19 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         int maxChildren,
         int maxDepth,
-        double similarityThreshold,
-        List<String> categorizationFilters,
+        int similarityThreshold,
+        CategorizationAnalyzerConfig categorizationAnalyzerConfig,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, metadata);
         this.sourceLookup = context.lookup().source();
         this.sourceFieldName = sourceFieldName;
         this.fieldType = fieldType;
-        CategorizationAnalyzerConfig categorizationAnalyzerConfig = CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(
-            categorizationFilters
+        this.analyzer = new CategorizationAnalyzer(
+            context.getAnalysisRegistry(),
+            Optional.ofNullable(categorizationAnalyzerConfig)
+                .orElse(CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(Collections.emptyList()))
         );
-        this.analyzer = new CategorizationAnalyzer(context.getAnalysisRegistry(), categorizationAnalyzerConfig);
         this.categorizers = bigArrays().newObjectArray(1);
         this.maxChildren = maxChildren;
         this.maxDepth = maxDepth;

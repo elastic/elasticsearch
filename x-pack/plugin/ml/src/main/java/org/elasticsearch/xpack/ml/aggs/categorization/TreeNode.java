@@ -70,12 +70,15 @@ abstract class TreeNode implements Accountable {
 
     static class LeafTreeNode extends TreeNode {
         private final List<TextCategorization> textCategorizations;
-        private final double similarityThreshold;
+        private final int similarityThreshold;
 
-        LeafTreeNode(long count, double similarityThreshold) {
+        LeafTreeNode(long count, int similarityThreshold) {
             super(count);
             this.textCategorizations = new ArrayList<>();
             this.similarityThreshold = similarityThreshold;
+            if (similarityThreshold < 1 || similarityThreshold > 100) {
+                throw new IllegalArgumentException("similarityThreshold must be between 1 and 100");
+            }
         }
 
         public boolean isLeaf() {
@@ -105,7 +108,7 @@ abstract class TreeNode implements Accountable {
         public long ramBytesUsed() {
             return Long.BYTES // count
                 + NUM_BYTES_OBJECT_REF // list reference
-                + Double.BYTES  // similarityThreshold
+                + Integer.BYTES  // similarityThreshold
                 + sizeOfCollection(textCategorizations);
         }
 
@@ -129,7 +132,7 @@ abstract class TreeNode implements Accountable {
 
         private Optional<TextCategorization> getAndUpdateLogGroup(BytesRef[] logTokens, long docCount) {
             return getBestLogGroup(logTokens).map(bestGroupAndSimilarity -> {
-                if (bestGroupAndSimilarity.v2() >= similarityThreshold) {
+                if ((bestGroupAndSimilarity.v2() * 100) >= similarityThreshold) {
                     bestGroupAndSimilarity.v1().addLog(logTokens, docCount);
                     return bestGroupAndSimilarity.v1();
                 }
@@ -173,7 +176,7 @@ abstract class TreeNode implements Accountable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             LeafTreeNode that = (LeafTreeNode) o;
-            return Double.compare(that.similarityThreshold, similarityThreshold) == 0
+            return that.similarityThreshold == similarityThreshold
                 && Objects.equals(textCategorizations, that.textCategorizations);
         }
 

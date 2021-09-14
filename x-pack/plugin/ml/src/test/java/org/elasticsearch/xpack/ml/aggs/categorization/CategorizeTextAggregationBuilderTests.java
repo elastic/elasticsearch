@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.config.CategorizationAnalyzerConfigTests;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -26,8 +27,12 @@ public class CategorizeTextAggregationBuilderTests extends BaseAggregationTestCa
     @Override
     protected CategorizeTextAggregationBuilder createTestAggregatorBuilder() {
         CategorizeTextAggregationBuilder builder = new CategorizeTextAggregationBuilder(randomAlphaOfLength(10), randomAlphaOfLength(10));
-        if (randomBoolean()) {
+        final boolean setFilters = randomBoolean();
+        if (setFilters) {
             builder.setCategorizationFilters(Stream.generate(() -> randomAlphaOfLength(10)).limit(5).collect(Collectors.toList()));
+        }
+        if (setFilters == false) {
+            builder.setCategorizationAnalyzerConfig(CategorizationAnalyzerConfigTests.createRandomized().build());
         }
         if (randomBoolean()) {
             builder.setMaxChildren(randomIntBetween(1, 500));
@@ -36,7 +41,7 @@ public class CategorizeTextAggregationBuilderTests extends BaseAggregationTestCa
             builder.setMaxDepth(randomIntBetween(1, 10));
         }
         if (randomBoolean()) {
-            builder.setSimilarityThreshold(randomDoubleBetween(0.1, 1.0, true));
+            builder.setSimilarityThreshold(randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
             builder.minDocCount(randomLongBetween(1, 100));

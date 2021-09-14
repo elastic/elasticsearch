@@ -240,7 +240,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     private final List<Bucket> buckets;
     private final int maxChildren;
-    private final double similarityThreshold;
+    private final int similarityThreshold;
     private final int maxDepth;
     protected final int requiredSize;
     protected final long minDocCount;
@@ -251,7 +251,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         long minDocCount,
         int maxChildren,
         int maxDepth,
-        double similarityThreshold,
+        int similarityThreshold,
         Map<String, Object> metadata
     ) {
         this(name, requiredSize, minDocCount, maxChildren, maxDepth, similarityThreshold, metadata, new ArrayList<>());
@@ -263,7 +263,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         long minDocCount,
         int maxChildren,
         int maxDepth,
-        double similarityThreshold,
+        int similarityThreshold,
         Map<String, Object> metadata,
         List<Bucket> buckets
     ) {
@@ -280,7 +280,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         super(in);
         this.maxChildren = in.readVInt();
         this.maxDepth = in.readVInt();
-        this.similarityThreshold = in.readDouble();
+        this.similarityThreshold = in.readVInt();
         this.buckets = in.readList(Bucket::new);
         this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
@@ -324,7 +324,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(maxChildren);
         out.writeVInt(maxDepth);
-        out.writeDouble(similarityThreshold);
+        out.writeVInt(similarityThreshold);
         out.writeList(buckets);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);

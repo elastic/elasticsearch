@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.is;
 
 public class InnerTreeNodeTests extends ESTestCase {
 
-    private final TreeNodeFactory factory = new CategorizationTokenTree(3, 4, 0.6);
+    private final TreeNodeFactory factory = new CategorizationTokenTree(3, 4, 60);
 
     public void testAddLog() {
         TreeNode.InnerTreeNode innerTreeNode = new TreeNode.InnerTreeNode(1, 0, 3);
@@ -91,7 +91,7 @@ public class InnerTreeNodeTests extends ESTestCase {
         innerTreeNode.incCount(1000);
         innerTreeNode.addLog(getTokens("foo2", "bar", "baz", "biz"), 1000, factory);
 
-        expectThrows(UnsupportedOperationException.class, () -> innerTreeNode.mergeWith(new TreeNode.LeafTreeNode(1, 0.6)));
+        expectThrows(UnsupportedOperationException.class, () -> innerTreeNode.mergeWith(new TreeNode.LeafTreeNode(1, 60)));
 
 
         TreeNode.InnerTreeNode mergeWith = new TreeNode.InnerTreeNode(1, 0, 3);

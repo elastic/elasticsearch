@@ -71,7 +71,7 @@ setup:
                   "size": 10,
                   "max_children": 2,
                   "max_depth": 1,
-                  "similarity_threshold": 0.11
+                  "similarity_threshold": 11
                 }
               }
             }
@@ -118,7 +118,7 @@ setup:
             }
           }
   - do:
-      catch: /\[similarity_threshold\] must be in the range \[0.1, 1.0\]/
+      catch: /\[similarity_threshold\] must be in the range \[1, 100\]/
       search:
         index: to_categorize
         body: >
@@ -128,7 +128,25 @@ setup:
               "categories": {
                 "categorize_text": {
                   "field": "text",
-                  "similarity_threshold": 0.0
+                  "similarity_threshold": 0
+                }
+              }
+            }
+          }
+
+  - do:
+      catch: /\[categorization_filters\] cannot be used with \[categorization_analyzer\]/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "categorization_filters": ["foo"],
+                  "categorization_analyzer": "english"
                 }
               }
             }

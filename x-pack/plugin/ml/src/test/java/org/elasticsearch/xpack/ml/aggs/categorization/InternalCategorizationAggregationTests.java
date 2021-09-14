@@ -94,7 +94,7 @@ public class InternalCategorizationAggregationTests extends InternalMultiBucketA
             randomLongBetween(1, 10),
             randomIntBetween(1, 500),
             randomIntBetween(1, 10),
-            randomDoubleBetween(0.1, 1.0, true),
+            randomIntBetween(1, 100),
             metadata,
             buckets
         );

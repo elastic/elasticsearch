@@ -61,13 +61,13 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
 
     private final int maxDepth;
     private final int maxChildren;
-    private final double similarityThreshold;
+    private final int similarityThreshold;
     private final AtomicLong idGen = new AtomicLong();
     // TODO statically allocate an array like DuplicateByteSequenceSpotter ???
     private final Map<Integer, TreeNode> root = new HashMap<>();
     private long sizeInBytes;
 
-    public CategorizationTokenTree(int maxChildren, int maxDepth, double similarityThreshold) {
+    public CategorizationTokenTree(int maxChildren, int maxDepth, int similarityThreshold) {
         assert maxChildren > 0 && maxDepth >= 0;
         this.maxChildren = maxChildren;
         this.maxDepth = maxDepth;

@@ -20,10 +20,11 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +32,7 @@ import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatio
 import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME;
 import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME;
 import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME;
+import static org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig.Builder.isValidRegex;
 
 public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder<CategorizeTextAggregationBuilder> {
 
@@ -50,6 +52,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     static final ParseField SIMILARITY_THRESHOLD = new ParseField("similarity_threshold");
     static final ParseField MAX_DEPTH = new ParseField("max_depth");
     static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
+    static final ParseField CATEGORIZATION_ANALYZER = new ParseField("categorization_analyzer");
 
     public static final ObjectParser<CategorizeTextAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         CategorizeTextAggregationBuilder.NAME,
@@ -59,7 +62,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         PARSER.declareString(CategorizeTextAggregationBuilder::setFieldName, FIELD_NAME);
         PARSER.declareInt(CategorizeTextAggregationBuilder::setMaxChildren, MAX_CHILDREN);
         PARSER.declareInt(CategorizeTextAggregationBuilder::setMaxDepth, MAX_DEPTH);
-        PARSER.declareDouble(CategorizeTextAggregationBuilder::setSimilarityThreshold, SIMILARITY_THRESHOLD);
+        PARSER.declareInt(CategorizeTextAggregationBuilder::setSimilarityThreshold, SIMILARITY_THRESHOLD);
+        PARSER.declareField(
+            CategorizeTextAggregationBuilder::setCategorizationAnalyzerConfig,
+            (p, c) -> CategorizationAnalyzerConfig.buildFromXContentFragment(p, false),
+            CATEGORIZATION_ANALYZER,
+            ObjectParser.ValueType.OBJECT_OR_STRING
+        );
         PARSER.declareStringArray(CategorizeTextAggregationBuilder::setCategorizationFilters, CATEGORIZATION_FILTERS);
         PARSER.declareInt(CategorizeTextAggregationBuilder::shardSize, TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME);
         PARSER.declareLong(CategorizeTextAggregationBuilder::minDocCount, TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME);
@@ -74,10 +83,10 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
         DEFAULT_BUCKET_COUNT_THRESHOLDS
     );
-    private List<String> categorizationFilters = new ArrayList<>();
+    private CategorizationAnalyzerConfig categorizationAnalyzerConfig;
     private String fieldName;
-    private int maxChildren = 100;
-    private double similarityThreshold = 0.5;
+    private int maxChildren = 50;
+    private int similarityThreshold = 50;
     private int maxDepth = 5;
 
     private CategorizeTextAggregationBuilder(String name) {
@@ -104,8 +113,8 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         this.fieldName = in.readString();
         this.maxChildren = in.readVInt();
         this.maxDepth = in.readVInt();
-        this.similarityThreshold = in.readDouble();
-        this.categorizationFilters = in.readStringList();
+        this.similarityThreshold = in.readVInt();
+        this.categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
     }
 
     public int getMaxChildren() {
@@ -130,11 +139,11 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         return similarityThreshold;
     }
 
-    public CategorizeTextAggregationBuilder setSimilarityThreshold(double similarityThreshold) {
+    public CategorizeTextAggregationBuilder setSimilarityThreshold(int similarityThreshold) {
         this.similarityThreshold = similarityThreshold;
-        if (similarityThreshold < 0.1 || similarityThreshold > 1.0) {
+        if (similarityThreshold < 1 || similarityThreshold > 100) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] must be in the range [0.1, 1.0]. Found [{}] in [{}]",
+                "[{}] must be in the range [1, 100]. Found [{}] in [{}]",
                 SIMILARITY_THRESHOLD.getPreferredName(),
                 similarityThreshold,
                 name
@@ -143,12 +152,36 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         return this;
     }
 
-    public List<String> getCategorizationFilters() {
-        return categorizationFilters;
+    public CategorizeTextAggregationBuilder setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig categorizationAnalyzerConfig) {
+        this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
+        return this;
     }
 
     public CategorizeTextAggregationBuilder setCategorizationFilters(List<String> categorizationFilters) {
-        this.categorizationFilters = ExceptionsHelper.requireNonNull(categorizationFilters, CATEGORIZATION_FILTERS);
+        if (categorizationFilters == null || categorizationFilters.isEmpty()) {
+            return this;
+        }
+        if (categorizationAnalyzerConfig != null) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] cannot be used with [{}] - instead specify them as pattern_replace char_filters in the analyzer",
+                CATEGORIZATION_FILTERS.getPreferredName(),
+                CATEGORIZATION_ANALYZER.getPreferredName()
+            );
+        }
+        if (categorizationFilters.stream().distinct().count() != categorizationFilters.size()) {
+            throw ExceptionsHelper.badRequestException(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES);
+        }
+        if (categorizationFilters.stream().anyMatch(String::isEmpty)) {
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY));
+        }
+        for (String filter : categorizationFilters) {
+            if (isValidRegex(filter) == false) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_INVALID_REGEX, filter)
+                );
+            }
+        }
+        this.categorizationAnalyzerConfig = CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(categorizationFilters);
         return this;
     }
 
@@ -250,7 +283,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         this.maxChildren = clone.maxChildren;
         this.maxDepth = clone.maxDepth;
         this.similarityThreshold = clone.similarityThreshold;
-        this.categorizationFilters = clone.categorizationFilters;
+        this.categorizationAnalyzerConfig = clone.categorizationAnalyzerConfig;
     }
 
     @Override
@@ -259,8 +292,8 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         out.writeString(fieldName);
         out.writeVInt(maxChildren);
         out.writeVInt(maxDepth);
-        out.writeDouble(similarityThreshold);
-        out.writeStringCollection(categorizationFilters);
+        out.writeVInt(similarityThreshold);
+        out.writeOptionalWriteable(categorizationAnalyzerConfig);
     }
 
     @Override
@@ -276,7 +309,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
             maxDepth,
             similarityThreshold,
             bucketCountThresholds,
-            categorizationFilters,
+            categorizationAnalyzerConfig,
             context,
             parent,
             subfactoriesBuilder,
@@ -292,8 +325,8 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         builder.field(MAX_CHILDREN.getPreferredName(), maxChildren);
         builder.field(MAX_DEPTH.getPreferredName(), maxDepth);
         builder.field(SIMILARITY_THRESHOLD.getPreferredName(), similarityThreshold);
-        if (categorizationFilters.isEmpty() == false) {
-            builder.field(CATEGORIZATION_FILTERS.getPreferredName(), categorizationFilters);
+        if (categorizationAnalyzerConfig != null) {
+            categorizationAnalyzerConfig.toXContent(builder, params);
         }
         builder.endObject();
         return null;

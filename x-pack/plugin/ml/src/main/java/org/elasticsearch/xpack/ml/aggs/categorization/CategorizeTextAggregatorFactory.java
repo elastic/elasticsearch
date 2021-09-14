@@ -15,10 +15,9 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 public class CategorizeTextAggregatorFactory extends AggregatorFactory {
@@ -27,8 +26,8 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
     private final String indexedFieldName;
     private final int maxChildren;
     private final int maxDepth;
-    private final double similarityThreshold;
-    private final List<String> categorizationFilters;
+    private final int similarityThreshold;
+    private final CategorizationAnalyzerConfig categorizationAnalyzerConfig;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
 
     public CategorizeTextAggregatorFactory(
@@ -36,9 +35,9 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         String fieldName,
         int maxChildren,
         int maxDepth,
-        double similarityThreshold,
+        int similarityThreshold,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
-        List<String> categorizationFilters,
+        CategorizationAnalyzerConfig categorizationAnalyzerConfig,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
@@ -54,7 +53,7 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         this.maxChildren = maxChildren;
         this.maxDepth = maxDepth;
         this.similarityThreshold = similarityThreshold;
-        this.categorizationFilters = categorizationFilters == null ? Collections.emptyList() : categorizationFilters;
+        this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
         this.bucketCountThresholds = bucketCountThresholds;
     }
 
@@ -82,7 +81,7 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
             maxChildren,
             maxDepth,
             similarityThreshold,
-            categorizationFilters,
+            categorizationAnalyzerConfig,
             metadata
         );
     }

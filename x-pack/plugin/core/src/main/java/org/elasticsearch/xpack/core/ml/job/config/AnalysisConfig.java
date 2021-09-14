@@ -736,7 +736,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             }
         }
 
-        private static boolean isValidRegex(String exp) {
+        public static boolean isValidRegex(String exp) {
             try {
                 Pattern.compile(exp);
                 return true;

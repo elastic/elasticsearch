@@ -17,10 +17,10 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class LeafTreeNodeTests extends ESTestCase {
 
-    private final TreeNodeFactory factory = new CategorizationTokenTree(10, 10, 0.6);
+    private final TreeNodeFactory factory = new CategorizationTokenTree(10, 10, 60);
 
     public void testAddGroup() {
-        TreeNode.LeafTreeNode leafTreeNode = new TreeNode.LeafTreeNode(0, 0.6);
+        TreeNode.LeafTreeNode leafTreeNode = new TreeNode.LeafTreeNode(0, 60);
         TextCategorization group = leafTreeNode.addLog(getTokens("foo", "bar", "baz", "biz"), 1, factory);
 
         assertThat(group.getCategorization(), arrayContaining(getTokens("foo", "bar", "baz", "biz")));
@@ -44,16 +44,16 @@ public class LeafTreeNodeTests extends ESTestCase {
     }
 
     public void testMergeWith() {
-        TreeNode.LeafTreeNode leafTreeNode = new TreeNode.LeafTreeNode(0, 0.6);
+        TreeNode.LeafTreeNode leafTreeNode = new TreeNode.LeafTreeNode(0, 60);
         leafTreeNode.mergeWith(null);
-        assertThat(leafTreeNode, equalTo(new TreeNode.LeafTreeNode(0, 0.6)));
+        assertThat(leafTreeNode, equalTo(new TreeNode.LeafTreeNode(0, 60)));
 
         expectThrows(UnsupportedOperationException.class, () -> leafTreeNode.mergeWith(new TreeNode.InnerTreeNode(1, 2, 3)));
 
         leafTreeNode.incCount(5);
         leafTreeNode.addLog(getTokens("foo", "bar", "baz", "biz"), 5, factory);
 
-        TreeNode.LeafTreeNode toMerge = new TreeNode.LeafTreeNode(0, 0.6);
+        TreeNode.LeafTreeNode toMerge = new TreeNode.LeafTreeNode(0, 60);
         leafTreeNode.incCount(1);
         toMerge.addLog(getTokens("foo", "bar", "baz", "bizzy"), 1, factory);
         leafTreeNode.incCount(1);

@@ -112,7 +112,6 @@ Response:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 Here is an example using `categorization_filters`
@@ -164,7 +163,6 @@ category results
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Here is an example using `categorization_filters`
 
@@ -214,7 +212,6 @@ and merging the log groups.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 This aggregation can have both sub-aggregations and itself be a sub-aggregation.
 
@@ -392,5 +389,3 @@ POST log-messages/_search?filter_path=aggregations
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
-

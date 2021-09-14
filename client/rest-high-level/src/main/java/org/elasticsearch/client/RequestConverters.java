@@ -47,13 +47,10 @@ import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -63,6 +60,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
@@ -421,6 +421,9 @@ final class RequestConverters {
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
         if (searchRequest.isCcsMinimizeRoundtrips() != SearchRequest.defaultCcsMinimizeRoundtrips(searchRequest)) {
             params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
+        }
+        if (searchRequest.isFieldsOptionEmulationEnabled() != SearchRequest.DEFAULT_FIELDS_EMULATION_ENABLED) {
+            params.putParam("enable_fields_emulation", Boolean.toString(searchRequest.isFieldsOptionEmulationEnabled()));
         }
         if (searchRequest.getPreFilterShardSize() != null) {
             params.putParam("pre_filter_shard_size", Integer.toString(searchRequest.getPreFilterShardSize()));

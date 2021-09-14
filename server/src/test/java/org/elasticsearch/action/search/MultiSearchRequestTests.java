@@ -10,18 +10,18 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
@@ -381,6 +381,8 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchRequest request = new MultiSearchRequest();
         for (int j = 0; j < numSearchRequest; j++) {
             SearchRequest searchRequest = createSimpleSearchRequest();
+            // we don't support reading this request parameter in multi-line format, so supressing it here
+            searchRequest.setFieldsOptionEmulationEnabled(false);
 
             if (randomBoolean()) {
                 searchRequest.allowPartialSearchResults(true);

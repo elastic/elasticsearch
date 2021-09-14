@@ -216,10 +216,8 @@ setup:
 ---
 "profiler int":
   - skip:
-      # version: " - 7.9.99"
-      # reason:  new info added in 7.10.0
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/77709"
+      version: " - 7.11.99"
+      reason:  new info added in 7.10.0 but post_collection didn't exist in 7.11
   - do:
       search:
         body:
@@ -244,10 +242,8 @@ setup:
 ---
 "profiler double":
   - skip:
-      # version: " - 7.9.99"
-      # reason:  new info added in 7.10.0
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/77710"
+      version: " - 7.11.99"
+      reason:  new info added in 7.10.0 but post_collection didn't exist in 7.11
   - do:
       search:
         body:
@@ -272,10 +268,8 @@ setup:
 ---
 "profiler string":
   - skip:
-      # version: " - 7.9.99"
-      # reason:  new info added in 7.10.0
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/77708"
+      version: " - 7.11.99"
+      reason:  new info added in 7.10.0 but post_collection didn't exist in 7.11
   - do:
       search:
         body:

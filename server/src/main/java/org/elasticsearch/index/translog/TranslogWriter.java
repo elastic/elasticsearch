@@ -467,11 +467,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private void writeAndReleaseOps(ReleasableBytesReference toWrite) throws IOException {
         try (ReleasableBytesReference toClose = toWrite) {
             assert writeLock.isHeldByCurrentThread();
-            if (toWrite.length() == 0) {
+            final int length = toWrite.length();
+            if (length == 0) {
                 return;
             }
-            ByteBuffer ioBuffer = DiskIoBufferPool.getIoBuffer();
-
+            ByteBuffer ioBuffer = DiskIoBufferPool.maybeGetDirectIOBuffer();
+            if (ioBuffer == null) {
+                // not using a direct buffer for writes from the current thread so just write without copying to the io buffer
+                BytesRefIterator iterator = toWrite.iterator();
+                BytesRef current;
+                while ((current = iterator.next()) != null) {
+                    Channels.writeToChannel(ByteBuffer.wrap(current.bytes, current.offset, current.length), channel);
+                }
+                return;
+            }
             BytesRefIterator iterator = toWrite.iterator();
             BytesRef current;
             while ((current = iterator.next()) != null) {

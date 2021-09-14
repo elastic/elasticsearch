@@ -121,7 +121,7 @@ public class PluginsConfig {
             byte[] configBytes = Files.readAllBytes(configPath);
             pluginsConfig = mapper.readValue(configBytes, PluginsConfig.class);
         } catch (IOException e) {
-            throw new UserException(ExitCodes.CONFIG, "Cannot parse plugins config file [" + configPath + "]: " + e.getMessage());
+            throw new UserException(ExitCodes.CONFIG, "Cannot parse plugins config file [" + configPath + "]: " + e.getMessage(), e);
         }
 
         pluginsConfig.validate(configPath);

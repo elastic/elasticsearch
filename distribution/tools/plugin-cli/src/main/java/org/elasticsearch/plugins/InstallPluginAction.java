@@ -277,7 +277,7 @@ class InstallPluginAction implements Closeable {
 
         // See `InstallPluginCommand` it has to use a string argument for both the ID and the location
         if (OFFICIAL_PLUGINS.contains(pluginId) && (plugin.getLocation() == null || plugin.getLocation().equals(pluginId))) {
-            final String pluginArchiveDir = System.getenv("ELASTICSEARCH_PLUGIN_ARCHIVE_DIR");
+            final String pluginArchiveDir = System.getenv("ES_PLUGIN_ARCHIVE_DIR");
             if (pluginArchiveDir != null && pluginArchiveDir.isEmpty() == false) {
                 final Path pluginPath = getPluginArchivePath(pluginId, pluginArchiveDir);
                 if (Files.exists(pluginPath)) {
@@ -320,10 +320,10 @@ class InstallPluginAction implements Closeable {
     private Path getPluginArchivePath(String pluginId, String pluginArchiveDir) throws UserException {
         final Path path = PathUtils.get(pluginArchiveDir);
         if (Files.exists(path) == false) {
-            throw new UserException(ExitCodes.CONFIG, "Location in ELASTICSEARCH_PLUGIN_ARCHIVE_DIR does not exist");
+            throw new UserException(ExitCodes.CONFIG, "Location in ES_PLUGIN_ARCHIVE_DIR does not exist");
         }
         if (Files.isDirectory(path) == false) {
-            throw new UserException(ExitCodes.CONFIG, "Location in ELASTICSEARCH_PLUGIN_ARCHIVE_DIR is not a directory");
+            throw new UserException(ExitCodes.CONFIG, "Location in ES_PLUGIN_ARCHIVE_DIR is not a directory");
         }
         return PathUtils.get(pluginArchiveDir, pluginId + "-" + Version.CURRENT + (isSnapshot() ? "-SNAPSHOT" : "") + ".zip");
     }

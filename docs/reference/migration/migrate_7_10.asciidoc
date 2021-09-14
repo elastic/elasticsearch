@@ -13,6 +13,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_710_java_changes>>
 * <<breaking_710_networking_changes>>
 * <<breaking_710_search_changes>>
+* <<breaking_710_cluster_deprecations>>
 * <<breaking_710_indices_changes>>
 * <<breaking_710_ml_changes>>
 * <<breaking_710_mapping_changes>>

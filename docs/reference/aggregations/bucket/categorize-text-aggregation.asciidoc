@@ -68,7 +68,7 @@ merging.
 
 Example:
 
-[source,console,id=categorize-text-aggregation-example]
+[source,console]
 --------------------------------------------------
 POST log-messages/_search?filter_path=aggregations
 {
@@ -116,7 +116,7 @@ Response:
 
 Here is an example using `categorization_filters`
 
-[source,console,id=categorize-text-aggregation-with-filters-example]
+[source,console]
 --------------------------------------------------
 POST log-messages/_search?filter_path=aggregations
 {
@@ -131,8 +131,10 @@ POST log-messages/_search?filter_path=aggregations
 }
 --------------------------------------------------
 // TEST[setup:categorize_text]
+
 <1> The filters to apply to the analyzed tokens. It filters
     out tokens like `bar_123`.
+
 Note how the `foo_<number>` tokens are not part of the
 category results
 
@@ -166,7 +168,7 @@ category results
 
 Here is an example using `categorization_filters`
 
-[source,console,id=categorize-text-aggregation-with-broad-categories-example]
+[source,console]
 --------------------------------------------------
 POST log-messages/_search?filter_path=aggregations
 {
@@ -215,7 +217,7 @@ and merging the log groups.
 
 This aggregation can have both sub-aggregations and itself be a sub-aggregation.
 
-[source,console,id=categorize-text-aggregation-with-broad-categories-sub-aggs-example]
+[source,console]
 --------------------------------------------------
 POST log-messages/_search?filter_path=aggregations
 {
@@ -245,6 +247,7 @@ POST log-messages/_search?filter_path=aggregations
   }
 }
 --------------------------------------------------
+
 [source,console-result]
 --------------------------------------------------
 {

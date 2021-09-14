@@ -161,7 +161,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will run successfully with no plugins declared and no plugins installed.
+     * Check that the sync command will run successfully with no plugins declared and no plugins installed.
      */
     public void testSync_withNoPlugins_succeeds() throws Exception {
         Files.writeString(pluginsFile, "plugins:\n");
@@ -174,7 +174,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will run successfully with an official plugin.
+     * Check that the sync command will run successfully with an official plugin.
      */
     public void testSync_withPlugin_succeeds() throws Exception {
         StringJoiner yaml = new StringJoiner("\n", "", "\n");
@@ -192,7 +192,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will run successfully with an official plugin and a proxy configured.
+     * Check that the sync command will run successfully with an official plugin and a proxy configured.
      */
     public void testSync_withPluginAndProxy_succeeds() throws Exception {
         StringJoiner yaml = new StringJoiner("\n", "", "\n");
@@ -211,7 +211,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will print the corrects summary of changes with a plugin pending installation.
+     * Check that the sync command will print the corrects summary of changes with a plugin pending installation.
      */
     public void testSync_withDryRunAndPluginPending_printsCorrectSummary() throws Exception {
         StringJoiner yaml = new StringJoiner("\n", "", "\n");
@@ -232,7 +232,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will do nothing when a plugin is already installed.
+     * Check that the sync command will do nothing when a plugin is already installed.
      */
     public void testSync_withPluginAlreadyInstalled_succeeds() throws Exception {
         final String pluginId = "analysis-icu";
@@ -253,7 +253,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will print the correct summary when a required plugin is already installed.
+     * Check that the sync command will print the correct summary when a required plugin is already installed.
      */
     public void testSync_withDryRunAndPluginAlreadyInstalled_printsCorrectSummary() throws Exception {
         final String pluginId = "analysis-icu";
@@ -273,7 +273,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will run successfully when removing a plugin
+     * Check that the sync command will run successfully when removing a plugin
      */
     public void testSync_withRemovePlugin_succeeds() throws Exception {
         final String pluginId = "analysis-icu";
@@ -290,7 +290,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will print the correct summary in dry run mode for removing a plugin
+     * Check that the sync command will print the correct summary in dry run mode for removing a plugin
      */
     public void testSync_withDryRunRemovePlugin_printsCorrectSummary() throws Exception {
         final String pluginId = "analysis-icu";
@@ -318,7 +318,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will run successfully when adding and removing plugins
+     * Check that the sync command will run successfully when adding and removing plugins
      */
     public void testSync_withPluginsToAddAndRemove_succeeds() throws Exception {
         // Remove 2 plugins...
@@ -342,7 +342,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will print the correct summary when adding and removing plugins
+     * Check that the sync command will print the correct summary when adding and removing plugins
      */
     public void testSync_withDryRunPluginsToAddAndRemove_printsCorrectSummary() throws Exception {
         // Remove 2 plugins...
@@ -381,7 +381,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will fail gracefully when the config file is missing.
+     * Check that the sync command will fail gracefully when the config file is missing.
      */
     public void testSync_withMissingConfig_fails() {
         final SyncPluginsCommand command = new SyncPluginsCommand();
@@ -392,7 +392,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will fail gracefully when an invalid proxy is specified
+     * Check that the sync command will fail gracefully when an invalid proxy is specified
      */
     public void testSync_withInvalidProxy_fails() throws Exception {
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
@@ -409,7 +409,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will run successfully with an unofficial plugin.
+     * Check that the sync command will run successfully with an unofficial plugin.
      */
     public void testSync_withUnofficialPlugin_succeeds() throws Exception {
         StringJoiner yaml = new StringJoiner("\n", "", "\n");
@@ -427,7 +427,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will fail gracefully when an unofficial plugin is specified without a location.
+     * Check that the sync command will fail gracefully when an unofficial plugin is specified without a location.
      */
     public void testSync_withUnofficialPluginWithoutLocation_fails() throws Exception {
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
@@ -440,6 +440,42 @@ public class SyncPluginsCommandTests extends ESTestCase {
         final UserException exception = expectThrows(UserException.class, () -> command.execute(terminal, env.v2(), false, null, null));
 
         assertThat(exception.getMessage(), startsWith("Must specify location for non-official plugin [example-plugin]"));
+        assertThat(exception.exitCode, equalTo(ExitCodes.CONFIG));
+    }
+
+    /**
+     * Check that the sync command rejects plugins if they have a malformed location.
+     */
+    public void testSync_withInvalidPluginLocation_fails() throws Exception {
+        final StringJoiner yaml = new StringJoiner("\n", "", "\n");
+        yaml.add("plugins:");
+        yaml.add("  - id: example-plugin");
+        yaml.add("    location: https://");
+
+        Files.writeString(pluginsFile, yaml.toString());
+
+        final SyncPluginsCommand command = new SyncPluginsCommand();
+        final UserException exception = expectThrows(UserException.class, () -> command.execute(terminal, env.v2(), false, null, null));
+
+        assertThat(exception.getMessage(), startsWith("Malformed location for plugin [example-plugin]"));
+        assertThat(exception.exitCode, equalTo(ExitCodes.CONFIG));
+    }
+
+    /**
+     * Check that the sync command rejects plugins if they supply an empty or blank location
+     */
+    public void testSync_withEmptyPluginLocation_fails() throws Exception {
+        final StringJoiner yaml = new StringJoiner("\n", "", "\n");
+        yaml.add("plugins:");
+        yaml.add("  - id: example-plugin");
+        yaml.add("    location: '  '");
+
+        Files.writeString(pluginsFile, yaml.toString());
+
+        final SyncPluginsCommand command = new SyncPluginsCommand();
+        final UserException exception = expectThrows(UserException.class, () -> command.execute(terminal, env.v2(), false, null, null));
+
+        assertThat(exception.getMessage(), startsWith("Empty location for plugin [example-plugin]"));
         assertThat(exception.exitCode, equalTo(ExitCodes.CONFIG));
     }
 

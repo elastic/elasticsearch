@@ -18,8 +18,8 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -47,7 +47,7 @@ public class PluginsConfig {
      * <ul>
      *     <li>All {@link PluginDescriptor}s must have IDs</li>
      *     <li>Any proxy must be well-formed.</li>
-     *     <li>Unofficial plugins must have URLs</li>
+     *     <li>Unofficial plugins must have locations</li>
      * </ul>
      *
      * @param configPath the path to the file used to create this instance. Used to construct error messages.
@@ -87,10 +87,15 @@ public class PluginsConfig {
 
         for (PluginDescriptor p : plugins) {
             if (p.getLocation() != null) {
+                if (p.getLocation().isBlank()) {
+                    throw new UserException(ExitCodes.CONFIG, "Empty location for plugin [" + p.getId() + "]");
+                }
+
                 try {
-                    new URL(p.getLocation());
-                } catch (MalformedURLException e) {
-                    throw new UserException(ExitCodes.CONFIG, "Malformed URL for plugin [" + p.getId() + "]");
+                    // This also accepts Maven coordinates
+                    new URI(p.getLocation());
+                } catch (URISyntaxException e) {
+                    throw new UserException(ExitCodes.CONFIG, "Malformed location for plugin [" + p.getId() + "]");
                 }
             }
         }

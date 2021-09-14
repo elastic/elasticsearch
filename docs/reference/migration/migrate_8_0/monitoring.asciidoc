@@ -1,6 +1,6 @@
 [discreet]
 [[breaking_80_monitoring_changes]]
-==== Monitoring deprecations
+=== Monitoring changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

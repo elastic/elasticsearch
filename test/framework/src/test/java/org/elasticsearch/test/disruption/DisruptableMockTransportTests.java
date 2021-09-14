@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
@@ -137,9 +138,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
         service1.start();
         service2.start();
 
-        final PlainActionFuture<Void> fut1 = new PlainActionFuture<>();
+        final PlainActionFuture<Releasable> fut1 = new PlainActionFuture<>();
         service1.connectToNode(node2, fut1);
-        final PlainActionFuture<Void> fut2 = new PlainActionFuture<>();
+        final PlainActionFuture<Releasable> fut2 = new PlainActionFuture<>();
         service2.connectToNode(node1, fut2);
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertTrue(fut1.isDone());

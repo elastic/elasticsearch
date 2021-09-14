@@ -95,15 +95,15 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     }
 
     private HttpServer createHttpServer() throws Exception {
-        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpServer.start();
+        HttpServer mockServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        mockServer.start();
         //returns a different status code depending on the path
         for (int statusCode : getAllStatusCodes()) {
-            httpServer.createContext(pathPrefix + "/" + statusCode, new ResponseHandler(statusCode));
+            mockServer.createContext(pathPrefix + "/" + statusCode, new ResponseHandler(statusCode));
         }
         waitForCancelHandler = new WaitForCancelHandler();
-        httpServer.createContext(pathPrefix + "/wait", waitForCancelHandler);
-        return httpServer;
+        mockServer.createContext(pathPrefix + "/wait", waitForCancelHandler);
+        return mockServer;
     }
 
     private static class WaitForCancelHandler implements HttpHandler {
@@ -540,12 +540,12 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         return bodyTest(restClient, method);
     }
 
-    private Response bodyTest(final RestClient restClient, final String method) throws Exception {
+    private Response bodyTest(final RestClient client, final String method) throws Exception {
         int statusCode = randomStatusCode(getRandom());
-        return bodyTest(restClient, method, statusCode, new Header[0]);
+        return bodyTest(client, method, statusCode, new Header[0]);
     }
 
-    private Response bodyTest(RestClient restClient, String method, int statusCode, Header[] headers) throws Exception {
+    private Response bodyTest(RestClient client, String method, int statusCode, Header[] headers) throws Exception {
         String requestBody = "{ \"field\": \"value\" }";
         Request request = new Request(method, "/" + statusCode);
         request.setJsonEntity(requestBody);
@@ -556,7 +556,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         request.setOptions(options);
         Response esResponse;
         try {
-            esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
+            esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(client, request);
         } catch(ResponseException e) {
             esResponse = e.getResponse();
         }

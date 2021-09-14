@@ -99,7 +99,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final ThreadPool threadPool;
     protected final PageCacheRecycler pageCacheRecycler;
     protected final NetworkService networkService;
-    protected final Set<ProfileSettings> profileSettings;
+    protected final Set<ProfileSettings> profileSettingsSet;
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
@@ -124,7 +124,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                         NetworkService networkService) {
         this.settings = settings;
-        this.profileSettings = getProfileSettings(settings);
+        this.profileSettingsSet = getProfileSettings(settings);
         this.version = version;
         this.threadPool = threadPool;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -417,9 +417,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         String[] boundAddressesHostStrings = new String[boundAddresses.size()];
         TransportAddress[] transportBoundAddresses = new TransportAddress[boundAddresses.size()];
         for (int i = 0; i < boundAddresses.size(); i++) {
-            InetSocketAddress boundAddress = boundAddresses.get(i);
-            boundAddressesHostStrings[i] = boundAddress.getHostString();
-            transportBoundAddresses[i] = new TransportAddress(boundAddress);
+            InetSocketAddress nextAddress = boundAddresses.get(i);
+            boundAddressesHostStrings[i] = nextAddress.getHostString();
+            transportBoundAddresses[i] = new TransportAddress(nextAddress);
         }
 
         List<String> publishHosts = profileSettings.publishHosts;
@@ -928,10 +928,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             if (countDown.countDown()) {
                 final TcpChannel handshakeChannel = channels.get(0);
                 try {
-                    executeHandshake(node, handshakeChannel, connectionProfile, ActionListener.wrap(version -> {
+                    executeHandshake(node, handshakeChannel, connectionProfile, ActionListener.wrap(responseVersion -> {
                         final long connectionId = outboundConnectionCount.incrementAndGet();
                         logger.debug("opened transport connection [{}] to [{}] using channels [{}]", connectionId, node, channels);
-                        NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
+                        NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, responseVersion);
                         long relativeMillisTime = threadPool.relativeTimeInMillis();
                         nodeChannels.channels.forEach(ch -> {
                             // Mark the channel init time

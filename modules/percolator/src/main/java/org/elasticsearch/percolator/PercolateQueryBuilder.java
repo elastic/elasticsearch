@@ -362,7 +362,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     private static BiConsumer<PercolateQueryBuilder, String> deprecateAndIgnoreType(String key, String message) {
-        return (target, type) -> deprecationLogger.compatibleApiWarning(key, message);
+        return (target, type) -> deprecationLogger.compatibleCritical(key, message);
     }
 
     private static BytesReference parseDocument(XContentParser parser) throws IOException {

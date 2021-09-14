@@ -6,15 +6,13 @@
  * Side Public License, v 1.
  */
 
-
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.internal.test.rest.JavaRestTestPlugin
+import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 /*
@@ -65,7 +63,7 @@ TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClu
 
 TaskProvider<RestIntegTestTask> pooledJavaRestTest = tasks.register("pooledJavaRestTest", RestIntegTestTask) {
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet javaRestTestSourceSet = sourceSets.getByName(JavaRestTestPlugin.SOURCE_SET_NAME)
+    SourceSet javaRestTestSourceSet = sourceSets.getByName(InternalJavaRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(javaRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(javaRestTestSourceSet.getRuntimeClasspath())
 

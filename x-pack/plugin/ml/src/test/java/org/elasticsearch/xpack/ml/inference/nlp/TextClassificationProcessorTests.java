@@ -33,7 +33,7 @@ import static org.mockito.Mockito.mock;
 public class TextClassificationProcessorTests extends ESTestCase {
 
     public void testInvalidResult() {
-        TextClassificationConfig config = new TextClassificationConfig(new VocabularyConfig("test-index", "vocab"), null, null, null);
+        TextClassificationConfig config = new TextClassificationConfig(new VocabularyConfig("test-index"), null, null, null);
         TextClassificationProcessor processor = new TextClassificationProcessor(mock(BertTokenizer.class), config);
         {
             PyTorchResult torchResult = new PyTorchResult("foo", new double[][][] {}, 0L, null);
@@ -57,10 +57,12 @@ public class TextClassificationProcessorTests extends ESTestCase {
         NlpTokenizer tokenizer = NlpTokenizer.build(
             new Vocabulary(
                 Arrays.asList("Elastic", "##search", "fun",
-                    BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN, BertTokenizer.PAD_TOKEN)),
+                    BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN, BertTokenizer.PAD_TOKEN),
+                randomAlphaOfLength(10)
+            ),
             new DistilBertTokenization(null, null, 512));
 
-        TextClassificationConfig config = new TextClassificationConfig(new VocabularyConfig("test-index", "vocab"), null, null, null);
+        TextClassificationConfig config = new TextClassificationConfig(new VocabularyConfig("test-index"), null, null, null);
         TextClassificationProcessor processor = new TextClassificationProcessor(tokenizer, config);
 
         NlpTask.Request request = processor.getRequestBuilder().buildRequest(List.of("Elasticsearch fun"), "request1");
@@ -78,7 +80,7 @@ public class TextClassificationProcessorTests extends ESTestCase {
             ValidationException.class,
             () -> new TextClassificationProcessor(
                 mock(BertTokenizer.class),
-                new TextClassificationConfig(new VocabularyConfig("test-index", "vocab"), null, List.of("too few"), null)
+                new TextClassificationConfig(new VocabularyConfig("test-index"), null, List.of("too few"), null)
             )
         );
 
@@ -91,7 +93,7 @@ public class TextClassificationProcessorTests extends ESTestCase {
             ValidationException.class,
             () -> new TextClassificationProcessor(
                 mock(BertTokenizer.class),
-                new TextClassificationConfig(new VocabularyConfig("test-index", "vocab"), null, List.of("class", "labels"), 0)
+                new TextClassificationConfig(new VocabularyConfig("test-index"), null, List.of("class", "labels"), 0)
             )
         );
 

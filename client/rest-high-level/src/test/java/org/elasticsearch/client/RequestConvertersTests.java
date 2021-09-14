@@ -1353,8 +1353,6 @@ public class RequestConvertersTests extends ESTestCase {
             });
             // scroll is not supported in the current msearch api, so unset it:
             searchRequest.scroll((Scroll) null);
-            // fields emulation is not supported in msearch api
-            searchRequest.setFieldsOptionEmulationEnabled(false);
             // only expand_wildcards, ignore_unavailable and allow_no_indices can be
             // specified from msearch api, so unset other options:
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();
@@ -2143,13 +2141,7 @@ public class RequestConvertersTests extends ESTestCase {
                 expectedParams.put("ccs_minimize_roundtrips", "false");
             }
         }
-        if (randomBoolean()) {
-            boolean enableFieldsEmulation = randomBoolean();
-            searchRequest.setFieldsOptionEmulationEnabled(enableFieldsEmulation);
-            if (enableFieldsEmulation) {
-                expectedParams.put("enable_fields_emulation", Boolean.toString(enableFieldsEmulation));
-            }
-        }
+
         if (randomBoolean()) {
             searchRequest.setMaxConcurrentShardRequests(randomIntBetween(1, Integer.MAX_VALUE));
         }

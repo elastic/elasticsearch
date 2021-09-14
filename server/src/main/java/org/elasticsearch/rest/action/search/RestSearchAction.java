@@ -146,7 +146,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         if (request.hasParam("enable_fields_emulation")) {
             searchRequest.setFieldsOptionEmulationEnabled(
-                request.paramAsBoolean("enable_fields_emulation", searchRequest.isFieldsOptionEmulationEnabled())
+                request.paramAsBoolean("enable_fields_emulation", SearchRequest.DEFAULT_FIELDS_EMULATION_ENABLED)
             );
         }
 

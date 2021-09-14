@@ -107,9 +107,6 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             searchRequest.source(randomSearchSourceBuilder.get());
         }
-        if (randomBoolean()) {
-            searchRequest.setFieldsOptionEmulationEnabled(randomBoolean());
-        }
         return searchRequest;
     }
 

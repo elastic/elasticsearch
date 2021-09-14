@@ -93,7 +93,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private boolean ccsMinimizeRoundtrips;
 
     public static final boolean DEFAULT_FIELDS_EMULATION_ENABLED = false;
-    private boolean enableFieldsEmulation = DEFAULT_FIELDS_EMULATION_ENABLED;
+    // the following flag is not serialized via transport layer, we only need it on the coordinating node
+    private transient boolean enableFieldsEmulation = DEFAULT_FIELDS_EMULATION_ENABLED;
 
     @Nullable
     private final Version minCompatibleShardNode;
@@ -250,11 +251,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         } else {
             minCompatibleShardNode = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            this.enableFieldsEmulation = in.readBoolean();
-        } else {
-            this.enableFieldsEmulation = false;
-        }
     }
 
     @Override
@@ -294,9 +290,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (minCompatibleShardNode != null) {
                 Version.writeVersion(minCompatibleShardNode, out);
             }
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeBoolean(enableFieldsEmulation);
         }
     }
 
@@ -449,13 +442,17 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * Returns whether the "fields" option will be emulated via fetching from source on pre 7.10 nodes.
      * The default is false.
      */
-    public boolean isFieldsOptionEmulationEnabled() {
+    boolean isFieldsOptionEmulationEnabled() {
         return enableFieldsEmulation;
     }
 
     /**
      * Sets whether the "fields" option will be emulated via fetching from source on pre 7.10 nodes.
+     * @deprecated This option is only available temporarily. Instead of using this setter directly,
+     * use the parameter on the rest request. The bwc emulation will not be necessary on 8.0 any more,
+     * so this setter will not be availabe there.
      */
+    @Deprecated
     public void setFieldsOptionEmulationEnabled(boolean enableFieldsEmulation) {
         this.enableFieldsEmulation = enableFieldsEmulation;
     }

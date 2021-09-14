@@ -381,8 +381,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchRequest request = new MultiSearchRequest();
         for (int j = 0; j < numSearchRequest; j++) {
             SearchRequest searchRequest = createSimpleSearchRequest();
-            // we don't support reading this request parameter in multi-line format, so supressing it here
-            searchRequest.setFieldsOptionEmulationEnabled(false);
 
             if (randomBoolean()) {
                 searchRequest.allowPartialSearchResults(true);

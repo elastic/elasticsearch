@@ -422,9 +422,6 @@ final class RequestConverters {
         if (searchRequest.isCcsMinimizeRoundtrips() != SearchRequest.defaultCcsMinimizeRoundtrips(searchRequest)) {
             params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
         }
-        if (searchRequest.isFieldsOptionEmulationEnabled() != SearchRequest.DEFAULT_FIELDS_EMULATION_ENABLED) {
-            params.putParam("enable_fields_emulation", Boolean.toString(searchRequest.isFieldsOptionEmulationEnabled()));
-        }
         if (searchRequest.getPreFilterShardSize() != null) {
             params.putParam("pre_filter_shard_size", Integer.toString(searchRequest.getPreFilterShardSize()));
         }

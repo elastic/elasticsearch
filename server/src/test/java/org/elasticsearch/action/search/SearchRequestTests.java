@@ -247,7 +247,12 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testEqualsAndHashcode() throws IOException {
-        checkEqualsAndHashCode(createSearchRequest(), SearchRequest::new, this::mutate);
+        SearchRequest searchRequest = createSearchRequest();
+        // test fields emulation flag here since its part of equals/hashcode but not serialized
+        if (randomBoolean()) {
+            searchRequest.setFieldsOptionEmulationEnabled(randomBoolean());
+        }
+        checkEqualsAndHashCode(searchRequest, SearchRequest::new, this::mutate);
     }
 
     private SearchRequest mutate(SearchRequest searchRequest) {

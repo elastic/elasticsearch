@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -20,6 +22,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -43,7 +46,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -59,11 +62,15 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.reindex.UpdateByQueryAction;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -73,6 +80,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -90,6 +98,7 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -129,6 +138,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -136,6 +146,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST_NATIVE_PROCESS_KILLED;
 
 public class JobResultsProvider {
     private static final Logger LOGGER = LogManager.getLogger(JobResultsProvider.class);
@@ -143,6 +154,13 @@ public class JobResultsProvider {
     private static final int RECORDS_SIZE_PARAM = 10000;
     public static final int BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE = 20;
     private static final double ESTABLISHED_MEMORY_CV_THRESHOLD = 0.1;
+
+    // filter for quantiles in modelSnapshots to avoid memory overhead
+    private static final FetchSourceContext REMOVE_QUANTILES_FROM_SOURCE = new FetchSourceContext(
+        true,
+        null,
+        new String[] { ModelSnapshot.QUANTILES.getPreferredName() }
+    );
 
     private final Client client;
     private final Settings settings;
@@ -190,7 +208,7 @@ public class JobResultsProvider {
                 .add(resultDocSearch)
                 .add(quantilesDocSearch);
 
-        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<>() {
+        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener.Delegating<>(listener) {
             @Override
             public void onResponse(MultiSearchResponse response) {
                 List<SearchHit> searchHits = new ArrayList<>();
@@ -212,14 +230,14 @@ public class JobResultsProvider {
                                 }
                             }
                         }
-                        listener.onFailure(e);
+                        delegate.onFailure(e);
                         return;
                     }
                     searchHits.addAll(Arrays.asList(itemResponse.getResponse().getHits().getHits()));
                 }
 
                 if (searchHits.isEmpty()) {
-                    listener.onResponse(true);
+                    delegate.onResponse(true);
                 } else {
                     int quantileDocCount = 0;
                     int categorizerStateDocCount = 0;
@@ -239,16 +257,11 @@ public class JobResultsProvider {
                     LOGGER.warn("{} result, {} quantile state and {} categorizer state documents exist for a prior job with Id [{}]",
                             resultDocCount, quantileDocCount, categorizerStateDocCount, job.getId());
 
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(
+                    delegate.onFailure(ExceptionsHelper.conflictStatusException(
                                     "[" + resultDocCount + "] result and [" + (quantileDocCount + categorizerStateDocCount) +
                             "] state documents exist for a prior job with Id [" + job.getId() + "]. " +
                                             "Please create the job with a different Id"));
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
             }
         };
 
@@ -302,7 +315,7 @@ public class JobResultsProvider {
 
         // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
         // already in the CS
-        if (!state.getMetadata().hasIndex(indexName)) {
+        if (state.getMetadata().hasIndex(indexName) == false) {
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
@@ -367,7 +380,7 @@ public class JobResultsProvider {
     @SuppressWarnings("unchecked")
     public static int countFields(Map<String, Object> mapping) {
         Object propertiesNode = mapping.get("properties");
-        if (propertiesNode != null && propertiesNode instanceof Map) {
+        if (propertiesNode instanceof Map) {
             mapping = (Map<String, Object>) propertiesNode;
         } else {
             return 0;
@@ -392,17 +405,9 @@ public class JobResultsProvider {
             createTermFieldsMapping(termFieldsMapping, termFields);
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
                     .setSource(termFieldsMapping).request();
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
-                @Override
-                public void onResponse(AcknowledgedResponse putMappingResponse) {
-                    listener.onResponse(putMappingResponse.isAcknowledged());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }, client.admin().indices()::putMapping);
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
+                    listener.<AcknowledgedResponse>delegateFailure((l, putMappingResponse) ->
+                            l.onResponse(putMappingResponse.isAcknowledged())), client.admin().indices()::putMapping);
         } catch (IOException e) {
             listener.onFailure(e);
         }
@@ -438,6 +443,13 @@ public class JobResultsProvider {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 // look for both old and new formats
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId)))
+                // We want to sort on log_time. However, this was added a long time later and before that we used to
+                // sort on latest_record_time. Thus we handle older data counts where no log_time exists and we fall back
+                // to the prior behaviour.
+                .addSort(SortBuilders.fieldSort(DataCounts.LOG_TIME.getPreferredName())
+                    .order(SortOrder.DESC)
+                    .unmappedType(NumberFieldMapper.NumberType.LONG.typeName())
+                    .missing(0L))
                 .addSort(SortBuilders.fieldSort(DataCounts.LATEST_RECORD_TIME.getPreferredName()).order(SortOrder.DESC));
     }
 
@@ -553,23 +565,22 @@ public class JobResultsProvider {
                 .unmappedType("double").order(SortOrder.DESC));
     }
 
-    public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {
-
+    public void getAutodetectParams(Job job, String snapshotId, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler)  {
         String jobId = job.getId();
 
         ActionListener<AutodetectParams.Builder> getScheduledEventsListener = ActionListener.wrap(
-                paramsBuilder -> {
-                    ScheduledEventsQueryBuilder scheduledEventsQueryBuilder = new ScheduledEventsQueryBuilder();
-                    scheduledEventsQueryBuilder.start(job.earliestValidTimestamp(paramsBuilder.getDataCounts()));
-                    scheduledEventsForJob(jobId, job.getGroups(), scheduledEventsQueryBuilder, ActionListener.wrap(
-                            events -> {
-                                paramsBuilder.setScheduledEvents(events.results());
-                                consumer.accept(paramsBuilder.build());
-                            },
-                            errorHandler
-                    ));
-                },
-                errorHandler
+            paramsBuilder -> {
+                ScheduledEventsQueryBuilder scheduledEventsQueryBuilder = new ScheduledEventsQueryBuilder();
+                scheduledEventsQueryBuilder.start(job.earliestValidTimestamp(paramsBuilder.getDataCounts()));
+                scheduledEventsForJob(jobId, job.getGroups(), scheduledEventsQueryBuilder, ActionListener.wrap(
+                    events -> {
+                        paramsBuilder.setScheduledEvents(events.results());
+                        consumer.accept(paramsBuilder.build());
+                    },
+                    errorHandler
+                ));
+            },
+            errorHandler
         );
 
         AutodetectParams.Builder paramsBuilder = new AutodetectParams.Builder(job.getId());
@@ -577,61 +588,66 @@ public class JobResultsProvider {
         String stateIndex = AnomalyDetectorsIndex.jobStateIndexPattern();
 
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
-                .add(createLatestDataCountsSearch(resultsIndex, jobId))
-                .add(createLatestModelSizeStatsSearch(resultsIndex))
-                .add(createLatestTimingStatsSearch(resultsIndex, jobId))
-                // These next two document IDs never need to be the legacy ones due to the rule
-                // that you cannot open a 5.4 job in a subsequent version of the product
-                .add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, job.getModelSnapshotId())))
-                .add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
+            .add(createLatestDataCountsSearch(resultsIndex, jobId))
+            .add(createLatestModelSizeStatsSearch(resultsIndex))
+            .add(createLatestTimingStatsSearch(resultsIndex, jobId));
+
+        if (snapshotId != null) {
+            msearch.add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, snapshotId)));
+            msearch.add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
+        }
 
         for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
-            msearch.add(createDocIdSearch(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId)));
+            msearch.add(createDocIdSearch(MlMetaIndex.indexName(), MlFilter.documentId(filterId)));
         }
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, msearch.request(),
-                ActionListener.<MultiSearchResponse>wrap(
-                        response -> {
-                            for (int i = 0; i < response.getResponses().length; i++) {
-                                MultiSearchResponse.Item itemResponse = response.getResponses()[i];
-                                if (itemResponse.isFailure()) {
-                                    errorHandler.accept(itemResponse.getFailure());
-                                    return;
-                                }
-                                SearchResponse searchResponse = itemResponse.getResponse();
-                                ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
-                                int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                                if (CollectionUtils.isEmpty(shardFailures) == false) {
-                                    LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
-                                        Arrays.toString(shardFailures));
-                                    errorHandler.accept(new ElasticsearchException(
-                                        ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
-                                    return;
-                                }
-                                if (unavailableShards > 0) {
-                                    errorHandler.accept(new ElasticsearchException("[" + jobId
-                                        + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
-                                    return;
-                                }
-                                SearchHits hits = searchResponse.getHits();
-                                long hitsCount = hits.getHits().length;
-                                if (hitsCount == 0) {
-                                    SearchRequest searchRequest = msearch.request().requests().get(i);
-                                    LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
-                                }
-                                for (SearchHit hit : hits) {
-                                    try {
-                                        parseAutodetectParamSearchHit(jobId, paramsBuilder, hit);
-                                    } catch (Exception e) {
-                                        errorHandler.accept(e);
-                                        return;
-                                    }
-                                }
+            ActionListener.<MultiSearchResponse>wrap(
+                response -> {
+                    for (int i = 0; i < response.getResponses().length; i++) {
+                        MultiSearchResponse.Item itemResponse = response.getResponses()[i];
+                        if (itemResponse.isFailure()) {
+                            errorHandler.accept(itemResponse.getFailure());
+                            return;
+                        }
+                        SearchResponse searchResponse = itemResponse.getResponse();
+                        ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                        int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
+                        if (CollectionUtils.isEmpty(shardFailures) == false) {
+                            LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
+                                Arrays.toString(shardFailures));
+                            errorHandler.accept(new ElasticsearchException(
+                                ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                            return;
+                        }
+                        if (unavailableShards > 0) {
+                            errorHandler.accept(new ElasticsearchException("[" + jobId
+                                + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                            return;
+                        }
+                        SearchHits hits = searchResponse.getHits();
+                        long hitsCount = hits.getHits().length;
+                        if (hitsCount == 0) {
+                            SearchRequest searchRequest = msearch.request().requests().get(i);
+                            LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
+                        }
+                        for (SearchHit hit : hits) {
+                            try {
+                                parseAutodetectParamSearchHit(jobId, paramsBuilder, hit);
+                            } catch (Exception e) {
+                                errorHandler.accept(e);
+                                return;
                             }
-                            getScheduledEventsListener.onResponse(paramsBuilder);
-                        },
-                        errorHandler
-                ), client::multiSearch);
+                        }
+                    }
+                    getScheduledEventsListener.onResponse(paramsBuilder);
+                },
+                errorHandler
+            ), client::multiSearch);
+    }
+
+    public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {
+        getAutodetectParams(job, job.getModelSnapshotId(), consumer, errorHandler);
     }
 
     private SearchRequestBuilder createDocIdSearch(String index, String id) {
@@ -795,11 +811,13 @@ public class JobResultsProvider {
      * Get a page of {@linkplain CategoryDefinition}s for the given <code>jobId</code>.
      * Uses a supplied client, so may run as the currently authenticated user
      * @param jobId the job id
+     * @param categoryId a specific category ID to retrieve, or <code>null</code> to retrieve as many as possible
+     * @param partitionFieldValue the partition field value to filter on, or <code>null</code> for no filtering
      * @param augment Should the category definition be augmented with a Grok pattern?
      * @param from  Skip the first N categories. This parameter is for paging
      * @param size  Take only this number of categories
      */
-    public void categoryDefinitions(String jobId, Long categoryId, boolean augment, Integer from, Integer size,
+    public void categoryDefinitions(String jobId, Long categoryId, String partitionFieldValue, boolean augment, Integer from, Integer size,
                                     Consumer<QueryPage<CategoryDefinition>> handler,
                                     Consumer<Exception> errorHandler, Client client) {
         if (categoryId != null && (from != null || size != null)) {
@@ -812,15 +830,26 @@ public class JobResultsProvider {
 
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
+        QueryBuilder categoryIdQuery;
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         if (categoryId != null) {
-            sourceBuilder.query(QueryBuilders.termQuery(CategoryDefinition.CATEGORY_ID.getPreferredName(), categoryId));
+            categoryIdQuery = QueryBuilders.termQuery(CategoryDefinition.CATEGORY_ID.getPreferredName(), categoryId);
         } else if (from != null && size != null) {
+            // Note: Even though category definitions currently have a result_type field, this was not the case for older versions
+            // So, until at least 9.x, this existsQuery is still the preferred way to gather category definition objects
+            categoryIdQuery = QueryBuilders.existsQuery(CategoryDefinition.CATEGORY_ID.getPreferredName());
             sourceBuilder.from(from).size(size)
-                    .query(QueryBuilders.existsQuery(CategoryDefinition.CATEGORY_ID.getPreferredName()))
                     .sort(new FieldSortBuilder(CategoryDefinition.CATEGORY_ID.getPreferredName()).order(SortOrder.ASC));
         } else {
             throw new IllegalStateException("Both categoryId and pageParams are not specified");
+        }
+        if (partitionFieldValue != null) {
+            QueryBuilder partitionQuery =
+                QueryBuilders.termQuery(CategoryDefinition.PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue);
+            QueryBuilder combinedQuery = QueryBuilders.boolQuery().must(categoryIdQuery).must(partitionQuery);
+            sourceBuilder.query(combinedQuery);
+        } else {
+            sourceBuilder.query(categoryIdQuery);
         }
         sourceBuilder.trackTotalHits(true);
         searchRequest.source(sourceBuilder);
@@ -972,6 +1001,8 @@ public class JobResultsProvider {
     /**
      * Get model snapshots for the job ordered by descending timestamp (newest first).
      *
+     * Note: quantiles are removed from the results.
+     *
      * @param jobId the job id
      * @param from  number of snapshots to from
      * @param size  number of snapshots to retrieve
@@ -983,6 +1014,8 @@ public class JobResultsProvider {
 
     /**
      * Get model snapshots for the job ordered by descending restore priority.
+     *
+     * Note: quantiles are removed from the results.
      *
      * @param jobId          the job id
      * @param from           number of snapshots to from
@@ -1003,12 +1036,12 @@ public class JobResultsProvider {
                                String snapshotId,
                                Consumer<QueryPage<ModelSnapshot>> handler,
                                Consumer<Exception> errorHandler) {
-        ResultsFilterBuilder fb = new ResultsFilterBuilder();
-        if (snapshotId != null && !snapshotId.isEmpty()) {
-            fb.term(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), snapshotId);
-        }
+        String[] snapshotIds = Strings.splitStringByCommaToArray(snapshotId);
+        QueryBuilder qb = new ResultsFilterBuilder()
+            .resourceTokenFilters(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), snapshotIds)
+            .timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs)
+            .build();
 
-        QueryBuilder qb = fb.timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs).build();
         modelSnapshots(jobId, from, size, sortField, sortDescending, qb, handler, errorHandler);
     }
 
@@ -1030,6 +1063,13 @@ public class JobResultsProvider {
 
         FieldSortBuilder sb = new FieldSortBuilder(sortField)
                 .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
+        // `min_version` might not be present in very early snapshots.
+        // Consequently, we should treat it as being at least from 6.3.0 or before
+        // Also, if no jobs have been opened since the previous versions, the .ml-anomalies-* index may not have
+        // the `min_version`.
+        if (sortField.equals(ModelSnapshot.MIN_VERSION.getPreferredName())) {
+            sb.missing(Version.fromString("6.3.0")).unmappedType("keyword");
+        }
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         LOGGER.trace("ES API CALL: search all model snapshots from index {} sort ascending {} with filter after sort from {} size {}",
@@ -1043,6 +1083,7 @@ public class JobResultsProvider {
         sourceBuilder.from(from);
         sourceBuilder.size(size);
         sourceBuilder.trackTotalHits(true);
+        sourceBuilder.fetchSource(REMOVE_QUANTILES_FROM_SOURCE);
         searchRequest.source(sourceBuilder);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
@@ -1082,6 +1123,37 @@ public class JobResultsProvider {
                 results.add(modelPlot);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse modelPlot", e);
+            }
+        }
+
+        return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
+    }
+
+    public QueryPage<CategorizerStats> categorizerStats(String jobId, int from, int size) {
+        SearchResponse searchResponse;
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        LOGGER.trace("ES API CALL: search categorizer stats from index {} from {} size {}", indexName, from, size);
+
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            searchResponse = client.prepareSearch(indexName)
+                .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
+                .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), CategorizerStats.RESULT_TYPE_VALUE))
+                .setFrom(from).setSize(size)
+                .setTrackTotalHits(true)
+                .get();
+        }
+
+        List<CategorizerStats> results = new ArrayList<>();
+
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            BytesReference source = hit.getSourceRef();
+            try (InputStream stream = source.streamInput();
+                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                CategorizerStats categorizerStats = CategorizerStats.LENIENT_PARSER.apply(parser, null).build();
+                results.add(categorizerStats);
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("failed to parse categorizerStats", e);
             }
         }
 
@@ -1142,6 +1214,9 @@ public class JobResultsProvider {
      * - Have low variability of model bytes in model size stats documents in the time period covered by the last
      *   <code>BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE</code> buckets, which is defined as having a coefficient of variation
      *   of no more than <code>ESTABLISHED_MEMORY_CV_THRESHOLD</code>
+     * If necessary this calculation will be done by performing searches against the results index.  However, the
+     * calculation may have already been done in the C++ code, in which case the answer can just be read from the latest
+     * model size stats.
      * @param jobId the id of the job for which established memory usage is required
      * @param latestBucketTimestamp the latest bucket timestamp to be used for the calculation, if known, otherwise
      *                              <code>null</code>, implying the latest bucket that exists in the results index
@@ -1153,6 +1228,36 @@ public class JobResultsProvider {
      */
     public void getEstablishedMemoryUsage(String jobId, Date latestBucketTimestamp, ModelSizeStats latestModelSizeStats,
                                           Consumer<Long> handler, Consumer<Exception> errorHandler) {
+
+        if (latestModelSizeStats != null) {
+            calculateEstablishedMemoryUsage(jobId, latestBucketTimestamp, latestModelSizeStats, handler, errorHandler);
+        } else {
+            modelSizeStats(jobId,
+                modelSizeStats -> calculateEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStats, handler, errorHandler),
+                errorHandler);
+        }
+    }
+
+    void calculateEstablishedMemoryUsage(String jobId, Date latestBucketTimestamp, ModelSizeStats latestModelSizeStats,
+                                         Consumer<Long> handler, Consumer<Exception> errorHandler) {
+
+        assert latestModelSizeStats != null;
+
+        // There might be an easy short-circuit if the latest model size stats say which number to use
+        if (latestModelSizeStats.getAssignmentMemoryBasis() != null) {
+            switch (latestModelSizeStats.getAssignmentMemoryBasis()) {
+                case MODEL_MEMORY_LIMIT:
+                    handler.accept(0L);
+                    return;
+                case CURRENT_MODEL_BYTES:
+                    handler.accept(latestModelSizeStats.getModelBytes());
+                    return;
+                case PEAK_MODEL_BYTES:
+                    Long storedPeak = latestModelSizeStats.getPeakModelBytes();
+                    handler.accept((storedPeak != null) ? storedPeak : latestModelSizeStats.getModelBytes());
+                    return;
+            }
+        }
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
 
@@ -1176,13 +1281,11 @@ public class JobResultsProvider {
                                     if (aggregations.size() == 1) {
                                         ExtendedStats extendedStats = (ExtendedStats) aggregations.get(0);
                                         long count = extendedStats.getCount();
-                                        if (count <= 0) {
-                                            // model size stats haven't changed in the last N buckets,
-                                            // so the latest (older) ones are established
-                                            handleLatestModelSizeStats(jobId, latestModelSizeStats, handler, errorHandler);
-                                        } else if (count == 1) {
-                                            // no need to do an extra search in the case of exactly one document being aggregated
-                                            handler.accept((long) extendedStats.getAvg());
+                                        if (count <= 1) {
+                                            // model size stats either haven't changed in the last N buckets,
+                                            // so the latest (older) ones are established, or have only changed
+                                            // once, so again there's no recent variation
+                                            handler.accept(latestModelSizeStats.getModelBytes());
                                         } else {
                                             double coefficientOfVaration = extendedStats.getStdDeviation() / extendedStats.getAvg();
                                             LOGGER.trace("[{}] Coefficient of variation [{}] when calculating established memory use",
@@ -1190,7 +1293,7 @@ public class JobResultsProvider {
                                             // is there sufficient stability in the latest model size stats readings?
                                             if (coefficientOfVaration <= ESTABLISHED_MEMORY_CV_THRESHOLD) {
                                                 // yes, so return the latest model size as established
-                                                handleLatestModelSizeStats(jobId, latestModelSizeStats, handler, errorHandler);
+                                                handler.accept(latestModelSizeStats.getModelBytes());
                                             } else {
                                                 // no - we don't have an established model size
                                                 handler.accept(0L);
@@ -1233,7 +1336,7 @@ public class JobResultsProvider {
                         handler.onResponse(new QueryPage<>(Collections.emptyList(), 0, ScheduledEvent.RESULTS_FIELD));
                         return;
                     }
-                    List<String> calendarIds = calendars.results().stream().map(Calendar::getId).collect(Collectors.toList());
+                    String[] calendarIds = calendars.results().stream().map(Calendar::getId).toArray(String[]::new);
                     queryBuilder.calendarIds(calendarIds);
                     scheduledEvents(queryBuilder, handler);
                 },
@@ -1245,7 +1348,7 @@ public class JobResultsProvider {
     }
 
     public void scheduledEvents(ScheduledEventsQueryBuilder query, ActionListener<QueryPage<ScheduledEvent>> handler) {
-        SearchRequestBuilder request = client.prepareSearch(MlMetaIndex.INDEX_NAME)
+        SearchRequestBuilder request = client.prepareSearch(MlMetaIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(query.build())
                 .setTrackTotalHits(true);
@@ -1270,6 +1373,42 @@ public class JobResultsProvider {
                         },
                         handler::onFailure),
                 client::search);
+    }
+
+    public void setRunningForecastsToFailed(String jobId, ActionListener<Boolean> listener) {
+        QueryBuilder forecastQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
+            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+            .filter(QueryBuilders.termsQuery(ForecastRequestStats.STATUS.getPreferredName(),
+                ForecastRequestStats.ForecastRequestStatus.SCHEDULED.toString(),
+                ForecastRequestStats.ForecastRequestStatus.STARTED.toString()));
+
+        UpdateByQueryRequest request = new UpdateByQueryRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
+            .setQuery(forecastQuery)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setAbortOnVersionConflict(false)
+            .setMaxRetries(3)
+            .setRefresh(true)
+            .setScript(new Script("ctx._source.forecast_status='failed';" +
+                "ctx._source.forecast_messages=['" + JOB_FORECAST_NATIVE_PROCESS_KILLED + "']"));
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateByQueryAction.INSTANCE, request, ActionListener.wrap(
+            response -> {
+                if (response.getUpdated() > 0) {
+                    LOGGER.warn("[{}] set [{}] forecasts to failed", jobId, response.getUpdated());
+                }
+                if (response.getBulkFailures().size() > 0) {
+                    LOGGER.warn(
+                        "[{}] failed to set [{}] forecasts to failed. Bulk failures experienced {}",
+                        jobId,
+                        response.getTotal() - response.getUpdated(),
+                        response.getBulkFailures().stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.toList())
+                    );
+                }
+                listener.onResponse(true);
+            },
+            listener::onFailure
+        ));
     }
 
     public void getForecastRequestStats(String jobId, String forecastId, Consumer<ForecastRequestStats> handler,
@@ -1352,7 +1491,7 @@ public class JobResultsProvider {
                     currentJobs.removeAll(jobIdsToRemove);
                     Calendar updatedCalendar = new Calendar(calendar.getId(), new ArrayList<>(currentJobs), calendar.getDescription());
 
-                    UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, updatedCalendar.documentId());
+                    UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.indexName(), updatedCalendar.documentId());
                     updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -1363,9 +1502,7 @@ public class JobResultsProvider {
 
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, updateRequest,
                             ActionListener.<UpdateResponse>wrap(
-                                    response -> {
-                                        handler.accept(updatedCalendar);
-                                    },
+                                    response -> handler.accept(updatedCalendar),
                                     errorHandler)
                             , client::update);
 
@@ -1377,7 +1514,7 @@ public class JobResultsProvider {
     }
 
     public void calendars(CalendarQueryBuilder queryBuilder, ActionListener<QueryPage<Calendar>> listener) {
-        SearchRequest searchRequest = client.prepareSearch(MlMetaIndex.INDEX_NAME)
+        SearchRequest searchRequest = client.prepareSearch(MlMetaIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setTrackTotalHits(true)
                 .setSource(queryBuilder.build()).request();
@@ -1388,6 +1525,10 @@ public class JobResultsProvider {
                             List<Calendar> calendars = new ArrayList<>();
                             SearchHit[] hits = response.getHits().getHits();
                             try {
+                                if (queryBuilder.isForAllCalendars() == false && hits.length == 0) {
+                                    listener.onFailure(queryBuilder.buildNotFoundException());
+                                    return;
+                                }
                                 for (SearchHit hit : hits) {
                                     calendars.add(MlParserUtils.parse(hit, Calendar.LENIENT_PARSER).build());
                                 }
@@ -1418,7 +1559,7 @@ public class JobResultsProvider {
                             .filter(jId -> jobId.equals(jId) == false)
                             .collect(Collectors.toList());
                         Calendar newCalendar = new Calendar(calendar.getId(), ids, calendar.getDescription());
-                        UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, newCalendar.documentId());
+                        UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.indexName(), newCalendar.documentId());
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             updateRequest.doc(newCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
                         } catch (IOException e) {
@@ -1442,7 +1583,7 @@ public class JobResultsProvider {
     }
 
     public void calendar(String calendarId, ActionListener<Calendar> listener) {
-        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, Calendar.documentId(calendarId));
+        GetRequest getRequest = new GetRequest(MlMetaIndex.indexName(), Calendar.documentId(calendarId));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getDocResponse) {
@@ -1476,13 +1617,48 @@ public class JobResultsProvider {
         client::get);
     }
 
-    private void handleLatestModelSizeStats(String jobId, ModelSizeStats latestModelSizeStats, Consumer<Long> handler,
-                                            Consumer<Exception> errorHandler) {
-        if (latestModelSizeStats != null) {
-            handler.accept(latestModelSizeStats.getModelBytes());
-        } else {
-            modelSizeStats(jobId, modelSizeStats -> handler.accept(modelSizeStats.getModelBytes()), errorHandler);
-        }
+    /**
+     * Returns information needed to decide how to restart a job from a datafeed
+     * @param jobId the job id
+     * @param listener the listener
+     */
+    public void getRestartTimeInfo(String jobId, ActionListener<RestartTimeInfo> listener) {
+        AtomicReference<Bucket> latestFinalBucketHolder = new AtomicReference<>();
+
+        Consumer<DataCounts> dataCountsHandler = dataCounts -> listener.onResponse(
+            new RestartTimeInfo(
+                latestFinalBucketHolder.get() == null ? null : latestFinalBucketHolder.get().getTimestamp().getTime(),
+                dataCounts.getLatestRecordTimeStamp() == null ? null : dataCounts.getLatestRecordTimeStamp().getTime(),
+                dataCounts.getInputRecordCount() > 0)
+            );
+
+        ActionListener<Bucket> latestFinalBucketListener = ActionListener.wrap(
+            latestFinalBucket -> {
+                latestFinalBucketHolder.set(latestFinalBucket);
+                dataCounts(jobId, dataCountsHandler, listener::onFailure);
+            },
+            listener::onFailure
+        );
+
+        getLatestFinalBucket(jobId, latestFinalBucketListener);
+    }
+
+    private void getLatestFinalBucket(String jobId, ActionListener<Bucket> listener) {
+        BucketsQueryBuilder latestBucketQuery = new BucketsQueryBuilder()
+            .sortField(Result.TIMESTAMP.getPreferredName())
+            .sortDescending(true)
+            .size(1)
+            .includeInterim(false);
+        bucketsViaInternalClient(jobId, latestBucketQuery,
+            queryPage -> {
+                if (queryPage.results().isEmpty()) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onResponse(queryPage.results().get(0));
+                }
+            },
+            listener::onFailure
+        );
     }
 
     /**

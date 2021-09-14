@@ -1,6 +1,6 @@
 package org.elasticsearch.index.analysis;
 
-/*
+/* @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -35,7 +35,6 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
  * padding is indistinguishable from valid information.  To overcome this
  * problem, a char is appended, indicating the number of encoded bytes in the
  * final content char.
- * <p>
  *
  * @deprecated Implement {@link TermToBytesRefAttribute} and store bytes directly
  * instead. This class WAS removed in Lucene 5.0

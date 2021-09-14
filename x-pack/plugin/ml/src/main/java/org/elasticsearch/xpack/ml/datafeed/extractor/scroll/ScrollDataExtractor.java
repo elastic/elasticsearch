@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
@@ -16,8 +17,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -87,11 +89,11 @@ class ScrollDataExtractor implements DataExtractor {
 
     @Override
     public Optional<InputStream> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
         Optional<InputStream> stream = tryNextStream();
-        if (!stream.isPresent()) {
+        if (stream.isPresent() == false) {
             hasNext = false;
         }
         return stream;
@@ -125,15 +127,19 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private SearchRequestBuilder buildSearchRequest(long start) {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
+            .size(context.scrollSize)
+            .sort(context.extractedFields.timeField(), SortOrder.ASC)
+            .query(ExtractorUtils.wrapInTimeRangeQuery(
+                context.query, context.extractedFields.timeField(), start, context.end))
+            .runtimeMappings(context.runtimeMappings);
+
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setScroll(SCROLL_TIMEOUT)
-                .addSort(context.extractedFields.timeField(), SortOrder.ASC)
                 .setIndices(context.indices)
                 .setIndicesOptions(context.indicesOptions)
-                .setSize(context.scrollSize)
                 .setAllowPartialSearchResults(false)
-                .setQuery(ExtractorUtils.wrapInTimeRangeQuery(
-                        context.query, context.extractedFields.timeField(), start, context.end));
+                .setSource(searchSourceBuilder);
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
             searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());

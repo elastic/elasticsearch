@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringUtils.stringContains;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringUtils.substringSlice;
@@ -97,57 +100,79 @@ public class StringUtilsTests extends ESTestCase {
 
     // Test from EQL doc https://eql.readthedocs.io/en/latest/query-guide/functions.html
     public void testBetweenBasicEQLExamples() {
-        assertThat(StringUtils.between("welcome to event query language", " ", " ", false, false),
-                equalTo("to"));
-        assertThat(StringUtils.between("welcome to event query language", " ", " ", true, false),
-                equalTo("to event query"));
-        assertThat(StringUtils.between("System Idle Process", "s", "e", true, false),
-                equalTo("ystem Idle Proc"));
-
-        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", false, false),
-                equalTo("\\TestLogs\\something"));
-
-        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", true, false),
-                equalTo("\\TestLogs\\something"));
-
-        assertThat(StringUtils.between("System Idle Process", "s", "e", false, false),
-                equalTo("yst"));
-
+        assertThat(StringUtils.between("welcome to event query language", " ", " ", false, true),
+            equalTo("to"));
+        assertThat(StringUtils.between("welcome to event query language", " ", " ", true, true),
+            equalTo("to event query"));
+        assertThat(StringUtils.between("System Idle Process", "s", "e", true, true),
+            equalTo("ystem Idle Proc"));
 
         assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", false, true),
-                equalTo("\\TestLogs\\something"));
-
-        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "Test", ".json", false, true),
-                equalTo("Logs\\something"));
-
-        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", false, true),
-                equalTo(""));
+            equalTo("\\TestLogs\\something"));
 
         assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", true, true),
-                equalTo("\\TestLogs\\something"));
+            equalTo("\\TestLogs\\something"));
 
-        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "Test", ".json", true, true),
-                equalTo("Logs\\something"));
+        assertThat(StringUtils.between("System Idle Process", "s", "e", false, true),
+            equalTo("yst"));
 
-        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", true, true),
-                equalTo(""));
 
-        assertThat(StringUtils.between("System Idle Process", "S", "e", false, true),
-                equalTo("yst"));
+        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", false, false),
+            equalTo("\\TestLogs\\something"));
 
-        assertThat(StringUtils.between("System Idle Process", "Y", "e", false, true),
-                equalTo(""));
+        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "Test", ".json", false, false),
+            equalTo("Logs\\something"));
+
+        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", false, false),
+            equalTo(""));
+
+        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", true, false),
+            equalTo("\\TestLogs\\something"));
+
+        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "Test", ".json", true, false),
+            equalTo("Logs\\something"));
+
+        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", true, false),
+            equalTo(""));
+
+        assertThat(StringUtils.between("System Idle Process", "S", "e", false, false),
+            equalTo("yst"));
+
+        assertThat(StringUtils.between("System Idle Process", "Y", "e", false, false),
+            equalTo(""));
     }
 
     public void testStringContainsWithNullOrEmpty() {
-        assertFalse(stringContains(null, null));
-        assertFalse(stringContains(null, ""));
-        assertFalse(stringContains("", null));
+        assertFalse(stringContains(null, null, true));
+        assertFalse(stringContains(null, "", true));
+        assertFalse(stringContains("", null, true));
+
+        assertFalse(stringContains(null, null, false));
+        assertFalse(stringContains(null, "", false));
+        assertFalse(stringContains("", null, false));
     }
 
-    public void testStringContainsWithRandom() throws Exception {
+    public void testStringContainsWithRandomCaseSensitive() throws Exception {
         String substring = randomAlphaOfLength(10);
-        String string = randomAlphaOfLength(10) + substring + randomAlphaOfLength(10);
-        assertTrue(stringContains(string, substring));
+        String string = randomValueOtherThan(substring, () -> randomAlphaOfLength(10))
+            + substring
+            + randomValueOtherThan(substring, () -> randomAlphaOfLength(10));
+        assertTrue(stringContains(string, substring, true));
+    }
+
+    public void testStringContainsWithRandomCaseInsensitive() throws Exception {
+        String substring = randomAlphaOfLength(10);
+        String subsChanged = substring.toUpperCase(Locale.ROOT);
+        String string = randomValueOtherThan(subsChanged, () -> randomAlphaOfLength(10))
+            + subsChanged
+            + randomValueOtherThan(subsChanged, () -> randomAlphaOfLength(10));
+        assertTrue(stringContains(string, substring, true));
+
+        substring = randomAlphaOfLength(10);
+        subsChanged = substring.toLowerCase(Locale.ROOT);
+        string = randomValueOtherThan(subsChanged, () -> randomAlphaOfLength(10))
+            + subsChanged
+            + randomValueOtherThan(subsChanged, () -> randomAlphaOfLength(10));
+        assertTrue(stringContains(string, substring, true));
     }
 }

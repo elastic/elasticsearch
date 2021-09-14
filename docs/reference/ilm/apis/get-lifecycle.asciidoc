@@ -12,6 +12,7 @@ Retrieves a lifecycle policy.
 ==== {api-request-title}
 
 `GET _ilm/policy`
+
 `GET _ilm/policy/<policy_id>`
 
 [[ilm-get-lifecycle-prereqs]]
@@ -36,7 +37,7 @@ modified date. If no policy is specified, returns all defined policies.
 [[ilm-get-lifecycle-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[ilm-get-lifecycle-example]]
 ==== {api-examples-title}
@@ -106,6 +107,11 @@ If the request succeeds, the body of the response contains the policy definition
           }
         }
       }
+    },
+    "in_use_by" : { <3>
+      "indices" : [],
+      "data_streams" : [],
+      "composable_templates" : []
     }
   }
 }
@@ -114,3 +120,4 @@ If the request succeeds, the body of the response contains the policy definition
 
 <1> The policy version is incremented whenever the policy is updated
 <2> When this policy was last modified
+<3> Which indices, data streams, or templates currently use this policy

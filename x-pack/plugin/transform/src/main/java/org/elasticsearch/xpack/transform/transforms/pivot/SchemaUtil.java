@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -12,10 +13,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -23,45 +23,80 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
+import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils.extractFieldMappings;
 
 public final class SchemaUtil {
     private static final Logger logger = LogManager.getLogger(SchemaUtil.class);
 
-    // Full collection of numeric field type strings
-    private static final Set<String> NUMERIC_FIELD_MAPPER_TYPES;
+    // Full collection of numeric field type strings and whether they are floating point or not
+    private static final Map<String, Boolean> NUMERIC_FIELD_MAPPER_TYPES;
     static {
-        Set<String> types = Stream.of(NumberFieldMapper.NumberType.values())
-            .map(NumberFieldMapper.NumberType::typeName)
-            .collect(Collectors.toSet());
-        types.add("scaled_float"); // have to add manually since scaled_float is in a module
+        Map<String, Boolean> types = Stream.of(NumberFieldMapper.NumberType.values())
+            .collect(Collectors.toMap(t -> t.typeName(), t -> t.numericType().isFloatingPoint()));
+
+        // have to add manually since they are in a module
+        types.put("scaled_float", true);
+        types.put("unsigned_long", false);
         NUMERIC_FIELD_MAPPER_TYPES = types;
     }
 
     private SchemaUtil() {}
 
     public static boolean isNumericType(String type) {
-        return type != null && NUMERIC_FIELD_MAPPER_TYPES.contains(type);
+        return type != null && NUMERIC_FIELD_MAPPER_TYPES.containsKey(type);
     }
 
     /**
-     * Deduce the mappings for the destination index given the source index
+     * Convert a numeric value to a whole number if it's not a floating point number.
+     *
+     * Implementation decision: We do not care about the concrete type, but only if its floating point or not.
+     * Further checks (e.g. range) are done at indexing.
+     *
+     * If type is floating point but ends with `.0`, we still preserve `.0` in case
+     * the destination index uses dynamic mappings as well as being json friendly.
+     *
+     * @param type the type of the value according to the schema we know
+     * @param value the value as double (aggs return double for everything)
+     * @return value if its floating point, long if value is smaller than Long.MAX_VALUE, BigInteger otherwise
+     */
+    public static Object dropFloatingPointComponentIfTypeRequiresIt(String type, double value) {
+        if (NUMERIC_FIELD_MAPPER_TYPES.getOrDefault(type, true) == false) {
+            assert value % 1 == 0;
+            if (value < Long.MAX_VALUE) {
+                return (long) value;
+            }
+
+            // special case for unsigned long
+            return BigDecimal.valueOf(value).toBigInteger();
+        }
+
+        return value;
+    }
+
+    /**
+     * Deduce the mappings for the destination index given the source index and runtime mappings
      *
      * The Listener is alerted with a {@code Map<String, String>} that is a "field-name":"type" mapping
      *
      * @param client Client from which to make requests against the cluster
      * @param config The PivotConfig for which to deduce destination mapping
-     * @param source Source index that contains the data to pivot
+     * @param sourceIndex Source index that contains the data to pivot
+     * @param runtimeMappings Source runtime mappings
      * @param listener Listener to alert on success or failure.
      */
     public static void deduceMappings(
         final Client client,
         final PivotConfig config,
-        final String[] source,
+        final String[] sourceIndex,
+        final Map<String, Object> runtimeMappings,
         final ActionListener<Map<String, String>> listener
     ) {
         // collects the fieldnames used as source for aggregations
@@ -75,18 +110,26 @@ public final class SchemaUtil {
 
         config.getGroupConfig()
             .getGroups()
-            .forEach((destinationFieldName, group) -> {
-                // We will always need the field name for the grouping to create the mapping
-                fieldNamesForGrouping.put(destinationFieldName, group.getField());
-                // Sometimes the group config will supply a desired mapping as well
-                if (group.getMappingType() != null) {
-                    fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
-                }
-            });
+            .forEach(
+                (destinationFieldName, group) -> {
+                    // skip any fields that use scripts as there will be no source mapping
+                    if (group.getScriptConfig() != null) {
+                        return;
+                    }
 
+                    // We will always need the field name for the grouping to create the mapping
+                    fieldNamesForGrouping.put(destinationFieldName, group.getField());
+                    // Sometimes the group config will supply a desired mapping as well
+                    if (group.getMappingType() != null) {
+                        fieldTypesForGrouping.put(destinationFieldName, group.getMappingType());
+                    }
+                }
+            );
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
-            Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = Aggregations.getAggregationInputAndOutputTypes(agg);
+            Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
+                agg
+            );
             aggregationSourceFieldNames.putAll(inputAndOutputTypes.v1());
             aggregationTypes.putAll(inputAndOutputTypes.v2());
         }
@@ -103,8 +146,9 @@ public final class SchemaUtil {
 
         getSourceFieldMappings(
             client,
-            source,
-            allFieldNames.values().toArray(new String[0]),
+            sourceIndex,
+            allFieldNames.values().stream().filter(Objects::nonNull).toArray(String[]::new),
+            runtimeMappings,
             ActionListener.wrap(
                 sourceMappings -> listener.onResponse(
                     resolveMappings(
@@ -112,8 +156,7 @@ public final class SchemaUtil {
                         aggregationTypes,
                         fieldNamesForGrouping,
                         fieldTypesForGrouping,
-                        sourceMappings
-                    )
+                        sourceMappings)
                 ),
                 listener::onFailure
             )
@@ -157,25 +200,33 @@ public final class SchemaUtil {
         aggregationTypes.forEach((targetFieldName, aggregationName) -> {
             String sourceFieldName = aggregationSourceFieldNames.get(targetFieldName);
             String sourceMapping = sourceFieldName == null ? null : sourceMappings.get(sourceFieldName);
-            String destinationMapping = Aggregations.resolveTargetMapping(aggregationName, sourceMapping);
+            String destinationMapping = TransformAggregations.resolveTargetMapping(aggregationName, sourceMapping);
 
-            logger.debug(() -> new ParameterizedMessage(
-                "Deduced mapping for: [{}], agg type [{}] to [{}]",
-                targetFieldName,
-                aggregationName,
-                destinationMapping
-            ));
-
-            if (Aggregations.isDynamicMapping(destinationMapping)) {
-                logger.debug(() -> new ParameterizedMessage(
-                    "Dynamic target mapping set for field [{}] and aggregation [{}]",
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "Deduced mapping for: [{}], agg type [{}] to [{}]",
                     targetFieldName,
-                    aggregationName
-                ));
+                    aggregationName,
+                    destinationMapping
+                )
+            );
+
+            if (TransformAggregations.isDynamicMapping(destinationMapping)) {
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "Dynamic target mapping set for field [{}] and aggregation [{}]",
+                        targetFieldName,
+                        aggregationName
+                    )
+                );
             } else if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
-                logger.warn("Failed to deduce mapping for [{}], fall back to dynamic mapping.", targetFieldName);
+                logger.warn(
+                    "Failed to deduce mapping for [{}], fall back to dynamic mapping. "
+                        + "Create the destination index with complete mappings first to avoid deducing the mappings",
+                    targetFieldName
+                );
             }
         });
 
@@ -185,7 +236,11 @@ public final class SchemaUtil {
             if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
-                logger.warn("Failed to deduce mapping for [{}], fall back to keyword.", targetFieldName);
+                logger.warn(
+                    "Failed to deduce mapping for [{}], fall back to keyword. "
+                        + "Create the destination index with complete mappings first to avoid deducing the mappings",
+                    targetFieldName
+                );
                 targetMapping.put(targetFieldName, KeywordFieldMapper.CONTENT_TYPE);
             }
         });
@@ -199,37 +254,28 @@ public final class SchemaUtil {
     /*
      * Very "magic" helper method to extract the source mappings
      */
-    private static void getSourceFieldMappings(
-        Client client,
-        String[] index,
-        String[] fields,
-        ActionListener<Map<String, String>> listener
-    ) {
-        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().indices(index)
-            .fields(fields)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+    static void getSourceFieldMappings(Client client,
+                                       String[] index,
+                                       String[] fields,
+                                       Map<String, Object> runtimeMappings,
+                                       ActionListener<Map<String, String>> listener) {
+        if (index == null || index.length == 0 || fields == null || fields.length == 0) {
+            listener.onResponse(Collections.emptyMap());
+            return;
+        }
+        FieldCapabilitiesRequest fieldCapabilitiesRequest =
+            new FieldCapabilitiesRequest()
+                .indices(index)
+                .fields(fields)
+                .runtimeFields(runtimeMappings)
+                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         client.execute(
             FieldCapabilitiesAction.INSTANCE,
             fieldCapabilitiesRequest,
-            ActionListener.wrap(response -> listener.onResponse(extractFieldMappings(response)), listener::onFailure)
+            ActionListener.wrap(
+                response -> listener.onResponse(extractFieldMappings(response)),
+                listener::onFailure)
         );
-    }
-
-    private static Map<String, String> extractFieldMappings(FieldCapabilitiesResponse response) {
-        Map<String, String> extractedTypes = new HashMap<>();
-
-        response.get()
-            .forEach(
-                (fieldName, capabilitiesMap) -> {
-                    // TODO: overwrites types, requires resolve if
-                    // types are mixed
-                    capabilitiesMap.forEach((name, capability) -> {
-                        logger.trace(() -> new ParameterizedMessage("Extracted type for [{}] : [{}]", fieldName, capability.getType()));
-                        extractedTypes.put(fieldName, capability.getType());
-                    });
-                }
-            );
-        return extractedTypes;
     }
 
     /**

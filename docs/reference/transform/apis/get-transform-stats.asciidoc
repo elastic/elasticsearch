@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-transform-stats]]
-=== Get {transform} statistics API
+= Get {transform} statistics API
 
 [subs="attributes"]
 ++++
@@ -12,7 +12,7 @@ Retrieves usage information for {transforms}.
 
 
 [[get-transform-stats-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _transform/<transform_id>/_stats`
 
@@ -26,20 +26,17 @@ Retrieves usage information for {transforms}.
 
 
 [[get-transform-stats-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the following privileges:
 
-* `monitor_transform` 
-
-The built-in `transform_user` role has this privilege. 
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+* cluster: `monitor_transform` (the `transform_user` built-in role grants this 
+  privilege)
+* destination index: `read`, `view_index_metadata`.
 
 
 [[get-transform-stats-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can get statistics for multiple {transforms} in a single API
 request by using a comma-separated list of identifiers or a wildcard expression.
@@ -49,31 +46,31 @@ specifying `*` as the `<transform_id>`, or by omitting the
 
 
 [[get-transform-stats-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<transform_id>`::
 (Optional, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
   
 
 [[get-transform-stats-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
+(Optional, Boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
 
 `from`::
 (Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=from-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 
 `size`::
 (Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=size-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
 [role="child_attributes"]
 [[get-transform-stats-response]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns an array of statistics objects for {transforms}, which are
 sorted by the `id` value in ascending order. All of these properties are
@@ -88,7 +85,7 @@ informational; you cannot update their values.
 ====
 `changes_last_detected_at`:::
 (date)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=checkpointing-changes-last-detected-at]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-changes-last-detected-at]
 
 //Begin checkpointing.last
 `last`:::
@@ -107,6 +104,10 @@ upper bound of data that is included in the checkpoint.
 was created.
 =====
 //End checkpointing.last
+
+`last_search_time`:::
+(date)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-last-search-time]
 
 //Begin checkpointing.next
 `next`:::
@@ -144,7 +145,7 @@ that the {transform} is failing to keep up.
 
 `id`::
 (string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 //Begin node
 `node`::
@@ -174,11 +175,11 @@ example, `127.0.0.1:9300`.
 
 `reason`::
 (string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform-reason]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform-reason]
 
 `state`::
 (string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform]
 
 //Begin stats
 `stats`::
@@ -188,77 +189,85 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform]
 [%collapsible%open]
 ====
 
+`delete_time_in_ms`:::
+(long)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=delete-time-ms]
+
+`documents_deleted`:::
+(long)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted-transform]
+
 `documents_indexed`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
 
 `documents_processed`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-processed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-processed]
 
 `exponential_avg_checkpoint_duration_ms`:::
 (double)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-checkpoint-duration-ms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-checkpoint-duration-ms]
 
 `exponential_avg_documents_indexed`:::
 (double)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
 
 `exponential_avg_documents_processed`:::
 (double)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
 
 `index_failures`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-failures]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-failures]
 
 `index_time_in_ms`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-time-ms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-time-ms]
 
 `index_total`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-total]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-total]
 
 `pages_processed`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pages-processed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pages-processed]
 
 `processing_time_in_ms`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=processing-time-ms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=processing-time-ms]
 
 `processing_total`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=processing-total]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=processing-total]
 
 `search_failures`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search-failures]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-failures]
 
 `search_time_in_ms`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search-time-ms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-time-ms]
 
 `search_total`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search-total]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-total]
 
 `trigger_count`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=trigger-count]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=trigger-count]
 ====
 //End stats
   
 [[get-transform-stats-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request. 
 
 [[get-transform-stats-example]]
-==== Examples
+== Examples
 
 The following example skips for the first five {transforms} and
 gets usage information for a maximum of ten results: 
@@ -298,6 +307,8 @@ The API returns the following results:
         "pages_processed" : 78,
         "documents_processed" : 6027,
         "documents_indexed" : 68,
+        "documents_deleted": 22,
+        "delete_time_in_ms": 214,
         "trigger_count" : 168,
         "index_time_in_ms" : 412,
         "index_total" : 20,

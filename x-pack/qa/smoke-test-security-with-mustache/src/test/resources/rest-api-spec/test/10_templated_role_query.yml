@@ -125,7 +125,8 @@ setup:
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: foobar
 
 ---
 teardown:

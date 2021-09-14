@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
@@ -27,11 +16,13 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Script cache and compilation rate limiter.
@@ -40,28 +31,23 @@ public class ScriptCache {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);
 
-    static final Tuple<Integer, TimeValue> UNLIMITED_COMPILATION_RATE = new Tuple<>(0, TimeValue.ZERO);
+    public static final CompilationRate UNLIMITED_COMPILATION_RATE = new CompilationRate(0, TimeValue.ZERO);
 
     private final Cache<CacheKey, Object> cache;
     private final ScriptMetrics scriptMetrics;
-
-    private final Object lock = new Object();
-
-    // Mutable fields, visible for tests
-    long lastInlineCompileTime;
-    double scriptsPerTimeWindow;
+    final AtomicReference<TokenBucketState> tokenBucketState;
 
     // Cache settings or derived from settings
     final int cacheSize;
     final TimeValue cacheExpire;
-    final Tuple<Integer, TimeValue> rate;
+    final CompilationRate rate;
     private final double compilesAllowedPerNano;
     private final String contextRateSetting;
 
     ScriptCache(
             int cacheMaxSize,
             TimeValue cacheExpire,
-            Tuple<Integer, TimeValue> maxCompilationRate,
+            CompilationRate maxCompilationRate,
             String contextRateSetting
     ) {
         this.cacheSize = cacheMaxSize;
@@ -81,11 +67,9 @@ public class ScriptCache {
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
         this.rate = maxCompilationRate;
-        this.scriptsPerTimeWindow = this.rate.v1();
-        this.compilesAllowedPerNano = ((double) rate.v1()) / rate.v2().nanos();
-
-        this.lastInlineCompileTime = System.nanoTime();
+        this.compilesAllowedPerNano = ((double) rate.count) / rate.time.nanos();
         this.scriptMetrics = new ScriptMetrics();
+        this.tokenBucketState = new AtomicReference<TokenBucketState>(new TokenBucketState(this.rate.count));
     }
 
     <FactoryType> FactoryType compile(
@@ -98,51 +82,47 @@ public class ScriptCache {
     ) {
         String lang = scriptEngine.getType();
         CacheKey cacheKey = new CacheKey(lang, idOrCode, context.name, options);
-        Object compiledScript = cache.get(cacheKey);
 
-        if (compiledScript != null) {
-            return context.factoryClazz.cast(compiledScript);
-        }
-
-        // Synchronize so we don't compile scripts many times during multiple shards all compiling a script
-        synchronized (lock) {
-            // Retrieve it again in case it has been put by a different thread
-            compiledScript = cache.get(cacheKey);
-
-            if (compiledScript == null) {
-                try {
-                    // Either an un-cached inline script or indexed script
-                    // If the script type is inline the name will be the same as the code for identification in exceptions
-                    // but give the script engine the chance to be better, give it separate name + source code
-                    // for the inline case, then its anonymous: null.
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("context [{}]: compiling script, type: [{}], lang: [{}], options: [{}]", context.name, type,
-                            lang, options);
-                    }
-                    // Check whether too many compilations have happened
-                    checkCompilationLimit();
-                    compiledScript = scriptEngine.compile(id, idOrCode, context, options);
-                } catch (ScriptException good) {
-                    // TODO: remove this try-catch completely, when all script engines have good exceptions!
-                    throw good; // its already good
-                } catch (Exception exception) {
-                    throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]",
-                            exception);
+        // Relying on computeIfAbsent to avoid multiple threads from compiling the same script
+        try {
+            return context.factoryClazz.cast(cache.computeIfAbsent(cacheKey, key -> {
+                // Either an un-cached inline script or indexed script
+                // If the script type is inline the name will be the same as the code for identification in exceptions
+                // but give the script engine the chance to be better, give it separate name + source code
+                // for the inline case, then its anonymous: null.
+                if (logger.isTraceEnabled()) {
+                    logger.trace("context [{}]: compiling script, type: [{}], lang: [{}], options: [{}]", context.name, type,
+                        lang, options);
                 }
-
+                // Check whether too many compilations have happened
+                checkCompilationLimit();
+                Object compiledScript = scriptEngine.compile(id, idOrCode, context, options);
                 // Since the cache key is the script content itself we don't need to
                 // invalidate/check the cache if an indexed script changes.
                 scriptMetrics.onCompilation();
-                cache.put(cacheKey, compiledScript);
+                return compiledScript;
+            }));
+        } catch (ExecutionException executionException) {
+            Throwable cause = executionException.getCause();
+            if (cause instanceof ScriptException) {
+                throw (ScriptException) cause;
+            } else if (cause instanceof Exception) {
+                throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", cause);
+            } else {
+                rethrow(cause);
+                throw new AssertionError(cause);
             }
-
         }
-
-        return context.factoryClazz.cast(compiledScript);
     }
 
-    public ScriptStats stats() {
-        return scriptMetrics.stats();
+    /** Hack to rethrow unknown Exceptions from compile: */
+    @SuppressWarnings("unchecked")
+    static <T extends Throwable> void rethrow(Throwable t) throws T {
+        throw (T) t;
+    }
+
+    public ScriptContextStats stats(String context) {
+        return scriptMetrics.stats(context);
     }
 
     /**
@@ -159,25 +139,30 @@ public class ScriptCache {
             return;
         }
 
-        long now = System.nanoTime();
-        long timePassed = now - lastInlineCompileTime;
-        lastInlineCompileTime = now;
+        TokenBucketState tokenBucketState = this.tokenBucketState.updateAndGet(current -> {
+            long now = System.nanoTime();
+            long timePassed = now - current.lastInlineCompileTime;
+            double scriptsPerTimeWindow = current.availableTokens + (timePassed) * compilesAllowedPerNano;
 
-        scriptsPerTimeWindow += (timePassed) * compilesAllowedPerNano;
+            // It's been over the time limit anyway, readjust the bucket to be level
+            if (scriptsPerTimeWindow > rate.count) {
+                scriptsPerTimeWindow = rate.count;
+            }
 
-        // It's been over the time limit anyway, readjust the bucket to be level
-        if (scriptsPerTimeWindow > rate.v1()) {
-            scriptsPerTimeWindow = rate.v1();
-        }
+            // If there is enough tokens in the bucket, allow the request and decrease the tokens by 1
+            if (scriptsPerTimeWindow >= 1) {
+                scriptsPerTimeWindow -= 1.0;
+                return new TokenBucketState(now, scriptsPerTimeWindow, true);
+            } else {
+                return new TokenBucketState(now, scriptsPerTimeWindow, false);
+            }
+        });
 
-        // If there is enough tokens in the bucket, allow the request and decrease the tokens by 1
-        if (scriptsPerTimeWindow >= 1) {
-            scriptsPerTimeWindow -= 1.0;
-        } else {
+        if (tokenBucketState.tokenSuccessfullyTaken == false) {
             scriptMetrics.onCompilationLimit();
             // Otherwise reject the request
             throw new CircuitBreakingException("[script] Too many dynamic script compilations within, max: [" +
-                rate.v1() + "/" + rate.v2() +"]; please use indexed, or scripts with parameters instead; " +
+                rate + "]; please use indexed, or scripts with parameters instead; " +
                 "this limit can be changed by the [" + contextRateSetting + "] setting",
                 CircuitBreaker.Durability.TRANSIENT);
         }
@@ -229,6 +214,94 @@ public class ScriptCache {
         @Override
         public int hashCode() {
             return Objects.hash(lang, idOrCode, context, options);
+        }
+    }
+
+    static class TokenBucketState {
+        public final long lastInlineCompileTime;
+        public final double availableTokens;
+        public final boolean tokenSuccessfullyTaken;
+
+        private TokenBucketState(double availableTokens) {
+            this(System.nanoTime(), availableTokens, false);
+        }
+
+        private TokenBucketState(long lastInlineCompileTime, double availableTokens, boolean tokenSuccessfullyTaken) {
+            this.lastInlineCompileTime = lastInlineCompileTime;
+            this.availableTokens = availableTokens;
+            this.tokenSuccessfullyTaken = tokenSuccessfullyTaken;
+        }
+    }
+
+    public static class CompilationRate {
+        public final int count;
+        public final TimeValue time;
+        private final String source;
+
+        public CompilationRate(Integer count, TimeValue time) {
+            this.count = count;
+            this.time = time;
+            this.source = null;
+        }
+
+        public CompilationRate(Tuple<Integer,TimeValue> rate) {
+            this(rate.v1(), rate.v2());
+        }
+
+        /**
+         * Parses a string as a non-negative int count and a {@code TimeValue} as arguments split by a slash
+         */
+        public CompilationRate(String value) {
+            if (value.contains("/") == false || value.startsWith("/") || value.endsWith("/")) {
+                throw new IllegalArgumentException("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [" +
+                    value + "]");
+            }
+            int idx = value.indexOf("/");
+            String count = value.substring(0, idx);
+            String time = value.substring(idx + 1);
+            try {
+                int rate = Integer.parseInt(count);
+                if (rate < 0) {
+                    throw new IllegalArgumentException("rate [" + rate + "] must be positive");
+                }
+                TimeValue timeValue = TimeValue.parseTimeValue(time, "script.max_compilations_rate");
+                if (timeValue.nanos() <= 0) {
+                    throw new IllegalArgumentException("time value [" + time + "] must be positive");
+                }
+                // protect against a too hard to check limit, like less than a minute
+                if (timeValue.seconds() < 60) {
+                    throw new IllegalArgumentException("time value [" + time + "] must be at least on a one minute resolution");
+                }
+                this.count = rate;
+                this.time = timeValue;
+                this.source = value;
+            } catch (NumberFormatException e) {
+                // the number format exception message is so confusing, that it makes more sense to wrap it with a useful one
+                throw new IllegalArgumentException("could not parse [" + count + "] as integer in value [" + value + "]", e);
+            }
+        }
+
+        public Tuple<Integer,TimeValue> asTuple() {
+            return new Tuple<>(this.count, this.time);
+        }
+
+        @Override
+        public String toString() {
+            return source != null ? source : count + "/" + time.toHumanReadableString(0);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            CompilationRate that = (CompilationRate) o;
+            return count == that.count &&
+                Objects.equals(time, that.time);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(count, time);
         }
     }
 }

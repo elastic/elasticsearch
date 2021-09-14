@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -27,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -38,10 +28,13 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private final String cause;
     private final String index;
+    private String dataStreamName;
     private final String providedName;
+    private long nameResolvedAt;
     private Index recoverFrom;
     private ResizeType resizeType;
     private boolean copySettings;
+    private SystemDataStreamDescriptor systemDataStreamDescriptor;
 
     private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
@@ -94,6 +87,19 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    /**
+     * At what point in time the provided name was resolved into the index name
+     */
+    public CreateIndexClusterStateUpdateRequest nameResolvedInstant(long nameResolvedAt) {
+        this.nameResolvedAt = nameResolvedAt;
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest systemDataStreamDescriptor(SystemDataStreamDescriptor systemDataStreamDescriptor) {
+        this.systemDataStreamDescriptor = systemDataStreamDescriptor;
+        return this;
+    }
+
     public String cause() {
         return cause;
     }
@@ -122,6 +128,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return recoverFrom;
     }
 
+    public SystemDataStreamDescriptor systemDataStreamDescriptor() {
+        return systemDataStreamDescriptor;
+    }
+
     /**
      * The name that was provided by the user. This might contain a date math expression.
      * @see IndexMetadata#SETTING_INDEX_PROVIDED_NAME
@@ -129,6 +139,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     public String getProvidedName() {
         return providedName;
     }
+
+    /**
+     * The instant at which the name provided by the user was resolved
+     */
+    public long getNameResolvedAt() { return nameResolvedAt;}
 
     public ActiveShardCount waitForActiveShards() {
         return waitForActiveShards;
@@ -145,11 +160,25 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return copySettings;
     }
 
+    /**
+     * Returns the name of the data stream this new index will be part of.
+     * If this new index will not be part of a data stream then this returns <code>null</code>.
+     */
+    public String dataStreamName() {
+        return dataStreamName;
+    }
+
+    public CreateIndexClusterStateUpdateRequest dataStreamName(String dataStreamName) {
+        this.dataStreamName = dataStreamName;
+        return this;
+    }
+
     @Override
     public String toString() {
         return "CreateIndexClusterStateUpdateRequest{" +
             "cause='" + cause + '\'' +
             ", index='" + index + '\'' +
+            ", dataStreamName='" + dataStreamName + '\'' +
             ", providedName='" + providedName + '\'' +
             ", recoverFrom=" + recoverFrom +
             ", resizeType=" + resizeType +
@@ -158,6 +187,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
             ", aliases=" + aliases +
             ", blocks=" + blocks +
             ", waitForActiveShards=" + waitForActiveShards +
+            ", systemDataStreamDescriptor=" + systemDataStreamDescriptor +
             '}';
     }
 }

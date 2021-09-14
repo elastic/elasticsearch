@@ -4,44 +4,53 @@
 <titleabbrev>Clear cache</titleabbrev>
 ++++
 
-Clears caches for one or more indices.
+Clears the caches of one or more indices. For data streams, the API clears the
+caches of the stream's backing indices.
 
 [source,console]
 ----
-POST /twitter/_cache/clear
+POST /my-index-000001/_cache/clear
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[clear-cache-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_cache/clear`
+`POST /<target>/_cache/clear`
 
 `POST /_cache/clear`
 
+[[clear-cache-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
 
 [[clear-cache-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
-
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[clear-cache-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
 `fielddata`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 clears the fields cache.
 
@@ -68,15 +77,15 @@ or field aliases.
 Comma-separated list of index names
 used to limit the request.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `query`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 clears the query cache.
 
 `request`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 clears the request cache.
 
@@ -99,9 +108,9 @@ by setting the following query parameters to `true`:
 
 [source,console]
 ----
-POST /twitter/_cache/clear?fielddata=true  <1>
-POST /twitter/_cache/clear?query=true      <2>
-POST /twitter/_cache/clear?request=true    <3>
+POST /my-index-000001/_cache/clear?fielddata=true  <1>
+POST /my-index-000001/_cache/clear?query=true      <2>
+POST /my-index-000001/_cache/clear?request=true    <3>
 ----
 // TEST[continued]
 
@@ -119,7 +128,7 @@ use the `fields` query parameter.
 
 [source,console]
 ----
-POST /twitter/_cache/clear?fields=foo,bar   <1>
+POST /my-index-000001/_cache/clear?fields=foo,bar   <1>
 ----
 // TEST[continued]
 
@@ -127,17 +136,17 @@ POST /twitter/_cache/clear?fields=foo,bar   <1>
 
 
 [[clear-cache-api-multi-ex]]
-===== Clear caches for several indices
+===== Clear caches for several data streams and indices
 
 [source,console]
 ----
-POST /kimchy,elasticsearch/_cache/clear
+POST /my-index-000001,my-index-000002/_cache/clear
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 
 [[clear-cache-api-all-ex]]
-===== Clear caches for all indices
+===== Clear caches for all data streams and indices
 
 [source,console]
 ----

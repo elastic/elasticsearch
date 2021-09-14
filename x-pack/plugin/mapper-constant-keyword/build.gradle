@@ -1,12 +1,5 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
- */
-
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name 'constant-keyword'
@@ -17,8 +10,7 @@ esplugin {
 archivesBaseName = 'x-pack-constant-keyword'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-integTest.enabled = false

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-snapshot]]
-=== Update model snapshots API
+= Update model snapshots API
 ++++
 <titleabbrev>Update model snapshots</titleabbrev>
 ++++
@@ -9,31 +9,29 @@
 Updates certain properties of a snapshot.
 
 [[ml-update-snapshot-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
 
 [[ml-update-snapshot-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>>.
-
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-update-snapshot-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<snapshot_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=snapshot-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 [[ml-update-snapshot-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 The following properties can be updated after the model snapshot is created:
 
@@ -41,12 +39,12 @@ The following properties can be updated after the model snapshot is created:
 (Optional, string) A description of the model snapshot.
 
 `retain`::
-(Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=retain]
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=retain]
 
 
 [[ml-update-snapshot-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

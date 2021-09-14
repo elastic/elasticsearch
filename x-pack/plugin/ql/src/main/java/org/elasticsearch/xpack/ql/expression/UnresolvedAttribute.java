@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -98,7 +99,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     public static String errorMessage(String name, List<String> potentialMatches) {
         String msg = "Unknown column [" + name + "]";
-        if (!CollectionUtils.isEmpty(potentialMatches)) {
+        if (CollectionUtils.isEmpty(potentialMatches) == false) {
             msg += ", did you mean " + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0)
                     + "]": "any of " + potentialMatches.toString()) + "?";
         }

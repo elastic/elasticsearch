@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -128,11 +128,7 @@ public class TimingStats implements ToXContentObject, Writeable {
         this.maxBucketProcessingTimeMs = in.readOptionalDouble();
         this.avgBucketProcessingTimeMs = in.readOptionalDouble();
         this.exponentialAvgBucketProcessingTimeMs = in.readOptionalDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            this.exponentialAvgCalculationContext = in.readOptionalWriteable(ExponentialAverageCalculationContext::new);
-        } else {
-            this.exponentialAvgCalculationContext = new ExponentialAverageCalculationContext();
-        }
+        this.exponentialAvgCalculationContext = in.readOptionalWriteable(ExponentialAverageCalculationContext::new);
     }
 
     public String getJobId() {
@@ -223,9 +219,7 @@ public class TimingStats implements ToXContentObject, Writeable {
         out.writeOptionalDouble(maxBucketProcessingTimeMs);
         out.writeOptionalDouble(avgBucketProcessingTimeMs);
         out.writeOptionalDouble(exponentialAvgBucketProcessingTimeMs);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeOptionalWriteable(exponentialAvgCalculationContext);
-        }
+        out.writeOptionalWriteable(exponentialAvgCalculationContext);
     }
 
     @Override

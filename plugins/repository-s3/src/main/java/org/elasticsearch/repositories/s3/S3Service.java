@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.s3;
@@ -57,7 +46,7 @@ class S3Service implements Closeable {
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
      * in the {@link RepositoryMetadata}.
      */
-    private volatile Map<S3ClientSettings, Map<RepositoryMetadata, S3ClientSettings>> derivedClientSettings = emptyMap();
+    private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
@@ -106,28 +95,23 @@ class S3Service implements Closeable {
      * @return S3ClientSettings
      */
     S3ClientSettings settings(RepositoryMetadata repositoryMetadata) {
-        final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetadata.settings());
+        final Settings settings = repositoryMetadata.settings();
+        {
+            final S3ClientSettings existing = derivedClientSettings.get(settings);
+            if (existing != null) {
+                return existing;
+            }
+        }
+        final String clientName = S3Repository.CLIENT_NAME.get(settings);
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {
-            {
-                final S3ClientSettings existing = derivedClientSettings.getOrDefault(staticSettings, emptyMap()).get(repositoryMetadata);
-                if (existing != null) {
-                    return existing;
-                }
-            }
             synchronized (this) {
-                final Map<RepositoryMetadata, S3ClientSettings> derivedSettings =
-                    derivedClientSettings.getOrDefault(staticSettings, emptyMap());
-                final S3ClientSettings existing = derivedSettings.get(repositoryMetadata);
+                final S3ClientSettings existing = derivedClientSettings.get(settings);
                 if (existing != null) {
                     return existing;
                 }
-                final S3ClientSettings newSettings = staticSettings.refine(repositoryMetadata);
-                derivedClientSettings =
-                        Maps.copyMapWithAddedOrReplacedEntry(
-                                derivedClientSettings,
-                                staticSettings,
-                                Maps.copyMapWithAddedEntry(derivedSettings, repositoryMetadata, newSettings));
+                final S3ClientSettings newSettings = staticSettings.refine(settings);
+                derivedClientSettings = Maps.copyMapWithAddedOrReplacedEntry(derivedClientSettings, settings, newSettings);
                 return newSettings;
             }
         }
@@ -214,6 +198,7 @@ class S3Service implements Closeable {
         }
         // clear previously cached clients, they will be build lazily
         clientsCache = emptyMap();
+        derivedClientSettings = emptyMap();
         // shutdown IdleConnectionReaper background thread
         // it will be restarted on new client usage
         IdleConnectionReaper.shutdown();

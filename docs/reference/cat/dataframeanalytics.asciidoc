@@ -25,7 +25,7 @@ privileges:
 
 * cluster: `monitor_ml`
   
-For more information, see <<security-privileges>> and {ml-docs}/setup.html[Set up {ml-features}].
+For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
 
 
 ////
@@ -39,15 +39,15 @@ For more information, see <<security-privileges>> and {ml-docs}/setup.html[Set u
 
 `<data_frame_analytics_id>`::
 (Optional, string) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
 
 
 [[cat-dfanalytics-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 If you do not specify which columns to include, the API returns the default
 columns. If you explicitly specify one or more columns, it returns only the
@@ -56,14 +56,14 @@ specified columns.
 Valid columns are:
 
 `assignment_explanation`, `ae`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-dfanalytics]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-explanation-dfanalytics]
 
 `create_time`, `ct`, `createTime`:::
 (Default)
 The time when the {dfanalytics-job} was created.
 
 `description`, `d`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=description-dfa]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
 
 `dest_index`, `di`, `destIndex`:::
 Name of the destination index.
@@ -73,7 +73,7 @@ Contains messages about the reason why a {dfanalytics-job} failed.
 
 `id`:::
 (Default)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
 `model_memory_limit`, `mml`, `modelMemoryLimit`:::
 The approximate maximum amount of memory resources that are permitted for the 
@@ -108,13 +108,13 @@ The type of analysis that the {dfanalytics-job} performs.
 `version`, `v`:::
 The {es} version number in which the {dfanalytics-job} was created.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-dfanalytics-example]]
@@ -122,7 +122,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET _cat/ml/data_frame/analytics?v
+GET _cat/ml/data_frame/analytics?v=true
 --------------------------------------------------
 // TEST[skip:kibana sample data]
 

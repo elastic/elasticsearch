@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices;
 
@@ -27,19 +16,17 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.shards.ShardCounts;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayMetaState;
@@ -57,7 +44,8 @@ import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NestedPathFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -68,12 +56,13 @@ import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -81,19 +70,27 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.shards.ShardCounts.forDataNodeCount;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolverTests.indexBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -181,7 +178,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
-            return Collections.singletonMap("fake-mapper", new KeywordFieldMapper.TypeParser());
+            return Collections.singletonMap("fake-mapper", KeywordFieldMapper.PARSER);
         }
 
         @Override
@@ -354,7 +351,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                                                           .metadata(Metadata.builder(csWithIndex.metadata()).remove(index.getName()))
                                                           .build();
         indicesService.verifyIndexIsDeleted(index, withoutIndex);
-        assertFalse("index files should be deleted", FileSystemUtils.exists(nodeEnv.indexPaths(index)));
+        assertFalse("index files should be deleted", Files.exists(nodeEnv.indexPath(index)));
     }
 
     public void testDanglingIndicesWithAliasConflict() throws Exception {
@@ -463,8 +460,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfReplicas(0)
             .build();
         MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
-        assertNotNull(mapperService.documentMapperParser().parserContext().typeParser("fake-mapper"));
-        Similarity sim = mapperService.documentMapperParser().parserContext().getSimilarity("test").get();
+        assertNotNull(mapperService.parserContext().typeParser("fake-mapper"));
+        Similarity sim = mapperService.parserContext().getSimilarity("test").get();
         assertThat(sim, instanceOf(NonNegativeScoresSimilarity.class));
         sim = ((NonNegativeScoresSimilarity) sim).getDelegate();
         assertThat(sim, instanceOf(BM25Similarity.class));
@@ -522,19 +519,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
     }
 
-    public void testIsMetadataField() {
-        IndicesService indicesService = getIndicesService();
-        final Version randVersion = VersionUtils.randomIndexCompatibleVersion(random());
-        assertFalse(indicesService.isMetadataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
-        for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-            if (NestedPathFieldMapper.NAME.equals(builtIn) && randVersion.before(Version.V_8_0_0)) {
-                continue;   // Nested field does not exist in the 7x line
-            }
-            assertTrue("Expected " + builtIn + " to be a metadata field for version " + randVersion,
-                indicesService.isMetadataField(randVersion, builtIn));
-        }
-    }
-
     public void testGetEngineFactory() throws IOException {
         final IndicesService indicesService = getIndicesService();
 
@@ -586,72 +570,80 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat(e, hasToString(new RegexMatcher(pattern)));
     }
 
-    public void testOverShardLimit() {
-        int nodesInCluster = randomIntBetween(1,90);
-        ShardCounts counts = forDataNodeCount(nodesInCluster);
+    public void testBuildAliasFilter() {
+        var indicesService = getIndicesService();
 
-        Settings clusterSettings = Settings.builder()
-            .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
-            .build();
-
-        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
-            clusterSettings);
-
-        int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state);
-
-        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
-        int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        assertTrue(errorMessage.isPresent());
-        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" + currentShards
-            + "]/[" + maxShards + "] maximum shards open", errorMessage.get());
-    }
-
-    public void testUnderShardLimit() {
-        int nodesInCluster = randomIntBetween(2,90);
-        // Calculate the counts for a cluster 1 node smaller than we have to ensure we have headroom
-        ShardCounts counts = forDataNodeCount(nodesInCluster - 1);
-
-        Settings clusterSettings = Settings.builder()
-            .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
-            .build();
-
-        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
-            clusterSettings);
-
-        int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
-        int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
-        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state);
-
-        assertFalse(errorMessage.isPresent());
-    }
-
-    public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int shardsInIndex, int replicas,
-                                                              Settings clusterSettings) {
-        ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodes = ImmutableOpenMap.builder();
-        for (int i = 0; i < nodesInCluster; i++) {
-            dataNodes.put(randomAlphaOfLengthBetween(5,15), mock(DiscoveryNode.class));
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(indexBuilder("test-0").state(IndexMetadata.State.OPEN)
+                .putAlias(AliasMetadata.builder("test-alias-0").filter(Strings.toString(QueryBuilders.termQuery("foo", "bar"))))
+                .putAlias(AliasMetadata.builder("test-alias-1").filter(Strings.toString(QueryBuilders.termQuery("foo", "baz"))))
+                .putAlias(AliasMetadata.builder("test-alias-non-filtering"))
+            );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        {
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0"));
+            assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0"));
+            assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
         }
-        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getDataNodes()).thenReturn(dataNodes.build());
-
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 15))
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-            .creationDate(randomLong())
-            .numberOfShards(shardsInIndex)
-            .numberOfReplicas(replicas);
-        Metadata.Builder metadata = Metadata.builder().put(indexMetadata);
-        if (randomBoolean()) {
-            metadata.transientSettings(clusterSettings);
-        } else {
-            metadata.persistentSettings(clusterSettings);
+        {
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-1"));
+            assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-1"));
+            assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "baz")));
         }
-
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .nodes(nodes)
-            .build();
+        {
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0", "test-alias-1"));
+            assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0", "test-alias-1"));
+            BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
+            assertThat(filter.filter(), empty());
+            assertThat(filter.must(), empty());
+            assertThat(filter.mustNot(), empty());
+            assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bar")));
+        }
+        {
+            AliasFilter result =
+                indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0", "test-alias-1", "test-alias-non-filtering"));
+            assertThat(result.getAliases(), emptyArray());
+            assertThat(result.getQueryBuilder(), nullValue());
+        }
     }
 
+    public void testBuildAliasFilterDataStreamAliases() {
+        var indicesService = getIndicesService();
+
+        final String dataStreamName1 = "logs-foobar";
+        IndexMetadata backingIndex1 = createBackingIndex(dataStreamName1, 1).build();
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(backingIndex1, false)
+            .put(new DataStream(dataStreamName1, createTimestampField("@timestamp"), List.of(backingIndex1.getIndex())));
+        mdBuilder.put("logs_foo", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "bar")));
+        mdBuilder.put("logs", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "baz")));
+        mdBuilder.put("logs_bar", dataStreamName1, null, null);
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        {
+            String index = backingIndex1.getIndex().getName();
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo"));
+            assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo"));
+            assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
+        }
+        {
+            String index = backingIndex1.getIndex().getName();
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs"));
+            assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
+            BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
+            assertThat(filter.filter(), empty());
+            assertThat(filter.must(), empty());
+            assertThat(filter.mustNot(), empty());
+            assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bar")));
+        }
+        {
+            String index = backingIndex1.getIndex().getName();
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs", "logs_bar"));
+            assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
+            BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
+            assertThat(filter.filter(), empty());
+            assertThat(filter.must(), empty());
+            assertThat(filter.mustNot(), empty());
+            assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bar")));
+        }
+    }
 }

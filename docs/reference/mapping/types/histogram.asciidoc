@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[histogram]]
-=== Histogram datatype
+=== Histogram field type
 ++++
 <titleabbrev>Histogram</titleabbrev>
 ++++
 
-A  field to store pre-aggregated numerical data representing a histogram.
+A field to store pre-aggregated numerical data representing a histogram.
 This data is defined using two paired arrays:
 
 * A `values` array of <<number, `double`>> numbers, representing the buckets for
@@ -35,12 +35,16 @@ binary <<doc-values,doc values>> and not indexed. Its size in bytes is at most
 Because the data is not indexed, you only can use `histogram` fields for the
 following aggregations and queries:
 
+* <<search-aggregations-metrics-min-aggregation-histogram-fields,min>> aggregation
+* <<search-aggregations-metrics-max-aggregation-histogram-fields,max>> aggregation
 * <<search-aggregations-metrics-sum-aggregation-histogram-fields,sum>> aggregation
 * <<search-aggregations-metrics-valuecount-aggregation-histogram-fields,value_count>> aggregation
 * <<search-aggregations-metrics-avg-aggregation-histogram-fields,avg>> aggregation
 * <<search-aggregations-metrics-percentile-aggregation,percentiles>> aggregation
 * <<search-aggregations-metrics-percentile-rank-aggregation,percentile ranks>> aggregation
 * <<search-aggregations-metrics-boxplot-aggregation,boxplot>> aggregation
+* <<search-aggregations-bucket-histogram-aggregation-histogram-fields,histogram>> aggregation
+* <<search-aggregations-bucket-range-aggregation-histogram-fields,range>> aggregation
 * <<query-dsl-exists-query,exists>> query
 
 [[mapping-types-histogram-building-histogram]]
@@ -74,7 +78,7 @@ The following <<indices-create-index, create index>> API request creates a new i
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings" : {
     "properties" : {
@@ -94,7 +98,7 @@ two histograms: `histogram_1` and `histogram_2`.
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_text" : "histogram_1",
   "my_histogram" : {
@@ -103,7 +107,7 @@ PUT my_index/_doc/1
    }
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "my_text" : "histogram_2",
   "my_histogram" : {

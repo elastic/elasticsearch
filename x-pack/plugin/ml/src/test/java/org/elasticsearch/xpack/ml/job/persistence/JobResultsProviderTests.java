@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -19,7 +21,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
@@ -91,10 +93,9 @@ public class JobResultsProviderTests extends ESTestCase {
 
         BucketsQueryBuilder bq = new BucketsQueryBuilder().from(from).size(size).anomalyScoreThreshold(1.0);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Bucket>[] holder = new QueryPage[1];
-        provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
-        QueryPage<Bucket> buckets = holder[0];
+        SetOnce<QueryPage<Bucket>> holder = new SetOnce<>();
+        provider.buckets(jobId, bq, holder::set, e -> {throw new RuntimeException(e);}, client);
+        QueryPage<Bucket> buckets = holder.get();
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
@@ -125,10 +126,9 @@ public class JobResultsProviderTests extends ESTestCase {
         BucketsQueryBuilder bq = new BucketsQueryBuilder().from(from).size(size).anomalyScoreThreshold(5.1)
                 .includeInterim(true);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Bucket>[] holder = new QueryPage[1];
-        provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
-        QueryPage<Bucket> buckets = holder[0];
+        SetOnce<QueryPage<Bucket>> holder = new SetOnce<>();
+        provider.buckets(jobId, bq, holder::set, e -> {throw new RuntimeException(e);}, client);
+        QueryPage<Bucket> buckets = holder.get();
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
@@ -161,10 +161,9 @@ public class JobResultsProviderTests extends ESTestCase {
         bq.anomalyScoreThreshold(5.1);
         bq.includeInterim(true);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Bucket>[] holder = new QueryPage[1];
-        provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
-        QueryPage<Bucket> buckets = holder[0];
+        SetOnce<QueryPage<Bucket>> holder = new SetOnce<>();
+        provider.buckets(jobId, bq, holder::set, e -> {throw new RuntimeException(e);}, client);
+        QueryPage<Bucket> buckets = holder.get();
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
@@ -174,7 +173,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
     public void testBucket_NoBucketNoExpand() throws IOException {
         String jobId = "TestJobIdentification";
-        Long timestamp = 98765432123456789L;
+        long timestamp = 98765432123456789L;
         List<Map<String, Object>> source = new ArrayList<>();
 
         SearchResponse response = createSearchResponse(source);
@@ -207,11 +206,10 @@ public class JobResultsProviderTests extends ESTestCase {
         BucketsQueryBuilder bq = new BucketsQueryBuilder();
         bq.timestamp(Long.toString(now.getTime()));
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Bucket>[] bucketHolder = new QueryPage[1];
-        provider.buckets(jobId, bq, q -> bucketHolder[0] = q, e -> {}, client);
-        assertThat(bucketHolder[0].count(), equalTo(1L));
-        Bucket b = bucketHolder[0].results().get(0);
+        SetOnce<QueryPage<Bucket>> bucketHolder = new SetOnce<>();
+        provider.buckets(jobId, bq, bucketHolder::set, e -> {}, client);
+        assertThat(bucketHolder.get().count(), equalTo(1L));
+        Bucket b = bucketHolder.get().results().get(0);
         assertEquals(now, b.getTimestamp());
     }
 
@@ -248,10 +246,9 @@ public class JobResultsProviderTests extends ESTestCase {
                 .epochEnd(String.valueOf(now.getTime())).includeInterim(true).sortField(sortfield)
                 .recordScore(2.2);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
-        provider.records(jobId, rqb, page -> holder[0] = page, RuntimeException::new, client);
-        QueryPage<AnomalyRecord> recordPage = holder[0];
+        SetOnce<QueryPage<AnomalyRecord>> holder = new SetOnce<>();
+        provider.records(jobId, rqb, holder::set, e -> { throw new RuntimeException(e); }, client);
+        QueryPage<AnomalyRecord> recordPage = holder.get();
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
         assertEquals(22.4, records.get(0).getTypical().get(0), 0.000001);
@@ -301,10 +298,9 @@ public class JobResultsProviderTests extends ESTestCase {
         rqb.sortField(sortfield);
         rqb.recordScore(2.2);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
-        provider.records(jobId, rqb, page -> holder[0] = page, RuntimeException::new, client);
-        QueryPage<AnomalyRecord> recordPage = holder[0];
+        SetOnce<QueryPage<AnomalyRecord>> holder = new SetOnce<>();
+        provider.records(jobId, rqb, holder::set, e -> { throw new RuntimeException(e); }, client);
+        QueryPage<AnomalyRecord> recordPage = holder.get();
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
         assertEquals(22.4, records.get(0).getTypical().get(0), 0.000001);
@@ -346,11 +342,10 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(qb -> {}, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
-        provider.bucketRecords(jobId, bucket, from, size, true, sortfield, true, page -> holder[0] = page, RuntimeException::new,
-                client);
-        QueryPage<AnomalyRecord> recordPage = holder[0];
+        SetOnce<QueryPage<AnomalyRecord>> holder = new SetOnce<>();
+        provider.bucketRecords(jobId, bucket, from, size, true, sortfield, true, holder::set,
+                e -> { throw new RuntimeException(e); }, client);
+        QueryPage<AnomalyRecord> recordPage = holder.get();
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
 
@@ -384,7 +379,7 @@ public class JobResultsProviderTests extends ESTestCase {
         JobResultsProvider provider = createProvider(client);
 
         Integer[] holder = new Integer[1];
-        provider.expandBucket(jobId, false, bucket, records -> holder[0] = records, RuntimeException::new, client);
+        provider.expandBucket(jobId, false, bucket, records -> holder[0] = records, e -> { throw new RuntimeException(e); }, client);
         int records = holder[0];
         assertEquals(400L, records);
     }
@@ -407,11 +402,10 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(q -> {}, response);
 
         JobResultsProvider provider = createProvider(client);
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
-        provider.categoryDefinitions(jobId, null, false, from, size, r -> holder[0] = r,
-                e -> {throw new RuntimeException(e);}, client);
-        QueryPage<CategoryDefinition> categoryDefinitions = holder[0];
+        SetOnce<QueryPage<CategoryDefinition>> holder = new SetOnce<>();
+        provider.categoryDefinitions(jobId, null, null, false, from, size, holder::set,
+                e -> { throw new RuntimeException(e); }, client);
+        QueryPage<CategoryDefinition> categoryDefinitions = holder.get();
         assertEquals(1L, categoryDefinitions.count());
         assertEquals(terms, categoryDefinitions.results().get(0).getTerms());
     }
@@ -429,11 +423,10 @@ public class JobResultsProviderTests extends ESTestCase {
         SearchResponse response = createSearchResponse(Collections.singletonList(source));
         Client client = getMockedClient(q -> {}, response);
         JobResultsProvider provider = createProvider(client);
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
-        provider.categoryDefinitions(jobId, categoryId, false, null, null,
-                r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
-        QueryPage<CategoryDefinition> categoryDefinitions = holder[0];
+        SetOnce<QueryPage<CategoryDefinition>> holder = new SetOnce<>();
+        provider.categoryDefinitions(jobId, categoryId, null, false, null, null,
+            holder::set, e -> { throw new RuntimeException(e); }, client);
+        QueryPage<CategoryDefinition> categoryDefinitions = holder.get();
         assertEquals(1L, categoryDefinitions.count());
         assertEquals(terms, categoryDefinitions.results().get(0).getTerms());
     }
@@ -471,11 +464,10 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(q -> qbHolder[0] = q, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Influencer>[] holder = new QueryPage[1];
+        SetOnce<QueryPage<Influencer>> holder = new SetOnce<>();
         InfluencersQuery query = new InfluencersQueryBuilder().from(from).size(size).includeInterim(false).build();
-        provider.influencers(jobId, query, page -> holder[0] = page, RuntimeException::new, client);
-        QueryPage<Influencer> page = holder[0];
+        provider.influencers(jobId, query, holder::set, e -> { throw new RuntimeException(e); }, client);
+        QueryPage<Influencer> page = holder.get();
         assertEquals(2L, page.count());
 
         String queryString = qbHolder[0].toString();
@@ -531,12 +523,11 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(q -> qbHolder[0] = q, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<Influencer>[] holder = new QueryPage[1];
+        SetOnce<QueryPage<Influencer>> holder = new SetOnce<>();
         InfluencersQuery query = new InfluencersQueryBuilder().from(from).size(size).start("0").end("0").sortField("sort")
                 .sortDescending(true).influencerScoreThreshold(0.0).includeInterim(true).build();
-        provider.influencers(jobId, query, page -> holder[0] = page, RuntimeException::new, client);
-        QueryPage<Influencer> page = holder[0];
+        provider.influencers(jobId, query, holder::set, e -> { throw new RuntimeException(e); }, client);
+        QueryPage<Influencer> page = holder.get();
         assertEquals(2L, page.count());
 
         String queryString = qbHolder[0].toString();
@@ -586,10 +577,9 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(qb -> {}, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        QueryPage<ModelSnapshot>[] holder = new QueryPage[1];
-        provider.modelSnapshots(jobId, from, size, r -> holder[0] = r, RuntimeException::new);
-        QueryPage<ModelSnapshot> page = holder[0];
+        SetOnce<QueryPage<ModelSnapshot>> holder = new SetOnce<>();
+        provider.modelSnapshots(jobId, from, size, holder::set, e -> { throw new RuntimeException(e); });
+        QueryPage<ModelSnapshot> page = holder.get();
         assertEquals(2L, page.count());
         List<ModelSnapshot> snapshots = page.results();
 
@@ -607,7 +597,7 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals(6, snapshots.get(1).getSnapshotDocCount());
     }
 
-    public void testViolatedFieldCountLimit() throws Exception {
+    public void testViolatedFieldCountLimit() {
         Map<String, Object> mapping = new HashMap<>();
 
         int i = 0;
@@ -666,7 +656,7 @@ public class JobResultsProviderTests extends ESTestCase {
     public void testTimingStats_Ok() throws IOException {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
         List<Map<String, Object>> source =
-            Arrays.asList(
+            Collections.singletonList(
                 Map.of(
                     Job.ID.getPreferredName(), "foo",
                     TimingStats.BUCKET_COUNT.getPreferredName(), 7,
@@ -734,7 +724,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
     public void testDatafeedTimingStats_MultipleDocumentsAtOnce() throws IOException {
         List<Map<String, Object>> sourceFoo =
-            Arrays.asList(
+            Collections.singletonList(
                 Map.of(
                     Job.ID.getPreferredName(), "foo",
                     DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6,
@@ -745,7 +735,7 @@ public class JobResultsProviderTests extends ESTestCase {
                         ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(100000600),
                         ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 60.0)));
         List<Map<String, Object>> sourceBar =
-            Arrays.asList(
+            Collections.singletonList(
                 Map.of(
                     Job.ID.getPreferredName(), "bar",
                     DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 7,
@@ -811,7 +801,7 @@ public class JobResultsProviderTests extends ESTestCase {
     public void testDatafeedTimingStats_Ok() throws IOException {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
         List<Map<String, Object>> source =
-            Arrays.asList(
+            Collections.singletonList(
                 Map.of(
                     Job.ID.getPreferredName(), "foo",
                     DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6,
@@ -888,7 +878,7 @@ public class JobResultsProviderTests extends ESTestCase {
     }
 
     private JobResultsProvider createProvider(Client client) {
-        return new JobResultsProvider(client, Settings.EMPTY, new IndexNameExpressionResolver());
+        return new JobResultsProvider(client, Settings.EMPTY, TestIndexNameExpressionResolver.newInstance());
     }
 
     private static SearchResponse createSearchResponse(List<Map<String, Object>> source) throws IOException {

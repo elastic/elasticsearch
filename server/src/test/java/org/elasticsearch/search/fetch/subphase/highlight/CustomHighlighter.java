@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -32,13 +21,13 @@ import java.util.Map;
 public class CustomHighlighter implements Highlighter {
 
     @Override
-    public HighlightField highlight(HighlighterContext highlighterContext) {
-        SearchContextHighlight.Field field = highlighterContext.field;
-        CacheEntry cacheEntry = (CacheEntry) highlighterContext.hitContext.cache().get("test-custom");
-        final int docId = highlighterContext.hitContext.readerContext().docBase + highlighterContext.hitContext.docId();
+    public HighlightField highlight(FieldHighlightContext fieldContext) {
+        SearchHighlightContext.Field field = fieldContext.field;
+        CacheEntry cacheEntry = (CacheEntry) fieldContext.cache.get("test-custom");
+        final int docId = fieldContext.hitContext.readerContext().docBase + fieldContext.hitContext.docId();
         if (cacheEntry == null) {
             cacheEntry = new CacheEntry();
-            highlighterContext.hitContext.cache().put("test-custom", cacheEntry);
+            fieldContext.cache.put("test-custom", cacheEntry);
             cacheEntry.docId = docId;
             cacheEntry.position = 1;
         } else {
@@ -60,7 +49,7 @@ public class CustomHighlighter implements Highlighter {
             }
         }
 
-        return new HighlightField(highlighterContext.fieldName, responses.toArray(new Text[]{}));
+        return new HighlightField(fieldContext.fieldName, responses.toArray(new Text[]{}));
     }
 
     @Override

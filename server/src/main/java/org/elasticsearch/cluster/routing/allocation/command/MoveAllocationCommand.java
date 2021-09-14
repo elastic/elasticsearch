@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
@@ -27,7 +16,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -103,20 +92,20 @@ public class MoveAllocationCommand implements AllocationCommand {
 
         boolean found = false;
         RoutingNode fromRoutingNode = allocation.routingNodes().node(fromDiscoNode.getId());
-        if (fromRoutingNode == null && !fromDiscoNode.isDataNode()) {
+        if (fromRoutingNode == null && fromDiscoNode.canContainData() == false) {
             throw new IllegalArgumentException("[move_allocation] can't move [" + index + "][" + shardId + "] from "
                 + fromDiscoNode + " to " + toDiscoNode + ": source [" +  fromDiscoNode.getName()
                 + "] is not a data node.");
         }
         RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.getId());
-        if (toRoutingNode == null && !toDiscoNode.isDataNode()) {
+        if (toRoutingNode == null && toDiscoNode.canContainData() == false) {
             throw new IllegalArgumentException("[move_allocation] can't move [" + index + "][" + shardId + "] from "
                 + fromDiscoNode + " to " + toDiscoNode + ": source [" +  toDiscoNode.getName()
                 + "] is not a data node.");
         }
 
         for (ShardRouting shardRouting : fromRoutingNode) {
-            if (!shardRouting.shardId().getIndexName().equals(index)) {
+            if (shardRouting.shardId().getIndexName().equals(index) == false) {
                 continue;
             }
             if (shardRouting.shardId().id() != shardId) {
@@ -125,7 +114,7 @@ public class MoveAllocationCommand implements AllocationCommand {
             found = true;
 
             // TODO we can possibly support also relocating cases, where we cancel relocation and move...
-            if (!shardRouting.started()) {
+            if (shardRouting.started() == false) {
                 if (explain) {
                     return new RerouteExplanation(this, allocation.decision(Decision.NO, "move_allocation_command",
                             "shard " + shardId + " has not been started"));
@@ -149,7 +138,7 @@ public class MoveAllocationCommand implements AllocationCommand {
                 allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
         }
 
-        if (!found) {
+        if (found == false) {
             if (explain) {
                 return new RerouteExplanation(this, allocation.decision(Decision.NO,
                         "move_allocation_command", "shard " + shardId + " not found"));

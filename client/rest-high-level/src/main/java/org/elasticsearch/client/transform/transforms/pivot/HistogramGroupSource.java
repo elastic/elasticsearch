@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.transform.transforms.pivot;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -41,12 +30,13 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
     private static final ConstructingObjectParser<HistogramGroupSource, Void> PARSER = new ConstructingObjectParser<>(
         "histogram_group_source",
         true,
-        args -> new HistogramGroupSource((String) args[0], (Script) args[1], (double) args[2])
+        args -> new HistogramGroupSource((String) args[0], (Script) args[1], args[2] == null ? false : (boolean) args[2], (double) args[3])
     );
 
     static {
         PARSER.declareString(optionalConstructorArg(), FIELD);
         Script.declareScript(PARSER, optionalConstructorArg(), SCRIPT);
+        PARSER.declareBoolean(optionalConstructorArg(), MISSING_BUCKET);
         PARSER.declareDouble(optionalConstructorArg(), INTERVAL);
     }
 
@@ -57,7 +47,11 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
     private final double interval;
 
     HistogramGroupSource(String field, Script script, double interval) {
-        super(field, script);
+        this(field, script, false, interval);
+    }
+
+    HistogramGroupSource(String field, Script script, boolean missingBucket, double interval) {
+        super(field, script, missingBucket);
         if (interval <= 0) {
             throw new IllegalArgumentException("[interval] must be greater than 0.");
         }
@@ -94,12 +88,15 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
 
         final HistogramGroupSource that = (HistogramGroupSource) other;
 
-        return Objects.equals(this.field, that.field) && Objects.equals(this.interval, that.interval);
+        return this.missingBucket == that.missingBucket
+            && Objects.equals(this.field, that.field)
+            && Objects.equals(this.script, that.script)
+            && Objects.equals(this.interval, that.interval);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, interval);
+        return Objects.hash(field, script, interval, missingBucket);
     }
 
     public static Builder builder() {
@@ -110,6 +107,7 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
 
         private String field;
         private Script script;
+        private boolean missingBucket;
         private double interval;
 
         /**
@@ -123,7 +121,7 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
         }
 
         /**
-         * Set the interval for the histogram aggregation
+         * Set the interval for the histogram grouping
          * @param interval The numeric interval for the histogram grouping
          * @return The {@link Builder} with the interval set.
          */
@@ -142,8 +140,18 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
             return this;
         }
 
+        /**
+         * Sets the value of "missing_bucket"
+         * @param missingBucket value of "missing_bucket" to be set
+         * @return The {@link Builder} with "missing_bucket" set.
+         */
+        public Builder setMissingBucket(boolean missingBucket) {
+            this.missingBucket = missingBucket;
+            return this;
+        }
+
         public HistogramGroupSource build() {
-            return new HistogramGroupSource(field, script, interval);
+            return new HistogramGroupSource(field, script, missingBucket, interval);
         }
     }
 }

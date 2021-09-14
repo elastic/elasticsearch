@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.analysis;
@@ -13,10 +14,10 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
 
@@ -32,13 +33,13 @@ public final class AnalysisUtils {
     }
 
     static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, boolean allowCompound) {
-        List<Attribute> matches = new ArrayList<>();
+        Set<Attribute> matches = new LinkedHashSet<>();
 
         // first take into account the qualified version
         boolean qualified = u.qualifier() != null;
 
         for (Attribute attribute : attrList) {
-            if (!attribute.synthetic()) {
+            if (attribute.synthetic() == false) {
                 boolean match = qualified ? Objects.equals(u.qualifiedName(), attribute.qualifiedName()) :
                 // if the field is unqualified
                 // first check the names directly
@@ -57,7 +58,7 @@ public final class AnalysisUtils {
         }
 
         if (matches.size() == 1) {
-            return handleSpecialFields(u, matches.get(0), allowCompound);
+            return handleSpecialFields(u, matches.iterator().next(), allowCompound);
         }
 
         return u.withUnresolvedMessage(

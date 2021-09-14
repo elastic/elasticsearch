@@ -1,30 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
@@ -132,8 +124,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
      * Needed by {@link UpdateSettingsIT#testEngineGCDeletesSetting()}
      */
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("thread_pool.estimated_time_interval", 0)
             .build();
     }
@@ -644,6 +636,96 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         final long newSettingsVersion =
                 client().admin().cluster().prepareState().get().getState().metadata().index("test").getSettingsVersion();
         assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
+    }
+
+    /*
+     * Test that we are able to set the setting index.number_of_replicas to the default.
+     */
+    public void testDefaultNumberOfReplicasOnOpenIndices() {
+        runTestDefaultNumberOfReplicasTest(false);
+    }
+
+    public void testDefaultNumberOfReplicasOnClosedIndices() {
+        runTestDefaultNumberOfReplicasTest(true);
+    }
+
+    private void runTestDefaultNumberOfReplicasTest(final boolean closeIndex) {
+        if (randomBoolean()) {
+            assertAcked(client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 8))));
+        } else {
+            assertAcked(client().admin().indices().prepareCreate("test"));
+        }
+
+        if (closeIndex) {
+            assertAcked(client().admin().indices().prepareClose("test"));
+        }
+
+        /*
+         * Previous versions of Elasticsearch would throw an exception that the number of replicas had to have a value, and could not be
+         * null. In the update settings logic, we ensure this by providing an explicit default value if the setting is set to null.
+         */
+        assertAcked(client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().putNull(IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
+
+        final GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();
+
+        // we removed the setting but it should still have an explicit value since index metadata requires this
+        assertTrue(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(response.getIndexToSettings().get("test")));
+        assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(response.getIndexToSettings().get("test")), equalTo(1));
+    }
+
+    public void testNoopUpdate() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)));
+
+        ClusterState currentState = clusterService.state();
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertNotSame(currentState, clusterService.state());
+        client().admin().cluster().prepareHealth()
+            .setWaitForGreenStatus()
+            .setWaitForNoInitializingShards(true)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForEvents(Priority.LANGUID)
+            .setTimeout(TimeValue.MAX_VALUE)
+            .get();
+        currentState = clusterService.state();
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertSame(clusterService.state(), currentState);
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().putNull(IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
+        assertSame(clusterService.state(), currentState);
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder()
+                .putNull(SETTING_BLOCKS_READ)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertSame(currentState, clusterService.state());
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder()
+                .put(SETTING_BLOCKS_READ, true)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertNotSame(currentState, clusterService.state());
+        currentState = clusterService.state();
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(SETTING_BLOCKS_READ, true)));
+        assertSame(currentState, clusterService.state());
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().putNull(SETTING_BLOCKS_READ)));
+        assertNotSame(currentState, clusterService.state());
     }
 
 }

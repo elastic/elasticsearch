@@ -172,6 +172,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterEventFilter(EqlBaseParser.EventFilterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitEventFilter(EqlBaseParser.EventFilterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterExpression(EqlBaseParser.ExpressionContext ctx) { }
   /**
    * {@inheritDoc}
@@ -251,6 +263,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitComparison(EqlBaseParser.ComparisonContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterOperatorExpressionDefault(EqlBaseParser.OperatorExpressionDefaultContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitOperatorExpressionDefault(EqlBaseParser.OperatorExpressionDefaultContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -347,6 +371,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitFunctionExpression(EqlBaseParser.FunctionExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFunctionName(EqlBaseParser.FunctionNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFunctionName(EqlBaseParser.FunctionNameContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -491,6 +527,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitString(EqlBaseParser.StringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterEventValue(EqlBaseParser.EventValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitEventValue(EqlBaseParser.EventValueContext ctx) { }
 
   /**
    * {@inheritDoc}

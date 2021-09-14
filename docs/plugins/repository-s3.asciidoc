@@ -17,7 +17,7 @@ The plugin provides a repository type named `s3` which may be used when creating
 a repository. The repository defaults to using
 https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html[ECS
 IAM Role] or
-http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[EC2
+https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[EC2
 IAM Role] credentials for authentication. The only mandatory setting is the
 bucket name:
 
@@ -27,7 +27,7 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket"
+    "bucket": "my-bucket"
   }
 }
 ----
@@ -48,8 +48,8 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket",
-    "client": "my_alternate_client"
+    "bucket": "my-bucket",
+    "client": "my-alternate-client"
   }
 }
 ----
@@ -117,7 +117,7 @@ settings belong in the `elasticsearch.yml` file.
 
     The S3 service endpoint to connect to. This defaults to `s3.amazonaws.com`
     but the
-    http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region[AWS
+    https://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region[AWS
     documentation] lists alternative S3 endpoints. If you are using an
     <<repository-s3-compatible-services,S3-compatible service>> then you should
     set this to the service's endpoint.
@@ -125,7 +125,10 @@ settings belong in the `elasticsearch.yml` file.
 `protocol`::
 
     The protocol to use to connect to S3. Valid values are either `http` or
-    `https`. Defaults to `https`.
+    `https`. Defaults to `https`. When using HTTPS, this plugin validates the
+    repository's certificate chain using the JVM-wide truststore. Ensure that
+    the root certificate authority is in this truststore using the JVM's
+    `keytool` tool.
 
 `proxy.host`::
 
@@ -200,7 +203,7 @@ pattern then you should set this setting to `true` when upgrading.
     https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/ClientConfiguration.html#setSignerOverride-java.lang.String-[AWS
     Java SDK documentation] for details. Defaults to empty string which means that no signing algorithm override will be used.
 
-[float]
+[discrete]
 [[repository-s3-compatible-services]]
 ===== S3-compatible services
 
@@ -215,8 +218,24 @@ include a port. For example, the endpoint may be `172.17.0.2` or
 https://minio.io[Minio] is an example of a storage system that provides an
 S3-compatible API. The `repository-s3` plugin allows {es} to work with
 Minio-backed repositories as well as repositories stored on AWS S3. Other
-S3-compatible storage systems may also work with {es}, but these are not tested
-or supported.
+S3-compatible storage systems may also work with {es}, but these are not
+covered by the {es} test suite.
+
+Note that some storage systems claim to be S3-compatible without correctly
+supporting the full S3 API. The `repository-s3` plugin requires full
+compatibility with S3. In particular it must support the same set of API
+endpoints, return the same errors in case of failures, and offer a consistency
+model no weaker than S3's when accessed concurrently by multiple nodes.
+Incompatible error codes and consistency models may be particularly hard to
+track down since errors and consistency failures are usually rare and hard to
+reproduce.
+
+You can perform some basic checks of the suitability of your storage system
+using the {ref}/repo-analysis-api.html[repository analysis API]. If this API
+does not complete successfully, or indicates poor performance, then your
+storage system is not fully compatible with AWS S3 and therefore unsuitable for
+use as a snapshot repository. You will need to work with the supplier of your
+storage system to address any incompatibilities you encounter.
 
 [[repository-s3-repository]]
 ==== Repository Settings
@@ -230,8 +249,8 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket_name",
-    "another_setting": "setting_value"
+    "bucket": "my-bucket",
+    "another_setting": "setting-value"
   }
 }
 ----
@@ -240,8 +259,12 @@ PUT _snapshot/my_s3_repository
 The following settings are supported:
 
 `bucket`::
-
-    The name of the bucket to be used for snapshots. (Mandatory)
+(Required)
+Name of the S3 bucket to use for snapshots.
++
+The bucket name must adhere to Amazon's
+https://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html#bucketnamingrules[S3
+bucket naming rules].
 
 `client`::
 
@@ -250,16 +273,15 @@ The following settings are supported:
 
 `base_path`::
 
-    Specifies the path within bucket to repository data. Defaults to value of
-    `repositories.s3.base_path` or to root directory if not set.  Previously,
-    the base_path could take a leading `/` (forward slash).  However, this has
-    been deprecated and setting the base_path now should omit the leading `/`.
+    Specifies the path to the repository data within its bucket. Defaults to an
+    empty string, meaning that the repository is at the root of the bucket. The
+    value of this setting should not start or end with a `/`.
 
 `chunk_size`::
 
     Big files can be broken down into chunks during snapshotting if needed.
     Specify the chunk size as a value and unit, for example:
-    `1GB`, `10MB`, `5KB`, `500B`. Defaults to `1GB`.
+    `1TB`, `1GB`, `10MB`. Defaults to the maximum size of a blob in the S3 which is `5TB`.
 
 `compress`::
 
@@ -278,22 +300,22 @@ include::repository-shared-settings.asciidoc[]
 
     Minimum threshold below which the chunk is uploaded using a single request.
     Beyond this threshold, the S3 repository will use the
-    http://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html[AWS
+    https://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html[AWS
     Multipart Upload API] to split the chunk into several parts, each of
     `buffer_size` length, and to upload each part in its own request. Note that
     setting a buffer size lower than `5mb` is not allowed since it will prevent
     the use of the Multipart API and may result in upload errors. It is also not
     possible to set a buffer size greater than `5gb` as it is the maximum upload
-    size allowed by S3. Defaults to the minimum between `100mb` and `5%` of the
-    heap size.
+    size allowed by S3. Defaults to `100mb` or `5%` of JVM heap, whichever is
+    smaller.
 
 `canned_acl`::
 
     The S3 repository supports all
-    http://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl[S3
+    https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl[S3
     canned ACLs] : `private`, `public-read`, `public-read-write`,
     `authenticated-read`, `log-delivery-write`, `bucket-owner-read`,
-    `bucket-owner-full-control`. Defaults to `private`.  You could specify a
+    `bucket-owner-full-control`. Defaults to `private`. You could specify a
     canned ACL using the `canned_acl` setting. When the S3 repository creates
     buckets and objects, it adds the canned ACL into the buckets and objects.
 
@@ -305,10 +327,10 @@ include::repository-shared-settings.asciidoc[]
     Changing this setting on an existing repository only affects the
     storage class for newly created objects, resulting in a mixed usage of
     storage classes. Additionally, S3 Lifecycle Policies can be used to manage
-    the storage class of existing objects.  Due to the extra complexity with the
-    Glacier class lifecycle, it is not currently supported by the plugin.  For
+    the storage class of existing objects. Due to the extra complexity with the
+    Glacier class lifecycle, it is not currently supported by the plugin. For
     more information about the different classes, see
-    http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS
+    https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS
     Storage Classes Guide]
 
 NOTE: The option of defining client settings in the repository settings as
@@ -316,9 +338,9 @@ documented below is considered deprecated, and will be removed in a future
 version.
 
 In addition to the above settings, you may also specify all non-secure client
-settings in the repository settings.  In this case, the client settings found in
+settings in the repository settings. In this case, the client settings found in
 the repository settings will be merged with those of the named client used by
-the repository.  Conflicts between client and repository settings are resolved
+the repository. Conflicts between client and repository settings are resolved
 by the repository settings taking precedence over client settings.
 
 For example:
@@ -329,8 +351,8 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "client": "my_client_name",
-    "bucket": "my_bucket_name",
+    "client": "my-client",
+    "bucket": "my-bucket",
     "endpoint": "my.s3.endpoint"
   }
 }
@@ -434,16 +456,46 @@ bucket, in this example, named "foo".
 The bucket needs to exist to register a repository for snapshots. If you did not
 create the bucket then the repository registration will fail.
 
+===== Cleaning up multi-part uploads
+
+{es} uses S3's multi-part upload process to upload larger blobs to the
+repository. The multi-part upload process works by dividing each blob into
+smaller parts, uploading each part independently, and then completing the
+upload in a separate step. This reduces the amount of data that {es} must
+re-send if an upload fails: {es} only needs to re-send the part that failed
+rather than starting from the beginning of the whole blob. The storage for each
+part is charged independently starting from the time at which the part was
+uploaded.
+
+If a multi-part upload cannot be completed then it must be aborted in order to
+delete any parts that were successfully uploaded, preventing further storage
+charges from accumulating. {es} will automatically abort a multi-part upload on
+failure, but sometimes the abort request itself fails. For example, if the
+repository becomes inaccessible or the instance on which {es} is running is
+terminated abruptly then {es} cannot complete or abort any ongoing uploads.
+
+You must make sure that failed uploads are eventually aborted to avoid
+unnecessary storage costs. You can use the
+https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html[List
+multipart uploads API] to list the ongoing uploads and look for any which are
+unusually long-running, or you can
+https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpu-abort-incomplete-mpu-lifecycle-config.html[configure
+a bucket lifecycle policy] to automatically abort incomplete uploads once they
+reach a certain age.
+
 [[repository-s3-aws-vpc]]
-[float]
+[discrete]
 ==== AWS VPC Bandwidth Settings
 
 AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch
 instances reside in a private subnet in an AWS VPC then all traffic to S3 will
-go through that VPC's NAT instance. If your VPC's NAT instance is a smaller
-instance size (e.g. a t1.micro) or is handling a high volume of network traffic
+go through the VPC's NAT instance. If your VPC's NAT instance is a smaller
+instance size (e.g. a t2.micro) or is handling a high volume of network traffic
 your bandwidth to S3 may be limited by that NAT instance's networking bandwidth
-limitations.
+limitations. Instead we recommend creating a https://docs.aws.amazon.com/vpc/latest/userguide/vpc-endpoints.html[VPC endpoint]
+that enables connecting to S3 in instances that reside in a private subnet in
+an AWS VPC. This will eliminate any limitations imposed by the network
+bandwidth of your VPC's NAT instance.
 
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the
 VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.

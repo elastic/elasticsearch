@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.privileges;
@@ -10,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -48,6 +49,7 @@ public class UserPrivilegeResolverTests extends ESTestCase {
     private UserPrivilegeResolver resolver;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setupTest() {
         client = mock(Client.class);
         securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
@@ -157,6 +159,8 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         return new ServiceProviderPrivileges(appName, resource, roleMapping);
     }
 
+    @SafeVarargs
+    @SuppressWarnings("unchecked")
     private HasPrivilegesResponse setupHasPrivileges(String username, String appName,
                                                      Tuple<String, Tuple<String, Boolean>>... resourceActionAccess) {
         final boolean isCompleteMatch = randomBoolean();

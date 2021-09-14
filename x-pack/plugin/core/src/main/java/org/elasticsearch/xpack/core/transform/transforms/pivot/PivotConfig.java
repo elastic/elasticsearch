@@ -1,42 +1,41 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PivotConfig implements Writeable, ToXContentObject {
 
     private static final String NAME = "data_frame_transform_pivot";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(PivotConfig.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PivotConfig.class);
 
     private final GroupConfig groups;
     private final AggregationConfig aggregationConfig;
@@ -84,7 +83,8 @@ public class PivotConfig implements Writeable, ToXContentObject {
         this.maxPageSearchSize = maxPageSearchSize;
 
         if (maxPageSearchSize != null) {
-            deprecationLogger.deprecatedAndMaybeLog(
+            deprecationLogger.critical(
+                DeprecationCategory.API,
                 TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
                 "[max_page_search_size] is deprecated inside pivot please use settings instead"
             );
@@ -107,27 +107,6 @@ public class PivotConfig implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    public void toCompositeAggXContent(XContentBuilder builder, boolean forChangeDetection) throws IOException {
-        builder.startObject();
-        builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
-        builder.startArray();
-
-        for (Entry<String, SingleGroupSource> groupBy : groups.getGroups().entrySet()) {
-            // some group source do not implement change detection or not makes no sense, skip those
-            if (forChangeDetection && groupBy.getValue().supportsIncrementalBucketUpdate() == false) {
-                continue;
-            }
-            builder.startObject();
-            builder.startObject(groupBy.getKey());
-            builder.field(groupBy.getValue().getType().value(), groupBy.getValue());
-            builder.endObject();
-            builder.endObject();
-        }
-
-        builder.endArray();
-        builder.endObject(); // sources
     }
 
     @Override
@@ -172,20 +151,27 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return Objects.hash(groups, aggregationConfig, maxPageSearchSize);
     }
 
-    public boolean isValid() {
-        return groups.isValid() && aggregationConfig.isValid();
-    }
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
 
-    public List<String> aggFieldValidation() {
-        if ((aggregationConfig.isValid() && groups.isValid()) == false) {
-            return Collections.emptyList();
+        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > MultiBucketConsumerService.DEFAULT_MAX_BUCKETS)) {
+            validationException = addValidationError(
+                "pivot.max_page_search_size ["
+                    + maxPageSearchSize
+                    + "] is out of range. The minimum value is 10 and the maximum is "
+                    + MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+                validationException
+            );
         }
+        validationException = groups.validate(validationException);
+        validationException = aggregationConfig.validate(validationException);
+
         List<String> usedNames = new ArrayList<>();
-        // TODO this will need to change once we allow multi-bucket aggs + field merging
-        aggregationConfig.getAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
-        aggregationConfig.getPipelineAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
-        usedNames.addAll(groups.getGroups().keySet());
-        return aggFieldValidation(usedNames);
+        usedNames.addAll(groups.getUsedNames());
+        usedNames.addAll(aggregationConfig.getUsedNames());
+        for (String failure : aggFieldValidation(usedNames)) {
+            validationException = addValidationError(failure, validationException);
+        }
+        return validationException;
     }
 
     public static PivotConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
@@ -233,15 +219,5 @@ public class PivotConfig implements Writeable, ToXContentObject {
         }
 
         return validationFailures;
-    }
-
-    private static void addAggNames(AggregationBuilder aggregationBuilder, Collection<String> names) {
-        names.add(aggregationBuilder.getName());
-        aggregationBuilder.getSubAggregations().forEach(agg -> addAggNames(agg, names));
-        aggregationBuilder.getPipelineAggregations().forEach(agg -> addAggNames(agg, names));
-    }
-
-    private static void addAggNames(PipelineAggregationBuilder pipelineAggregationBuilder, Collection<String> names) {
-        names.add(pipelineAggregationBuilder.getName());
     }
 }

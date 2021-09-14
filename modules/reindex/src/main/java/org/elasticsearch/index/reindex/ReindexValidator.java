@@ -1,32 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -34,16 +22,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.List;
 
-class ReindexValidator {
-    private static final Logger logger = LogManager.getLogger(ReindexValidator.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+public class ReindexValidator {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ReindexValidator.class);
     static final String SORT_DEPRECATED_MESSAGE = "The sort option in reindex is deprecated. " +
         "Instead consider using query filtering to find the desired subset of data.";
 
@@ -60,14 +49,14 @@ class ReindexValidator {
         this.autoCreateIndex = autoCreateIndex;
     }
 
-    void initialValidation(ReindexRequest request) {
+    public void initialValidation(ReindexRequest request) {
         checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
         ClusterState state = clusterService.state();
         validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(), resolver, autoCreateIndex,
             state);
         SearchSourceBuilder searchSource = request.getSearchRequest().source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
-            deprecationLogger.deprecatedAndMaybeLog("reindex_sort", SORT_DEPRECATED_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
         }
     }
 
@@ -114,13 +103,21 @@ class ReindexValidator {
             return;
         }
         String target = destination.index();
+        if (destination.isRequireAlias() && (false == clusterState.getMetadata().hasAlias(target))) {
+            throw new IndexNotFoundException("["
+                + DocWriteRequest.REQUIRE_ALIAS
+                + "] request flag is [true] and ["
+                + target
+                + "] is not an alias",
+                target);
+        }
         if (false == autoCreateIndex.shouldAutoCreate(target, clusterState)) {
             /*
              * If we're going to autocreate the index we don't need to resolve
              * it. This is the same sort of dance that TransportIndexRequest
              * uses to decide to autocreate the index.
              */
-            target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination, false).getName();
+            target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination).getName();
         }
         for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, source)) {
             if (sourceIndex.equals(target)) {

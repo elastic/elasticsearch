@@ -1,28 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -57,6 +48,22 @@ public interface HttpRequest {
      */
     Map<String, List<String>> getHeaders();
 
+    default String header(String name) {
+        List<String> values = getHeaders().get(name);
+        if (values != null && values.isEmpty() == false) {
+            return values.get(0);
+        }
+        return null;
+    }
+
+    default List<String> allHeaders(String name) {
+        List<String> values = getHeaders().get(name);
+        if (values != null) {
+            return Collections.unmodifiableList(values);
+        }
+        return null;
+    }
+
     List<String> strictCookies();
 
     HttpVersion protocolVersion();
@@ -67,6 +74,9 @@ public interface HttpRequest {
      * Create an http response from this request and the supplied status and content.
      */
     HttpResponse createResponse(RestStatus status, BytesReference content);
+
+    @Nullable
+    Exception getInboundException();
 
     /**
      * Release any resources associated with this request. Implementations should be idempotent. The behavior of {@link #content()}

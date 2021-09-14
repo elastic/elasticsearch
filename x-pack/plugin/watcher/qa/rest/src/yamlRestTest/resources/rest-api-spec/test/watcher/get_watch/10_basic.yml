@@ -1,0 +1,57 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      watcher.delete_watch:
+        id: "my_watch"
+        ignore: 404
+
+---
+"Test get watch api":
+  - skip:
+      features: warnings
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+                "test_index": {
+                  "index": {
+                    "index": "test"
+                  }
+                }
+              }
+            }
+  - match: { _id: "my_watch" }
+  - match: { created: true }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { found : true}
+  - match: { _id: "my_watch" }
+  - is_true:  watch
+  - is_false: watch.status

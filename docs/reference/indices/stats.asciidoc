@@ -4,34 +4,42 @@
 <titleabbrev>Index stats</titleabbrev>
 ++++
 
-Returns statistics for an index.
+Returns statistics for one or more indices. For data streams, the API retrieves
+statistics for the stream's backing indices.
 
 [source,console]
 ----
-GET /twitter/_stats
+GET /my-index-000001/_stats
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-stats-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_stats/<index-metric>`
+`GET /<target>/_stats/<index-metric>`
 
-`GET /<index>/_stats`
+`GET /<target>/_stats`
 
 `GET /_stats`
 
+[[index-stats-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-indices,index privilege>> for the target data stream,
+index, or alias.
 
 [[index-stats-api-desc]]
 ==== {api-description-title}
 
-Use the index stats API to get high-level aggregation and statistics for an index.
+Use the index stats API to get high-level aggregation and statistics for one or
+more data streams and indices.
 
 By default,
 the returned statistics are index-level
 with `primaries` and `total` aggregations.
-`primaries` are the values for only the primary shards. 
+`primaries` are the values for only the primary shards.
 `total` are the accumulated values for both primary and replica shards.
 
 To get shard-level statistics,
@@ -51,39 +59,39 @@ to which the shard contributed.
 [[index-stats-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
-+
-To retrieve statistics for all indices,
-use a value of `_all` or `*` or omit this parameter.
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-metric]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-metric]
 
 
 [[index-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=fields]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=completion-fields]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
 
 `forbid_closed_indices`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, statistics are *not* collected from closed indices.
 Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=groups]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=groups]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=level]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=level]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
 
 [[index-stats-api-example]]
@@ -91,7 +99,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
 
 [[index-stats-api-multiple-ex]]
-===== Get statistics for multiple indices
+===== Get statistics for multiple data streams and indices
 
 [source,console]
 --------------------------------------------------
@@ -101,13 +109,13 @@ GET /index1,index2/_stats
 
 
 [[index-stats-api-all-ex]]
-===== Get statistics for all indices
+===== Get statistics for all data streams and indices in a cluster
 
 [source,console]
 --------------------------------------------------
 GET /_stats
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-stats-api-specific-stats-ex]]
@@ -121,7 +129,7 @@ for all indices.
 --------------------------------------------------
 GET /_stats/merge,refresh
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[index-stats-api-specific-groups-ex]]
@@ -135,4 +143,4 @@ for the `group1` and `group2` search groups.
 --------------------------------------------------
 GET /_stats/search?groups=group1,group2
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]

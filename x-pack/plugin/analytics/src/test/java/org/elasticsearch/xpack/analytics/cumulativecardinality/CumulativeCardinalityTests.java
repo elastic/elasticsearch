@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
@@ -29,10 +30,13 @@ public class CumulativeCardinalityTests extends BasePipelineAggregationTestCase<
         return singletonList(new SearchPlugin() {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
-                return singletonList(new PipelineAggregationSpec(
+                return singletonList(
+                    new PipelineAggregationSpec(
                         CumulativeCardinalityPipelineAggregationBuilder.NAME,
                         CumulativeCardinalityPipelineAggregationBuilder::new,
-                        CumulativeCardinalityPipelineAggregationBuilder.PARSER));
+                        CumulativeCardinalityPipelineAggregationBuilder.PARSER
+                    )
+                );
             }
         });
     }
@@ -41,18 +45,18 @@ public class CumulativeCardinalityTests extends BasePipelineAggregationTestCase<
     protected CumulativeCardinalityPipelineAggregationBuilder createTestAggregatorFactory() {
         String name = randomAlphaOfLengthBetween(3, 20);
         String bucketsPath = randomAlphaOfLengthBetween(3, 20);
-        CumulativeCardinalityPipelineAggregationBuilder builder =
-                new CumulativeCardinalityPipelineAggregationBuilder(name, bucketsPath);
+        CumulativeCardinalityPipelineAggregationBuilder builder = new CumulativeCardinalityPipelineAggregationBuilder(name, bucketsPath);
         if (randomBoolean()) {
             builder.format(randomAlphaOfLengthBetween(1, 10));
         }
         return builder;
     }
 
-
     public void testParentValidations() throws IOException {
-        CumulativeCardinalityPipelineAggregationBuilder builder =
-                new CumulativeCardinalityPipelineAggregationBuilder("name", randomAlphaOfLength(5));
+        CumulativeCardinalityPipelineAggregationBuilder builder = new CumulativeCardinalityPipelineAggregationBuilder(
+            "name",
+            randomAlphaOfLength(5)
+        );
 
         assertThat(validate(new HistogramAggregationBuilder("name"), builder), nullValue());
         assertThat(validate(new DateHistogramAggregationBuilder("name"), builder), nullValue());
@@ -61,12 +65,20 @@ public class CumulativeCardinalityTests extends BasePipelineAggregationTestCase<
         // Mocked "test" agg, should fail validation
         AggregationBuilder stubParent = mock(AggregationBuilder.class);
         when(stubParent.getName()).thenReturn("name");
-        assertThat(validate(stubParent, builder), equalTo(
+        assertThat(
+            validate(stubParent, builder),
+            equalTo(
                 "Validation Failed: 1: cumulative_cardinality aggregation [name] must have a histogram, "
-                + "date_histogram or auto_date_histogram as parent;"));
+                    + "date_histogram or auto_date_histogram as parent;"
+            )
+        );
 
-        assertThat(validate(emptyList(), builder), equalTo(
+        assertThat(
+            validate(emptyList(), builder),
+            equalTo(
                 "Validation Failed: 1: cumulative_cardinality aggregation [name] must have a histogram, "
-                + "date_histogram or auto_date_histogram as parent but doesn't have a parent;"));
+                    + "date_histogram or auto_date_histogram as parent but doesn't have a parent;"
+            )
+        );
     }
 }

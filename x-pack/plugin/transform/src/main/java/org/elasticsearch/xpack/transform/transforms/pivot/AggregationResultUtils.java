@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -13,20 +14,30 @@ import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.MultiValue;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
+import org.elasticsearch.xpack.core.spatial.search.aggregations.GeoShapeMetricAggregation;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.GeoTileGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
@@ -39,6 +50,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt;
 import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.isNumericType;
 
 public final class AggregationResultUtils {
@@ -52,7 +64,22 @@ public final class AggregationResultUtils {
         tempMap.put(GeoBounds.class.getName(), new GeoBoundsAggExtractor());
         tempMap.put(Percentiles.class.getName(), new PercentilesAggExtractor());
         tempMap.put(SingleBucketAggregation.class.getName(), new SingleBucketAggExtractor());
+        tempMap.put(MultiBucketsAggregation.class.getName(), new MultiBucketsAggExtractor());
+        tempMap.put(GeoShapeMetricAggregation.class.getName(), new GeoShapeMetricAggExtractor());
+        tempMap.put(MultiValue.class.getName(), new NumericMultiValueAggExtractor());
+        tempMap.put(MultiValueAggregation.class.getName(), new MultiValueAggExtractor());
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
+    }
+
+    private static final Map<String, BucketKeyExtractor> BUCKET_KEY_EXTRACTOR_MAP;
+    private static final BucketKeyExtractor DEFAULT_BUCKET_KEY_EXTRACTOR = new DefaultBucketKeyExtractor();
+    private static final BucketKeyExtractor DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR = new DatesAsEpochBucketKeyExtractor();
+
+    static {
+        Map<String, BucketKeyExtractor> tempMap = new HashMap<>();
+        tempMap.put(GeoTileGroupSource.class.getName(), new GeoTileBucketKeyExtractor());
+
+        BUCKET_KEY_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
     /**
@@ -71,10 +98,15 @@ public final class AggregationResultUtils {
         Collection<AggregationBuilder> aggregationBuilders,
         Collection<PipelineAggregationBuilder> pipelineAggs,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats stats
+        TransformIndexerStats stats,
+        TransformProgress progress,
+        boolean datesAsEpoch
     ) {
         return agg.getBuckets().stream().map(bucket -> {
             stats.incrementNumDocuments(bucket.getDocCount());
+            progress.incrementDocsProcessed(bucket.getDocCount());
+            progress.incrementDocsIndexed(1L);
+
             Map<String, Object> document = new HashMap<>();
             // generator to create unique but deterministic document ids, so we
             // - do not create duplicates if we re-run after failure
@@ -83,8 +115,13 @@ public final class AggregationResultUtils {
 
             groups.getGroups().forEach((destinationFieldName, singleGroupSource) -> {
                 Object value = bucket.getKey().get(destinationFieldName);
+
                 idGen.add(destinationFieldName, value);
-                updateDocument(document, destinationFieldName, singleGroupSource.transformBucketKey(value));
+                updateDocument(
+                    document,
+                    destinationFieldName,
+                    getBucketKeyExtractor(singleGroupSource, datesAsEpoch).value(value, fieldTypeMap.get(destinationFieldName))
+                );
             });
 
             List<String> aggNames = aggregationBuilders.stream().map(AggregationBuilder::getName).collect(Collectors.toList());
@@ -107,6 +144,13 @@ public final class AggregationResultUtils {
         });
     }
 
+    static BucketKeyExtractor getBucketKeyExtractor(SingleGroupSource groupSource, boolean datesAsEpoch) {
+        return BUCKET_KEY_EXTRACTOR_MAP.getOrDefault(
+            groupSource.getClass().getName(),
+            datesAsEpoch ? DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR : DEFAULT_BUCKET_KEY_EXTRACTOR
+        );
+    }
+
     static AggValueExtractor getExtractor(Aggregation aggregation) {
         if (aggregation instanceof SingleValue) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(SingleValue.class.getName());
@@ -116,10 +160,20 @@ public final class AggregationResultUtils {
             return TYPE_VALUE_EXTRACTOR_MAP.get(GeoCentroid.class.getName());
         } else if (aggregation instanceof GeoBounds) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(GeoBounds.class.getName());
+            // note: percentiles is also a multi value agg, therefore check percentiles first
+            // TODO: can the Percentiles extractor be removed?
         } else if (aggregation instanceof Percentiles) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(Percentiles.class.getName());
+        } else if (aggregation instanceof MultiValue) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(MultiValue.class.getName());
+        } else if (aggregation instanceof MultiValueAggregation) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(MultiValueAggregation.class.getName());
         } else if (aggregation instanceof SingleBucketAggregation) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(SingleBucketAggregation.class.getName());
+        } else if (aggregation instanceof MultiBucketsAggregation) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(MultiBucketsAggregation.class.getName());
+        } else if (aggregation instanceof GeoShapeMetricAggregation) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(GeoShapeMetricAggregation.class.getName());
         } else {
             // Execution should never reach this point!
             // Creating transforms with unsupported aggregations shall not be possible
@@ -175,6 +229,25 @@ public final class AggregationResultUtils {
         AggregationExtractionException(String msg, Object... args) {
             super(msg, args);
         }
+
+        AggregationExtractionException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
+        }
+    }
+
+    /**
+     * Extract the bucket key and transform it for indexing.
+     */
+    interface BucketKeyExtractor {
+
+        /**
+         * Take the bucket key and return it in the format for the index, taking the mapped type into account.
+         *
+         * @param key The bucket key for this group source
+         * @param type the mapping type of the destination field
+         * @return the transformed bucket key for indexing
+         */
+        Object value(Object key, String type);
     }
 
     interface AggValueExtractor {
@@ -194,10 +267,48 @@ public final class AggregationResultUtils {
             // If the type is numeric or if the formatted string is the same as simply making the value a string,
             // gather the `value` type, otherwise utilize `getValueAsString` so we don't lose formatted outputs.
             if (isNumericType(fieldType) || aggregation.getValueAsString().equals(String.valueOf(aggregation.value()))) {
-                return aggregation.value();
+                return dropFloatingPointComponentIfTypeRequiresIt(fieldType, aggregation.value());
             } else {
                 return aggregation.getValueAsString();
             }
+        }
+    }
+
+    static class MultiValueAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            MultiValueAggregation aggregation = (MultiValueAggregation) agg;
+            Map<String, Object> extracted = new HashMap<>();
+            for (String valueName : aggregation.valueNames()) {
+                List<String> valueAsStrings = aggregation.getValuesAsStrings(valueName);
+
+                // todo: size > 1 is not supported, requires a refactoring so that `size()` is exposed in the agg builder
+                if (valueAsStrings.size() > 0) {
+                    extracted.put(valueName, valueAsStrings.get(0));
+                }
+            }
+
+            return extracted;
+        }
+    }
+
+    static class NumericMultiValueAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            MultiValue aggregation = (MultiValue) agg;
+            Map<String, Object> extracted = new HashMap<>();
+
+            String fieldLookupPrefix = (lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()) + ".";
+            for (String valueName : aggregation.valueNames()) {
+                double value = aggregation.value(valueName);
+
+                String fieldType = fieldTypeMap.get(fieldLookupPrefix + valueName);
+                if (Numbers.isValidDouble(value)) {
+                    extracted.put(valueName, dropFloatingPointComponentIfTypeRequiresIt(fieldType, value));
+                }
+            }
+
+            return extracted;
         }
     }
 
@@ -242,6 +353,35 @@ public final class AggregationResultUtils {
                 );
             }
 
+            return nested;
+        }
+    }
+
+    static class MultiBucketsAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            MultiBucketsAggregation aggregation = (MultiBucketsAggregation) agg;
+
+            HashMap<String, Object> nested = new HashMap<>();
+
+            for (MultiBucketsAggregation.Bucket bucket : aggregation.getBuckets()) {
+                if (bucket.getAggregations().iterator().hasNext() == false) {
+                    nested.put(bucket.getKeyAsString(), bucket.getDocCount());
+                } else {
+                    HashMap<String, Object> nestedBucketObject = new HashMap<>();
+                    for (Aggregation subAgg : bucket.getAggregations()) {
+                        nestedBucketObject.put(
+                            subAgg.getName(),
+                            getExtractor(subAgg).value(
+                                subAgg,
+                                fieldTypeMap,
+                                lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()
+                            )
+                        );
+                    }
+                    nested.put(bucket.getKeyAsString(), nestedBucketObject);
+                }
+            }
             return nested;
         }
     }
@@ -311,4 +451,68 @@ public final class AggregationResultUtils {
         }
     }
 
+    static class GeoShapeMetricAggExtractor implements AggValueExtractor {
+
+        @Override
+        public Object value(Aggregation aggregation, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            assert aggregation instanceof GeoShapeMetricAggregation
+                : "Unexpected type [" + aggregation.getClass().getName() + "] for aggregation [" + aggregation.getName() + "]";
+            return ((GeoShapeMetricAggregation) aggregation).geoJSONGeometry();
+        }
+    }
+
+    static class GeoTileBucketKeyExtractor implements BucketKeyExtractor {
+
+        @Override
+        public Object value(Object key, String type) {
+            assert key instanceof String;
+            Rectangle rectangle = GeoTileUtils.toBoundingBox(key.toString());
+            final Map<String, Object> geoShape = new HashMap<>();
+            geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PolygonBuilder.TYPE.shapeName());
+            geoShape.put(
+                ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                Collections.singletonList(
+                    Arrays.asList(
+                        new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() },
+                        new Double[] { rectangle.getMinLon(), rectangle.getMinLat() },
+                        new Double[] { rectangle.getMinLon(), rectangle.getMaxLat() },
+                        new Double[] { rectangle.getMaxLon(), rectangle.getMaxLat() },
+                        new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() }
+                    )
+                )
+            );
+            return geoShape;
+        }
+
+    }
+
+    static class DefaultBucketKeyExtractor implements BucketKeyExtractor {
+
+        @Override
+        public Object value(Object key, String type) {
+            if (isNumericType(type) && key instanceof Double) {
+                return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
+            } else if ((DateFieldMapper.CONTENT_TYPE.equals(type) || DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(type))
+                && key instanceof Long) {
+                    // date_histogram return bucket keys with milliseconds since epoch precision, therefore we don't need a
+                    // nanosecond formatter, for the parser on indexing side, time is optional (only the date part is mandatory)
+                    return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) key);
+                }
+
+            return key;
+        }
+
+    }
+
+    static class DatesAsEpochBucketKeyExtractor implements BucketKeyExtractor {
+
+        @Override
+        public Object value(Object key, String type) {
+            if (isNumericType(type) && key instanceof Double) {
+                return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
+            }
+            return key;
+        }
+
+    }
 }

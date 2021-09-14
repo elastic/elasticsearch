@@ -4,34 +4,40 @@
 <titleabbrev>Flush</titleabbrev>
 ++++
 
-Flushes one or more indices.
+Flushes one or more data streams or indices.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_flush
+POST /my-index-000001/_flush
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[flush-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_flush`
+`POST /<target>/_flush`
 
-`GET /<index>/_flush`
+`GET /<target>/_flush`
 
 `POST /_flush`
 
 `GET /_flush`
 
+[[flush-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `maintenance`
+or `manage` <<privileges-list-indices,index privilege>> for the target data
+stream, index, or alias.
 
 [[flush-api-desc]]
 ==== {api-description-title}
 
-Flushing an index is the process of making sure that any data that is currently
+Flushing a data stream or index is the process of making sure that any data that is currently
 only stored in the <<index-modules-translog,transaction log>> is also
 permanently stored in the Lucene index. When restarting, {es} replays any
-unflushed operations from the transaction log into the Lucene index to bring it
+unflushed operations from the transaction log in to the Lucene index to bring it
 back into the state that it was in before the restart. {es} automatically
 triggers flushes as needed, using heuristics that trade off the size of the
 unflushed transaction log against the cost of performing each flush.
@@ -52,28 +58,26 @@ flush API was called.
 [[flush-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
-+
-To flush all indices,
-omit this parameter
-or use a value of `_all` or `*`.
-
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases to
+flush. Supports wildcards (`*`). To flush all data streams and indices, omit
+this parameter or use `*` or `_all`.
 
 [[flush-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
 `force`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the request forces a flush
 even if there are no changes to commit to the index.
@@ -86,12 +90,12 @@ This parameter is considered internal.
 --
 
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `wait_if_ongoing`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the flush operation blocks until execution
 when another flush operation is running.
@@ -111,27 +115,27 @@ Defaults to `true`.
 
 
 [[flush-api-specific-ex]]
-===== Flush a specific index
+===== Flush a specific data stream or index
 
 [source,console]
 ----
-POST /kimchy/_flush
+POST /my-index-000001/_flush
 ----
-// TEST[s/^/PUT kimchy\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 
 [[flush-multi-index]]
-===== Flush several indices
+===== Flush several data streams and indices
 
 [source,console]
 ----
-POST /kimchy,elasticsearch/_flush
+POST /my-index-000001,my-index-000002/_flush
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 
 [[flush-api-all-ex]]
-===== Flush all indices
+===== Flush all data streams and indices in a cluster
 
 [source,console]
 ----

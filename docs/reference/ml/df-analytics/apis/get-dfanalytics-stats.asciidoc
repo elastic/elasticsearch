@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[get-dfanalytics-stats]]
-=== Get {dfanalytics-jobs} statistics API
+= Get {dfanalytics-jobs} statistics API
 [subs="attributes"]
 ++++
 <titleabbrev>Get {dfanalytics-jobs} stats</titleabbrev>
@@ -9,10 +9,9 @@
 
 Retrieves usage information for {dfanalytics-jobs}.
 
-experimental[]
 
 [[ml-get-dfanalytics-stats-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/data_frame/analytics/<data_frame_analytics_id>/_stats` +
 
@@ -26,41 +25,42 @@ experimental[]
 
 
 [[ml-get-dfanalytics-stats-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
-* cluster: `monitor_ml`
-  
-For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 [[ml-get-dfanalytics-stats-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
 
 
 [[ml-get-dfanalytics-stats-query-params]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 `from`::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=from]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 
 `size`::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=size]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
+
+`verbose`::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=verbose]
 
 [role="child_attributes"]
 [[ml-get-dfanalytics-stats-response-body]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 `data_frame_analytics`::
 (array)
@@ -96,106 +96,106 @@ An object containing the parameters of the {classanalysis} job.
 =======
 `alpha`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
 
 `class_assignment_objective`::::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
 
 `downsample_factor`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
 
 `eta`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
 
 `eta_growth_rate_per_tree`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
 
 `feature_bag_fraction`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `gamma`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `max_attempts_to_add_tree`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-attempts]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-max-attempts]
 
 `max_optimization_rounds_per_hyperparameter`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
 
 `max_trees`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_folds`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-num-folds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-num-folds]
 
 `num_splits_per_feature`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-num-splits]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-num-splits]
 
 `soft_tree_depth_limit`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
 
 `soft_tree_depth_tolerance`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
 =======
 //End class_hyperparameters
 
 `iteration`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-iteration]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-iteration]
 
 `timestamp`::::
 (date)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timestamp]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-timestamp]
 
 //Begin class_timing_stats
 `timing_stats`::::
 (object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats]
 +
 .Properties of `timing_stats`
 [%collapsible%open]
 =======
 `elapsed_time`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
 
 `iteration_time`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-iteration]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-iteration]
 =======
 //End class_timing_stats
 
 //Begin class_validation_loss
 `validation_loss`::::
 (object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss]
 +
 .Properties of `validation_loss`
 [%collapsible%open]
 =======
 `fold_values`::::
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-fold]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-fold]
 
 `loss_type`::::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-type]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-type]
 =======
 //End class_validation_loss
 ======
@@ -219,46 +219,46 @@ heuristics.
 [%collapsible%open]
 =======
 `compute_feature_influence`::::
-(boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
 
 `feature_influence_threshold`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
 
 `method`::::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=method]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=method]
 
 `n_neighbors`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=n-neighbors]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=n-neighbors]
 
 `outlier_fraction`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
 
 `standardization_enabled`::::
-(boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 =======
 //End parameters
 
 `timestamp`::::
 (date)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timestamp]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-timestamp]
 
 //Begin od_timing_stats
 `timing_stats`::::
 (object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats]
 +
 .Property of `timing_stats`
 [%collapsible%open]
 =======
 `elapsed_time`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
 =======
 //End od_timing_stats
 ======
@@ -282,103 +282,103 @@ An object containing the parameters of the {reganalysis} job.
 =======
 `alpha`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
 
 `downsample_factor`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
 
 `eta`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
 
 `eta_growth_rate_per_tree`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
 
 `feature_bag_fraction`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `gamma`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `max_attempts_to_add_tree`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-attempts]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-max-attempts]
 
 `max_optimization_rounds_per_hyperparameter`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
 
 `max_trees`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_folds`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-num-folds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-num-folds]
 
 `num_splits_per_feature`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-num-splits]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-num-splits]
 
 `soft_tree_depth_limit`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
 
 `soft_tree_depth_tolerance`::::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
 =======
 //End reg_hyperparameters
 
 `iteration`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-iteration]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-iteration]
 
 `timestamp`::::
 (date)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timestamp]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-timestamp]
 
 //Begin reg_timing_stats
 `timing_stats`::::
 (object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats]
 +
 .Propertis of `timing_stats`
 [%collapsible%open]
 =======
 `elapsed_time`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
 
 `iteration_time`::::
 (integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-iteration]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-iteration]
 =======
 //End reg_timing_stats
 
 //Begin reg_validation_loss
 `validation_loss`::::
 (object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss]
 +
 .Properties of `validation_loss`
 [%collapsible%open]
 =======
 `fold_values`::::
 (array of strings)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-fold]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-fold]
 
 `loss_type`::::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-type]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-type]
 =======
 //End reg_validation_loss
 ======
@@ -431,9 +431,23 @@ job is started and memory usage is reported.
 .Properties of `memory_usage`
 [%collapsible%open]
 =====
+`memory_reestimate_bytes`::::
+(long)
+This value is present when the `status` is `hard_limit` and it
+is a new estimate of how much memory the job needs.
+
 `peak_usage_bytes`::::
 (long)
 The number of bytes used at the highest peak of memory usage.
+
+`status`::::
+(string)
+The memory usage status. May have one of the following values:
++
+--
+* `ok`: usage stayed below the limit.
+* `hard_limit`: usage surpassed the configured memory limit.
+--
 
 `timestamp`::::
 (date)
@@ -450,15 +464,15 @@ available only for running jobs.
 =====
 `attributes`::::
 (object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-attributes]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
 
 `ephemeral_id`::::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
 `id`::::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
 
 `name`::::
 (string)
@@ -466,7 +480,7 @@ The node name.
 
 `transport_address`::::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 =====
 
 `progress`:::
@@ -484,7 +498,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 * `coarse_parameter_search` (for {regression} and {classification} only),
 * `fine_tuning_parameters` (for {regression} and {classification} only),
 * `final_training` (for {regression} and {classification} only),
-* `writing_results`.
+* `writing_results`,
+* `inference` (for {regression} and {classification} only).
 +
 To learn more about the different phases, refer to
 {ml-docs}/ml-dfa-phases.html[How a {dfanalytics} job works].
@@ -496,14 +511,13 @@ percentage.
 
 `state`:::
 (string) The status of the {dfanalytics-job}, which can be one of the following
-values: `analyzing`, `failed`, `reindexing`, `started`, `starting`,`stopping`, 
-`stopped`.
+values: `failed`, `started`, `starting`,`stopping`, `stopped`.
 ====
 //End of data_frame_analytics
 
 
 [[ml-get-dfanalytics-stats-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
@@ -511,14 +525,14 @@ values: `analyzing`, `failed`, `reindexing`, `started`, `starting`,`stopping`,
 
 
 [[ml-get-dfanalytics-stats-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 The following API retrieves usage information for the
-{ml-docs}/ecommerce-outliers.html[{oldetection} {dfanalytics-job} example]:
+{ml-docs}/ml-dfa-finding-outliers.html#weblogs-outliers[{oldetection} {dfanalytics-job} example]:
 
 [source,console]
 --------------------------------------------------
-GET _ml/data_frame/analytics/ecommerce/_stats
+GET _ml/data_frame/analytics/weblog-outliers/_stats
 --------------------------------------------------
 // TEST[skip:Kibana sample data]
 
@@ -528,7 +542,7 @@ GET _ml/data_frame/analytics/ecommerce/_stats
   "count" : 1,
   "data_frame_analytics" : [
     {
-      "id" : "ecommerce",
+      "id" : "weblog-outliers",
       "state" : "stopped",
       "progress" : [
         {
@@ -540,7 +554,7 @@ GET _ml/data_frame/analytics/ecommerce/_stats
           "progress_percent" : 100
         },
         {
-          "phase" : "analyzing",
+          "phase" : "computing_outliers",
           "progress_percent" : 100
         },
         {
@@ -549,17 +563,18 @@ GET _ml/data_frame/analytics/ecommerce/_stats
         }
       ],
       "data_counts" : {
-        "training_docs_count" : 3321,
+        "training_docs_count" : 1001,
         "test_docs_count" : 0,
         "skipped_docs_count" : 0
       },
       "memory_usage" : {
-        "timestamp" : 1586905058000,
-        "peak_usage_bytes" : 279484
+        "timestamp" : 1626264770206,
+        "peak_usage_bytes" : 328011,
+        "status" : "ok"
       },
       "analysis_stats" : {
         "outlier_detection_stats" : {
-          "timestamp" : 1586905058000,
+          "timestamp" : 1626264770206,
           "parameters" : {
             "n_neighbors" : 0,
             "method" : "ensemble",
@@ -569,7 +584,7 @@ GET _ml/data_frame/analytics/ecommerce/_stats
             "standardization_enabled" : true
           },
           "timing_stats" : {
-            "elapsed_time" : 245
+            "elapsed_time" : 32
           }
         }
       }

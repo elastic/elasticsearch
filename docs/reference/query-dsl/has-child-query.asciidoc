@@ -29,18 +29,18 @@ field mapping. For example:
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
-    "mappings": {
-        "properties" : {
-            "my-join-field" : {
-                "type" : "join",
-                "relations": {
-                    "parent": "child"
-                }
-            }
+  "mappings": {
+    "properties": {
+      "my-join-field": {
+        "type": "join",
+        "relations": {
+          "parent": "child"
         }
+      }
     }
+  }
 }
 
 ----
@@ -53,17 +53,17 @@ PUT /my_index
 ----
 GET /_search
 {
-    "query": {
-        "has_child" : {
-            "type" : "child",
-            "query" : {
-                "match_all" : {}
-            },
-            "max_children": 10,
-            "min_children": 2,
-            "score_mode" : "min"
-        }
+  "query": {
+    "has_child": {
+      "type": "child",
+      "query": {
+        "match_all": {}
+      },
+      "max_children": 10,
+      "min_children": 2,
+      "score_mode": "min"
     }
+  }
 }
 ----
 
@@ -82,7 +82,7 @@ document.
 `ignore_unmapped`::
 +
 --
-(Optional, boolean) Indicates whether to ignore an unmapped `type` and not
+(Optional, Boolean) Indicates whether to ignore an unmapped `type` and not
 return any documents instead of an error. Defaults to `false`.
 
 If `false`, {es} returns an error if the `type` is unmapped.
@@ -131,7 +131,7 @@ Add together the relevance scores of all matching child documents.
 [[has-child-query-performance]]
 ===== Sorting
 You cannot sort the results of a `has_child` query using standard
-<<request-body-search-sort,sort options>>.
+<<sort-search-results,sort options>>.
 
 If you need to sort returned documents by a field in their child documents, use
 a `function_score` query and sort by `_score`. For example, the following query
@@ -141,18 +141,18 @@ sorts returned documents by the `click_count` field of their child documents.
 ----
 GET /_search
 {
-    "query": {
-        "has_child" : {
-            "type" : "child",
-            "query" : {
-                "function_score" : {
-                    "script_score": {
-                        "script": "_score * doc['click_count'].value"
-                    }
-                }
-            },
-            "score_mode" : "max"
+  "query": {
+    "has_child": {
+      "type": "child",
+      "query": {
+        "function_score": {
+          "script_score": {
+            "script": "_score * doc['click_count'].value"
+          }
         }
+      },
+      "score_mode": "max"
     }
+  }
 }
 ----

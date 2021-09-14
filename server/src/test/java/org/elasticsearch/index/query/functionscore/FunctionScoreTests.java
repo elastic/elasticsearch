@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query.functionscore;
@@ -42,7 +31,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -53,17 +42,17 @@ import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
@@ -94,11 +83,16 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
+        public ValuesSourceType getValuesSourceType() {
+            throw new UnsupportedOperationException(UNSUPPORTED);
+        }
+
+        @Override
         public LeafFieldData load(LeafReaderContext context) {
             return new LeafFieldData() {
 
                 @Override
-                public ScriptDocValues getScriptValues() {
+                public ScriptDocValues<?> getScriptValues() {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
@@ -154,22 +148,12 @@ public class FunctionScoreTests extends ESTestCase {
                 SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
-
-        @Override
-        public void clear() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
-
-        @Override
-        public Index index() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
     }
 
     /**
      * Stub for IndexNumericFieldData needed by some score functions. Returns 1 as value always.
      */
-    private static class IndexNumericFieldDataStub implements IndexNumericFieldData {
+    private static class IndexNumericFieldDataStub extends IndexNumericFieldData {
 
         @Override
         public NumericType getNumericType() {
@@ -179,6 +163,11 @@ public class FunctionScoreTests extends ESTestCase {
         @Override
         public String getFieldName() {
             return "test";
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
         @Override
@@ -210,7 +199,7 @@ public class FunctionScoreTests extends ESTestCase {
                 }
 
                 @Override
-                public ScriptDocValues getScriptValues() {
+                public ScriptDocValues<?> getScriptValues() {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
@@ -241,25 +230,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode,
-                                        XFieldComparatorSource.Nested nested, boolean reverse) {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
-
-        @Override
-        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
-
-        @Override
-        public void clear() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
-
-        @Override
-        public Index index() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
+        protected boolean sortRequiresCustomComparator() {
+            return false;
         }
     }
 

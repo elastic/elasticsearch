@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -39,7 +41,6 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
-import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
@@ -55,12 +56,12 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -84,7 +85,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         client = mock(Client.class);
         doAnswer(withResponse(mock(BulkResponse.class))).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
-        persister = new JobResultsPersister(originSettingClient, buildResultsPersisterService(originSettingClient), makeAuditor());
+        persister = new JobResultsPersister(originSettingClient, buildResultsPersisterService(originSettingClient));
     }
 
     public void testPersistBucket_OneRecord() {
@@ -106,7 +107,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         AnomalyRecord record = new AnomalyRecord(JOB_ID, new Date(), 600);
         bucket.setRecords(Collections.singletonList(record));
 
-        persister.bulkPersisterBuilder(JOB_ID, () -> true).persistBucket(bucket).executeRequest();
+        persister.bulkPersisterBuilder(JOB_ID).persistBucket(bucket).executeRequest();
 
         verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 
@@ -157,7 +158,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         typicals.add(998765.3);
         r1.setTypical(typicals);
 
-        persister.bulkPersisterBuilder(JOB_ID, () -> true).persistRecords(records).executeRequest();
+        persister.bulkPersisterBuilder(JOB_ID).persistRecords(records).executeRequest();
 
         verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 
@@ -192,7 +193,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         inf.setProbability(0.4);
         influencers.add(inf);
 
-        persister.bulkPersisterBuilder(JOB_ID, () -> true).persistInfluencers(influencers).executeRequest();
+        persister.bulkPersisterBuilder(JOB_ID).persistInfluencers(influencers).executeRequest();
 
         verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 
@@ -215,13 +216,13 @@ public class JobResultsPersisterTests extends ESTestCase {
         inf.setProbability(0.4);
         influencers.add(inf);
 
-        JobResultsPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID, () -> true);
+        JobResultsPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID);
         builder.persistInfluencers(influencers).executeRequest();
         assertEquals(0, builder.getBulkRequest().numberOfActions());
     }
 
     public void testBulkRequestExecutesWhenReachMaxDocs() {
-        JobResultsPersister.Builder bulkBuilder = persister.bulkPersisterBuilder("foo", () -> true);
+        JobResultsPersister.Builder bulkBuilder = persister.bulkPersisterBuilder("foo");
         ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
         for (int i=0; i<=JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
             bulkBuilder.persistModelPlot(modelPlot);
@@ -238,7 +239,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         TimingStats timingStats =
             new TimingStats(
                 "foo", 7, 1.0, 2.0, 1.23, 7.89, new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0));
-        persister.bulkPersisterBuilder(JOB_ID, () -> true).persistTimingStats(timingStats).executeRequest();
+        persister.bulkPersisterBuilder(JOB_ID).persistTimingStats(timingStats).executeRequest();
 
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
@@ -319,6 +320,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         BulkRequest bulkRequest = bulkRequestCaptor.getValue();
         assertThat(bulkRequest.requests().size(), equalTo(1));
         IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+        assertThat(indexRequest.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
 
         assertThat(indexRequest.index(), equalTo(expectedIndexOrAlias));
         assertThat(indexRequest.id(), equalTo("foo_quantiles"));
@@ -359,6 +361,7 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         assertThat(indexRequest.index(), equalTo(expectedIndexOrAlias));
         assertThat(indexRequest.id(), equalTo("foo_quantiles"));
+        assertThat(indexRequest.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
     }
 
     public void testPersistQuantilesAsync_QuantilesDocumentCreated() {
@@ -390,15 +393,19 @@ public class JobResultsPersisterTests extends ESTestCase {
                 ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
+        ExecutorService executor = mock(ExecutorService.class);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+        when(tp.executor(any(String.class))).thenReturn(executor);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(tp).schedule(
+            any(Runnable.class), any(TimeValue.class), any(String.class)
+        );
 
-        return new ResultsPersisterService(client, clusterService, Settings.EMPTY);
-    }
-
-    private AnomalyDetectionAuditor makeAuditor() {
-        AnomalyDetectionAuditor anomalyDetectionAuditor = mock(AnomalyDetectionAuditor.class);
-        doNothing().when(anomalyDetectionAuditor).warning(any(), any());
-        doNothing().when(anomalyDetectionAuditor).info(any(), any());
-        doNothing().when(anomalyDetectionAuditor).error(any(), any());
-        return anomalyDetectionAuditor;
+        return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }
 }

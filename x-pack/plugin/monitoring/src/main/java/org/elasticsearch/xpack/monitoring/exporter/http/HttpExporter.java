@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -15,14 +16,16 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.client.sniff.Sniffer;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -31,20 +34,22 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 
 import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
@@ -57,6 +62,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -82,7 +88,7 @@ public class HttpExporter extends Exporter {
 
     public static final String TYPE = "http";
 
-    private static Setting.AffixSettingDependency TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
+    private static Setting.AffixSettingDependency HTTP_TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
         @Override
         public Setting.AffixSetting<String> getSetting() {
             return Exporter.TYPE_SETTING;
@@ -168,14 +174,14 @@ public class HttpExporter extends Exporter {
                     },
                     Property.Dynamic,
                     Property.NodeScope),
-                TYPE_DEPENDENCY);
+                HTTP_TYPE_DEPENDENCY);
 
     /**
      * Master timeout associated with bulk requests.
      */
     public static final Setting.AffixSetting<TimeValue> BULK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","bulk.timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
     /**
      * Timeout used for initiating a connection.
      */
@@ -183,7 +189,8 @@ public class HttpExporter extends Exporter {
             Setting.affixKeySetting(
                 "xpack.monitoring.exporters.",
                 "connection.timeout",
-                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Timeout used for reading from the connection.
      */
@@ -191,7 +198,8 @@ public class HttpExporter extends Exporter {
             Setting.affixKeySetting(
                 "xpack.monitoring.exporters.",
                 "connection.read_timeout",
-                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Username for basic auth.
      */
@@ -235,7 +243,7 @@ public class HttpExporter extends Exporter {
                         Property.Dynamic,
                         Property.NodeScope,
                         Property.Filtered),
-                    TYPE_DEPENDENCY);
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Secure password for basic auth.
      */
@@ -244,7 +252,7 @@ public class HttpExporter extends Exporter {
             "xpack.monitoring.exporters.",
             "auth.secure_password",
             key -> SecureSetting.secureString(key, null),
-            TYPE_DEPENDENCY);
+            HTTP_TYPE_DEPENDENCY);
     /**
      * The SSL settings.
      *
@@ -255,7 +263,7 @@ public class HttpExporter extends Exporter {
                 "xpack.monitoring.exporters.",
                 "ssl",
                 (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered),
-                TYPE_DEPENDENCY);
+                HTTP_TYPE_DEPENDENCY);
 
     /**
      * Proxy setting to allow users to send requests to a remote cluster that requires a proxy base path.
@@ -276,13 +284,13 @@ public class HttpExporter extends Exporter {
                         },
                         Property.Dynamic,
                         Property.NodeScope),
-                    TYPE_DEPENDENCY);
+                HTTP_TYPE_DEPENDENCY);
     /**
      * A boolean setting to enable or disable sniffing for extra connections.
      */
     public static final Setting.AffixSetting<Boolean> SNIFF_ENABLED_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","sniff.enabled",
-                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
     /**
      * A parent setting to header key/value pairs, whose names are user defined.
      */
@@ -305,7 +313,7 @@ public class HttpExporter extends Exporter {
                         },
                         Property.Dynamic,
                         Property.NodeScope),
-                    TYPE_DEPENDENCY);
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Blacklist of headers that the user is not allowed to set.
      * <p>
@@ -317,19 +325,19 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> TEMPLATE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
     /**
      * A boolean setting to enable or disable whether to create placeholders for the old templates.
      */
     public static final Setting.AffixSetting<Boolean> TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
-                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
     /**
      * ES level timeout used when checking and writing pipelines (used to speed up tests)
      */
     public static final Setting.AffixSetting<TimeValue> PIPELINE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.pipeline.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
 
     /**
      * Minimum supported version of the remote monitoring cluster (same major).
@@ -356,23 +364,36 @@ public class HttpExporter extends Exporter {
     private final HttpResource resource;
 
     /**
+     * {@link HttpResource} for setting up or tearing down cluster alerts specifically.
+     */
+    private final HttpResource alertingResource;
+
+    /**
      * Track whether cluster alerts are allowed or not between requests. This allows us to avoid wiring a listener and to lazily change it.
      */
     private final AtomicBoolean clusterAlertsAllowed = new AtomicBoolean(false);
 
+    /**
+     * A barrier object to keep the exporter from installing or operating during a migration operation.
+     */
+    private final MonitoringMigrationCoordinator migrationCoordinator;
+
     private static final ConcurrentHashMap<String, SecureString> SECURE_AUTH_PASSWORDS = new ConcurrentHashMap<>();
     private final ThreadContext threadContext;
     private final DateFormatter dateTimeFormatter;
+    private final ClusterStateListener onLocalMasterListener;
 
     /**
-     * Create an {@link HttpExporter}.
-     *
-     * @param config The HTTP Exporter's configuration
-     * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
-     * @throws SettingsException if any setting is malformed
+     * Helper class to separate all resources from just watcher resources
      */
-    public HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext) {
-        this(config, sslService, threadContext, new NodeFailureListener(), createResources(config));
+    static class Resources {
+        MultiHttpResource allResources;
+        HttpResource alertingResource;
+
+        Resources(MultiHttpResource allResources, HttpResource alertingResource) {
+            this.allResources = allResources;
+            this.alertingResource = alertingResource;
+        }
     }
 
     /**
@@ -380,12 +401,49 @@ public class HttpExporter extends Exporter {
      *
      * @param config The HTTP Exporter's configuration
      * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
-     * @param listener The node failure listener used to notify an optional sniffer and resources
+     * @param threadContext The thread context that should be used for async operations
+     * @param migrationCoordinator The shared coordinator for determining monitoring migrations in progress
      * @throws SettingsException if any setting is malformed
      */
-    HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext, final NodeFailureListener listener,
-                 final HttpResource resource) {
-        this(config, createRestClient(config, sslService, listener), threadContext, listener, resource);
+    public HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext,
+                        MonitoringMigrationCoordinator migrationCoordinator) {
+        this(config, sslService, threadContext, migrationCoordinator, new NodeFailureListener(), createResources(config));
+    }
+
+    /**
+     * Create an {@link HttpExporter}.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @param threadContext The thread context that should be used for async operations
+     * @param migrationCoordinator The shared coordinator for determining monitoring migrations in progress
+     * @param listener The node failure listener used to notify an optional sniffer and resources
+     * @param resource Both the resource for all things required for bulk operations and those for just cluster alerts
+     * @throws SettingsException if any setting is malformed
+     */
+    private HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext,
+                         final MonitoringMigrationCoordinator migrationCoordinator, final NodeFailureListener listener,
+                         final Resources resource) {
+        this(config, sslService, threadContext, migrationCoordinator, listener, resource.allResources, resource.alertingResource);
+    }
+
+    /**
+     * Create an {@link HttpExporter}.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @param threadContext The thread context that should be used for async operations
+     * @param migrationCoordinator The shared coordinator for determining monitoring migrations in progress
+     * @param listener The node failure listener used to notify an optional sniffer and resources
+     * @param resource Blocking HTTP resource to prevent bulks until all requirements are met
+     * @param alertingResource The HTTP resource used to configure cluster alerts
+     * @throws SettingsException if any setting is malformed
+     */
+    HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext,
+                 final MonitoringMigrationCoordinator migrationCoordinator, final NodeFailureListener listener,
+                 final HttpResource resource, final HttpResource alertingResource) {
+        this(config, createRestClient(config, sslService, listener), threadContext, migrationCoordinator, listener, resource,
+            alertingResource);
     }
 
     /**
@@ -393,12 +451,18 @@ public class HttpExporter extends Exporter {
      *
      * @param config The HTTP Exporter's configuration
      * @param client The REST Client used to make all requests to the remote Elasticsearch cluster
+     * @param threadContext The thread context that should be used for async operations
+     * @param migrationCoordinator The shared coordinator for determining monitoring migrations in progress
      * @param listener The node failure listener used to notify an optional sniffer and resources
+     * @param resource Blocking HTTP resource to prevent bulks until all requirements are met
+     * @param alertingResource The HTTP resource used to configure cluster alerts
      * @throws SettingsException if any setting is malformed
      */
-    HttpExporter(final Config config, final RestClient client, final ThreadContext threadContext, final NodeFailureListener listener,
-                 final HttpResource resource) {
-        this(config, client, createSniffer(config, client, listener), threadContext, listener, resource);
+    HttpExporter(final Config config, final RestClient client, final ThreadContext threadContext,
+                 final MonitoringMigrationCoordinator migrationCoordinator, final NodeFailureListener listener,
+                 final HttpResource resource, final HttpResource alertingResource) {
+        this(config, client, createSniffer(config, client, listener), threadContext, migrationCoordinator, listener, resource,
+            alertingResource);
     }
 
     /**
@@ -407,23 +471,37 @@ public class HttpExporter extends Exporter {
      * @param config The HTTP Exporter's configuration
      * @param client The REST Client used to make all requests to the remote Elasticsearch cluster
      * @param sniffer The optional sniffer, which has already been associated with the {@code listener}
+     * @param threadContext The thread context that should be used for async operations
+     * @param migrationCoordinator The shared coordinator for determining monitoring migrations in progress
      * @param listener The node failure listener used to notify resources
      * @param resource Blocking HTTP resource to prevent bulks until all requirements are met
+     * @param alertingResource The HTTP resource used to configure cluster alerts
      * @throws SettingsException if any setting is malformed
      */
     HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final ThreadContext threadContext,
-                 final NodeFailureListener listener, final HttpResource resource) {
+                 final MonitoringMigrationCoordinator migrationCoordinator, final NodeFailureListener listener,
+                 final HttpResource resource, final HttpResource alertingResource) {
         super(config);
 
         this.client = Objects.requireNonNull(client);
         this.sniffer = sniffer;
         this.resource = resource;
+        this.alertingResource = alertingResource;
         this.defaultParams = createDefaultParams(config);
         this.threadContext = threadContext;
+        this.migrationCoordinator = migrationCoordinator;
         this.dateTimeFormatter = dateTimeFormatter(config);
 
         // mark resources as dirty after any node failure or license change
         listener.setResource(resource);
+
+        //for a mixed cluster upgrade, ensure that if master changes and this is the master, allow the resources to re-publish
+        onLocalMasterListener = clusterChangedEvent -> {
+            if (clusterChangedEvent.nodesDelta().masterNodeChanged() && clusterChangedEvent.localNodeMaster()) {
+                resource.markDirty();
+            }
+        };
+        config.clusterService().addListener(onLocalMasterListener);
     }
 
     /**
@@ -451,7 +529,7 @@ public class HttpExporter extends Exporter {
      * @throws IllegalStateException if any secure settings are used in the SSL configuration
      */
     private static void validateSslSettings(String exporter, Settings settings) {
-        final List<String> secureSettings = SSLConfigurationSettings.withoutPrefix()
+        final List<String> secureSettings = SSLConfigurationSettings.withoutPrefix(true)
             .getSecureSettingsInUse(settings)
             .stream()
             .map(Setting::getKey)
@@ -534,7 +612,7 @@ public class HttpExporter extends Exporter {
      * @param config The HTTP Exporter's configuration
      * @return Never {@code null}.
      */
-    static MultiHttpResource createResources(final Config config) {
+    static Resources createResources(final Config config) {
         final String resourceOwnerName = "xpack.monitoring.exporters." + config.name();
         // order controls the order that each is checked; more direct checks should always happen first (e.g., version checks)
         final List<HttpResource> resources = new ArrayList<>();
@@ -547,9 +625,12 @@ public class HttpExporter extends Exporter {
         configurePipelineResources(config, resourceOwnerName, resources);
 
         // load the watches for cluster alerts if Watcher is available
-        configureClusterAlertsResources(config, resourceOwnerName, resources);
+        final HttpResource alertingResource = configureClusterAlertsResources(config, resourceOwnerName);
+        if (alertingResource != null) {
+            resources.add(alertingResource);
+        }
 
-        return new MultiHttpResource(resourceOwnerName, resources);
+        return new Resources(new MultiHttpResource(resourceOwnerName, resources), alertingResource);
     }
 
     /**
@@ -638,14 +719,14 @@ public class HttpExporter extends Exporter {
      * Configures the {@link SSLIOSessionStrategy} to use. Relies on {@link #registerSettingValidators(ClusterService, SSLService)}
      * to prevent invalid usage of secure settings in the SSL strategy.
      * @param sslSettings The exporter's SSL settings
-     * @param concreteSetting Settings to use for {@link SSLConfiguration} if secure settings are used
+     * @param concreteSetting Settings to use for {@link SslConfiguration} if secure settings are used
      * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
      * @return Appropriately configured instance of {@link SSLIOSessionStrategy}
      */
     private static SSLIOSessionStrategy configureSslStrategy(final Settings sslSettings, final Setting<Settings> concreteSetting,
                                                              final SSLService sslService) {
         final SSLIOSessionStrategy sslStrategy;
-        if (SSLConfigurationSettings.withoutPrefix().getSecureSettingsInUse(sslSettings).isEmpty()) {
+        if (SSLConfigurationSettings.withoutPrefix(true).getSecureSettingsInUse(sslSettings).isEmpty()) {
             // This configuration does not use secure settings, so it is possible that is has been dynamically updated.
             // We need to load a new SSL strategy in case these settings differ from the ones that the SSL service was configured with.
             sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
@@ -653,7 +734,7 @@ public class HttpExporter extends Exporter {
             // This configuration uses secure settings. We cannot load a new SSL strategy, as the secure settings have already been closed.
             // Due to #registerSettingValidators we know that the settings not been dynamically updated, and the pre-configured strategy
             // is still the correct configuration for use in this exporter.
-            final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(concreteSetting.getKey());
+            final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(concreteSetting.getKey());
             sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
         }
         return sslStrategy;
@@ -703,8 +784,14 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if the username is missing, but a password is supplied
      */
     @Nullable
-    private static CredentialsProvider createCredentialsProvider(final Config config) {
+    // visible for testing
+    static CredentialsProvider createCredentialsProvider(final Config config) {
         final String username = AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+
+        if (Strings.isNullOrEmpty(username)) {
+            // nothing to configure; default situation for most users
+            return null;
+        }
 
         final SecureString securePassword = SECURE_AUTH_PASSWORDS.get(config.name());
         final String password = securePassword != null ? securePassword.toString() : null;
@@ -808,10 +895,8 @@ public class HttpExporter extends Exporter {
      *
      * @param config The HTTP Exporter's configuration
      * @param resourceOwnerName The resource owner name to display for any logging messages.
-     * @param resources The resources to add too.
      */
-    private static void configureClusterAlertsResources(final Config config, final String resourceOwnerName,
-                                                        final List<HttpResource> resources) {
+    private static HttpResource configureClusterAlertsResources(final Config config, final String resourceOwnerName) {
         // don't create watches if we're not using them
         if (CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
             final ClusterService clusterService = config.clusterService();
@@ -820,7 +905,7 @@ public class HttpExporter extends Exporter {
 
             // add a resource per watch
             for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
-                final boolean blacklisted = blacklist.contains(watchId);
+                final boolean blacklisted = blacklist.contains(watchId) || Monitoring.MIGRATION_DECOMMISSION_ALERTS.get(config.settings());
                 // lazily load the cluster state to fetch the cluster UUID once it's loaded
                 final Supplier<String> uniqueWatchId = () -> ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);
                 final Supplier<String> watch = blacklisted ? null : () -> ClusterAlertsUtil.loadWatch(clusterService, watchId);
@@ -829,38 +914,73 @@ public class HttpExporter extends Exporter {
             }
 
             // wrap the watches in a conditional resource check to ensure the remote cluster has watcher available / enabled
-            resources.add(new WatcherExistsHttpResource(resourceOwnerName, clusterService,
-                                                        new MultiHttpResource(resourceOwnerName, watchResources)));
+            return new WatcherExistsHttpResource(resourceOwnerName, clusterService,
+                                                        new MultiHttpResource(resourceOwnerName, watchResources));
         }
+        return null;
+    }
+
+    @Override
+    public void removeAlerts(Consumer<ExporterResourceStatus> listener) {
+        alertingResource.checkAndPublish(client, ActionListener.wrap(
+            (result) -> {
+                ExporterResourceStatus status;
+                if (result.isSuccess()) {
+                    status = ExporterResourceStatus.ready(name(), TYPE);
+                } else {
+                    switch (result.getResourceState()) {
+                        case CLEAN:
+                            status = ExporterResourceStatus.ready(name(), TYPE);
+                            break;
+                        case CHECKING:
+                        case DIRTY:
+                            // CHECKING should be unlikely, but in case of that, we mark it as not ready
+                            status = ExporterResourceStatus.notReady(name(), TYPE, result.getReason());
+                            break;
+                        default:
+                            throw new ElasticsearchException("Illegal exporter resource status state [{}]", result.getResourceState());
+                    }
+                }
+                listener.accept(status);
+            },
+            (exception) -> listener.accept(ExporterResourceStatus.notReady(name(), TYPE, exception))
+        ));
     }
 
     @Override
     public void openBulk(final ActionListener<ExportBulk> listener) {
-        final boolean canUseClusterAlerts = config.licenseState().isAllowed(Feature.MONITORING_CLUSTER_ALERTS);
+        final boolean canUseClusterAlerts = config.licenseState().checkFeature(Feature.MONITORING_CLUSTER_ALERTS);
 
         // if this changes between updates, then we need to add OR remove the watches
-        if (clusterAlertsAllowed.compareAndSet(!canUseClusterAlerts, canUseClusterAlerts)) {
+        if (clusterAlertsAllowed.compareAndSet(canUseClusterAlerts == false, canUseClusterAlerts)) {
             resource.markDirty();
         }
 
-        resource.checkAndPublishIfDirty(client, ActionListener.wrap((success) -> {
-            if (success) {
-                final String name = "xpack.monitoring.exporters." + config.name();
+        if (migrationCoordinator.canInstall()) {
+            resource.checkAndPublishIfDirty(client, ActionListener.wrap((success) -> {
+                if (success) {
+                    final String name = "xpack.monitoring.exporters." + config.name();
 
-                listener.onResponse(new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext));
-            } else {
-                // we're not ready yet, so keep waiting
-                listener.onResponse(null);
-            }
-        }, listener::onFailure));
+                    listener.onResponse(new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext));
+                } else {
+                    // we're not ready yet, so keep waiting
+                    listener.onResponse(null);
+                }
+            }, listener::onFailure));
+        } else {
+            // we're migrating right now, so keep waiting
+            listener.onResponse(null);
+        }
     }
 
     @Override
     public void doClose() {
         try {
+            config.clusterService().removeListener(onLocalMasterListener);
             if (sniffer != null) {
                 sniffer.close();
             }
+
         } catch (Exception e) {
             logger.error("an error occurred while closing the internal client sniffer", e);
         } finally {

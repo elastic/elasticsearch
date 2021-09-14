@@ -1,89 +1,172 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Explicit;
+import org.elasticsearch.Version;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
+@SuppressWarnings("deprecation")
+public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+    protected Object getSampleValueForDocument() {
+        return "POINT (14.0 15.0)";
+    }
+
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "geo_shape").field("strategy", "recursive");
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+
+        checker.registerConflictCheck("strategy",
+            fieldMapping(this::minimalMapping),
+            fieldMapping(b -> {
+                b.field("type", "geo_shape");
+                b.field("strategy", "term");
+            }));
+
+        checker.registerConflictCheck("tree", b -> b.field("tree", "geohash"));
+        checker.registerConflictCheck("tree_levels", b -> b.field("tree_levels", 5));
+        checker.registerConflictCheck("precision", b -> b.field("precision", 10));
+        checker.registerConflictCheck("points_only", b -> b.field("points_only", true));
+        checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
+            LegacyGeoShapeFieldMapper gsfm = (LegacyGeoShapeFieldMapper) m;
+            assertEquals(Orientation.RIGHT, gsfm.orientation());
+        });
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
+            LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
+            assertTrue(gpfm.ignoreMalformed());
+        });
+        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+            LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
+            assertFalse(gpfm.ignoreZValue());
+        });
+        checker.registerUpdateCheck(b -> b.field("coerce", true), m -> {
+            LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
+            assertTrue(gpfm.coerce.value());
+        });
+        // TODO - distance_error_pct ends up being subsumed into a calculated value, how to test
+        checker.registerUpdateCheck(b -> b.field("distance_error_pct", 0.8), m -> {});
+    }
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new TestGeoShapeFieldMapperPlugin());
+    }
+
+    @Override
+    protected boolean supportsMeta() {
+        return false;
+    }
+
+    @Override
+    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        return createMapperService(version, mappings);
+    }
+
+    @Override
+    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+        assumeFalse("LegacyGeoShapeFieldMapper can't be created in version " + version, version.onOrAfter(Version.V_8_0_0));
+        return super.createMapperService(version, mapping);
+    }
+
+    public void testInvalidCurrentVersion() {
+        MapperParsingException e =
+            expectThrows(MapperParsingException.class,
+                () -> super.createMapperService(Version.CURRENT, fieldMapping((b) -> {
+                    b.field("type", "geo_shape").field("strategy", "recursive");
+                })));
+        assertThat(e.getMessage(),
+            containsString("using deprecated parameters [strategy] " +
+                "in mapper [field] of type [geo_shape] is no longer allowed"));
+    }
+
+    public void testLegacySwitches() throws IOException {
+        // if one of the legacy parameters is added to a 'type':'geo_shape' config then
+        // that will select the legacy field mapper
+        testLegacySwitch("strategy", b -> b.field("strategy", "term"));
+        testLegacySwitch("tree", b -> b.field("tree", "geohash"));
+        testLegacySwitch("tree_levels", b -> b.field("tree_levels", 5));
+        testLegacySwitch("precision", b -> b.field("precision", 10));
+        testLegacySwitch("points_only", b -> b.field("points_only", true));
+        testLegacySwitch("distance_error_pct", b -> b.field("distance_error_pct", 0.8));
+    }
+
+    private void testLegacySwitch(String field, CheckedConsumer<XContentBuilder, IOException> config) throws IOException {
+        createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "geo_shape");
+            config.accept(b);
+        }));
+        Set<String> warnings = new HashSet<>();
+        warnings.add(field);
+        warnings.add("strategy");
+        assertFieldWarnings(warnings.toArray(String[]::new));
     }
 
     public void testDefaultConfiguration() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                    .field("type", "geo_shape")
-                    .field("strategy", "recursive")
-                .endObject().endObject()
-                .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        XContentBuilder mapping = fieldMapping(this::minimalMapping);
+        DocumentMapper mapper = createDocumentMapper(mapping);
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-        assertEquals(mapping, defaultMapper.mappingSource().toString());
+        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().tree(),
-            equalTo(LegacyGeoShapeFieldMapper.DeprecatedParameters.Defaults.TREE));
+            equalTo(LegacyGeoShapeFieldMapper.Defaults.TREE));
         assertThat(geoShapeFieldMapper.fieldType().treeLevels(), equalTo(0));
         assertThat(geoShapeFieldMapper.fieldType().pointsOnly(),
-            equalTo(LegacyGeoShapeFieldMapper.DeprecatedParameters.Defaults.POINTS_ONLY));
+            equalTo(LegacyGeoShapeFieldMapper.Defaults.POINTS_ONLY));
         assertThat(geoShapeFieldMapper.fieldType().distanceErrorPct(),
-            equalTo(LegacyGeoShapeFieldMapper.DeprecatedParameters.Defaults.DISTANCE_ERROR_PCT));
+            equalTo(LegacyGeoShapeFieldMapper.Defaults.DISTANCE_ERROR_PCT));
         assertThat(geoShapeFieldMapper.fieldType().orientation(),
-            equalTo(LegacyGeoShapeFieldMapper.Defaults.ORIENTATION.value()));
+            equalTo(Orientation.RIGHT));
         assertFieldWarnings("strategy");
     }
 
@@ -91,120 +174,71 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
      * Test that orientation parameter correctly parses
      */
     public void testOrientationParsing() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .field("orientation", "left")
-                .endObject().endObject()
-                .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("orientation", "left"))
+        );
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-
-        ShapeBuilder.Orientation orientation = ((LegacyGeoShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+        Orientation orientation = ((LegacyGeoShapeFieldMapper)fieldMapper).fieldType().orientation();
+        assertThat(orientation, equalTo(Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.LEFT));
+        assertThat(orientation, equalTo(Orientation.CW));
 
         // explicit right orientation test
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .field("orientation", "right")
-                .endObject().endObject()
-                .endObject().endObject());
-
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        fieldMapper = defaultMapper.mappers().getMapper("location");
+        mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("orientation", "right"))
+        );
+        fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-
         orientation = ((LegacyGeoShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
-        assertFieldWarnings("tree");
+        assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.RIGHT));
+        assertThat(orientation, equalTo(Orientation.CCW));
+        assertFieldWarnings("tree", "strategy");
     }
 
     /**
      * Test that coerce parameter correctly parses
      */
     public void testCoerceParsing() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .field("coerce", "true")
-                .endObject().endObject()
-                .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("coerce", true))
+        );
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-
-        boolean coerce = ((LegacyGeoShapeFieldMapper)fieldMapper).coerce().value();
+        boolean coerce = ((LegacyGeoShapeFieldMapper)fieldMapper).coerce();
         assertThat(coerce, equalTo(true));
 
         // explicit false coerce test
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .field("coerce", "false")
-                .endObject().endObject()
-                .endObject().endObject());
-
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        fieldMapper = defaultMapper.mappers().getMapper("location");
+        mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("coerce", false))
+        );
+        fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-
-        coerce = ((LegacyGeoShapeFieldMapper)fieldMapper).coerce().value();
+        coerce = ((LegacyGeoShapeFieldMapper)fieldMapper).coerce();
         assertThat(coerce, equalTo(false));
-        assertFieldWarnings("tree");
+        assertFieldWarnings("tree", "strategy");
     }
-
 
     /**
      * Test that accept_z_value parameter correctly parses
      */
     public void testIgnoreZValue() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("strategy", "recursive")
-            .field(IGNORE_Z_VALUE.getPreferredName(), "true")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("ignore_z_value", true))
+        );
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-
-        boolean ignoreZValue = ((LegacyGeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        boolean ignoreZValue = ((LegacyGeoShapeFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("tree", "quadtree")
-            .field(IGNORE_Z_VALUE.getPreferredName(), "false")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        fieldMapper = defaultMapper.mappers().getMapper("location");
+        mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("ignore_z_value", false))
+        );
+        fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-
-        ignoreZValue = ((LegacyGeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        ignoreZValue = ((LegacyGeoShapeFieldMapper)fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(false));
         assertFieldWarnings("strategy", "tree");
     }
@@ -213,55 +247,32 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
      * Test that ignore_malformed parameter correctly parses
      */
     public void testIgnoreMalformedParsing() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("tree", "quadtree")
-            .field("ignore_malformed", "true")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("ignore_malformed", true))
+        );
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-
-        Explicit<Boolean> ignoreMalformed = ((LegacyGeoShapeFieldMapper)fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed.value(), equalTo(true));
+        boolean ignoreMalformed = ((LegacyGeoShapeFieldMapper)fieldMapper).ignoreMalformed();
+        assertThat(ignoreMalformed, equalTo(true));
 
         // explicit false ignore_malformed test
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("tree", "quadtree")
-            .field("ignore_malformed", "false")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        fieldMapper = defaultMapper.mappers().getMapper("location");
+        mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("ignore_malformed", false))
+        );
+        fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-
         ignoreMalformed = ((LegacyGeoShapeFieldMapper)fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed.explicit(), equalTo(true));
-        assertThat(ignoreMalformed.value(), equalTo(false));
-        assertFieldWarnings("tree");
+        assertThat(ignoreMalformed, equalTo(false));
+        assertFieldWarnings("tree", "strategy");
     }
 
     public void testGeohashConfiguration() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                    .field("type", "geo_shape")
-                    .field("tree", "geohash")
-                    .field("tree_levels", "4")
-                    .field("distance_error_pct", "0.1")
-                .endObject().endObject()
-                .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "geo_shape").field("tree", "geohash").field("tree_levels", "4").field("distance_error_pct", "0.1")
+            )
+        );
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -270,23 +281,20 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(strategy.getDistErrPct(), equalTo(0.1));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(4));
-        assertFieldWarnings("tree", "tree_levels", "distance_error_pct");
+        assertFieldWarnings("tree", "tree_levels", "distance_error_pct", "strategy");
     }
 
     public void testQuadtreeConfiguration() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                    .field("type", "geo_shape")
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "geo_shape")
                     .field("tree", "quadtree")
                     .field("tree_levels", "6")
                     .field("distance_error_pct", "0.5")
                     .field("points_only", true)
-                .endObject().endObject()
-                .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            )
+        );
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -296,35 +304,29 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(6));
         assertThat(strategy.isPointsOnly(), equalTo(true));
-        assertFieldWarnings("tree", "tree_levels", "distance_error_pct", "points_only");
+        assertFieldWarnings("tree", "tree_levels", "distance_error_pct", "points_only", "strategy");
     }
 
     private void assertFieldWarnings(String... fieldNames) {
         String[] warnings = new String[fieldNames.length];
         for (int i = 0; i < fieldNames.length; ++i) {
-            warnings[i] = "Field parameter [" + fieldNames[i] + "] "
-                + "is deprecated and will be removed in a future version.";
+            warnings[i] = "Parameter [" + fieldNames[i] + "] is deprecated and will be removed in a future version";
         }
         assertWarnings(warnings);
     }
 
     public void testLevelPrecisionConfiguration() throws IOException {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                    .startObject("properties").startObject("location")
-                        .field("type", "geo_shape")
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "geo_shape")
                         .field("tree", "quadtree")
                         .field("tree_levels", "6")
                         .field("precision", "70m")
                         .field("distance_error_pct", "0.5")
-                    .endObject().endObject()
-                    .endObject().endObject());
-
-
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+                )
+            );
+            Mapper fieldMapper = mapper.mappers().getMapper("field");
             assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
             LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -337,18 +339,12 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                    .startObject("properties").startObject("location")
-                    .field("type", "geo_shape")
-                    .field("tree", "quadtree")
-                    .field("tree_levels", "26")
-                    .field("precision", "70m")
-                    .endObject().endObject()
-                    .endObject().endObject());
-
-
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "geo_shape").field("tree", "quadtree").field("tree_levels", "26").field("precision", "70m")
+                )
+            );
+            Mapper fieldMapper = mapper.mappers().getMapper("field");
             assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
             LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -363,18 +359,16 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                    .startObject("properties").startObject("location")
-                        .field("type", "geo_shape")
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "geo_shape")
                         .field("tree", "geohash")
                         .field("tree_levels", "6")
                         .field("precision", "70m")
                         .field("distance_error_pct", "0.5")
-                    .endObject().endObject()
-                    .endObject().endObject());
-
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+                )
+            );
+            Mapper fieldMapper = mapper.mappers().getMapper("field");
             assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
             LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -387,18 +381,16 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                    .startObject("properties").startObject("location")
-                        .field("type", "geo_shape")
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "geo_shape")
                         .field("tree", "geohash")
-                        .field("tree_levels",  GeoUtils.geoHashLevelsForPrecision(70d)+1)
+                        .field("tree_levels", GeoUtils.geoHashLevelsForPrecision(70d) + 1)
                         .field("precision", "70m")
                         .field("distance_error_pct", "0.5")
-                    .endObject().endObject()
-                    .endObject().endObject());
-
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+                )
+            );
+            Mapper fieldMapper = mapper.mappers().getMapper("field");
             assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
             LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -406,22 +398,20 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
-            assertThat(strategy.getGrid().getMaxLevels(),  equalTo(GeoUtils.geoHashLevelsForPrecision(70d)+1));
+            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(70d) + 1));
         }
 
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                    .startObject("properties").startObject("location")
-                        .field("type", "geo_shape")
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "geo_shape")
                         .field("tree", "quadtree")
-                        .field("tree_levels", GeoUtils.quadTreeLevelsForPrecision(70d)+1)
+                        .field("tree_levels", GeoUtils.quadTreeLevelsForPrecision(70d) + 1)
                         .field("precision", "70m")
                         .field("distance_error_pct", "0.5")
-                    .endObject().endObject()
-                    .endObject().endObject());
-
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+                )
+            );
+            Mapper fieldMapper = mapper.mappers().getMapper("field");
             assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
             LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -429,23 +419,16 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
-            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(70d)+1));
+            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(70d) + 1));
         }
-        assertFieldWarnings("tree", "tree_levels", "precision", "distance_error_pct");
+        assertFieldWarnings("tree", "tree_levels", "precision", "distance_error_pct", "strategy");
     }
 
     public void testPointsOnlyOption() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "geohash")
-                .field("points_only", true)
-                .endObject().endObject()
-                .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "geohash").field("points_only", true))
+        );
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -453,23 +436,15 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.isPointsOnly(), equalTo(true));
-        assertFieldWarnings("tree", "points_only");
+        assertFieldWarnings("tree", "points_only", "strategy");
     }
 
     public void testLevelDefaults() throws IOException {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                    .startObject("properties").startObject("location")
-                        .field("type", "geo_shape")
-                        .field("tree", "quadtree")
-                        .field("distance_error_pct", "0.5")
-                    .endObject().endObject()
-                    .endObject().endObject());
-
-
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("distance_error_pct", "0.5"))
+            );
+            Mapper fieldMapper = mapper.mappers().getMapper("field");
             assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
             LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -482,16 +457,10 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                    .startObject("properties").startObject("location")
-                        .field("type", "geo_shape")
-                        .field("tree", "geohash")
-                        .field("distance_error_pct", "0.5")
-                    .endObject().endObject()
-                    .endObject().endObject());
-
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "geo_shape").field("tree", "geohash").field("distance_error_pct", "0.5"))
+            );
+            Mapper fieldMapper = mapper.mappers().getMapper("field");
             assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
             LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -502,59 +471,55 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             /* 50m is default */
             assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(50d)));
         }
-        assertFieldWarnings("tree", "distance_error_pct");
+        assertFieldWarnings("tree", "distance_error_pct", "strategy");
     }
 
     public void testGeoShapeMapperMerge() throws Exception {
-        String stage1Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("shape").field("type", "geo_shape").field("tree", "geohash")
-                .field("strategy", "recursive")
-                .field("precision", "1m").field("tree_levels", 8).field("distance_error_pct", 0.01)
-                .field("orientation", "ccw")
-                .endObject().endObject().endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(stage1Mapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
-        String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("shape").field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .field("strategy", "term").field("precision", "1km")
-                .field("tree_levels", 26).field("distance_error_pct", 26)
-                .field("orientation", "cw").endObject().endObject().endObject().endObject());
-        try {
-            mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [shape] has different [strategy]"));
-            assertThat(e.getMessage(), containsString("mapper [shape] has different [tree]"));
-            assertThat(e.getMessage(), containsString("mapper [shape] has different [tree_levels]"));
-            assertThat(e.getMessage(), containsString("mapper [shape] has different [precision]"));
-        }
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "geo_shape")
+                    .field("tree", "geohash")
+                    .field("strategy", "recursive")
+                    .field("precision", "1m")
+                    .field("tree_levels", 8)
+                    .field("distance_error_pct", 0.01)
+                    .field("orientation", "ccw")
+            )
+        );
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("field");
+        LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CCW));
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> b.field("type", "geo_shape")
+            .field("tree", "quadtree")
+            .field("strategy", "term").field("precision", "1km")
+            .field("tree_levels", 26).field("distance_error_pct", 26)
+            .field("orientation", "cw"))));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [strategy] from [recursive] to [term]"));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [tree] from [geohash] to [quadtree]"));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [tree_levels] from [8] to [26]"));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [precision] from [1.0m] to [1.0km]"));
 
         // verify nothing changed
-        Mapper fieldMapper = docMapper.mappers().getMapper("shape");
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
-        LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
+        geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
         PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
-
         assertThat(strategy, instanceOf(RecursivePrefixTreeStrategy.class));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.getDistErrPct(), equalTo(0.01));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(1d)));
-        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CCW));
 
         // correct mapping
-        stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("shape").field("type", "geo_shape")
-                .field("tree", "geohash")
-                .field("strategy", "recursive")
-                .field("precision", "1m")
-                .field("tree_levels", 8).field("distance_error_pct", 0.001)
-                .field("orientation", "cw").endObject().endObject().endObject().endObject());
-        docMapper = mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
-
-        fieldMapper = docMapper.mappers().getMapper("shape");
+        merge(mapperService, fieldMapping(b -> b.field("type", "geo_shape")
+            .field("tree", "geohash")
+            .field("strategy", "recursive")
+            .field("precision", "1m")
+            .field("tree_levels", 8).field("distance_error_pct", 0.001)
+            .field("orientation", "cw")));
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
         geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -564,110 +529,57 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.getDistErrPct(), equalTo(0.001));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(1d)));
-        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
 
         assertFieldWarnings("tree", "strategy", "precision", "tree_levels", "distance_error_pct");
     }
 
-    public void testEmptyName() throws Exception {
-        // after 5.x
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("")
-            .field("type", "geo_shape")
-            .field("tree", "quadtree")
-            .endObject().endObject()
-            .endObject().endObject());
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type1", new CompressedXContent(mapping))
-        );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
-        assertFieldWarnings("tree");
-    }
-
     public void testSerializeDefaults() throws Exception {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        ToXContent.Params includeDefaults = new ToXContent.MapParams(singletonMap("include_defaults", "true"));
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .endObject().endObject()
-                .endObject().endObject());
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            String serialized = toXContentString((LegacyGeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree")));
+            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"50.0m\""));
             assertTrue(serialized, serialized.contains("\"tree_levels\":21"));
         }
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "geohash")
-                .endObject().endObject()
-                .endObject().endObject());
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            String serialized = toXContentString((LegacyGeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("tree", "geohash")));
+            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"50.0m\""));
             assertTrue(serialized, serialized.contains("\"tree_levels\":9"));
         }
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .field("tree_levels", "6")
-                .endObject().endObject()
-                .endObject().endObject());
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            String serialized = toXContentString((LegacyGeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("tree_levels", "6"))
+            );
+            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
             assertFalse(serialized, serialized.contains("\"precision\":"));
             assertTrue(serialized, serialized.contains("\"tree_levels\":6"));
         }
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .field("precision", "6")
-                .endObject().endObject()
-                .endObject().endObject());
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            String serialized = toXContentString((LegacyGeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("precision", "6"))
+            );
+            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"6.0m\""));
             assertFalse(serialized, serialized.contains("\"tree_levels\":"));
         }
         {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .field("precision", "6m")
-                .field("tree_levels", "5")
-                .endObject().endObject()
-                .endObject().endObject());
-            DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
-            String serialized = toXContentString((LegacyGeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("precision", "6m").field("tree_levels", "5"))
+            );
+            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"6.0m\""));
             assertTrue(serialized, serialized.contains("\"tree_levels\":5"));
         }
-        assertFieldWarnings("tree", "tree_levels", "precision");
+        assertFieldWarnings("tree", "tree_levels", "precision", "strategy");
     }
 
     public void testPointsOnlyDefaultsWithTermStrategy() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("tree", "quadtree")
-            .field("precision", "10m")
-            .field("strategy", "term")
-            .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("precision", "10m").field("strategy", "term"))
+        );
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -678,69 +590,84 @@ public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(23));
         assertThat(strategy.isPointsOnly(), equalTo(true));
         // term strategy changes the default for points_only, check that we handle it correctly
-        assertThat(toXContentString(geoShapeFieldMapper, false), not(containsString("points_only")));
+        assertThat(Strings.toString(geoShapeFieldMapper), not(containsString("points_only")));
         assertFieldWarnings("tree", "precision", "strategy");
     }
 
-
     public void testPointsOnlyFalseWithTermStrategy() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape")
-            .field("tree", "quadtree")
-            .field("precision", "10m")
-            .field("strategy", "term")
-            .field("points_only", false)
-            .endObject().endObject()
-            .endObject().endObject());
-
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> parser.parse("type1", new CompressedXContent(mapping))
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping(
+                    b -> b.field("type", "geo_shape")
+                        .field("tree", "quadtree")
+                        .field("precision", "10m")
+                        .field("strategy", "term")
+                        .field("points_only", false)
+                )
+            )
         );
         assertThat(e.getMessage(), containsString("points_only cannot be set to false for term strategy"));
         assertFieldWarnings("tree", "precision", "strategy", "points_only");
     }
 
     public void testDisallowExpensiveQueries() throws IOException {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("tree", "quadtree")
-                .endObject().endObject()
-                .endObject().endObject());
-
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(false);
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree")));
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
 
-
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> geoShapeFieldMapper.fieldType().geometryQueryBuilder().process(
-                        new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, queryShardContext));
+                () -> geoShapeFieldMapper.fieldType().geoShapeQuery(
+                        new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, searchExecutionContext));
         assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +
                         "'search.allow_expensive_queries' is set to false.", e.getMessage());
-        assertFieldWarnings("tree");
+        assertFieldWarnings("tree", "strategy");
     }
 
-    public String toXContentString(LegacyGeoShapeFieldMapper mapper, boolean includeDefaults) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        ToXContent.Params params;
-        if (includeDefaults) {
-            params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
-        } else {
-            params = ToXContent.EMPTY_PARAMS;
-        }
-        mapper.doXContentBody(builder, includeDefaults, params);
-        return Strings.toString(builder.endObject());
+    @Override
+    protected String[] getParseMinimalWarnings() {
+        return new String[]{"Parameter [strategy] is deprecated and will be removed in a future version"};
     }
 
-    public String toXContentString(LegacyGeoShapeFieldMapper mapper) throws IOException {
-        return toXContentString(mapper, true);
+    @Override
+    protected String[] getParseMaximalWarnings() {
+        return new String[]{
+            "Parameter [strategy] is deprecated and will be removed in a future version",
+            "Parameter [tree] is deprecated and will be removed in a future version",
+            "Parameter [tree_levels] is deprecated and will be removed in a future version",
+            "Parameter [precision] is deprecated and will be removed in a future version",
+            "Parameter [distance_error_pct] is deprecated and will be removed in a future version",
+            "Parameter [points_only] is deprecated and will be removed in a future version"
+        };
+    }
+
+    public void testGeoShapeArrayParsing() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree")));
+        ParsedDocument document = mapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject().field("type", "Point").startArray("coordinates").value(176.0).value(15.0).endArray().endObject();
+                b.startObject().field("type", "Point").startArray("coordinates").value(76.0).value(-15.0).endArray().endObject();
+            }
+            b.endArray();
+        }));
+        assertThat(document.docs(), hasSize(1));
+        IndexableField[] fields = document.docs().get(0).getFields("field");
+        assertThat(fields.length, equalTo(2));
+        assertFieldWarnings("tree", "strategy");
+    }
+
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

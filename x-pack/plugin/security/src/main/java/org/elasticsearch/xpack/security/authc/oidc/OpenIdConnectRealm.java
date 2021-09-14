@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
@@ -12,6 +13,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.oauth2.sdk.ParseException;
 import com.nimbusds.oauth2.sdk.ResponseType;
 import com.nimbusds.oauth2.sdk.Scope;
+import com.nimbusds.oauth2.sdk.auth.ClientAuthenticationMethod;
 import com.nimbusds.oauth2.sdk.id.ClientID;
 import com.nimbusds.oauth2.sdk.id.Issuer;
 import com.nimbusds.oauth2.sdk.id.State;
@@ -22,9 +24,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
@@ -71,6 +73,8 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_USERINFO_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.POPULATE_USER_METADATA;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.PRINCIPAL_CLAIM;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_AUTH_JWT_SIGNATURE_ALGORITHM;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_AUTH_METHOD;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_ID;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_SECRET;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_POST_LOGOUT_REDIRECT_URI;
@@ -210,13 +214,9 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
         final Map<String, Object> userMetadata;
         if (populateUserMetadata) {
-            userMetadata = claims.getClaims().entrySet().stream().filter(entry -> {
-                /*
-                 * We whitelist the Types that we want to parse as metadata from the Claims, explicitly filtering out {@link Date}s
-                 */
-                Object v = entry.getValue();
-                return (v instanceof String || v instanceof Boolean || v instanceof Number || v instanceof Collection);
-            }).collect(Collectors.toUnmodifiableMap(entry -> "oidc(" + entry.getKey() + ")", Map.Entry::getValue));
+            userMetadata = claims.getClaims().entrySet().stream()
+                .filter(entry -> isAllowedTypeForClaim(entry.getValue()))
+                .collect(Collectors.toUnmodifiableMap(entry -> "oidc(" + entry.getKey() + ")", Map.Entry::getValue));
         } else {
             userMetadata = Map.of();
         }
@@ -257,9 +257,9 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         }
         final ResponseType responseType;
         try {
-            // This should never happen as it's already validated in the settings
             responseType = ResponseType.parse(require(config, RP_RESPONSE_TYPE));
         } catch (ParseException e) {
+            // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid value for " + RP_RESPONSE_TYPE.getKey(), e);
         }
 
@@ -268,9 +268,11 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             requestedScope.add("openid");
         }
         final JWSAlgorithm signatureAlgorithm = JWSAlgorithm.parse(require(config, RP_SIGNATURE_ALGORITHM));
-
+        final ClientAuthenticationMethod clientAuthenticationMethod =
+            ClientAuthenticationMethod.parse(require(config, RP_CLIENT_AUTH_METHOD));
+        final JWSAlgorithm clientAuthJwtAlgorithm = JWSAlgorithm.parse(require(config, RP_CLIENT_AUTH_JWT_SIGNATURE_ALGORITHM));
         return new RelyingPartyConfiguration(clientId, clientSecret, redirectUri, responseType, requestedScope,
-            signatureAlgorithm, postLogoutRedirectUri);
+            signatureAlgorithm, clientAuthenticationMethod, clientAuthJwtAlgorithm, postLogoutRedirectUri);
     }
 
     private OpenIdConnectProviderConfiguration buildOpenIdConnectProviderConfiguration(RealmConfig config) {
@@ -362,7 +364,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             builder.loginHint(loginHint);
         }
         return new OpenIdConnectPrepareAuthenticationResponse(builder.build().toURI().toString(),
-            state.getValue(), nonce.getValue());
+            state.getValue(), nonce.getValue(), this.name());
     }
 
     public boolean isIssuerValid(String issuer) {
@@ -383,6 +385,15 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
     @Override
     public void close() {
         openIdConnectAuthenticator.close();
+    }
+
+    /*
+     * We only map claims that are of Type String, Boolean, or Number, or arrays that contain only these types
+     */
+    private static boolean isAllowedTypeForClaim(Object o) {
+        return (o instanceof String || o instanceof Boolean || o instanceof Number
+            || (o instanceof Collection && ((Collection<?>) o).stream()
+            .allMatch(c -> c instanceof String || c instanceof Boolean || c instanceof Number)));
     }
 
     static final class ClaimParser {
@@ -412,6 +423,23 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return name;
         }
 
+        @SuppressWarnings("unchecked")
+        private static Collection<String> parseClaimValues(JWTClaimsSet claimsSet, String claimName, String settingKey) {
+            Collection<String> values;
+            final Object claimValueObject = claimsSet.getClaim(claimName);
+            if (claimValueObject == null) {
+                values = List.of();
+            } else if (claimValueObject instanceof String) {
+                values = List.of((String) claimValueObject);
+            } else if (claimValueObject instanceof Collection &&
+                ((Collection<?>) claimValueObject).stream().allMatch(c -> c instanceof String)) {
+                values = (Collection<String>) claimValueObject;
+            } else {
+                throw new SettingsException("Setting [ " + settingKey + " expects a claim with String or a String Array value");
+            }
+            return values;
+        }
+
         static ClaimParser forSetting(Logger logger, OpenIdConnectRealmSettings.ClaimSetting setting, RealmConfig realmConfig,
                                       boolean required) {
 
@@ -423,19 +451,8 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                         "OpenID Connect Claim [" + claimName + "] with pattern [" + regex.pattern() + "] for ["
                             + setting.name(realmConfig) + "]",
                         claims -> {
-                            Object claimValueObject = claims.getClaim(claimName);
-                            List<String> values;
-                            if (claimValueObject == null) {
-                                values = List.of();
-                            } else if (claimValueObject instanceof String) {
-                                values = List.of((String) claimValueObject);
-                            } else if (claimValueObject instanceof List) {
-                                values = (List<String>) claimValueObject;
-                            } else {
-                                throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
-                                    + " expects a claim with String or a String Array value but found a "
-                                    + claimValueObject.getClass().getName());
-                            }
+                            Collection<String> values =
+                                parseClaimValues(claims, claimName, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
                             return values.stream().map(s -> {
                                 if (s == null) {
                                     logger.debug("OpenID Connect Claim [{}] is null", claimName);
@@ -459,21 +476,10 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                 } else {
                     return new ClaimParser(
                         "OpenID Connect Claim [" + claimName + "] for [" + setting.name(realmConfig) + "]",
-                        claims -> {
-                            Object claimValueObject = claims.getClaim(claimName);
-                            if (claimValueObject == null) {
-                                return List.of();
-                            } else if (claimValueObject instanceof String) {
-                                return List.of((String) claimValueObject);
-                            } else if (claimValueObject instanceof List == false) {
-                                throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
-                                    + " expects a claim with String or a String Array value but found a "
-                                    + claimValueObject.getClass().getName());
-                            }
-                            return ((List<String>) claimValueObject).stream()
-                                        .filter(Objects::nonNull)
-                                        .collect(Collectors.toUnmodifiableList());
-                        });
+                        claims -> parseClaimValues(claims, claimName, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()))
+                            .stream()
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toUnmodifiableList()));
                 }
             } else if (required) {
                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())

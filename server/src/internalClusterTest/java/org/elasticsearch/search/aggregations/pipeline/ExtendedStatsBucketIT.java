@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -61,8 +50,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx")
-                .setMapping("tag", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("tag", "type=keyword").get());
         createIndex("idx_unmapped", "idx_gappy");
 
         numDocs = randomIntBetween(6, 20);
@@ -78,9 +66,15 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(minRandomValue, maxRandomValue);
-            builders.add(client().prepareIndex("idx").setSource(
-                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, fieldValue).field("tag", "tag" + (i % interval))
-                            .endObject()));
+            builders.add(
+                client().prepareIndex("idx")
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field(SINGLE_VALUED_FIELD_NAME, fieldValue)
+                            .field("tag", "tag" + (i % interval))
+                            .endObject()
+                    )
+            );
             final int bucket = (fieldValue / interval); // + (fieldValue < 0 ? -1 : 0) - (minRandomValue / interval - 1);
             valueCounts[bucket]++;
         }
@@ -88,14 +82,20 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         for (int i = 0; i < 6; i++) {
             // creates 6 documents where the value of the field is 0, 1, 2, 3,
             // 3, 5
-            builders.add(client().prepareIndex("idx_gappy").setId("" + i).setSource(
-                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i == 4 ? 3 : i).endObject()));
+            builders.add(
+                client().prepareIndex("idx_gappy")
+                    .setId("" + i)
+                    .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i == 4 ? 3 : i).endObject())
+            );
         }
 
         assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(
-                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject()));
+            builders.add(
+                client().prepareIndex("empty_bucket_idx")
+                    .setId("" + i)
+                    .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
+            );
         }
         indexRandom(true, builders);
         ensureSearchable();
@@ -107,8 +107,9 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
     public void testGappyIndexWithSigma() {
         double sigma = randomDoubleBetween(1.0, 6.0, true);
         SearchResponse response = client().prepareSearch("idx_gappy")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L))
-                .addAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count").sigma(sigma)).get();
+            .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L))
+            .addAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count").sigma(sigma))
+            .get();
         assertSearchResponse(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -137,7 +138,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         double sumOfSqrs = 1.0 + 1.0 + 1.0 + 4.0 + 0.0 + 1.0;
         double avg = sum / count;
         double var = (sumOfSqrs - ((sum * sum) / count)) / count;
-        var = var < 0  ? 0 : var;
+        var = var < 0 ? 0 : var;
         double stdDev = Math.sqrt(var);
         assertThat(extendedStatsBucketValue, notNullValue());
         assertThat(extendedStatsBucketValue.getName(), equalTo("extended_stats_bucket"));
@@ -155,9 +156,11 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
 
     public void testDocCountTopLevel() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .extendedBounds(minRandomValue, maxRandomValue))
-                .addAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count")).get();
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+            )
+            .addAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -195,16 +198,16 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
     }
 
     public void testDocCountAsSubAgg() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                    )
+                    .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -252,10 +255,10 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
     }
 
     public void testMetricTopLevel() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(extendedStatsBucket("extended_stats_bucket", "terms>sum")).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+            .addAggregation(extendedStatsBucket("extended_stats_bucket", "terms>sum"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -295,17 +298,19 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
     }
 
     public void testMetricAsSubAgg() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue)
-                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
+                            .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    )
+                    .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -357,19 +362,19 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
     }
 
     public void testMetricAsSubAggWithInsertZeros() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue)
-                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum")
-                                    .gapPolicy(GapPolicy.INSERT_ZEROS)))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
+                            .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    )
+                    .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -421,9 +426,13 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
 
     public void testNoBuckets() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("tag").includeExclude(new IncludeExclude(null, "tag.*"))
-                        .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .addAggregation(extendedStatsBucket("extended_stats_bucket", "terms>sum")).get();
+            .addAggregation(
+                terms("terms").field("tag")
+                    .includeExclude(new IncludeExclude(null, "tag.*"))
+                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+            )
+            .addAggregation(extendedStatsBucket("extended_stats_bucket", "terms>sum"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -440,44 +449,48 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
     }
 
     public void testBadSigmaAsSubAgg() throws Exception {
-        Exception ex = expectThrows(Exception.class, () -> client()
-                    .prepareSearch("idx")
-                    .addAggregation(
-                            terms("terms")
-                                    .field("tag")
-                                    .order(BucketOrder.key(true))
-                                    .subAggregation(
-                                            histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                    .extendedBounds(minRandomValue, maxRandomValue)
-                                                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                    .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum")
-                                            .sigma(-1.0))).get());
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> client().prepareSearch("idx")
+                .addAggregation(
+                    terms("terms").field("tag")
+                        .order(BucketOrder.key(true))
+                        .subAggregation(
+                            histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                                .interval(interval)
+                                .extendedBounds(minRandomValue, maxRandomValue)
+                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                        )
+                        .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum").sigma(-1.0))
+                )
+                .get()
+        );
         Throwable cause = ExceptionsHelper.unwrapCause(ex);
         if (cause == null) {
             throw ex;
         } else if (cause instanceof SearchPhaseExecutionException) {
             SearchPhaseExecutionException spee = (SearchPhaseExecutionException) ex;
             Throwable rootCause = spee.getRootCause();
-            if (!(rootCause instanceof IllegalArgumentException)) {
+            if ((rootCause instanceof IllegalArgumentException) == false) {
                 throw ex;
             }
-        } else if (!(cause instanceof IllegalArgumentException)) {
+        } else if ((cause instanceof IllegalArgumentException) == false) {
             throw ex;
         }
     }
 
     public void testNested() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        terms("terms")
-                                .field("tag")
-                                .order(BucketOrder.key(true))
-                                .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(minRandomValue, maxRandomValue))
-                                .subAggregation(extendedStatsBucket("avg_histo_bucket", "histo>_count")))
-                .addAggregation(extendedStatsBucket("avg_terms_bucket", "terms>avg_histo_bucket.avg")).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                    )
+                    .subAggregation(extendedStatsBucket("avg_histo_bucket", "histo>_count"))
+            )
+            .addAggregation(extendedStatsBucket("avg_terms_bucket", "terms>avg_histo_bucket.avg"))
+            .get();
 
         assertSearchResponse(response);
 
@@ -518,7 +531,6 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
             assertThat(extendedStatsBucketValue, notNullValue());
             assertThat(extendedStatsBucketValue.getName(), equalTo("avg_histo_bucket"));
             assertThat(extendedStatsBucketValue.getAvg(), equalTo(avgHistoValue));
-
 
             aggTermsCount++;
             aggTermsSum += avgHistoValue;

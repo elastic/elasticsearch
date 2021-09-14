@@ -1,13 +1,22 @@
-[float]
+[discrete]
 [[breaking_80_indices_changes]]
-=== Indices changes
+==== Indices changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-//end::notable-breaking-changes[]
+.The deprecated `_upgrade` API has been removed.
+[%collapsible]
+====
+*Details* +
+Previously, the `_upgrade` API upgraded indices from the previous major
+version to the current version. The `_reindex` API should be used
+instead for that purpose.
 
+*Impact* +
+Requests made to the old `_upgrade` API will return an error.
+====
 
 .The force merge API's `max_num_segments` and `only_expunge_deletes` parameters cannot both be specified in the same request.
 [%collapsible]
@@ -38,16 +47,16 @@ Discontinue use of the `index.force_memory_term_dictionary` index setting.
 Requests that include this setting will return an error.
 ====
 
-.The put index template API's `template` parameter has been removed.
+.The create or update index template API's `template` parameter has been removed.
 [%collapsible]
 ====
 *Details* +
-In 6.0, we deprecated the `template` parameter in put index template requests
-in favor of using `index_patterns`. Support for the `template` parameter is now
-removed in 8.0.
+In 6.0, we deprecated the `template` parameter in create or update index
+template requests in favor of using `index_patterns`. Support for the `template`
+parameter is now removed in 8.0.
 
 *Impact* +
-Use the {ref}/indices-templates-v1.html[put index template API]'s
+Use the {ref}/indices-templates-v1.html[create or update index template API]'s
 `index_patterns` parameter. Requests that include the `template` parameter will
 return an error.
 ====
@@ -70,7 +79,7 @@ Use the {ref}/indices-flush.html[flush API]. Requests to the
 *Details* +
 Creating indices with soft deletes disabled was deprecated in 7.6 and
 is no longer supported in 8.0. The `index.soft_deletes.enabled` setting
-can no longer be set to `false`. 
+can no longer be set to `false`.
 
 *Impact* +
 Discontinue use of the `index.soft_deletes.enabled` index setting. Requests that
@@ -91,3 +100,34 @@ Discontinue use of the `index.translog.retention.age` and
 `index.translog.retention.size` index settings. Requests that
 include these settings will return an error.
 ====
+
+.The default for the `?wait_for_active_shards` parameter on the close index API has changed.
+[%collapsible]
+====
+*Details* +
+When closing an index in earlier versions, by default {es} would not wait for
+the shards of the closed index to be properly assigned before returning. From
+version 8.0 onwards the default behaviour is to wait for shards to be assigned
+according to the
+{ref}/docs-index_.html#index-wait-for-active-shards[`index.write.wait_for_active_shards`
+index setting].
+
+*Impact* +
+Accept the new behaviour, or specify `?wait_for_active_shards=0` to preserve
+the old behaviour if needed.
+====
+
+.The setting `index.data_path` is not longer allowed on new indices.
+[%collapsible]
+====
+*Details* +
+Creating an index relative to the node level `path.shared_data` setting was
+previously used with shadow replicas prior to their removal in 6.0. The
+per-index data path in `index.data_path` was deprecated in 7.14.0. In 8.0,
+creating new indices with `index.data_path` is no longer supported.
+
+*Impact* +
+Discontinue use of the `index.data_path` setting. Creating new indices with
+this setting will return an error.
+====
+//end::notable-breaking-changes[]

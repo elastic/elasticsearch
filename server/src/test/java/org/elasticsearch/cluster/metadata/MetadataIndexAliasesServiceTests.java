@@ -1,27 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
@@ -37,9 +28,14 @@ import java.util.HashSet;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
@@ -84,7 +80,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         // Remove the alias from it while adding another one
         before = after;
         after = service.applyAliasActions(before, Arrays.asList(
-                new AliasAction.Remove(index, "test"),
+                new AliasAction.Remove(index, "test", null),
                 new AliasAction.Add(index, "test_2", null, null, null, null, null)));
         assertNull(after.metadata().getIndicesLookup().get("test"));
         alias = after.metadata().getIndicesLookup().get("test_2");
@@ -95,10 +91,50 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         // Now just remove on its own
         before = after;
-        after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2")));
+        after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2", randomBoolean())));
         assertNull(after.metadata().getIndicesLookup().get("test"));
         assertNull(after.metadata().getIndicesLookup().get("test_2"));
         assertAliasesVersionIncreased(index, before, after);
+    }
+
+    public void testMustExist() {
+        // Create a state with a single index
+        String index = randomAlphaOfLength(5);
+        ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
+
+        // Add an alias to it
+        ClusterState after = service.applyAliasActions(before, singletonList(new AliasAction.Add(index, "test", null, null, null, null,
+            null)));
+        IndexAbstraction alias = after.metadata().getIndicesLookup().get("test");
+        assertNotNull(alias);
+        assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(alias.getIndices(), contains(after.metadata().index(index)));
+        assertAliasesVersionIncreased(index, before, after);
+
+        // Remove the alias from it with mustExist == true while adding another one
+        before = after;
+        after = service.applyAliasActions(before, Arrays.asList(
+            new AliasAction.Remove(index, "test", true),
+            new AliasAction.Add(index, "test_2", null, null, null, null, null)));
+        assertNull(after.metadata().getIndicesLookup().get("test"));
+        alias = after.metadata().getIndicesLookup().get("test_2");
+        assertNotNull(alias);
+        assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(alias.getIndices(), contains(after.metadata().index(index)));
+        assertAliasesVersionIncreased(index, before, after);
+
+        // Now just remove on its own
+        before = after;
+        after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2", randomBoolean())));
+        assertNull(after.metadata().getIndicesLookup().get("test"));
+        assertNull(after.metadata().getIndicesLookup().get("test_2"));
+        assertAliasesVersionIncreased(index, before, after);
+
+        // Show that removing non-existing alias with mustExist == true fails
+        final ClusterState finalCS = after;
+        final ResourceNotFoundException iae = expectThrows(ResourceNotFoundException.class,
+            () -> service.applyAliasActions(finalCS, singletonList(new AliasAction.Remove(index, "test_2", true))));
+        assertThat(iae.getMessage(), containsString("required alias [test_2] does not exist"));
     }
 
     public void testMultipleIndices() {
@@ -183,7 +219,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         // now perform a remove and add for each alias which is idempotent, the resulting aliases are unchanged
         final var removeAndAddActions = new ArrayList<AliasAction>(2 * length);
         for (final var aliasName : aliasNames) {
-            removeAndAddActions.add(new AliasAction.Remove(index, aliasName));
+            removeAndAddActions.add(new AliasAction.Remove(index, aliasName, null));
             removeAndAddActions.add(new AliasAction.Add(index, aliasName, null, null, null, null, null));
         }
         final ClusterState afterRemoveAndAddAlias = service.applyAliasActions(afterAddingAlias, removeAndAddActions);
@@ -445,6 +481,84 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
                 () -> applyHiddenAliasMix(before, randomFrom(false, null), true));
             assertThat(exception.getMessage(), startsWith("alias [alias] has is_hidden set to true on indices ["));
         }
+    }
+
+    public void testAliasesForDataStreamBackingIndicesNotSupported() {
+        long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
+        String dataStreamName = "foo-stream";
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis);
+        IndexMetadata indexMetadata = IndexMetadata.builder(backingIndexName)
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), singletonList(indexMetadata.getIndex()))))
+            .build();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.applyAliasActions(state,
+            singletonList(new AliasAction.Add(backingIndexName, "test", null, null, null, null, null))));
+        assertThat(exception.getMessage(), is("The provided index [" + backingIndexName + "] is a backing index belonging to data " +
+            "stream [foo-stream]. Data streams and their backing indices don't support alias operations."));
+    }
+
+    public void testDataStreamAliases() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(
+            new Tuple<>("logs-foobar", 1), new Tuple<>("metrics-foobar", 1)), List.of());
+
+        ClusterState result = service.applyAliasActions(state, List.of(
+            new AliasAction.AddDataStreamAlias("foobar", "logs-foobar", null, null),
+            new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar", null, null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("foobar"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("foobar").getDataStreams(),
+            containsInAnyOrder("logs-foobar", "metrics-foobar"));
+
+        result = service.applyAliasActions(result, List.of(
+            new AliasAction.RemoveDataStreamAlias("foobar", "logs-foobar", null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("foobar"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("foobar").getDataStreams(), containsInAnyOrder("metrics-foobar"));
+
+        result = service.applyAliasActions(result, List.of(
+            new AliasAction.RemoveDataStreamAlias("foobar", "metrics-foobar", null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("foobar"), nullValue());
+    }
+
+    public void testDataStreamAliasesWithWriteFlag() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(
+            new Tuple<>("logs-http-emea", 1), new Tuple<>("logs-http-nasa", 1)), List.of());
+
+        ClusterState result = service.applyAliasActions(state, List.of(
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", true, null),
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", null, null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getDataStreams(),
+            containsInAnyOrder("logs-http-nasa", "logs-http-emea"));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-emea"));
+
+        result = service.applyAliasActions(state, List.of(
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", false, null),
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", true, null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getDataStreams(),
+            containsInAnyOrder("logs-http-nasa", "logs-http-emea"));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-nasa"));
+
+        result = service.applyAliasActions(result, List.of(
+            new AliasAction.RemoveDataStreamAlias("logs-http", "logs-http-emea", null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getDataStreams(), contains("logs-http-nasa"));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-nasa"));
+
+        result = service.applyAliasActions(result, List.of(
+            new AliasAction.RemoveDataStreamAlias("logs-http", "logs-http-nasa", null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), nullValue());
     }
 
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -9,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -23,9 +25,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
-import static org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep.parseIndexNameCounter;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -147,6 +150,45 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             " met", createRandomInstance().isConditionMet(originalIndex.getIndex(), clusterState).isComplete(), is(true));
     }
 
+    public void testResultEvaluatedOnDataStream() throws IOException {
+        String dataStreamName = "test-datastream";
+        IndexMetadata originalIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        IndexMetadata rolledIndexMeta= IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
+            .settings(settings(Version.CURRENT).put("index.write.wait_for_active_shards", "3"))
+            .numberOfShards(1).numberOfReplicas(3).build();
+
+        IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(rolledIndexMeta.getIndex());
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndexMeta.getIndex().getName(), 0, "node", null, true,
+            ShardRoutingState.STARTED));
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndexMeta.getIndex().getName(), 0, "node2", null, false,
+            ShardRoutingState.STARTED));
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                        List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex())))
+                    .put(originalIndexMeta, true)
+                    .put(rolledIndexMeta, true)
+            )
+            .routingTable(RoutingTable.builder().add(routingTable.build()).build())
+            .build();
+
+        WaitForActiveShardsStep waitForActiveShardsStep = createRandomInstance();
+
+        ClusterStateWaitStep.Result result = waitForActiveShardsStep.isConditionMet(originalIndexMeta.getIndex(), clusterState);
+        assertThat(result.isComplete(), is(false));
+
+        XContentBuilder expected = new WaitForActiveShardsStep.ActiveShardsInfo(2, "3", false).toXContent(JsonXContent.contentBuilder(),
+            ToXContent.EMPTY_PARAMS);
+        String actualResultAsString = Strings.toString(result.getInfomationContext());
+        assertThat(actualResultAsString, is(Strings.toString(expected)));
+        assertThat(actualResultAsString, containsString("waiting for [3] shards to become active, but only [2] are active"));
+    }
+
     public void testResultReportsMeaningfulMessage() throws IOException {
         String alias = randomAlphaOfLength(5);
         IndexMetadata originalIndex = IndexMetadata.builder("index-000000")
@@ -210,31 +252,5 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         assertThat(actualResultAsString,
             containsString("[" + step.getKey().getAction() + "] lifecycle action for index [index-000000] executed but " +
                 "index no longer exists"));
-    }
-
-    public void testParseIndexNameReturnsCounter() {
-        assertThat(parseIndexNameCounter("logs-000003"), is(3));
-    }
-
-    public void testParseIndexNameSupportsDateMathPattern() {
-        assertThat(parseIndexNameCounter("<logs-{now/d}-1>"), is(1));
-    }
-
-    public void testParseIndexNameThrowExceptionWhenNoSeparatorIsPresent() {
-        try {
-            parseIndexNameCounter("testIndexNameWithoutDash");
-            fail("expected to fail as the index name contains no - separator");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("no - separator found in index name [testIndexNameWithoutDash]"));
-        }
-    }
-
-    public void testParseIndexNameCannotFormatNumber() {
-        try {
-            parseIndexNameCounter("testIndexName-000a2");
-            fail("expected to fail as the index name doesn't end with digits");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("unable to parse the index name [testIndexName-000a2] to extract the counter"));
-        }
     }
 }

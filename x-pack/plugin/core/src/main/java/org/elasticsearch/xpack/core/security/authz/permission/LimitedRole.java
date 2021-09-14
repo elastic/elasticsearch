@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.permission;
@@ -29,15 +30,10 @@ import java.util.function.Predicate;
 public final class LimitedRole extends Role {
     private final Role limitedBy;
 
-    LimitedRole(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application,
-            RunAsPermission runAs, Role limitedBy) {
-        super(names, cluster, indices, application, runAs);
-        assert limitedBy != null : "limiting role is required";
+    LimitedRole(ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application, RunAsPermission runAs,
+                Role limitedBy) {
+        super(Objects.requireNonNull(limitedBy, "limiting role is required").names(), cluster, indices, application, runAs);
         this.limitedBy = limitedBy;
-    }
-
-    public Role limitedBy() {
-        return limitedBy;
     }
 
     @Override
@@ -57,7 +53,7 @@ public final class LimitedRole extends Role {
 
     @Override
     public RunAsPermission runAs() {
-        throw new UnsupportedOperationException("cannot retrieve cluster permission on limited role");
+        throw new UnsupportedOperationException("cannot retrieve run_as permission on limited role");
     }
 
     @Override
@@ -77,8 +73,8 @@ public final class LimitedRole extends Role {
      * action on.
      */
     @Override
-    public Predicate<String> allowedIndicesMatcher(String action) {
-        Predicate<String> predicate = super.indices().allowedIndicesMatcher(action);
+    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
+        Predicate<IndexAbstraction> predicate = super.indices().allowedIndicesMatcher(action);
         predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
         return predicate;
     }
@@ -86,7 +82,7 @@ public final class LimitedRole extends Role {
     @Override
     public Automaton allowedActionsMatcher(String index) {
         final Automaton allowedMatcher = super.allowedActionsMatcher(index);
-        final Automaton limitedByMatcher = super.allowedActionsMatcher(index);
+        final Automaton limitedByMatcher = limitedBy.allowedActionsMatcher(index);
         return Automatons.intersectAndMinimize(allowedMatcher, limitedByMatcher);
     }
 
@@ -187,7 +183,6 @@ public final class LimitedRole extends Role {
      */
     public static LimitedRole createLimitedRole(Role fromRole, Role limitedByRole) {
         Objects.requireNonNull(limitedByRole, "limited by role is required to create limited role");
-        return new LimitedRole(fromRole.names(), fromRole.cluster(), fromRole.indices(), fromRole.application(), fromRole.runAs(),
-                limitedByRole);
+        return new LimitedRole(fromRole.cluster(), fromRole.indices(), fromRole.application(), fromRole.runAs(), limitedByRole);
     }
 }

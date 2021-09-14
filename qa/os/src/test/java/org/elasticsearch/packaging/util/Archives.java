@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
@@ -25,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
@@ -115,7 +105,13 @@ public class Archives {
 
         sh.chown(fullInstallPath);
 
-        return Installation.ofArchive(sh, distribution, fullInstallPath);
+        Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
+        ServerUtils.disableGeoIpDownloader(installation);
+        // TODO: Adjust all tests so that they can run with security on, which is the default behavior
+        // https://github.com/elastic/elasticsearch/issues/75940
+        ServerUtils.possiblyDisableSecurityFeatures(installation);
+
+        return installation;
     }
 
     private static void setupArchiveUsersLinux(Path installPath) {
@@ -157,9 +153,7 @@ public class Archives {
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {
         verifyOssInstallation(installation, distribution, ARCHIVE_OWNER);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
-        }
+        verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
     }
 
     private static void verifyOssInstallation(Installation es, Distribution distribution, String owner) {
@@ -206,10 +200,12 @@ public class Archives {
             "elasticsearch-certutil",
             "elasticsearch-croneval",
             "elasticsearch-saml-metadata",
+            "elasticsearch-security-config",
             "elasticsearch-setup-passwords",
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
+            "elasticsearch-service-tokens",
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"
@@ -231,18 +227,26 @@ public class Archives {
     }
 
     public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
-        return runElasticsearchStartCommand(installation, sh, "");
+        return runElasticsearchStartCommand(installation, sh, null, true);
     }
 
-    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword) throws Exception {
+    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword, boolean daemonize)
+        throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
 
         // requires the "expect" utility to be installed
+        List<String> command = new ArrayList<>();
+        command.add("sudo -E -u %s %s -p %s");
+        if (daemonize) {
+            command.add("-d");
+        }
         String script = String.format(
             Locale.ROOT,
             "expect -c \"$(cat<<EXPECT\n"
-                + "spawn -ignore HUP sudo -E -u %s %s -d -p %s \n"
+                + "spawn -ignore HUP "
+                + String.join(" ", command)
+                + "\n"
                 + "expect \"Elasticsearch keystore password:\"\n"
                 + "send \"%s\\r\"\n"
                 + "expect eof\n"
@@ -258,7 +262,12 @@ public class Archives {
         return sh.runIgnoreExitCode(script);
     }
 
-    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh, String keystorePassword) {
+    public static Shell.Result runElasticsearchStartCommand(
+        Installation installation,
+        Shell sh,
+        String keystorePassword,
+        boolean daemonize
+    ) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
         assertThat(pidFile, fileDoesNotExist());
@@ -275,71 +284,93 @@ public class Archives {
 
             // We need to give Elasticsearch enough time to print failures to stderr before exiting
             sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
-            return sh.runIgnoreExitCode(
-                "sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile + " <<<'" + keystorePassword + "'"
+
+            List<String> command = new ArrayList<>();
+            command.add("sudo -E -u ");
+            command.add(ARCHIVE_OWNER);
+            command.add(bin.elasticsearch.toString());
+            if (daemonize) {
+                command.add("-d");
+            }
+            command.add("-p");
+            command.add(pidFile.toString());
+            if (keystorePassword != null) {
+                command.add("<<<'" + keystorePassword + "'");
+            }
+            return sh.runIgnoreExitCode(String.join(" ", command));
+        }
+
+        if (daemonize) {
+            final Path stdout = getPowershellOutputPath(installation);
+            final Path stderr = getPowershellErrorPath(installation);
+
+            String powerShellProcessUserSetup;
+            if (System.getenv("username").equals("vagrant")) {
+                // the tests will run as Administrator in vagrant.
+                // we don't want to run the server as Administrator, so we provide the current user's
+                // username and password to the process which has the effect of starting it not as Administrator.
+                powerShellProcessUserSetup = "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; "
+                    + "$processInfo.Username = 'vagrant'; "
+                    + "$processInfo.Password = $password; ";
+            } else {
+                powerShellProcessUserSetup = "";
+            }
+            // this starts the server in the background. the -d flag is unsupported on windows
+            return sh.run(
+                "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; "
+                    + "$processInfo.FileName = '"
+                    + bin.elasticsearch
+                    + "'; "
+                    + "$processInfo.Arguments = '-p "
+                    + installation.home.resolve("elasticsearch.pid")
+                    + "'; "
+                    + powerShellProcessUserSetup
+                    + "$processInfo.RedirectStandardOutput = $true; "
+                    + "$processInfo.RedirectStandardError = $true; "
+                    + "$processInfo.RedirectStandardInput = $true; "
+                    + sh.env.entrySet()
+                        .stream()
+                        .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
+                        .collect(joining())
+                    + "$processInfo.UseShellExecute = $false; "
+                    + "$process = New-Object System.Diagnostics.Process; "
+                    + "$process.StartInfo = $processInfo; "
+                    +
+
+                    // set up some asynchronous output handlers
+                    "$outScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '"
+                    + stdout
+                    + "' }; "
+                    + "$errScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '"
+                    + stderr
+                    + "' }; "
+                    + "$stdOutEvent = Register-ObjectEvent -InputObject $process "
+                    + "-Action $outScript -EventName 'OutputDataReceived'; "
+                    + "$stdErrEvent = Register-ObjectEvent -InputObject $process "
+                    + "-Action $errScript -EventName 'ErrorDataReceived'; "
+                    +
+
+                    "$process.Start() | Out-Null; "
+                    + "$process.BeginOutputReadLine(); "
+                    + "$process.BeginErrorReadLine(); "
+                    + "$process.StandardInput.WriteLine('"
+                    + keystorePassword
+                    + "'); "
+                    + "Wait-Process -Timeout "
+                    + ES_STARTUP_SLEEP_TIME_SECONDS
+                    + " -Id $process.Id; "
+                    + "$process.Id;"
             );
-        }
-        final Path stdout = getPowershellOutputPath(installation);
-        final Path stderr = getPowershellErrorPath(installation);
-
-        String powerShellProcessUserSetup;
-        if (System.getenv("username").equals("vagrant")) {
-            // the tests will run as Administrator in vagrant.
-            // we don't want to run the server as Administrator, so we provide the current user's
-            // username and password to the process which has the effect of starting it not as Administrator.
-            powerShellProcessUserSetup = "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; "
-                + "$processInfo.Username = 'vagrant'; "
-                + "$processInfo.Password = $password; ";
         } else {
-            powerShellProcessUserSetup = "";
+            List<String> command = new ArrayList<>();
+            if (keystorePassword != null) {
+                command.add("echo '" + keystorePassword + "' |");
+            }
+            command.add(bin.elasticsearch.toString());
+            command.add("-p");
+            command.add(installation.home.resolve("elasticsearch.pid").toString());
+            return sh.runIgnoreExitCode(String.join(" ", command));
         }
-
-        // this starts the server in the background. the -d flag is unsupported on windows
-        return sh.run(
-            "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; "
-                + "$processInfo.FileName = '"
-                + bin.elasticsearch
-                + "'; "
-                + "$processInfo.Arguments = '-p "
-                + installation.home.resolve("elasticsearch.pid")
-                + "'; "
-                + powerShellProcessUserSetup
-                + "$processInfo.RedirectStandardOutput = $true; "
-                + "$processInfo.RedirectStandardError = $true; "
-                + "$processInfo.RedirectStandardInput = $true; "
-                + sh.env.entrySet()
-                    .stream()
-                    .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
-                    .collect(joining())
-                + "$processInfo.UseShellExecute = $false; "
-                + "$process = New-Object System.Diagnostics.Process; "
-                + "$process.StartInfo = $processInfo; "
-                +
-
-                // set up some asynchronous output handlers
-                "$outScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '"
-                + stdout
-                + "' }; "
-                + "$errScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '"
-                + stderr
-                + "' }; "
-                + "$stdOutEvent = Register-ObjectEvent -InputObject $process "
-                + "-Action $outScript -EventName 'OutputDataReceived'; "
-                + "$stdErrEvent = Register-ObjectEvent -InputObject $process "
-                + "-Action $errScript -EventName 'ErrorDataReceived'; "
-                +
-
-                "$process.Start() | Out-Null; "
-                + "$process.BeginOutputReadLine(); "
-                + "$process.BeginErrorReadLine(); "
-                + "$process.StandardInput.WriteLine('"
-                + keystorePassword
-                + "'); "
-                + "Wait-Process -Timeout "
-                + ES_STARTUP_SLEEP_TIME_SECONDS
-                + " -Id $process.Id; "
-                + "$process.Id;"
-        );
     }
 
     public static void assertElasticsearchStarted(Installation installation) throws Exception {
@@ -355,10 +386,10 @@ public class Archives {
         Path pidFile = installation.home.resolve("elasticsearch.pid");
         assertThat(pidFile, fileExists());
         String pid = slurp(pidFile).trim();
-        assertThat(pid, is(not(emptyOrNullString())));
+        assertThat("No PID found in " + pidFile, pid, is(not(emptyOrNullString())));
 
         final Shell sh = new Shell();
-        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + "; tail --pid=" + pid + " -f /dev/null"));
+        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + " && tail --pid=" + pid + " -f /dev/null"));
         Platforms.onWindows(() -> {
             sh.run("Get-Process -Id " + pid + " | Stop-Process -Force; Wait-Process -Id " + pid);
 

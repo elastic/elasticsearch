@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata;
@@ -34,16 +23,13 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -54,12 +40,18 @@ import java.io.IOException;
  * Thread-safe utility class that allows to get per-segment values via the
  * {@link #load(LeafReaderContext)} method.
  */
-public interface IndexFieldData<FD extends LeafFieldData> extends IndexComponent {
+public interface IndexFieldData<FD extends LeafFieldData> {
 
     /**
      * The field name.
      */
     String getFieldName();
+
+    /**
+     * The ValuesSourceType of the underlying data.  It's possible for fields that use the same IndexFieldData implementation to have
+     * different ValuesSourceTypes, such as in the case of Longs and Dates.
+     */
+    ValuesSourceType getValuesSourceType();
 
     /**
      * Loads the atomic field data for the reader, possibly cached.
@@ -81,11 +73,6 @@ public interface IndexFieldData<FD extends LeafFieldData> extends IndexComponent
      */
     BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode,
             Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra);
-
-    /**
-     * Clears any resources associated with this field data.
-     */
-    void clear();
 
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced
@@ -155,17 +142,17 @@ public interface IndexFieldData<FD extends LeafFieldData> extends IndexComponent
         }
 
         /** Whether missing values should be sorted first. */
-        public final boolean sortMissingFirst(Object missingValue) {
+        public static final boolean sortMissingFirst(Object missingValue) {
             return "_first".equals(missingValue);
         }
 
         /** Whether missing values should be sorted last, this is the default. */
-        public final boolean sortMissingLast(Object missingValue) {
+        public static final boolean sortMissingLast(Object missingValue) {
             return missingValue == null || "_last".equals(missingValue);
         }
 
         /** Return the missing object value according to the reduced type of the comparator. */
-        public final Object missingObject(Object missingValue, boolean reversed) {
+        public Object missingObject(Object missingValue, boolean reversed) {
             if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                 final boolean min = sortMissingFirst(missingValue) ^ reversed;
                 switch (reducedType()) {
@@ -212,7 +199,7 @@ public interface IndexFieldData<FD extends LeafFieldData> extends IndexComponent
                 case STRING:
                 case STRING_VAL:
                     if (missingValue instanceof BytesRef) {
-                        return (BytesRef) missingValue;
+                        return missingValue;
                     } else if (missingValue instanceof byte[]) {
                         return new BytesRef((byte[]) missingValue);
                     } else {
@@ -247,15 +234,14 @@ public interface IndexFieldData<FD extends LeafFieldData> extends IndexComponent
 
     interface Builder {
 
-        IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                             CircuitBreakerService breakerService, MapperService mapperService);
+        IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService);
     }
 
     interface Global<FD extends LeafFieldData> extends IndexFieldData<FD> {
 
         IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);
 
-        IndexFieldData<FD> localGlobalDirect(DirectoryReader indexReader) throws Exception;
+        IndexFieldData<FD> loadGlobalDirect(DirectoryReader indexReader) throws Exception;
 
     }
 }

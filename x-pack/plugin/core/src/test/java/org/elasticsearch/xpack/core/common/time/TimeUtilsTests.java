@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common.time;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -70,6 +71,12 @@ public class TimeUtilsTests extends ESTestCase {
         assertEquals(1462098600333L, TimeUtils.dateStringToEpoch("2016-05-01T10:00:00.333-0030"));
         assertEquals(1477058573000L, TimeUtils.dateStringToEpoch("1477058573"));
         assertEquals(1477058573500L, TimeUtils.dateStringToEpoch("1477058573500"));
+    }
+
+    public void testParseToEpochMs() {
+        assertEquals(1462096800000L, TimeUtils.parseToEpochMs("1462096800000"));
+        assertEquals(1462096800000L, TimeUtils.parseToEpochMs("1462096800000.005"));
+        assertEquals(0L, TimeUtils.parseToEpochMs(".005"));
     }
 
     public void testCheckMultiple_GivenMultiples() {

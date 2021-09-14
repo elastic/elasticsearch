@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -35,11 +24,12 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -71,6 +61,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     private HighlightBuilder highlightBuilder;
     private StoredFieldsContext storedFieldsContext;
     private List<FieldAndFormat> docValueFields;
+    private List<FieldAndFormat> fetchFields;
     private Set<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
 
@@ -78,8 +69,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         super(name);
     }
 
-    protected TopHitsAggregationBuilder(TopHitsAggregationBuilder clone,
-                                        Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected TopHitsAggregationBuilder(TopHitsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
         this.from = clone.from;
         this.size = clone.size;
@@ -88,15 +78,20 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         this.seqNoAndPrimaryTerm = clone.seqNoAndPrimaryTerm;
         this.trackScores = clone.trackScores;
         this.sorts = clone.sorts == null ? null : new ArrayList<>(clone.sorts);
-        this.highlightBuilder = clone.highlightBuilder == null ? null :
-            new HighlightBuilder(clone.highlightBuilder, clone.highlightBuilder.highlightQuery(), clone.highlightBuilder.fields());
-        this.storedFieldsContext = clone.storedFieldsContext == null ? null :
-            new StoredFieldsContext(clone.storedFieldsContext);
+        this.highlightBuilder = clone.highlightBuilder == null
+            ? null
+            : new HighlightBuilder(clone.highlightBuilder, clone.highlightBuilder.highlightQuery(), clone.highlightBuilder.fields());
+        this.storedFieldsContext = clone.storedFieldsContext == null ? null : new StoredFieldsContext(clone.storedFieldsContext);
         this.docValueFields = clone.docValueFields == null ? null : new ArrayList<>(clone.docValueFields);
+        this.fetchFields = clone.fetchFields == null ? null : new ArrayList<>(clone.fetchFields);
         this.scriptFields = clone.scriptFields == null ? null : new HashSet<>(clone.scriptFields);
-        this.fetchSourceContext = clone.fetchSourceContext == null ? null :
-            new FetchSourceContext(clone.fetchSourceContext.fetchSource(), clone.fetchSourceContext.includes(),
-                clone.fetchSourceContext.excludes());
+        this.fetchSourceContext = clone.fetchSourceContext == null
+            ? null
+            : new FetchSourceContext(
+                clone.fetchSourceContext.fetchSource(),
+                clone.fetchSourceContext.includes(),
+                clone.fetchSourceContext.excludes()
+            );
     }
 
     @Override
@@ -139,6 +134,11 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         trackScores = in.readBoolean();
         version = in.readBoolean();
         seqNoAndPrimaryTerm = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            if (in.readBoolean()) {
+                fetchFields = in.readList(FieldAndFormat::new);
+            }
+        }
     }
 
     @Override
@@ -148,10 +148,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasFieldDataFields = docValueFields != null;
         out.writeBoolean(hasFieldDataFields);
         if (hasFieldDataFields) {
-            out.writeVInt(docValueFields.size());
-            for (FieldAndFormat ff : docValueFields) {
-                ff.writeTo(out);
-            }
+            out.writeList(docValueFields);
         }
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeVInt(from);
@@ -159,23 +156,23 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
-            out.writeVInt(scriptFields.size());
-            for (ScriptField scriptField : scriptFields) {
-                scriptField.writeTo(out);
-            }
+            out.writeCollection(scriptFields);
         }
         out.writeVInt(size);
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {
-            out.writeVInt(sorts.size());
-            for (SortBuilder<?> sort : sorts) {
-                out.writeNamedWriteable(sort);
-            }
+            out.writeNamedWriteableList(sorts);
         }
         out.writeBoolean(trackScores);
         out.writeBoolean(version);
         out.writeBoolean(seqNoAndPrimaryTerm);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeBoolean(fetchFields != null);
+            if (fetchFields != null) {
+                out.writeList(fetchFields);
+            }
+        }
     }
 
     /**
@@ -263,7 +260,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             throw new IllegalArgumentException("[sort] must not be null: [" + name + "]");
         }
         if (sorts == null) {
-                sorts = new ArrayList<>();
+            sorts = new ArrayList<>();
         }
         sorts.add(sort);
         return this;
@@ -315,8 +312,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      * every hit
      */
     public TopHitsAggregationBuilder fetchSource(boolean fetch) {
-        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext
-            : FetchSourceContext.FETCH_SOURCE;
+        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
         this.fetchSourceContext = new FetchSourceContext(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes());
         return this;
     }
@@ -334,8 +330,10 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      *            filter the returned _source
      */
     public TopHitsAggregationBuilder fetchSource(@Nullable String include, @Nullable String exclude) {
-        fetchSource(include == null ? Strings.EMPTY_ARRAY : new String[] { include },
-                exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude });
+        fetchSource(
+            include == null ? Strings.EMPTY_ARRAY : new String[] { include },
+            exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude }
+        );
         return this;
     }
 
@@ -352,8 +350,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      *            pattern to filter the returned _source
      */
     public TopHitsAggregationBuilder fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
-        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext
-            : FetchSourceContext.FETCH_SOURCE;
+        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
         this.fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(), includes, excludes);
         return this;
     }
@@ -434,8 +431,36 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     /**
      * Gets the field-data fields.
      */
-    public List<FieldAndFormat> fieldDataFields() {
+    public List<FieldAndFormat> docValueFields() {
         return docValueFields;
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     */
+    public TopHitsAggregationBuilder fetchField(FieldAndFormat fieldAndFormat) {
+        if (fieldAndFormat == null) {
+            throw new IllegalArgumentException("[fields] must not be null: [" + name + "]");
+        }
+        if (fetchFields == null) {
+            fetchFields = new ArrayList<>();
+        }
+        fetchFields.add(fieldAndFormat);
+        return this;
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     */
+    public TopHitsAggregationBuilder fetchField(String field) {
+        return fetchField(new FieldAndFormat(field, null, null));
+    }
+
+    /**
+     * Gets the fields to load and return as part of the search request.
+     */
+    public List<FieldAndFormat> fetchFields() {
+        return fetchFields;
     }
 
     /**
@@ -566,8 +591,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
 
     @Override
     public TopHitsAggregationBuilder subAggregations(Builder subFactories) {
-        throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
-                + getType() + "] cannot accept sub-aggregations");
+        throw new AggregationInitializationException(
+            "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
+        );
     }
 
     @Override
@@ -576,26 +602,37 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     @Override
-    protected TopHitsAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subfactoriesBuilder)
-            throws IOException {
+    protected TopHitsAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
+        throws IOException {
         long innerResultWindow = from() + size();
-        int maxInnerResultWindow = queryShardContext.getMapperService().getIndexSettings().getMaxInnerResultWindow();
+        int maxInnerResultWindow = context.getIndexSettings().getMaxInnerResultWindow();
         if (innerResultWindow > maxInnerResultWindow) {
             throw new IllegalArgumentException(
-                "Top hits result window is too large, the top hits aggregator [" + name + "]'s from + size must be less " +
-                    "than or equal to: [" + maxInnerResultWindow + "] but was [" + innerResultWindow +
-                    "]. This limit can be set by changing the [" + IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey() +
-                    "] index level setting."
+                "Top hits result window is too large, the top hits aggregator ["
+                    + name
+                    + "]'s from + size must be less "
+                    + "than or equal to: ["
+                    + maxInnerResultWindow
+                    + "] but was ["
+                    + innerResultWindow
+                    + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey()
+                    + "] index level setting."
             );
         }
 
-        List<ScriptFieldsContext.ScriptField> fields = new ArrayList<>();
-        if (scriptFields != null) {
-            for (ScriptField field : scriptFields) {
-                FieldScript.Factory factory = queryShardContext.compile(field.script(), FieldScript.CONTEXT);
-                FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), queryShardContext.lookup());
-                fields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
-                    field.fieldName(), searchScript, field.ignoreFailure()));
+        List<ScriptFieldsContext.ScriptField> scriptFields = new ArrayList<>();
+        if (this.scriptFields != null) {
+            for (ScriptField field : this.scriptFields) {
+                FieldScript.Factory factory = context.compile(field.script(), FieldScript.CONTEXT);
+                FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), context.lookup());
+                scriptFields.add(
+                    new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
+                        field.fieldName(),
+                        searchScript,
+                        field.ignoreFailure()
+                    )
+                );
             }
         }
 
@@ -603,11 +640,28 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (sorts == null) {
             optionalSort = Optional.empty();
         } else {
-            optionalSort = SortBuilder.buildSort(sorts, queryShardContext);
+            optionalSort = context.buildSort(sorts);
         }
-        return new TopHitsAggregatorFactory(name, from, size, explain, version, seqNoAndPrimaryTerm, trackScores, optionalSort,
-            highlightBuilder, storedFieldsContext, docValueFields, fields, fetchSourceContext, queryShardContext, parent,
-            subfactoriesBuilder, metadata);
+        return new TopHitsAggregatorFactory(
+            name,
+            from,
+            size,
+            explain,
+            version,
+            seqNoAndPrimaryTerm,
+            trackScores,
+            optionalSort,
+            highlightBuilder,
+            storedFieldsContext,
+            docValueFields,
+            fetchFields,
+            scriptFields,
+            fetchSourceContext,
+            context,
+            parent,
+            subfactoriesBuilder,
+            metadata
+        );
     }
 
     @Override
@@ -624,18 +678,23 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (storedFieldsContext != null) {
             storedFieldsContext.toXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), builder);
         }
+
         if (docValueFields != null) {
             builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
-            for (FieldAndFormat dvField : docValueFields) {
-                builder.startObject()
-                    .field("field", dvField.field);
-                if (dvField.format != null) {
-                    builder.field("format", dvField.format);
-                }
-                builder.endObject();
+            for (FieldAndFormat docValueField : docValueFields) {
+                docValueField.toXContent(builder, params);
             }
             builder.endArray();
         }
+
+        if (fetchFields != null) {
+            builder.startArray(SearchSourceBuilder.FETCH_FIELDS_FIELD.getPreferredName());
+            for (FieldAndFormat docValueField : fetchFields) {
+                docValueField.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+
         if (scriptFields != null) {
             builder.startObject(SearchSourceBuilder.SCRIPT_FIELDS_FIELD.getPreferredName());
             for (ScriptField scriptField : scriptFields) {
@@ -646,7 +705,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (sorts != null) {
             builder.startArray(SearchSourceBuilder.SORT_FIELD.getPreferredName());
             for (SortBuilder<?> sort : sorts) {
-                    sort.toXContent(builder, params);
+                sort.toXContent(builder, params);
             }
             builder.endArray();
         }
@@ -683,13 +742,18 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                 } else if (SearchSourceBuilder._SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.fetchSource(FetchSourceContext.fromXContent(parser));
                 } else if (SearchSourceBuilder.STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    factory.storedFieldsContext =
-                        StoredFieldsContext.fromXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), parser);
+                    factory.storedFieldsContext = StoredFieldsContext.fromXContent(
+                        SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(),
+                        parser
+                    );
                 } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.sort(parser.text());
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                            parser.getTokenLocation());
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                        parser.getTokenLocation()
+                    );
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (SearchSourceBuilder._SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -708,31 +772,49 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                 } else if (token.isValue()) {
                                     if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         script = Script.parse(parser);
-                                    } else if (SearchSourceBuilder.IGNORE_FAILURE_FIELD.match(currentFieldName,
-                                            parser.getDeprecationHandler())) {
+                                    } else if (SearchSourceBuilder.IGNORE_FAILURE_FIELD.match(
+                                        currentFieldName,
+                                        parser.getDeprecationHandler()
+                                    )) {
                                         ignoreFailure = parser.booleanValue();
                                     } else {
-                                        throw new ParsingException(parser.getTokenLocation(),
-                                                "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                                parser.getTokenLocation());
+                                        throw new ParsingException(
+                                            parser.getTokenLocation(),
+                                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                            parser.getTokenLocation()
+                                        );
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         script = Script.parse(parser);
                                     } else {
-                                        throw new ParsingException(parser.getTokenLocation(),
-                                                "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                                parser.getTokenLocation());
+                                        throw new ParsingException(
+                                            parser.getTokenLocation(),
+                                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                            parser.getTokenLocation()
+                                        );
                                     }
                                 } else {
-                                    throw new ParsingException(parser.getTokenLocation(),
-                                            "Unknown key for a " + token + " in [" + currentFieldName + "].", parser.getTokenLocation());
+                                    throw new ParsingException(
+                                        parser.getTokenLocation(),
+                                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                        parser.getTokenLocation()
+                                    );
                                 }
                             }
                             scriptFields.add(new ScriptField(scriptFieldName, script, ignoreFailure));
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT
-                                    + "] in [" + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "Expected ["
+                                    + XContentParser.Token.START_OBJECT
+                                    + "] in ["
+                                    + currentFieldName
+                                    + "] but found ["
+                                    + token
+                                    + "]",
+                                parser.getTokenLocation()
+                            );
                         }
                     }
                     factory.scriptFields(scriptFields);
@@ -742,18 +824,28 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                     List<SortBuilder<?>> sorts = SortBuilder.fromXContent(parser);
                     factory.sorts(sorts);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                            parser.getTokenLocation());
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                        parser.getTokenLocation()
+                    );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
 
                 if (SearchSourceBuilder.STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    factory.storedFieldsContext =
-                        StoredFieldsContext.fromXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), parser);
+                    factory.storedFieldsContext = StoredFieldsContext.fromXContent(
+                        SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(),
+                        parser
+                    );
                 } else if (SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         FieldAndFormat ff = FieldAndFormat.fromXContent(parser);
                         factory.docValueField(ff.field, ff.format);
+                    }
+                } else if (SearchSourceBuilder.FETCH_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        FieldAndFormat ff = FieldAndFormat.fromXContent(parser);
+                        factory.fetchField(ff);
                     }
                 } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<SortBuilder<?>> sorts = SortBuilder.fromXContent(parser);
@@ -761,43 +853,62 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                 } else if (SearchSourceBuilder._SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.fetchSource(FetchSourceContext.fromXContent(parser));
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                            parser.getTokenLocation());
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                        parser.getTokenLocation()
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                        parser.getTokenLocation());
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                    parser.getTokenLocation()
+                );
             }
         }
         return factory;
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), explain, fetchSourceContext, docValueFields,
-            storedFieldsContext, from, highlightBuilder,
-            scriptFields, size, sorts, trackScores, version,
-            seqNoAndPrimaryTerm);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+        TopHitsAggregationBuilder that = (TopHitsAggregationBuilder) o;
+        return from == that.from
+            && size == that.size
+            && explain == that.explain
+            && version == that.version
+            && seqNoAndPrimaryTerm == that.seqNoAndPrimaryTerm
+            && trackScores == that.trackScores
+            && Objects.equals(sorts, that.sorts)
+            && Objects.equals(highlightBuilder, that.highlightBuilder)
+            && Objects.equals(storedFieldsContext, that.storedFieldsContext)
+            && Objects.equals(docValueFields, that.docValueFields)
+            && Objects.equals(fetchFields, that.fetchFields)
+            && Objects.equals(scriptFields, that.scriptFields)
+            && Objects.equals(fetchSourceContext, that.fetchSourceContext);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        TopHitsAggregationBuilder other = (TopHitsAggregationBuilder) obj;
-        return Objects.equals(explain, other.explain)
-            && Objects.equals(fetchSourceContext, other.fetchSourceContext)
-            && Objects.equals(docValueFields, other.docValueFields)
-            && Objects.equals(storedFieldsContext, other.storedFieldsContext)
-            && Objects.equals(from, other.from)
-            && Objects.equals(highlightBuilder, other.highlightBuilder)
-            && Objects.equals(scriptFields, other.scriptFields)
-            && Objects.equals(size, other.size)
-            && Objects.equals(sorts, other.sorts)
-            && Objects.equals(trackScores, other.trackScores)
-            && Objects.equals(version, other.version)
-            && Objects.equals(seqNoAndPrimaryTerm, other.seqNoAndPrimaryTerm);
+    public int hashCode() {
+        return Objects.hash(
+            super.hashCode(),
+            from,
+            size,
+            explain,
+            version,
+            seqNoAndPrimaryTerm,
+            trackScores,
+            sorts,
+            highlightBuilder,
+            storedFieldsContext,
+            docValueFields,
+            fetchFields,
+            scriptFields,
+            fetchSourceContext
+        );
     }
 
     @Override

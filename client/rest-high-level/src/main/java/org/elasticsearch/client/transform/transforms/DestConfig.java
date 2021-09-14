@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,9 +27,11 @@ public class DestConfig implements ToXContentObject {
     public static final ParseField INDEX = new ParseField("index");
     public static final ParseField PIPELINE = new ParseField("pipeline");
 
-    public static final ConstructingObjectParser<DestConfig, Void> PARSER = new ConstructingObjectParser<>("transform_config_dest",
+    public static final ConstructingObjectParser<DestConfig, Void> PARSER = new ConstructingObjectParser<>(
+        "transform_config_dest",
         true,
-        args -> new DestConfig((String)args[0], (String)args[1]));
+        args -> new DestConfig((String) args[0], (String) args[1])
+    );
 
     static {
         PARSER.declareString(constructorArg(), INDEX);
@@ -50,7 +41,7 @@ public class DestConfig implements ToXContentObject {
     private final String index;
     private final String pipeline;
 
-    DestConfig(String index, String pipeline) {
+    public DestConfig(String index, String pipeline) {
         this.index = Objects.requireNonNull(index, INDEX.getPreferredName());
         this.pipeline = pipeline;
     }
@@ -84,12 +75,11 @@ public class DestConfig implements ToXContentObject {
         }
 
         DestConfig that = (DestConfig) other;
-        return Objects.equals(index, that.index) &&
-            Objects.equals(pipeline, that.pipeline);
+        return Objects.equals(index, that.index) && Objects.equals(pipeline, that.pipeline);
     }
 
     @Override
-    public int hashCode(){
+    public int hashCode() {
         return Objects.hash(index, pipeline);
     }
 

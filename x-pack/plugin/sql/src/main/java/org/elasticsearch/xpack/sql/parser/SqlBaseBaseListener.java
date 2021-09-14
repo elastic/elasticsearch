@@ -304,6 +304,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterTopClause(SqlBaseParser.TopClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitTopClause(SqlBaseParser.TopClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSetQuantifier(SqlBaseParser.SetQuantifierContext ctx) { }
   /**
    * {@inheritDoc}

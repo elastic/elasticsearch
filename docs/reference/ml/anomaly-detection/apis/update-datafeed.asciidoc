@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-datafeed]]
-=== Update {dfeeds} API
+= Update {dfeeds} API
 
 [subs="attributes"]
 ++++
@@ -12,23 +12,21 @@ Updates certain properties of a {dfeed}.
 
 
 [[ml-update-datafeed-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/datafeeds/<feed_id>/_update`
 
 
 [[ml-update-datafeed-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
-cluster privileges to use this API. See
-<<security-privileges>>.
-
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-update-datafeed-desc]]
-==== {api-description-title}
+== {api-description-title}
 
-If you update a {dfeed} property, you must stop and start the {dfeed} for the 
+If you update a {dfeed} property, you must stop and start the {dfeed} for the
 change to be applied.
 
 IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
@@ -38,41 +36,69 @@ using those same roles. If you provide
 credentials are used instead.
 
 [[ml-update-datafeed-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<feed_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [role="child_attributes"]
 [[ml-update-datafeed-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 The following properties can be updated after the {dfeed} is created:
 
 `aggregations`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=aggregations]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
 
 `chunking_config`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=chunking-config]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
++
+.Properties of `chunking_config`
+[%collapsible%open]
+====
+`mode`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
+====
 
 `delayed_data_check_config`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
++
+.Properties of `delayed_data_check_config`
+[%collapsible%open]
+====
+`check_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-window]
+
+`enabled`::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-enabled]
+====
 
 `frequency`::
 (Optional, <<time-units, time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=frequency]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=frequency]
 
 `indices`::
 (Optional, array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=indices]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
+
+`indices_options`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
 
 `max_empty_searches`::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
 +
 --
 The special value `-1` unsets this setting.
@@ -80,7 +106,7 @@ The special value `-1` unsets this setting.
 
 `query`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=query]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query]
 +
 --
 WARNING: If you change the query, the analyzed data is also changed. Therefore,
@@ -94,22 +120,23 @@ the results of the other job.
 
 `query_delay`::
 (Optional, <<time-units, time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=query-delay]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query-delay]
+
+`runtime_mappings`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=runtime-mappings]
 
 `script_fields`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
 
 `scroll_size`::
 (Optional, unsigned integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
-`indices_options`::
-(Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=indices-options]
 
 [[ml-update-datafeed-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------
@@ -125,7 +152,7 @@ POST _ml/datafeeds/datafeed-total-requests/_update
 // TEST[skip:setup:server_metrics_datafeed]
 
 When the {dfeed} is updated, you receive the full {dfeed} configuration with
-with the updated values:
+the updated values:
 
 [source,console-result]
 ----

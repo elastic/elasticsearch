@@ -1,26 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
-import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
-import java.util.Deque;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
+import java.util.function.BooleanSupplier;
 
 /**
  * Removes job data that expired with respect to their retention period.
@@ -31,19 +24,31 @@ import java.util.stream.Collectors;
  */
 abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
-    private final OriginSettingClient client;
+    protected final OriginSettingClient client;
+    private final Iterator<Job> jobIterator;
+    private final TaskId parentTaskId;
 
-    AbstractExpiredJobDataRemover(OriginSettingClient client) {
+    AbstractExpiredJobDataRemover(OriginSettingClient client, Iterator<Job> jobIterator, TaskId parentTaskId) {
         this.client = client;
+        this.jobIterator = jobIterator;
+        this.parentTaskId = parentTaskId;
+    }
+
+    protected TaskId getParentTaskId() {
+        return parentTaskId;
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
-        removeData(newJobIterator(), listener, isTimedOutSupplier);
+    public void remove(float requestsPerSecond,
+                       ActionListener<Boolean> listener,
+                       BooleanSupplier isTimedOutSupplier) {
+        removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
     }
 
-    private void removeData(WrappedBatchedJobsIterator jobIterator, ActionListener<Boolean> listener,
-                            Supplier<Boolean> isTimedOutSupplier) {
+    private void removeData(Iterator<Job> jobIterator,
+                            float requestsPerSecond,
+                            ActionListener<Boolean> listener,
+                            BooleanSupplier isTimedOutSupplier) {
         if (jobIterator.hasNext() == false) {
             listener.onResponse(true);
             return;
@@ -55,34 +60,29 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
             return;
         }
 
-        if (isTimedOutSupplier.get()) {
+        if (isTimedOutSupplier.getAsBoolean()) {
             listener.onResponse(false);
             return;
         }
 
         Long retentionDays = getRetentionDays(job);
         if (retentionDays == null) {
-            removeData(jobIterator, listener, isTimedOutSupplier);
+            removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
             return;
         }
 
         calcCutoffEpochMs(job.getId(), retentionDays, ActionListener.wrap(
                 response -> {
                     if (response == null) {
-                        removeData(jobIterator, listener, isTimedOutSupplier);
+                        removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
                     } else {
-                        removeDataBefore(job, response.latestTimeMs, response.cutoffEpochMs, ActionListener.wrap(
-                                r -> removeData(jobIterator, listener, isTimedOutSupplier),
+                        removeDataBefore(job, requestsPerSecond, response.latestTimeMs, response.cutoffEpochMs, ActionListener.wrap(
+                                r -> removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier),
                                 listener::onFailure));
                     }
                 },
                 listener::onFailure
         ));
-    }
-
-    private WrappedBatchedJobsIterator newJobIterator() {
-        BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, AnomalyDetectorsIndex.configIndexName());
-        return new WrappedBatchedJobsIterator(jobsIterator);
     }
 
     abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener);
@@ -93,58 +93,13 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
      * Template method to allow implementation details of various types of data (e.g. results, model snapshots).
      * Implementors need to call {@code listener.onResponse} when they are done in order to continue to the next job.
      */
-    abstract void removeDataBefore(Job job, long latestTimeMs, long cutoffEpochMs, ActionListener<Boolean> listener);
-
-    static BoolQueryBuilder createQuery(String jobId, long cutoffEpochMs) {
-        return QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-                .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"));
-    }
-
-    /**
-     * BatchedJobsIterator efficiently returns batches of jobs using a scroll
-     * search but AbstractExpiredJobDataRemover works with one job at a time.
-     * This class abstracts away the logic of pulling one job at a time from
-     * multiple batches.
-     */
-    private static class WrappedBatchedJobsIterator implements Iterator<Job> {
-        private final BatchedJobsIterator batchedIterator;
-        private VolatileCursorIterator<Job> currentBatch;
-
-        WrappedBatchedJobsIterator(BatchedJobsIterator batchedIterator) {
-            this.batchedIterator = batchedIterator;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return (currentBatch != null && currentBatch.hasNext()) || batchedIterator.hasNext();
-        }
-
-        /**
-         * Before BatchedJobsIterator has run a search it reports hasNext == true
-         * but the first search may return no results. In that case null is return
-         * and clients have to handle null.
-         */
-        @Override
-        public Job next() {
-            if (currentBatch != null && currentBatch.hasNext()) {
-                return currentBatch.next();
-            }
-
-            // currentBatch is either null or all its elements have been iterated.
-            // get the next currentBatch
-            currentBatch = createBatchIteratorFromBatch(batchedIterator.next());
-
-            // BatchedJobsIterator.hasNext maybe true if searching the first time
-            // but no results are returned.
-            return currentBatch.hasNext() ? currentBatch.next() : null;
-        }
-
-        private VolatileCursorIterator<Job> createBatchIteratorFromBatch(Deque<Job.Builder> builders) {
-            List<Job> jobs = builders.stream().map(Job.Builder::build).collect(Collectors.toList());
-            return new VolatileCursorIterator<>(jobs);
-        }
-    }
+    abstract void removeDataBefore(
+        Job job,
+        float requestsPerSecond,
+        long latestTimeMs,
+        long cutoffEpochMs,
+        ActionListener<Boolean> listener
+    );
 
     /**
      * The latest time that cutoffs are measured from is not wall clock time,

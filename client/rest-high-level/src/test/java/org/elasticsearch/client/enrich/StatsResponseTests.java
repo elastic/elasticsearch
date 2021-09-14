@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.enrich;
 
@@ -45,13 +34,19 @@ public class StatsResponseTests extends AbstractResponseTestCase<EnrichStatsActi
         }
         int numCoordinatingStats = randomIntBetween(0, 16);
         List<EnrichStatsAction.Response.CoordinatorStats> coordinatorStats = new ArrayList<>(numCoordinatingStats);
+        List<EnrichStatsAction.Response.CacheStats> cacheStats = new ArrayList<>(numCoordinatingStats);
         for (int i = 0; i < numCoordinatingStats; i++) {
+            String nodeId = randomAlphaOfLength(4);
             EnrichStatsAction.Response.CoordinatorStats stats = new EnrichStatsAction.Response.CoordinatorStats(
-                randomAlphaOfLength(4), randomIntBetween(0, 8096), randomIntBetween(0, 8096), randomNonNegativeLong(),
+                nodeId, randomIntBetween(0, 8096), randomIntBetween(0, 8096), randomNonNegativeLong(),
                 randomNonNegativeLong());
             coordinatorStats.add(stats);
+            cacheStats.add(
+                new EnrichStatsAction.Response.CacheStats(nodeId, randomNonNegativeLong(), randomNonNegativeLong(),
+                    randomNonNegativeLong(), randomNonNegativeLong())
+            );
         }
-        return new EnrichStatsAction.Response(executingPolicies, coordinatorStats);
+        return new EnrichStatsAction.Response(executingPolicies, coordinatorStats, cacheStats);
     }
 
     @Override
@@ -79,6 +74,17 @@ public class StatsResponseTests extends AbstractResponseTestCase<EnrichStatsActi
             assertThat(actual.getRemoteRequestsTotal(), equalTo(expected.getRemoteRequestsTotal()));
             assertThat(actual.getExecutedSearchesTotal(), equalTo(expected.getExecutedSearchesTotal()));
         }
+
+        assertThat(clientInstance.getCacheStats().size(), equalTo(serverTestInstance.getCacheStats().size()));
+        for (int i = 0; i < clientInstance.getCacheStats().size(); i++) {
+            StatsResponse.CacheStats actual = clientInstance.getCacheStats().get(i);
+            EnrichStatsAction.Response.CacheStats expected = serverTestInstance.getCacheStats().get(i);
+            assertThat(actual.getNodeId(), equalTo(expected.getNodeId()));
+            assertThat(actual.getCount(), equalTo(expected.getCount()));
+            assertThat(actual.getHits(), equalTo(expected.getHits()));
+            assertThat(actual.getMisses(), equalTo(expected.getMisses()));
+            assertThat(actual.getEvictions(), equalTo(expected.getEvictions()));
+        }
     }
 
     private static TaskInfo randomTaskInfo() {
@@ -89,10 +95,22 @@ public class StatsResponseTests extends AbstractResponseTestCase<EnrichStatsActi
         long startTime = randomLong();
         long runningTimeNanos = randomNonNegativeLong();
         boolean cancellable = randomBoolean();
+        boolean cancelled = cancellable && randomBoolean();
         TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
         Map<String, String> headers = randomBoolean() ?
             Collections.emptyMap() :
             Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        return new TaskInfo(taskId, type, action, description, null, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
+        return new TaskInfo(
+                taskId,
+                type,
+                action,
+                description,
+                null,
+                startTime,
+                runningTimeNanos,
+                cancellable,
+                cancelled,
+                parentTaskId,
+                headers);
     }
 }

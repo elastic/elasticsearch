@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.async;
 
@@ -25,9 +26,13 @@ public final class AsyncExecutionId {
     private final String encoded;
 
     public AsyncExecutionId(String docId, TaskId taskId) {
+        this(docId, taskId, encode(docId, taskId));
+    }
+
+    private AsyncExecutionId(String docId, TaskId taskId, String encoded) {
         this.docId = docId;
         this.taskId = taskId;
-        this.encoded = encode(docId, taskId);
+        this.encoded = encoded;
     }
 
     /**
@@ -92,15 +97,23 @@ public final class AsyncExecutionId {
      * to retrieve the response of an async execution.
      */
     public static AsyncExecutionId decode(String id) {
-        final AsyncExecutionId searchId;
-        try (StreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getUrlDecoder().decode(id)))) {
-            searchId = new AsyncExecutionId(in.readString(), new TaskId(in.readString()));
+        final ByteBuffer byteBuffer;
+        try {
+            byteBuffer = ByteBuffer.wrap(Base64.getUrlDecoder().decode(id));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("invalid id: [" + id + "]", e);
+        }
+        String docId;
+        String taskId;
+        try (StreamInput in = new ByteBufferStreamInput(byteBuffer)) {
+            docId = in.readString();
+            taskId = in.readString();
             if (in.available() > 0) {
-                throw new IllegalArgumentException("invalid id:[" + id + "]");
+                throw new IllegalArgumentException("invalid id: [" + id + "]");
             }
         } catch (IOException e) {
-            throw new IllegalArgumentException("invalid id:[" + id + "]");
+            throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
-        return searchId;
+        return new AsyncExecutionId(docId, new TaskId(taskId), id);
     }
 }

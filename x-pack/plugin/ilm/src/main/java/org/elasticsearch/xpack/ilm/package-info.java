@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 /**
@@ -16,8 +17,8 @@
  * {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner} method.
  * This happens in:
  * <ul>
- *  <li>{@link org.elasticsearch.xpack.ilm.IndexLifecycleService#onMaster()} which runs when a master is elected (first election when the
- *      cluster starts up or due to the previous master having stepped down) and executes only
+ *  <li>{org.elasticsearch.xpack.ilm.IndexLifecycleService#clusterChanged(org.elasticsearch.cluster.ClusterChangedEvent)} when a master is
+ *      elected (first election when the cluster starts up or due to the previous master having stepped down) and executes only
  *      {@link org.elasticsearch.xpack.core.ilm.AsyncActionStep}s
  *  </li>
  *  <li>
@@ -61,6 +62,7 @@
  *     <li>
  *        {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#runPeriodicStep(
  *                      java.lang.String,
+ *                      org.elasticsearch.cluster.metadata.Metadata,
  *                      org.elasticsearch.cluster.metadata.IndexMetadata
  *                 )}
  *        handles the execution of async {@link org.elasticsearch.xpack.core.ilm.AsyncWaitStep}

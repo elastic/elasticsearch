@@ -1,28 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 
 package org.elasticsearch.xpack.vectors.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -35,63 +35,46 @@ import java.util.Map;
  */
 @Deprecated
 public class SparseVectorFieldMapper extends FieldMapper {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SparseVectorFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SparseVectorFieldMapper.class);
     static final String ERROR_MESSAGE = "The [sparse_vector] field type is no longer supported.";
     static final String ERROR_MESSAGE_7X = "The [sparse_vector] field type is no longer supported. Old 7.x indices are allowed to " +
         "contain [sparse_vector] fields, but they cannot be indexed or searched.";
     public static final String CONTENT_TYPE = "sparse_vector";
 
-    public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new SparseVectorFieldType();
+    public static class Builder extends FieldMapper.Builder {
 
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setHasDocValues(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends FieldMapper.Builder<Builder, SparseVectorFieldMapper> {
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            builder = this;
+            super(name);
         }
 
         @Override
-        public SparseVectorFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
+        protected List<Parameter<?>> getParameters() {
+            return List.of(meta);
+        }
+
+        @Override
+        public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
-                    name, fieldType, defaultFieldType,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    name, new SparseVectorFieldType(context.buildFullName(name), meta.getValue()),
+                    multiFieldsBuilder.build(this, context), copyTo.build());
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
-                throw new IllegalArgumentException(ERROR_MESSAGE);
-            } else {
-                deprecationLogger.deprecatedAndMaybeLog("sparse_vector", ERROR_MESSAGE_7X);
-                return new Builder(name);
-            }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
+        if (c.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+            throw new IllegalArgumentException(ERROR_MESSAGE);
+        } else {
+            deprecationLogger.critical(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
+            return new Builder(n);
         }
-    }
+    });
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 
-        public SparseVectorFieldType() {}
-
-        protected SparseVectorFieldType(SparseVectorFieldType ref) {
-            super(ref);
-        }
-
-        public SparseVectorFieldType clone() {
-            return new SparseVectorFieldType(this);
+        public SparseVectorFieldType(String name, Map<String, String> meta) {
+            super(name, false, false, false, TextSearchInfo.NONE, meta);
         }
 
         @Override
@@ -101,32 +84,29 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            throw new UnsupportedOperationException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
+            throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
+        public Query existsQuery(SearchExecutionContext context) {
+            throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
     }
 
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        assert fieldType.indexOptions() == IndexOptions.NONE;
-    }
-
-    @Override
-    protected SparseVectorFieldMapper clone() {
-        return (SparseVectorFieldMapper) super.clone();
+    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                    MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
     }
 
     @Override
@@ -135,18 +115,22 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context) {
+    public void parse(DocumentParserContext context) {
         throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
     }
 
-
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
         throw new IllegalStateException("parse is implemented directly");
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
     }
 }

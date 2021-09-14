@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -9,9 +10,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -21,10 +24,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,13 +40,15 @@ import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStatsTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -51,9 +58,11 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
@@ -88,13 +97,19 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -114,7 +129,10 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(
             LocalStateMachineLearning.class,
+            DataStreamsPlugin.class,
+            IngestCommonPlugin.class,
             ReindexPlugin.class,
+            MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class);
     }
@@ -123,12 +141,12 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), "test_node");
-        jobResultsProvider = new JobResultsProvider(client(), builder.build(), new IndexNameExpressionResolver());
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
+        jobResultsProvider = new JobResultsProvider(client(), builder.build(), TestIndexNameExpressionResolver.newInstance());
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
-        ThreadPool tp = mock(ThreadPool.class);
+        ThreadPool tp = mockThreadPool();
         Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
@@ -138,16 +156,15 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
-
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
+        resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
         resultProcessor = new AutodetectResultProcessor(
                 client(),
                 auditor,
                 JOB_ID,
                 renormalizer,
-                new JobResultsPersister(originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node")),
-                new AnnotationPersister(originSettingClient, auditor),
+                new JobResultsPersister(originSettingClient, resultsPersisterService),
+                new AnnotationPersister(resultsPersisterService),
                 process,
                 new ModelSizeStats.Builder(JOB_ID).build(),
                 new TimingStats(JOB_ID)) {
@@ -158,6 +175,14 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         };
         waitForMlTemplates();
         putJob();
+        // In production opening a job ensures the state index exists. These tests
+        // do not open jobs, but instead feed JSON directly to the results processor.
+        // A a result they must create the index as part of the test setup. Do not
+        // copy this setup to tests that run jobs in the way they are run in production.
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, TestIndexNameExpressionResolver.newInstance(),
+            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT, future);
+        future.get();
     }
 
     @After
@@ -166,7 +191,9 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AcknowledgedResponse response = client().execute(DeleteJobAction.INSTANCE, request).actionGet();
         assertTrue(response.isAcknowledged());
         // Verify that deleting job also deletes associated model snapshots annotations
-        assertThat(getAnnotations(), empty());
+        assertThat(
+            getAnnotations().stream().map(Annotation::getAnnotation).collect(toList()),
+            everyItem(not(startsWith("Job model snapshot"))));
     }
 
     public void testProcessResults() throws Exception {
@@ -179,8 +206,12 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         resultsBuilder.addInfluencers(influencers);
         CategoryDefinition categoryDefinition = createCategoryDefinition();
         resultsBuilder.addCategoryDefinition(categoryDefinition);
+        CategorizerStats categorizerStats = createCategorizerStats();
+        resultsBuilder.addCategorizerStats(categorizerStats);
         ModelPlot modelPlot = createModelPlot();
         resultsBuilder.addModelPlot(modelPlot);
+        Annotation annotation = createAnnotation();
+        resultsBuilder.addAnnotation(annotation);
         ModelSizeStats modelSizeStats = createModelSizeStats();
         resultsBuilder.addModelSizeStats(modelSizeStats);
         ModelSnapshot modelSnapshot = createModelSnapshot();
@@ -206,9 +237,15 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
         assertResultsAreSame(influencers, persistedInfluencers);
 
-        QueryPage<CategoryDefinition> persistedDefinition = getCategoryDefinition(categoryDefinition.getCategoryId());
+        QueryPage<CategoryDefinition> persistedDefinition =
+            getCategoryDefinition(randomBoolean() ? categoryDefinition.getCategoryId() : null,
+                randomBoolean() ? categoryDefinition.getPartitionFieldValue() : null);
         assertEquals(1, persistedDefinition.count());
         assertEquals(categoryDefinition, persistedDefinition.results().get(0));
+
+        QueryPage<CategorizerStats> persistedCategorizerStats = jobResultsProvider.categorizerStats(JOB_ID, 0, 100);
+        assertEquals(1, persistedCategorizerStats.count());
+        assertEquals(categorizerStats, persistedCategorizerStats.results().get(0));
 
         QueryPage<ModelPlot> persistedModelPlot = jobResultsProvider.modelPlot(JOB_ID, 0, 100);
         assertEquals(1, persistedModelPlot.count());
@@ -222,17 +259,20 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertEquals(modelSnapshot, persistedModelSnapshot.results().get(0));
         assertEquals(Collections.singletonList(modelSnapshot), capturedUpdateModelSnapshotOnJobRequests);
 
-        // Verify that creating model snapshot also creates associated annotation
-        List<Annotation> annotations = getAnnotations();
-        assertThat(annotations, hasSize(1));
-        assertThat(
-            annotations.get(0).getAnnotation(),
-            is(equalTo(
-                new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage())));
-
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
+
+        // Verify that there are two annotations:
+        //   1. one related to creating model snapshot
+        //   2. one for {@link Annotation} result
+        List<Annotation> annotations = getAnnotations();
+        assertThat("Annotations were: " + annotations.toString(), annotations, hasSize(2));
+        assertThat(
+            annotations.stream().map(Annotation::getAnnotation).collect(toList()),
+            containsInAnyOrder(
+                new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage(),
+                annotation.getAnnotation()));
     }
 
     public void testProcessResults_ModelSnapshot() throws Exception {
@@ -428,6 +468,11 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return new Date(randomLongBetween(0, 3000000000000L));
     }
 
+    private static Instant randomInstant() {
+        // between 1970 and 2065
+        return Instant.ofEpochSecond(randomLongBetween(0, 3000000000L), randomLongBetween(0, 999999999));
+    }
+
     private static List<AnomalyRecord> createRecords(boolean isInterim) {
         List<AnomalyRecord> records = new ArrayList<>();
 
@@ -457,11 +502,19 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     private static CategoryDefinition createCategoryDefinition() {
-        return new CategoryDefinitionTests().createTestInstance(JOB_ID);
+        return CategoryDefinitionTests.createTestInstance(JOB_ID);
+    }
+
+    private static CategorizerStats createCategorizerStats() {
+        return CategorizerStatsTests.createRandomized(JOB_ID);
     }
 
     private static ModelPlot createModelPlot() {
         return new ModelPlotTests().createTestInstance(JOB_ID);
+    }
+
+    private static Annotation createAnnotation() {
+        return AnnotationTests.randomAnnotation(JOB_ID);
     }
 
     private static ModelSizeStats createModelSizeStats() {
@@ -490,7 +543,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     private static FlushAcknowledgement createFlushAcknowledgement() {
-        return new FlushAcknowledgement(randomAlphaOfLength(5), randomDate());
+        return new FlushAcknowledgement(randomAlphaOfLength(5), randomInstant());
     }
 
     private static class ResultsBuilder {
@@ -498,47 +551,59 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         private final List<AutodetectResult> results = new ArrayList<>();
 
         ResultsBuilder addBucket(Bucket bucket) {
-            results.add(new AutodetectResult(Objects.requireNonNull(bucket), null, null, null, null, null, null, null, null, null, null));
+            Objects.requireNonNull(bucket);
+            results.add(
+                new AutodetectResult(bucket, null, null, null, null, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addRecords(List<AnomalyRecord> records) {
-            results.add(new AutodetectResult(null, records, null, null, null, null, null, null, null, null, null));
+            results.add(new AutodetectResult(null, records, null, null, null, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addInfluencers(List<Influencer> influencers) {
-            results.add(new AutodetectResult(null, null, influencers, null, null, null, null, null, null, null, null));
+            results.add(new AutodetectResult(null, null, influencers, null, null, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addCategoryDefinition(CategoryDefinition categoryDefinition) {
-            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, null, categoryDefinition, null));
+            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, null, null, categoryDefinition, null, null));
+            return this;
+        }
+
+        ResultsBuilder addCategorizerStats(CategorizerStats categorizerStats) {
+            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null, categorizerStats, null));
             return this;
         }
 
         ResultsBuilder addModelPlot(ModelPlot modelPlot) {
-            results.add(new AutodetectResult(null, null, null, null, null, null, modelPlot, null, null, null, null));
+            results.add(new AutodetectResult(null, null, null, null, null, null, modelPlot, null, null, null, null, null, null));
+            return this;
+        }
+
+        ResultsBuilder addAnnotation(Annotation annotation) {
+            results.add(new AutodetectResult(null, null, null, null, null, null, null, annotation, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addModelSizeStats(ModelSizeStats modelSizeStats) {
-            results.add(new AutodetectResult(null, null, null, null, null, modelSizeStats, null, null, null, null, null));
+            results.add(new AutodetectResult(null, null, null, null, null, modelSizeStats, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addModelSnapshot(ModelSnapshot modelSnapshot) {
-            results.add(new AutodetectResult(null, null, null, null, modelSnapshot, null, null, null, null, null, null));
+            results.add(new AutodetectResult(null, null, null, null, modelSnapshot, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addQuantiles(Quantiles quantiles) {
-            results.add(new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null));
+            results.add(new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addFlushAcknowledgement(FlushAcknowledgement flushAcknowledgement) {
-            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, null, null, flushAcknowledgement));
+            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null, null, flushAcknowledgement));
             return this;
         }
 
@@ -546,7 +611,6 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             return results;
         }
     }
-
 
     private <T extends ToXContent & Writeable> void assertResultsAreSame(List<T> expected, QueryPage<T> actual) {
         assertEquals(expected.size(), actual.count());
@@ -574,11 +638,12 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return resultHolder.get();
     }
 
-    private QueryPage<CategoryDefinition> getCategoryDefinition(long categoryId) throws Exception {
+    private QueryPage<CategoryDefinition> getCategoryDefinition(Long categoryId, String partitionFieldValue) throws Exception {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<CategoryDefinition>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobResultsProvider.categoryDefinitions(JOB_ID, categoryId, false, null, null, r -> {
+        jobResultsProvider.categoryDefinitions(JOB_ID, categoryId, partitionFieldValue, false, (categoryId == null) ? 0 : null,
+            (categoryId == null) ? 100 : null, r -> {
             resultHolder.set(r);
             latch.countDown();
         }, e -> {
@@ -682,7 +747,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
 
     private Annotation parseAnnotation(BytesReference source) throws IOException {
         try (XContentParser parser = createParser(jsonXContent, source)) {
-            return Annotation.PARSER.parse(parser, null).build();
+            return Annotation.fromXContent(parser, null);
         }
     }
 
@@ -696,7 +761,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<Optional<Quantiles>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobResultsProvider.getAutodetectParams(JobTests.buildJobBuilder(JOB_ID).build(), params -> {
+        jobResultsProvider.getAutodetectParams(JobTests.buildJobBuilder(JOB_ID).setModelSnapshotId("test_snapshot").build(), params -> {
             resultHolder.set(Optional.ofNullable(params.quantiles()));
             latch.countDown();
         }, e -> {

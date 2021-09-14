@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -11,7 +12,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -66,7 +67,8 @@ public class Licensing implements ActionPlugin {
                 new ActionHandler<>(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class),
                 new ActionHandler<>(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class),
                 new ActionHandler<>(PostStartBasicAction.INSTANCE, TransportPostStartBasicAction.class),
-                new ActionHandler<>(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class));
+                new ActionHandler<>(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class),
+                new ActionHandler<>(TransportGetFeatureUsageAction.TYPE, TransportGetFeatureUsageAction.class));
     }
 
     @Override
@@ -81,6 +83,7 @@ public class Licensing implements ActionPlugin {
         handlers.add(new RestGetBasicStatus());
         handlers.add(new RestPostStartTrialLicense());
         handlers.add(new RestPostStartBasicLicense());
+        handlers.add(new RestGetFeatureUsageAction());
         return handlers;
     }
 

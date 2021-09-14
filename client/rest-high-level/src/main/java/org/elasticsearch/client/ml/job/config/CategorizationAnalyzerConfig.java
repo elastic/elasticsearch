@@ -1,31 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 
 import java.io.IOException;
@@ -62,9 +49,9 @@ import java.util.Objects;
 public class CategorizationAnalyzerConfig implements ToXContentFragment {
 
     public static final ParseField CATEGORIZATION_ANALYZER = new ParseField("categorization_analyzer");
-    private static final ParseField TOKENIZER = RestAnalyzeAction.Fields.TOKENIZER;
-    private static final ParseField TOKEN_FILTERS = RestAnalyzeAction.Fields.TOKEN_FILTERS;
-    private static final ParseField CHAR_FILTERS = RestAnalyzeAction.Fields.CHAR_FILTERS;
+    private static final ParseField TOKENIZER = AnalyzeAction.Fields.TOKENIZER;
+    private static final ParseField TOKEN_FILTERS = AnalyzeAction.Fields.TOKEN_FILTERS;
+    private static final ParseField CHAR_FILTERS = AnalyzeAction.Fields.CHAR_FILTERS;
 
     /**
      * This method is only used in the unit tests - in production code this config is always parsed as a fragment.
@@ -160,10 +147,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment {
             this.name = null;
             Objects.requireNonNull(definition);
             try {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                builder.map(definition);
-                this.definition = Settings.builder().loadFromSource(Strings.toString(builder), builder.contentType()).build();
-            } catch (IOException e) {
+                this.definition = Settings.builder().loadFromMap(definition).build();
+            } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to parse [" + definition + "] in [" + field.getPreferredName() + "]", e);
             }
         }

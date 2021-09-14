@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.support.filtering;
@@ -32,6 +21,10 @@ public class FilterPathBasedFilter extends TokenFilter {
      * or value matches one of the filter paths.
      */
     private static final TokenFilter MATCHING = new TokenFilter() {
+        @Override
+        public String toString() {
+            return "MATCHING";
+        }
     };
 
     /**
@@ -39,6 +32,10 @@ public class FilterPathBasedFilter extends TokenFilter {
      * property names/values matches one of the filter paths.
      */
     private static final TokenFilter NO_MATCHING = new TokenFilter() {
+        @Override
+        public String toString() {
+            return "NO_MATCHING";
+        }
     };
 
     private final FilterPath[] filters;
@@ -60,11 +57,11 @@ public class FilterPathBasedFilter extends TokenFilter {
     /**
      * Evaluates if a property name matches one of the given filter paths.
      */
-    private TokenFilter evaluate(String name, FilterPath[] filters) {
-        if (filters != null) {
+    private TokenFilter evaluate(String name, FilterPath[] filterPaths) {
+        if (filterPaths != null) {
             List<FilterPath> nextFilters = null;
 
-            for (FilterPath filter : filters) {
+            for (FilterPath filter : filterPaths) {
                 FilterPath next = filter.matchProperty(name);
                 if (next != null) {
                     if (next.matches()) {
@@ -103,6 +100,6 @@ public class FilterPathBasedFilter extends TokenFilter {
 
     @Override
     protected boolean _includeScalar() {
-        return !inclusive;
+        return inclusive == false;
     }
 }

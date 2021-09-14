@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-snapshot]]
-=== Delete model snapshots API
+= Delete model snapshots API
 ++++
 <titleabbrev>Delete model snapshots</titleabbrev>
 ++++
@@ -9,36 +9,36 @@
 Deletes an existing model snapshot.
 
 [[ml-delete-snapshot-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `DELETE _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
 [[ml-delete-snapshot-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See <<security-privileges>>.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-delete-snapshot-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 IMPORTANT: You cannot delete the active model snapshot. To delete that snapshot,
 first revert to a different one. To identify the active model snapshot, refer to
 the `model_snapshot_id` in the results from the get jobs API.
 
 [[ml-delete-snapshot-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<snapshot_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=snapshot-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 [[ml-delete-snapshot-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

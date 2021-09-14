@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
@@ -29,6 +18,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -55,14 +45,19 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -74,11 +69,11 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -89,7 +84,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -102,6 +97,7 @@ import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -171,10 +167,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -511,7 +508,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     private static void clearClusters() throws Exception {
-        if (!clusters.isEmpty()) {
+        if (clusters.isEmpty() == false) {
             IOUtils.close(clusters.values());
             clusters.clear();
         }
@@ -547,6 +544,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
                     ensureClusterStateCanBeReadByNodeTool();
+                    ensureClusterInfoServiceRunning();
                     beforeIndexDeletion();
                     cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
@@ -561,7 +559,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             success = true;
         } finally {
-            if (!success) {
+            if (success == false) {
                 // if we failed here that means that something broke horribly so we should clear all clusters
                 // TODO: just let the exception happen, WTF is all this horseshit
                 // afterTestRule.forceFailure();
@@ -589,7 +587,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static InternalTestCluster internalCluster() {
-        if (!isInternalCluster()) {
+        if (isInternalCluster() == false) {
             throw new UnsupportedOperationException("current test cluster is immutable");
         }
         return (InternalTestCluster) currentCluster;
@@ -658,6 +656,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Creates a disruption that isolates the current master node from all other nodes in the cluster.
+     *
+     * @param disruptionType type of disruption to create
+     * @return disruption
+     */
+    protected static NetworkDisruption isolateMasterDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
+        final String masterNode = internalCluster().getMasterName();
+        return new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(
+                Collections.singleton(masterNode),
+                Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false)
+                    .collect(Collectors.toSet())), disruptionType);
+    }
+
+    /**
      * Returns a settings object used in {@link #createIndex(String...)} and {@link #prepareCreate(String)} and friends.
      * This method can be overwritten by subclasses to set defaults for the indices that are created by the test.
      * By default it returns a settings object that sets a random number of shards. Number of shards and replicas
@@ -672,12 +685,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         int numberOfReplicas = numberOfReplicas();
         if (numberOfReplicas >= 0) {
             builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
-        }
-        // 30% of the time
-        if (randomInt(9) < 3) {
-            final String dataPath = randomAlphaOfLength(10);
-            logger.info("using custom data_path for index: [{}]", dataPath);
-            builder.put(IndexMetadata.SETTING_DATA_PATH, dataPath);
         }
         // always default delayed allocation to 0 to make sure we have tests are not delayed
         builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
@@ -705,7 +712,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 created.add(name);
                 success = true;
             } finally {
-                if (!success && !created.isEmpty()) {
+                if (success == false && created.isEmpty() == false) {
                     cluster().wipeIndices(created.toArray(new String[created.size()]));
                 }
             }
@@ -819,7 +826,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             getExcludeSettings(n, builder);
         }
         Settings build = builder.build();
-        if (!build.isEmpty()) {
+        if (build.isEmpty() == false) {
             logger.debug("allowNodes: updating [{}]'s setting to [{}]", index, build.toDelimitedString(';'));
             client().admin().indices().prepareUpdateSettings(index).setSettings(build).execute().actionGet();
         }
@@ -1124,6 +1131,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    private void ensureClusterInfoServiceRunning() {
+        if (isInternalCluster() && cluster().size() > 0) {
+            // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
+            refreshClusterInfo();
+        }
+    }
+
+    public static void refreshClusterInfo() {
+        final ClusterInfoService clusterInfoService
+                = internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
+        if (clusterInfoService instanceof InternalClusterInfoService) {
+            ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
+        }
+    }
+
     /**
      * Ensures the cluster is in a searchable state for the given indices. This means a searchable copy of each
      * shard is available on the cluster.
@@ -1197,6 +1219,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
+    protected final ActionFuture<IndexResponse> startIndex(String index, String id, BytesReference source, XContentType type) {
+        return client().prepareIndex(index).setId(id).setSource(source, type).execute();
+    }
     /**
      * Syntactic sugar for:
      * <pre>
@@ -1310,8 +1335,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Returns a random admin client. This client can be pointing to any of the nodes in the cluster.
      */
-    protected AdminClient admin() {
+    protected static AdminClient admin() {
         return client().admin();
+    }
+
+    /**
+     * Returns a random cluster admin client. This client can be pointing to any of the nodes in the cluster.
+     */
+    protected static ClusterAdminClient clusterAdmin() {
+        return admin().cluster();
     }
 
     /**
@@ -1383,7 +1415,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             indices.add(builder.request().index());
         }
         Set<List<String>> bogusIds = new HashSet<>(); // (index, type, id)
-        if (random.nextBoolean() && !builders.isEmpty() && dummyDocuments) {
+        if (random.nextBoolean() && builders.isEmpty() == false && dummyDocuments) {
             builders = new ArrayList<>(builders);
             // inject some bogus docs
             final int numBogusDocs = scaledRandomIntBetween(1, builders.size() * 2);
@@ -1445,7 +1477,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         assertThat(actualErrors, emptyIterable());
-        if (!bogusIds.isEmpty()) {
+        if (bogusIds.isEmpty() == false) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (List<String> doc : bogusIds) {
                 assertEquals("failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(1) + "]",
@@ -1470,15 +1502,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Enables an index block for the specified index */
     public static void enableIndexBlock(String index, String block) {
-        Settings settings = Settings.builder().put(block, true).build();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+        if (IndexMetadata.APIBlock.fromSetting(block) == IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE || randomBoolean()) {
+            // the read-only-allow-delete block isn't supported by the add block API so we must use the update settings API here.
+            Settings settings = Settings.builder().put(block, true).build();
+            client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+        } else {
+            client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.fromSetting(block), index).get();
+        }
     }
 
     /** Sets or unsets the cluster read_only mode **/
     public static void setClusterReadOnly(boolean value) {
         Settings settings = value ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value).build() :
             Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build()  ;
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(settings).setTransientSettings(settings).get());
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
@@ -1693,8 +1731,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * times with the same ordinal and is expected to return the same value for each invocation.
      * In other words subclasses must ensure this method is idempotent.
      */
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder()
+            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             // Default the watermarks to absurdly low to prevent the tests
             // from failing on nodes without enough disk space
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
@@ -1805,10 +1844,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         return new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
                     .put(initialNodeSettings.build())
-                    .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
+                    .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal, otherSettings)).build();
             }
 
             @Override
@@ -1881,7 +1920,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 mocks.add(MockFieldFilterPlugin.class);
             }
         }
-
         if (addMockTransportService()) {
             mocks.add(getTestTransportPlugin());
         }
@@ -1926,7 +1964,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
-    public Path randomRepoPath() {
+    public static Path randomRepoPath() {
         if (currentCluster instanceof InternalTestCluster) {
             return randomRepoPath(((InternalTestCluster) currentCluster).getDefaultSettings());
         }
@@ -2045,7 +2083,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             } else {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
-                checkStaticState(true);
+                checkStaticState();
             }
         } finally {
             SUITE_SEED = null;
@@ -2073,7 +2111,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 INSTANCE.setupSuiteScopeCluster();
                 success = true;
             } finally {
-                if (!success) {
+                if (success == false) {
                     afterClass();
                 }
             }
@@ -2177,7 +2215,30 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return new Index(index, uuid);
     }
 
+    public static String resolveCustomDataPath(String index) {
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
+        assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
+        return getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_DATA_PATH);
+    }
+
     public static boolean inFipsJvm() {
         return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+    }
+
+    protected void restartNodesOnBrokenClusterState(ClusterState.Builder clusterStateBuilder) throws Exception {
+        Map<String, PersistedClusterStateService> lucenePersistedStateFactories = Stream.of(internalCluster().getNodeNames())
+            .collect(Collectors.toMap(Function.identity(),
+                nodeName -> internalCluster().getInstance(PersistedClusterStateService.class, nodeName)));
+        final ClusterState clusterState = clusterStateBuilder.build();
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                final PersistedClusterStateService lucenePersistedStateFactory = lucenePersistedStateFactories.get(nodeName);
+                try (PersistedClusterStateService.Writer writer = lucenePersistedStateFactory.createWriter()) {
+                    writer.writeFullStateAndCommit(clusterState.term(), clusterState);
+                }
+                return super.onNodeStopped(nodeName);
+            }
+        });
     }
 }

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembeddi
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.NGramFeatureExtractor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.RelevantScriptFeatureExtractor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.ScriptFeatureExtractor;
+import org.elasticsearch.xpack.core.ml.utils.MlParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,19 +51,19 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     public static final ParseField EMBEDDING_WEIGHTS = new ParseField("embedding_weights");
     public static final ParseField EMBEDDING_QUANT_SCALES = new ParseField("embedding_quant_scales");
 
-    public static final ConstructingObjectParser<CustomWordEmbedding, Void> STRICT_PARSER = createParser(false);
-    public static final ConstructingObjectParser<CustomWordEmbedding, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<CustomWordEmbedding, PreProcessorParseContext> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<CustomWordEmbedding, PreProcessorParseContext> LENIENT_PARSER = createParser(true);
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<CustomWordEmbedding, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<CustomWordEmbedding, Void> parser = new ConstructingObjectParser<>(
+    private static ConstructingObjectParser<CustomWordEmbedding, PreProcessorParseContext> createParser(boolean lenient) {
+        ConstructingObjectParser<CustomWordEmbedding, PreProcessorParseContext> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new CustomWordEmbedding((short[][])a[0], (byte[][])a[1], (String)a[2], (String)a[3]));
+            (a, c) -> new CustomWordEmbedding((short[][])a[0], (byte[][])a[1], (String)a[2], (String)a[3]));
 
         parser.declareField(ConstructingObjectParser.constructorArg(),
             (p, c) -> {
-                List<List<Short>> listOfListOfShorts = parseArrays(EMBEDDING_QUANT_SCALES.getPreferredName(),
+                List<List<Short>> listOfListOfShorts = MlParserUtils.parseArrayOfArrays(EMBEDDING_QUANT_SCALES.getPreferredName(),
                     XContentParser::shortValue,
                     p);
                 short[][] primitiveShorts = new short[listOfListOfShorts.size()][];
@@ -98,36 +99,12 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         return parser;
     }
 
-    private static <T> List<List<T>> parseArrays(String fieldName,
-                                                 CheckedFunction<XContentParser, T, IOException> fromParser,
-                                                 XContentParser p) throws IOException {
-        if (p.currentToken() != XContentParser.Token.START_ARRAY) {
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + fieldName + "]");
-        }
-        List<List<T>> values = new ArrayList<>();
-        while(p.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (p.currentToken() != XContentParser.Token.START_ARRAY) {
-                throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + fieldName + "]");
-            }
-            List<T> innerList = new ArrayList<>();
-            while(p.nextToken() != XContentParser.Token.END_ARRAY) {
-                if(p.currentToken().isValue() == false) {
-                    throw new IllegalStateException("expected non-null value but got [" + p.currentToken() + "] " +
-                        "for [" + fieldName + "]");
-                }
-                innerList.add(fromParser.apply(p));
-            }
-            values.add(innerList);
-        }
-        return values;
-    }
-
     public static CustomWordEmbedding fromXContentStrict(XContentParser parser) {
-        return STRICT_PARSER.apply(parser, null);
+        return STRICT_PARSER.apply(parser, PreProcessorParseContext.DEFAULT);
     }
 
     public static CustomWordEmbedding fromXContentLenient(XContentParser parser) {
-        return LENIENT_PARSER.apply(parser, null);
+        return LENIENT_PARSER.apply(parser, PreProcessorParseContext.DEFAULT);
     }
 
     private static final int CONCAT_LAYER_SIZE = 80;
@@ -221,6 +198,16 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     }
 
     @Override
+    public List<String> inputFields() {
+        return Collections.singletonList(fieldName);
+    }
+
+    @Override
+    public List<String> outputFields() {
+        return Collections.singletonList(destField);
+    }
+
+    @Override
     public void process(Map<String, Object> fields) {
         Object field = fields.get(fieldName);
         if ((field instanceof String) == false) {
@@ -239,6 +226,16 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     @Override
     public Map<String, String> reverseLookup() {
         return Collections.singletonMap(destField, fieldName);
+    }
+
+    @Override
+    public boolean isCustom() {
+        return false;
+    }
+
+    @Override
+    public String getOutputFieldType(String outputField) {
+        return "dense_vector";
     }
 
     @Override

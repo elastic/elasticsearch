@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
@@ -118,7 +121,7 @@ class IndexLifecycleRunner {
      * Run the current step, only if it is an asynchronous wait step. These
      * wait criteria are checked periodically from the ILM scheduler
      */
-    void runPeriodicStep(String policy, IndexMetadata indexMetadata) {
+    void runPeriodicStep(String policy, Metadata metadata, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
@@ -170,7 +173,7 @@ class IndexLifecycleRunner {
             }
         } else if (currentStep instanceof AsyncWaitStep) {
             logger.debug("[{}] running periodic policy with current-step [{}]", index, currentStep.getKey());
-            ((AsyncWaitStep) currentStep).evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+            ((AsyncWaitStep) currentStep).evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject stepInfo) {
@@ -186,7 +189,7 @@ class IndexLifecycleRunner {
                 public void onFailure(Exception e) {
                     moveToErrorStep(indexMetadata.getIndex(), policy, currentStep.getKey(), e);
                 }
-            }, AsyncActionStep.getMasterTimeout(clusterService.state()));
+            }, TimeValue.MAX_VALUE);
         } else {
             logger.trace("[{}] ignoring non periodic step execution from step transition [{}]", index, currentStep.getKey());
         }
@@ -210,20 +213,14 @@ class IndexLifecycleRunner {
 
         if (lifecycleState.isAutoRetryableError() != null && lifecycleState.isAutoRetryableError()) {
             int currentRetryAttempt = lifecycleState.getFailedStepRetryCount() == null ? 1 : 1 + lifecycleState.getFailedStepRetryCount();
-            logger.info("policy [{}] for index [{}] on an error step due to a transitive error, moving back to the failed " +
+            logger.info("policy [{}] for index [{}] on an error step due to a transient error, moving back to the failed " +
                 "step [{}] for execution. retry attempt [{}]", policy, index, lifecycleState.getFailedStep(), currentRetryAttempt);
+            // we can afford to drop these requests if they timeout as on the next {@link
+            // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
+            // to move it back into the failed step, so we'll try again
             clusterService.submitStateUpdateTask(
                 String.format(Locale.ROOT, "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}", policy, index,
-                    failedStep.getKey()),
-                new ClusterStateUpdateTask() {
-
-                    @Override
-                    public TimeValue timeout() {
-                        // we can afford to drop these requests if they timeout as on the next {@link
-                        // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
-                        // to move it back into the failed step, so we'll try again
-                        return LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterService.state().metadata().settings());
-                    }
+                    failedStep.getKey()), new ClusterStateUpdateTask(TimeValue.MAX_VALUE) {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
@@ -291,20 +288,18 @@ class IndexLifecycleRunner {
         if (currentStep instanceof AsyncActionStep) {
             logger.debug("[{}] running policy with async action step [{}]", index, currentStep.getKey());
             ((AsyncActionStep) currentStep).performAction(indexMetadata, currentState,
-                new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext()), new AsyncActionStep.Listener() {
+                new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext()), new ActionListener<>() {
 
                     @Override
-                    public void onResponse(boolean complete) {
+                    public void onResponse(Void unused) {
                         logger.trace("cs-change-async-action-callback, [{}], current-step: {}", index, currentStep.getKey());
-                        if (complete) {
-                            if (((AsyncActionStep) currentStep).indexSurvives()) {
-                                moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
-                            } else {
-                                // Delete needs special handling, because after this step we
-                                // will no longer have access to any information about the
-                                // index since it will be... deleted.
-                                registerDeleteOperation(indexMetadata);
-                            }
+                        if (((AsyncActionStep) currentStep).indexSurvives()) {
+                            moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+                        } else {
+                            // Delete needs special handling, because after this step we
+                            // will no longer have access to any information about the
+                            // index since it will be... deleted.
+                            registerDeleteOperation(indexMetadata);
                         }
                     }
 

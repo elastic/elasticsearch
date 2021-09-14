@@ -1,24 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
@@ -26,7 +25,6 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -209,13 +207,27 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
     private final Interval interval;
     private final ZoneId timeZone;
-    private Rounding rounding;
+    private final Rounding.Prepared rounding;
 
-    public DateHistogramGroupSource(String field, ScriptConfig scriptConfig, Interval interval, ZoneId timeZone) {
-        super(field, scriptConfig);
+    public DateHistogramGroupSource(String field, ScriptConfig scriptConfig, boolean missingBucket, Interval interval, ZoneId timeZone) {
+        super(field, scriptConfig, missingBucket);
         this.interval = interval;
         this.timeZone = timeZone;
+        rounding = buildRounding();
+    }
 
+    public DateHistogramGroupSource(StreamInput in) throws IOException {
+        super(in);
+        this.interval = readInterval(in);
+        this.timeZone = in.readOptionalZoneId();
+        // Format was optional in 7.2.x, removed in 7.3+
+        if (in.getVersion().before(Version.V_7_3_0)) {
+            in.readOptionalString();
+        }
+        rounding = buildRounding();
+    }
+
+    private Rounding.Prepared buildRounding() {
         Rounding.DateTimeUnit timeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
         final Rounding.Builder roundingBuilder;
         if (timeUnit != null) {
@@ -227,26 +239,17 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         if (timeZone != null) {
             roundingBuilder.timeZone(timeZone);
         }
-        this.rounding = roundingBuilder.build();
-    }
-
-    public DateHistogramGroupSource(StreamInput in) throws IOException {
-        super(in);
-        this.interval = readInterval(in);
-        this.timeZone = in.readOptionalZoneId();
-        // Format was optional in 7.2.x, removed in 7.3+
-        if (in.getVersion().before(Version.V_7_3_0)) {
-            in.readOptionalString();
-        }
+        return roundingBuilder.build().prepareForUnknown();
     }
 
     private static ConstructingObjectParser<DateHistogramGroupSource, Void> createParser(boolean lenient) {
         ConstructingObjectParser<DateHistogramGroupSource, Void> parser = new ConstructingObjectParser<>(NAME, lenient, (args) -> {
             String field = (String) args[0];
             ScriptConfig scriptConfig = (ScriptConfig) args[1];
-            String fixedInterval = (String) args[2];
-            String calendarInterval = (String) args[3];
-            ZoneId zoneId = (ZoneId) args[4];
+            boolean missingBucket = args[2] == null ? false : (boolean) args[2];
+            String fixedInterval = (String) args[3];
+            String calendarInterval = (String) args[4];
+            ZoneId zoneId = (ZoneId) args[5];
 
             Interval interval = null;
 
@@ -260,7 +263,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
                 throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found none");
             }
 
-            return new DateHistogramGroupSource(field, scriptConfig, interval, zoneId);
+            return new DateHistogramGroupSource(field, scriptConfig, missingBucket, interval, zoneId);
         });
 
         declareValuesSourceFields(parser, lenient);
@@ -296,7 +299,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         return timeZone;
     }
 
-    public Rounding getRounding() {
+    public Rounding.Prepared getRounding() {
         return rounding;
     }
 
@@ -335,29 +338,15 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
         final DateHistogramGroupSource that = (DateHistogramGroupSource) other;
 
-        return Objects.equals(this.field, that.field) && Objects.equals(interval, that.interval) && Objects.equals(timeZone, that.timeZone);
+        return this.missingBucket == that.missingBucket
+            && Objects.equals(this.field, that.field)
+            && Objects.equals(this.scriptConfig, that.scriptConfig)
+            && Objects.equals(this.interval, that.interval)
+            && Objects.equals(this.timeZone, that.timeZone);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, interval, timeZone);
-    }
-
-    @Override
-    public QueryBuilder getIncrementalBucketUpdateFilterQuery(
-        Set<String> changedBuckets,
-        String synchronizationField,
-        long synchronizationTimestamp
-    ) {
-        if (synchronizationField != null && synchronizationField.equals(field) && synchronizationTimestamp > 0) {
-            return new RangeQueryBuilder(field).gte(rounding.round(synchronizationTimestamp)).format("epoch_millis");
-        } else {
-            return null;
-        }
-    }
-
-    @Override
-    public boolean supportsIncrementalBucketUpdate() {
-        return false;
+        return Objects.hash(field, scriptConfig, missingBucket, interval, timeZone);
     }
 }

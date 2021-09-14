@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
@@ -65,6 +66,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         // Now disabling the monitoring service, so that no more collection are started
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                 Settings.builder().putNull(MonitoringService.ENABLED.getKey())
+                                  .putNull("xpack.monitoring.exporters._local.type")
                                   .putNull("xpack.monitoring.exporters._local.enabled")
                                   .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
                                   .putNull("xpack.monitoring.exporters._local.index.name.time_format")));
@@ -85,6 +87,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             // start the monitoring service so that /_monitoring/bulk is not ignored
             final Settings.Builder exporterSettings = Settings.builder()
                     .put(MonitoringService.ENABLED.getKey(), true)
+                    .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
                     .put("xpack.monitoring.exporters._local.enabled", true)
                     .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", false);
 
@@ -298,7 +301,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         }
     }
 
-    private static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {
+    public static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {
         final MonitoredSystem system = randomFrom(BEATS, KIBANA, LOGSTASH);
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference source;

@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -24,9 +26,9 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.Classificat
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig.RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig.TOP_CLASSES_RESULTS_FIELD;
 
-public class ClassificationConfigUpdate implements InferenceConfigUpdate {
+public class ClassificationConfigUpdate implements InferenceConfigUpdate, NamedXContentObject {
 
-    public static final ParseField NAME = new ParseField("classification");
+    public static final ParseField NAME = ClassificationConfig.NAME;
 
     public static ClassificationConfigUpdate EMPTY_PARAMS =
         new ClassificationConfigUpdate(null, null, null, null, null);
@@ -63,18 +65,18 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
             config.getPredictionFieldType());
     }
 
-    private static final ObjectParser<ClassificationConfigUpdate.Builder, Void> STRICT_PARSER = createParser(false);
+    private static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
-    private static ObjectParser<ClassificationConfigUpdate.Builder, Void> createParser(boolean lenient) {
-        ObjectParser<ClassificationConfigUpdate.Builder, Void> parser = new ObjectParser<>(
+    private static ObjectParser<Builder, Void> createParser(boolean lenient) {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            ClassificationConfigUpdate.Builder::new);
-        parser.declareInt(ClassificationConfigUpdate.Builder::setNumTopClasses, NUM_TOP_CLASSES);
-        parser.declareString(ClassificationConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
-        parser.declareString(ClassificationConfigUpdate.Builder::setTopClassesResultsField, TOP_CLASSES_RESULTS_FIELD);
-        parser.declareInt(ClassificationConfigUpdate.Builder::setNumTopFeatureImportanceValues, NUM_TOP_FEATURE_IMPORTANCE_VALUES);
-        parser.declareString(ClassificationConfigUpdate.Builder::setPredictionFieldType, PREDICTION_FIELD_TYPE);
+            Builder::new);
+        parser.declareInt(Builder::setNumTopClasses, NUM_TOP_CLASSES);
+        parser.declareString(Builder::setResultsField, RESULTS_FIELD);
+        parser.declareString(Builder::setTopClassesResultsField, TOP_CLASSES_RESULTS_FIELD);
+        parser.declareInt(Builder::setNumTopFeatureImportanceValues, NUM_TOP_FEATURE_IMPORTANCE_VALUES);
+        parser.declareString(Builder::setPredictionFieldType, PREDICTION_FIELD_TYPE);
         return parser;
     }
 
@@ -96,6 +98,8 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
         }
         this.numTopFeatureImportanceValues = featureImportance;
         this.predictionFieldType = predictionFieldType;
+
+        InferenceConfigUpdate.checkFieldUniqueness(resultsField, topClassesResultsField);
     }
 
     public ClassificationConfigUpdate(StreamInput in) throws IOException {
@@ -116,6 +120,16 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
 
     public String getResultsField() {
         return resultsField;
+    }
+
+    @Override
+    public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
+        return new Builder()
+            .setNumTopClasses(numTopClasses)
+            .setTopClassesResultsField(topClassesResultsField)
+            .setResultsField(resultsField)
+            .setNumTopFeatureImportanceValues(numTopFeatureImportanceValues)
+            .setPredictionFieldType(predictionFieldType);
     }
 
     public Integer getNumTopFeatureImportanceValues() {
@@ -235,14 +249,14 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
             && (predictionFieldType == null || predictionFieldType.equals(originalConfig.getPredictionFieldType()));
     }
 
-    public static class Builder {
+    public static class Builder implements InferenceConfigUpdate.Builder<Builder, ClassificationConfigUpdate> {
         private Integer numTopClasses;
         private String topClassesResultsField;
         private String resultsField;
         private Integer numTopFeatureImportanceValues;
         private PredictionFieldType predictionFieldType;
 
-        public Builder setNumTopClasses(int numTopClasses) {
+        public Builder setNumTopClasses(Integer numTopClasses) {
             this.numTopClasses = numTopClasses;
             return this;
         }
@@ -252,12 +266,13 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
             return this;
         }
 
+        @Override
         public Builder setResultsField(String resultsField) {
             this.resultsField = resultsField;
             return this;
         }
 
-        public Builder setNumTopFeatureImportanceValues(int numTopFeatureImportanceValues) {
+        public Builder setNumTopFeatureImportanceValues(Integer numTopFeatureImportanceValues) {
             this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
             return this;
         }
@@ -271,6 +286,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
             return setPredictionFieldType(PredictionFieldType.fromString(predictionFieldType));
         }
 
+        @Override
         public ClassificationConfigUpdate build() {
             return new ClassificationConfigUpdate(numTopClasses,
                 resultsField,

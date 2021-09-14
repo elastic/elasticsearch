@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.planner;
@@ -9,8 +10,12 @@ package org.elasticsearch.xpack.eql.planner;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.eql.plan.physical.LimitWithOffsetExec;
 import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.eql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.eql.plan.physical.SequenceExec;
+import org.elasticsearch.xpack.eql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -36,63 +41,86 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
         Batch fold = new Batch("Fold queries",
-                new FoldFilter(), new FoldOrderBy()
+                new FoldProject(),
+                new FoldFilter(),
+                new FoldOrderBy(),
+                new FoldLimit()
         );
         Batch finish = new Batch("Finish query", Limiter.ONCE,
                 new PlanOutputToQueryRef()
         );
-        
+
         return Arrays.asList(fold, finish);
     }
-    
-    private static class FoldFilter extends FoldingRule<FilterExec> {
+
+
+    private static class FoldProject extends QueryFoldingRule<ProjectExec> {
 
         @Override
-        protected PhysicalPlan rule(FilterExec plan) {
-            if (plan.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) plan.child();
-                QueryContainer qContainer = exec.queryContainer();
-
-                Query query = ExpressionTranslators.toQuery(plan.condition());
-
-                if (qContainer.query() != null || query != null) {
-                    query = ExpressionTranslators.and(plan.source(), qContainer.query(), query);
-                }
-
-                qContainer = qContainer.with(query);
-                return exec.with(qContainer);
-            }
-            return plan;
+        protected PhysicalPlan rule(ProjectExec project, EsQueryExec exec) {
+            return new EsQueryExec(exec.source(), project.output(), exec.queryContainer());
         }
     }
-    
-    private static class FoldOrderBy extends FoldingRule<OrderExec> {
+
+    private static class FoldFilter extends QueryFoldingRule<FilterExec> {
+
         @Override
-        protected PhysicalPlan rule(OrderExec plan) {
-            if (plan.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) plan.child();
-                QueryContainer qContainer = exec.queryContainer();
+        protected PhysicalPlan rule(FilterExec plan, EsQueryExec exec) {
+            QueryContainer qContainer = exec.queryContainer();
+            Query query = QueryTranslator.toQuery(plan.condition());
 
-                for (Order order : plan.order()) {
-                    Direction direction = Direction.from(order.direction());
-                    Missing missing = Missing.from(order.nullsPosition());
+            if (qContainer.query() != null || query != null) {
+                query = ExpressionTranslators.and(plan.source(), qContainer.query(), query);
+            }
 
-                    // check whether sorting is on an group (and thus nested agg) or field
-                    Expression orderExpression = order.child();
+            qContainer = qContainer.with(query);
+            return exec.with(qContainer);
+        }
+    }
 
-                    String lookup = Expressions.id(orderExpression);
+    private static class FoldOrderBy extends QueryFoldingRule<OrderExec> {
 
-                    // field
-                    if (orderExpression instanceof FieldAttribute) {
-                        qContainer = qContainer.addSort(lookup, new AttributeSort((FieldAttribute) orderExpression, direction, missing));
-                    }
-                    // unknown
-                    else {
-                        throw new EqlIllegalArgumentException("unsupported sorting expression {}", orderExpression);
-                    }
+        @Override
+        protected PhysicalPlan rule(OrderExec plan, EsQueryExec query) {
+            QueryContainer qContainer = query.queryContainer();
+
+            for (Order order : plan.order()) {
+                Direction direction = Direction.from(order.direction());
+                Missing missing = Missing.from(order.nullsPosition());
+
+                // check whether sorting is on an group (and thus nested agg) or field
+                Expression orderExpression = order.child();
+
+                String lookup = Expressions.id(orderExpression);
+
+                // field
+                if (orderExpression instanceof FieldAttribute) {
+                    FieldAttribute fa = (FieldAttribute) orderExpression;
+                    qContainer = qContainer.addSort(lookup, new AttributeSort(fa, direction, missing));
                 }
+                // unknown
+                else {
+                    throw new EqlIllegalArgumentException("unsupported sorting expression {}", orderExpression);
+                }
+            }
 
-                return exec.with(qContainer);
+            return query.with(qContainer);
+        }
+    }
+
+    private static class FoldLimit extends FoldingRule<LimitWithOffsetExec> {
+
+        @Override
+        protected PhysicalPlan rule(LimitWithOffsetExec limit) {
+            PhysicalPlan plan = limit;
+            PhysicalPlan child = limit.child();
+            if (child instanceof EsQueryExec) {
+                EsQueryExec query = (EsQueryExec) child;
+                plan = query.with(query.queryContainer().with(limit.limit()));
+            }
+            if (child instanceof SequenceExec) {
+                SequenceExec exec = (SequenceExec) child;
+                plan = exec.with(limit.limit());
             }
             return plan;
         }
@@ -116,10 +144,24 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, typeToken());
+            return plan.transformUp(typeToken(), this::rule);
         }
 
         @Override
         protected abstract PhysicalPlan rule(SubPlan plan);
+    }
+
+    abstract static class QueryFoldingRule<SubPlan extends UnaryExec> extends FoldingRule<SubPlan> {
+
+        @Override
+        protected final PhysicalPlan rule(SubPlan plan) {
+            PhysicalPlan p = plan;
+            if (plan.child() instanceof EsQueryExec) {
+                p = rule(plan, (EsQueryExec) plan.child());
+            }
+            return p;
+        }
+
+        protected abstract PhysicalPlan rule(SubPlan plan, EsQueryExec query);
     }
 }

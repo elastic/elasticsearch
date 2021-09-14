@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup;
 
@@ -28,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -41,6 +43,8 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
@@ -62,14 +66,16 @@ import org.elasticsearch.xpack.rollup.rest.RestPutRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestRollupSearchAction;
 import org.elasticsearch.xpack.rollup.rest.RestStartRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestStopRollupJobAction;
+import org.elasticsearch.xpack.rollup.v2.RestRollupAction;
+import org.elasticsearch.xpack.rollup.v2.TransportRollupAction;
+import org.elasticsearch.xpack.rollup.v2.TransportRollupIndexerAction;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -84,13 +90,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final int CURRENT_ROLLUP_VERSION = ROLLUP_VERSION_V2;
 
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
-    public static final String SCHEDULE_THREAD_POOL_NAME = RollupField.NAME + "_scheduler";
 
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
-
-    // list of headers that will be stored when a job is created
-    public static final Set<String> HEADER_FILTERS =
-            new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
 
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;
@@ -100,62 +101,99 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         return emptyList();
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
-        return Arrays.asList(
-            new RestRollupSearchAction(),
-            new RestPutRollupJobAction(),
-            new RestStartRollupJobAction(),
-            new RestStopRollupJobAction(),
-            new RestDeleteRollupJobAction(),
-            new RestGetRollupJobsAction(),
-            new RestGetRollupCapsAction(),
-            new RestGetRollupIndexCapsAction()
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        List<RestHandler> handlers = new ArrayList<>(
+            Arrays.asList(
+                new RestRollupSearchAction(),
+                new RestPutRollupJobAction(),
+                new RestStartRollupJobAction(),
+                new RestStopRollupJobAction(),
+                new RestDeleteRollupJobAction(),
+                new RestGetRollupJobsAction(),
+                new RestGetRollupCapsAction(),
+                new RestGetRollupIndexCapsAction()
+            )
         );
 
+        if (RollupV2.isEnabled()) {
+            handlers.add(new RestRollupAction());
+        }
+
+        return handlers;
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(
-            new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
-            new ActionHandler<>(PutRollupJobAction.INSTANCE, TransportPutRollupJobAction.class),
-            new ActionHandler<>(StartRollupJobAction.INSTANCE, TransportStartRollupAction.class),
-            new ActionHandler<>(StopRollupJobAction.INSTANCE, TransportStopRollupAction.class),
-            new ActionHandler<>(DeleteRollupJobAction.INSTANCE, TransportDeleteRollupJobAction.class),
-            new ActionHandler<>(GetRollupJobsAction.INSTANCE, TransportGetRollupJobAction.class),
-            new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
-            new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class));
+        List<ActionHandler<?, ?>> actions = new ArrayList<>(
+            Arrays.asList(
+                new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
+                new ActionHandler<>(PutRollupJobAction.INSTANCE, TransportPutRollupJobAction.class),
+                new ActionHandler<>(StartRollupJobAction.INSTANCE, TransportStartRollupAction.class),
+                new ActionHandler<>(StopRollupJobAction.INSTANCE, TransportStopRollupAction.class),
+                new ActionHandler<>(DeleteRollupJobAction.INSTANCE, TransportDeleteRollupJobAction.class),
+                new ActionHandler<>(GetRollupJobsAction.INSTANCE, TransportGetRollupJobAction.class),
+                new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
+                new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
+                new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
+                new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class)
+            )
+        );
+
+        if (RollupV2.isEnabled()) {
+            actions.add(new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class));
+            actions.add(new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class));
+        }
+
+        return actions;
     }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, Rollup.TASK_THREAD_POOL_NAME,
-                4, 4, "xpack.rollup.task_thread_pool", false);
+        FixedExecutorBuilder indexing = new FixedExecutorBuilder(
+            settings,
+            Rollup.TASK_THREAD_POOL_NAME,
+            1,
+            -1,
+            "xpack.rollup.task_thread_pool",
+            false
+        );
 
         return Collections.singletonList(indexing);
     }
 
     @Override
-    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool,
-                                                                       Client client,
-                                                                       SettingsModule settingsModule,
-                                                                       IndexNameExpressionResolver expressionResolver) {
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
+    ) {
         schedulerEngine.set(new SchedulerEngine(settings, getClock()));
         return Collections.singletonList(new RollupJobTask.RollupJobPersistentTasksExecutor(client, schedulerEngine.get(), threadPool));
     }

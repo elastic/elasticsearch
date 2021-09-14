@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile.aggregation;
@@ -25,7 +14,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -59,11 +47,6 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public SearchContext context() {
-        return delegate.context();
-    }
-
-    @Override
     public Aggregator parent() {
         return delegate.parent();
     }
@@ -86,12 +69,16 @@ public class ProfilingAggregator extends Aggregator {
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_AGGREGATION);
+        InternalAggregation[] result;
         timer.start();
         try {
-            return delegate.buildAggregations(owningBucketOrds);
+            result = delegate.buildAggregations(owningBucketOrds);
         } finally {
             timer.stop();
         }
+        profileBreakdown.addDebugInfo("built_buckets", result.length);
+        delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
+        return result;
     }
 
     @Override
@@ -101,7 +88,13 @@ public class ProfilingAggregator extends Aggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        return new ProfilingLeafBucketCollector(delegate.getLeafCollector(ctx), profileBreakdown);
+        Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
+        timer.start();
+        try {
+            return new ProfilingLeafBucketCollector(delegate.getLeafCollector(ctx), profileBreakdown);
+        } finally {
+            timer.stop();
+        }
     }
 
     @Override
@@ -119,12 +112,23 @@ public class ProfilingAggregator extends Aggregator {
 
     @Override
     public void postCollection() throws IOException {
-        delegate.postCollection();
+        Timer timer = profileBreakdown.getTimer(AggregationTimingType.POST_COLLECTION);
+        timer.start();
+        try {
+            delegate.postCollection();
+        } finally {
+            timer.stop();
+        }
     }
 
     @Override
     public String toString() {
         return delegate.toString();
+    }
+
+    @Override
+    public Aggregator[] subAggregators() {
+        return delegate.subAggregators();
     }
 
     public static Aggregator unwrap(Aggregator agg) {

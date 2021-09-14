@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
@@ -20,8 +21,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchRequest;
 
@@ -31,9 +30,10 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_async_search"),
-            new Route(POST, "/{index}/_async_search")));
+            new Route(POST, "/{index}/_async_search")
+        );
     }
 
     @Override
@@ -49,7 +49,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         // pre_filter_shard_size and ccs_minimize_roundtrips get set to the search request although the REST spec don't list
         //them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
         request.withContentOrSourceParamParserOrNull(parser ->
-            parseSearchRequest(submit.getSearchRequest(), request, parser, setSize));
+            parseSearchRequest(submit.getSearchRequest(), request, parser, client.getNamedWriteableRegistry(), setSize));
 
         if (request.hasParam("wait_for_completion_timeout")) {
             submit.setWaitForCompletionTimeout(request.paramAsTime("wait_for_completion_timeout", submit.getWaitForCompletionTimeout()));

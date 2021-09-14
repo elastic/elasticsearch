@@ -37,6 +37,8 @@ xpack:
           file1:
             order: 0
 ------------------------------------------------------------
+
+NOTE: You can configure only one file realm on {es} nodes.
 --
 
 . Restart {es}.

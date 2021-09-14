@@ -5,13 +5,14 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put calendar API
+=== Create calendars API
+
 Creates a new {ml} calendar.
 The API accepts a +{request}+ and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Put calendar request
+==== Request
 
 A +{request}+ is constructed with a calendar object
 
@@ -23,7 +24,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 
 
 [id="{upid}-{api}-response"]
-==== Put Calendar Response
+==== Response
 
 The returned +{response}+ contains the created calendar:
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -22,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -56,7 +44,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             this.keyed = keyed;
             key = in.readOptionalString();
             docCount = in.readVLong();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -82,7 +70,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -109,9 +97,9 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             }
             InternalBucket that = (InternalBucket) other;
             return Objects.equals(key, that.key)
-                    && Objects.equals(keyed,  that.keyed)
-                    && Objects.equals(docCount, that.docCount)
-                    && Objects.equals(aggregations, that.aggregations);
+                && Objects.equals(keyed, that.keyed)
+                && Objects.equals(docCount, that.docCount)
+                && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
@@ -261,8 +249,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         if (super.equals(obj) == false) return false;
 
         InternalFilters that = (InternalFilters) obj;
-        return Objects.equals(buckets, that.buckets)
-                && Objects.equals(keyed, that.keyed);
+        return Objects.equals(buckets, that.buckets) && Objects.equals(keyed, that.keyed);
     }
 
 }

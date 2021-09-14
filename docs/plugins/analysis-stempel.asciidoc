@@ -4,14 +4,11 @@
 The Stempel Analysis plugin integrates Lucene's Stempel analysis
 module for Polish into elasticsearch.
 
-It provides high quality stemming for Polish, based on the
-http://www.egothor.org/[Egothor project].
-
 :plugin_name: analysis-stempel
 include::install_remove.asciidoc[]
 
 [[analysis-stempel-tokenizer]]
-[float]
+[discrete]
 ==== `stempel` tokenizer and token filters
 
 The plugin provides the `polish` analyzer and the `polish_stem` and `polish_stop` token filters,
@@ -49,7 +46,7 @@ PUT /stempel_example
 
 The `polish_stop` token filter filters out Polish stopwords (`_polish_`), and
 any other custom stopwords specified by the user. This filter only supports
-the predefined `_polish_` stopwords list.  If you want to use a different
+the predefined `_polish_` stopwords list. If you want to use a different
 predefined list, then use the
 {ref}/analysis-stop-tokenfilter.html[`stop` token filter] instead.
 

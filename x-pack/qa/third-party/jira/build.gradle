@@ -3,18 +3,21 @@ import groovy.json.JsonSlurper
 import javax.net.ssl.HttpsURLConnection
 import java.nio.charset.StandardCharsets
 
-apply plugin: 'elasticsearch.testclusters'
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(':x-pack:plugin:core')
-  testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(path: xpackModule('watcher'))
 }
 
 restResources {
   restApi {
-    includeXpack 'watcher'
+    include 'watcher'
   }
 }
 
@@ -23,7 +26,7 @@ String jiraUser = System.getenv('jira_user')
 String jiraPassword = System.getenv('jira_password')
 String jiraProject = System.getenv('jira_project')
 
-task cleanJira(type: DefaultTask) {
+tasks.register("cleanJira", DefaultTask) {
   doLast {
     List<String> issues = jiraIssues(jiraProject)
     assert issues instanceof List
@@ -37,10 +40,10 @@ task cleanJira(type: DefaultTask) {
 
 // require network access for this one, exit early instead of starting up the cluster if we dont have network
 if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
-  integTest.enabled = false
-  testingConventions.enabled = false
+  tasks.named("integTest").configure { enabled = false }
+  tasks.named("testingConventions").configure { enabled = false }
 } else {
-  testClusters.integTest {
+  testClusters.matching { it.name == "integTest" }.configureEach {
     testDistribution = 'DEFAULT'
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
@@ -53,7 +56,12 @@ if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
     keystore 'xpack.notification.jira.account.test.secure_user', jiraUser
     keystore 'xpack.notification.jira.account.test.secure_password', jiraPassword
   }
-  integTest.runner.finalizedBy cleanJira
+  integTest.finalizedBy "cleanJira"
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("integTest").configure{enabled = false }
 }
 
 /** List all issues associated to a given Jira project **/

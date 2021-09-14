@@ -1,60 +1,61 @@
 [[indices-exists]]
-=== Index exists API
+=== Exists API
 ++++
-<titleabbrev>Index exists</titleabbrev>
+<titleabbrev>Exists</titleabbrev>
 ++++
 
-Checks if an index exists.
-The returned HTTP status code indicates if the index exists or not.
-A `404` means it does not exist, and `200` means it does.
+Checks if a data stream, index, or alias exists.
 
 [source,console]
---------------------------------------------------
-HEAD /twitter
---------------------------------------------------
-// TEST[setup:twitter]
-
+----
+HEAD my-data-stream
+----
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
 
 [[indices-exists-api-request]]
 ==== {api-request-title}
 
-`HEAD /<index>`
+`HEAD <target>`
 
+[[indices-exists-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target.
 
 [[indices-exists-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
-+
-IMPORTANT: This parameter does not distinguish between an index name and <<indices-aliases,alias>>,
-i.e. status code `200` is also returned if an alias exists with that name.
-
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases.
+Supports wildcards (`*`).
 
 [[indices-exists-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-defaults]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
 [[indices-exists-api-response-codes]]
 ==== {api-response-codes-title}
 
 `200`::
-Indicates all specified indices or index aliases exist.
+All targets exist.
 
- `404`::
-Indicates one or more specified indices or index aliases **do not** exist.
+`404`::
+One or more specified targets do not exist.

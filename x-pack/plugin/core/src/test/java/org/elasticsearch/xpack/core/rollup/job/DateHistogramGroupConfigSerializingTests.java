@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
@@ -28,9 +29,7 @@ import static org.mockito.Mockito.when;
 
 public class DateHistogramGroupConfigSerializingTests extends AbstractSerializingTestCase<DateHistogramGroupConfig> {
 
-    private enum DateHistoType {
-        LEGACY, FIXED, CALENDAR
-    }
+    private enum DateHistoType { FIXED, CALENDAR }
     private static DateHistoType type;
 
     @Override
@@ -45,7 +44,7 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         } else if (type.equals(DateHistoType.CALENDAR)) {
             return DateHistogramGroupConfig.CalendarInterval::new;
         }
-        return DateHistogramGroupConfig::new;
+        throw new IllegalStateException("Illegal date histogram legacy interval");
     }
 
     @Override
@@ -56,7 +55,7 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         } else if (config.getClass().equals(DateHistogramGroupConfig.CalendarInterval.class)) {
             type = DateHistoType.CALENDAR;
         } else {
-            type = DateHistoType.LEGACY;
+            throw new IllegalStateException("Illegal date histogram legacy interval");
         }
         return config;
     }
@@ -68,8 +67,8 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
             new DateHistogramInterval("1d"), null, null);
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find a [date] field with name [my_field] in any of the " +
-                "indices matching the index pattern."));
+        assertThat(e.validationErrors().get(0), equalTo("Could not find one of [date,date_nanos] fields with name [my_field] in " +
+            "any of the indices matching the index pattern."));
     }
 
     public void testValidateNomatchingField() {
@@ -83,8 +82,8 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
             new DateHistogramInterval("1d"), null, null);
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find a [date] field with name [my_field] in any of the " +
-                "indices matching the index pattern."));
+        assertThat(e.validationErrors().get(0), equalTo("Could not find one of [date,date_nanos] fields with name [my_field] in " +
+            "any of the indices matching the index pattern."));
     }
 
     public void testValidateFieldWrongType() {
@@ -98,8 +97,8 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
             new DateHistogramInterval("1d"), null, null);
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a date_histo group must be a [date] type across all " +
-                "indices in the index pattern.  Found: [keyword] for field [my_field]"));
+        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a date_histo group must be one of type " +
+            "[date,date_nanos] across all indices in the index pattern.  Found: [keyword] for field [my_field]"));
     }
 
     public void testValidateFieldMixtureTypes() {
@@ -116,8 +115,8 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
             new DateHistogramInterval("1d"), null, null);
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a date_histo group must be a [date] type across all " +
-                "indices in the index pattern.  Found: [date, keyword] for field [my_field]"));
+        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a date_histo group must be one of type " +
+            "[date,date_nanos] across all indices in the index pattern.  Found: [date, keyword] for field [my_field]"));
     }
 
     public void testValidateFieldMatchingNotAggregatable() {
@@ -171,7 +170,7 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
      */
     public void testBwcSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            final DateHistogramGroupConfig reference = ConfigTestHelpers.randomLegacyDateHistogramGroupConfig(random());
+            final DateHistogramGroupConfig reference = ConfigTestHelpers.randomDateHistogramGroupConfig(random());
 
             final BytesStreamOutput out = new BytesStreamOutput();
             reference.writeTo(out);
@@ -183,7 +182,13 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
             DateHistogramInterval delay = in.readOptionalWriteable(DateHistogramInterval::new);
             ZoneId timeZone = in.readZoneId();
 
-            assertEqualInstances(reference, new DateHistogramGroupConfig(field, interval, delay, timeZone.getId()));
+            if (reference instanceof DateHistogramGroupConfig.FixedInterval) {
+                assertEqualInstances(reference, new DateHistogramGroupConfig.FixedInterval(field, interval, delay, timeZone.getId()));
+            } else if (reference instanceof DateHistogramGroupConfig.CalendarInterval) {
+                assertEqualInstances(reference, new DateHistogramGroupConfig.CalendarInterval(field, interval, delay, timeZone.getId()));
+            } else {
+                fail("And you may ask yourself, how did I get here?");
+            }
         }
 
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
@@ -200,9 +205,9 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
             out.writeZoneId(timezone);
 
             final StreamInput in = out.bytes().streamInput();
-            DateHistogramGroupConfig deserialized = new DateHistogramGroupConfig(in);
+            DateHistogramGroupConfig deserialized = new DateHistogramGroupConfig.FixedInterval(in);
 
-            assertEqualInstances(new DateHistogramGroupConfig(field, interval, delay, timezone.getId()), deserialized);
+            assertEqualInstances(new DateHistogramGroupConfig.FixedInterval(field, interval, delay, timezone.getId()), deserialized);
         }
     }
 
@@ -213,7 +218,7 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
     public void testLegacyConfigBWC() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             // Serialize the old format
-            final DateHistogramGroupConfig reference = ConfigTestHelpers.randomLegacyDateHistogramGroupConfig(random());
+            final DateHistogramGroupConfig reference = ConfigTestHelpers.randomDateHistogramGroupConfig(random());
 
             final BytesStreamOutput out = new BytesStreamOutput();
             reference.writeTo(out);
@@ -237,7 +242,7 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
             final StreamInput in = out.bytes().streamInput();
 
             // Deserialize the old format
-            DateHistogramGroupConfig test = new DateHistogramGroupConfig(in);
+            DateHistogramGroupConfig test = new DateHistogramGroupConfig.FixedInterval(in);
 
             assertThat(reference.getInterval(), equalTo(test.getInterval()));
             assertThat(reference.getField(), equalTo(test.getField()));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
@@ -52,7 +53,7 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
             return IntervalArithmetics.add((Temporal) r, ((IntervalDayTime) l).interval());
         }
 
-        throw new QlIllegalArgumentException("Cannot compute [+] between [{}] [{}]", l.getClass().getSimpleName(),
+        throw new QlIllegalArgumentException("Cannot compute [+] between [{}] and [{}]", l.getClass().getSimpleName(),
                 r.getClass().getSimpleName());
     }, "+"),
     SUB((Object l, Object r) -> {
@@ -77,7 +78,7 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
             throw new QlIllegalArgumentException("Cannot subtract a date from an interval; do you mean the reverse?");
         }
 
-        throw new QlIllegalArgumentException("Cannot compute [-] between [{}] [{}]", l.getClass().getSimpleName(),
+        throw new QlIllegalArgumentException("Cannot compute [-] between [{}] and [{}]", l.getClass().getSimpleName(),
                 r.getClass().getSimpleName());
     }, "-"),
     MUL((Object l, Object r) -> {
@@ -99,7 +100,7 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
             return ((IntervalDayTime) l).mul(((Number) r).longValue());
         }
 
-        throw new QlIllegalArgumentException("Cannot compute [*] between [{}] [{}]", l.getClass().getSimpleName(),
+        throw new QlIllegalArgumentException("Cannot compute [*] between [{}] and [{}]", l.getClass().getSimpleName(),
                 r.getClass().getSimpleName());
     }, "*"),
     DIV(Arithmetics::div, "/"),

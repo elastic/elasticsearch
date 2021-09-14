@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-datafeed-stats]]
-=== Get {dfeed} statistics API
+= Get {dfeed} statistics API
 
 [subs="attributes"]
 ++++
@@ -11,7 +11,7 @@
 Retrieves usage information for {dfeeds}.
 
 [[ml-get-datafeed-stats-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/datafeeds/<feed_id>/_stats` +
 
@@ -19,17 +19,16 @@ Retrieves usage information for {dfeeds}.
 
 `GET _ml/datafeeds/_stats`  +
 
-`GET _ml/datafeeds/_all/_stats` 
+`GET _ml/datafeeds/_all/_stats`
 
 [[ml-get-datafeed-stats-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-<<security-privileges>>.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
+`machine_learning_user` built-in role.
 
 [[ml-get-datafeed-stats-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can get statistics for multiple {dfeeds} in a single API request by using a
 comma-separated list of {dfeeds} or a wildcard expression. You can get
@@ -42,11 +41,11 @@ If the {dfeed} is stopped, the only information you receive is the
 IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 
 [[ml-get-datafeed-stats-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<feed_id>`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
 +
 --
 If you do not specify one of these options, the API returns information about
@@ -54,45 +53,45 @@ all {dfeeds}.
 --
 
 [[ml-get-datafeed-stats-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
-`allow_no_datafeeds`::
-(Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+`allow_no_match`::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
 [role="child_attributes"]
 [[ml-get-datafeed-stats-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns an array of {dfeed} count objects. All of these properties are
 informational; you cannot update their values.
 
 `assignment_explanation`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
 
 `datafeed_id`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 `node`::
 (object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
 +
 --
 [%collapsible%open]
 ====
 `attributes`:::
 (object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-attributes]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
 
 `ephemeral_id`:::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
 `id`:::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
 
 `name`:::
 (string)
@@ -100,13 +99,31 @@ The node name. For example, `0-o0tOo`.
 
 `transport_address`:::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+====
+--
+
+`running_state`::
+(object) An object containing the running state for this {dfeed}. It is only
+provided if the {dfeed} is started.
++
+--
+[%collapsible%open]
+====
+`real_time_configured`:::
+(boolean) Indicates if the {dfeed} is "real-time"; meaning that the {dfeed}
+has no configured `end` time.
+
+`real_time_running`:::
+(boolean) Indicates whether the {dfeed} has finished running on the available
+past data. For {dfeeds} without a configured `end` time, this means that
+the {dfeed} is now running on "real-time" data.
 ====
 --
 
 `state`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=state-datafeed]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=state-datafeed]
 
 `timing_stats`::
 (object) An object that provides statistical information about timing aspect of
@@ -117,37 +134,37 @@ this {dfeed}.
 ====
 `average_search_time_per_bucket_ms`:::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=search-bucket-avg]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-bucket-avg]
 
 `bucket_count`:::
 (long)
-include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-count]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-count]
 
 `exponential_average_search_time_per_hour_ms`:::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=search-exp-avg-hour]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-exp-avg-hour]
 
 `job_id`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `search_count`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=search-count]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-count]
 
 `total_search_time_ms`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=search-time]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-time]
 ====
 --
 
 
 [[ml-get-datafeed-stats-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
-  If `allow_no_datafeeds` is `false`, this code indicates that there are no
-  resources that match the request or only partial matches for the request. 
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
 
 [[ml-get-datafeed-stats-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------
@@ -172,7 +189,7 @@ The API returns the following results:
         "transport_address" : "127.0.0.1:9300",
         "attributes" : {
           "ml.machine_memory" : "17179869184",
-          "ml.max_open_jobs" : "20"
+          "ml.max_open_jobs" : "512"
         }
       },
       "assignment_explanation" : "",

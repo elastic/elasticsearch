@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -25,6 +25,7 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -34,51 +35,51 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  */
 public class Length extends ScalarFunction {
 
-    private final Expression source;
-    
-    public Length(Source source, Expression src) {
-        super(source, Arrays.asList(src));
-        this.source = src;
+    private final Expression input;
+
+    public Length(Source source, Expression input) {
+        super(source, Arrays.asList(input));
+        this.input = input;
     }
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        
-        return isStringAndExact(source, sourceText(), ParamOrdinal.DEFAULT);
+
+        return isStringAndExact(input, sourceText(), DEFAULT);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new LengthFunctionPipe(source(), this, Expressions.pipe(source));
+        return new LengthFunctionPipe(source(), this, Expressions.pipe(input));
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable();
+        return input.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold());
+        return doProcess(input.fold());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Length::new, source);
+        return NodeInfo.create(this, Length::new, input);
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
 
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s)"),
                 "length",
-                sourceScript.template()),
+                inputScript.template()),
                 paramsBuilder()
-                    .script(sourceScript.params())
+                    .script(inputScript.params())
                     .build(), dataType());
     }
 
@@ -96,10 +97,6 @@ public class Length extends ScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] children but received [" + newChildren.size() + "]");
-        }
-
         return new Length(source(), newChildren.get(0));
     }
 

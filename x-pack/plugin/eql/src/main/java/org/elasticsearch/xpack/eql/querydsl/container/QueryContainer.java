@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.querydsl.container;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -21,7 +23,6 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -35,6 +36,7 @@ import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class QueryContainer {
 
+    private final FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
     private final Query query;
     // attributes found in the tree
     private final AttributeMap<Expression> attributes;
@@ -45,18 +47,27 @@ public class QueryContainer {
     private final boolean trackHits;
     private final boolean includeFrozen;
 
+    private final Limit limit;
+
     public QueryContainer() {
-        this(null, emptyList(), AttributeMap.emptyAttributeMap(), emptyMap(), false, false);
+        this(null, emptyList(), AttributeMap.emptyAttributeMap(), emptyMap(), false, false, null);
     }
 
-    private QueryContainer(Query query, List<Tuple<FieldExtraction, String>> fields, AttributeMap<Expression> attributes,
-                           Map<String, Sort> sort, boolean trackHits, boolean includeFrozen) {
+    private QueryContainer(Query query,
+                           List<Tuple<FieldExtraction, String>> fields,
+                           AttributeMap<Expression> attributes,
+                           Map<String, Sort> sort,
+                           boolean trackHits,
+                           boolean includeFrozen,
+                           Limit limit) {
         this.query = query;
         this.fields = fields;
         this.sort = sort;
         this.attributes = attributes;
         this.trackHits = trackHits;
         this.includeFrozen = includeFrozen;
+
+        this.limit = limit;
     }
 
     public QueryContainer withFrozen() {
@@ -79,8 +90,16 @@ public class QueryContainer {
         return trackHits;
     }
 
+    public Limit limit() {
+        return limit;
+    }
+
     public QueryContainer with(Query q) {
-        return new QueryContainer(q, fields, attributes, sort, trackHits, includeFrozen);
+        return new QueryContainer(q, fields, attributes, sort, trackHits, includeFrozen, limit);
+    }
+
+    public QueryContainer with(Limit limit) {
+        return new QueryContainer(query, fields, attributes, sort, trackHits, includeFrozen, limit);
     }
 
     public QueryContainer addColumn(Attribute attr) {
@@ -95,7 +114,10 @@ public class QueryContainer {
 
         if (expression instanceof FieldAttribute) {
             FieldAttribute fa = (FieldAttribute) expression;
-            return new Tuple<>(this, topHitFieldRef(fa));
+            if (fa.isNested()) {
+                throw new UnsupportedOperationException("Nested not yet supported");
+            }
+            return new Tuple<>(this, extractorRegistry.fieldExtraction(expression));
         }
 
         if (expression.foldable()) {
@@ -108,56 +130,20 @@ public class QueryContainer {
     public QueryContainer addSort(String expressionId, Sort sortable) {
         Map<String, Sort> newSort = new LinkedHashMap<>(this.sort);
         newSort.put(expressionId, sortable);
-        return new QueryContainer(query, fields, attributes, newSort, trackHits, includeFrozen);
+        return new QueryContainer(query, fields, attributes, newSort, trackHits, includeFrozen, limit);
     }
 
     //
     // reference methods
     //
-    private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
-        FieldAttribute actualField = fieldAttr;
-        FieldAttribute rootField = fieldAttr;
-        StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
-        
-        // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
-        // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
-        // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only
-        // the root field to which those sub-fields belong to, are. Instead of "text_field.keyword_subfield" for _source extraction,
-        // we use "text_field", because there is no source for "keyword_subfield".
-        /*
-         *    "text_field": {
-         *       "type": "text",
-         *       "fields": {
-         *         "keyword_subfield": {
-         *           "type": "keyword"
-         *         }
-         *       }
-         *     }
-         */
-        if (fieldAttr.field().isAlias() == false) {
-            while (actualField.parent() != null
-                    && actualField.parent().field().getDataType() != DataTypes.OBJECT
-                    && actualField.parent().field().getDataType() != DataTypes.NESTED
-                    && actualField.field().getDataType().hasDocValues() == false) {
-                actualField = actualField.parent();
-            }
-        }
-        while (rootField.parent() != null) {
-            fullFieldName.insert(0, ".").insert(0, rootField.parent().field().getName());
-            rootField = rootField.parent();
-        }
-
-        return new SearchHitFieldRef(actualField.name(), fullFieldName.toString(), fieldAttr.field().getDataType(),
-                                     fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias());
-    }
 
     public QueryContainer addColumn(FieldExtraction ref, String id) {
-        return new QueryContainer(query, combine(fields, new Tuple<>(ref, id)), attributes, sort, trackHits, includeFrozen);
+        return new QueryContainer(query, combine(fields, new Tuple<>(ref, id)), attributes, sort, trackHits, includeFrozen, limit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, attributes, fields, trackHits, includeFrozen);
+        return Objects.hash(query, attributes, fields, trackHits, includeFrozen, limit);
     }
 
     @Override
@@ -174,15 +160,16 @@ public class QueryContainer {
         return Objects.equals(query, other.query)
                 && Objects.equals(attributes, other.attributes)
                 && Objects.equals(fields, other.fields)
-                && Objects.equals(trackHits, other.trackHits)
-                && Objects.equals(includeFrozen, other.includeFrozen);
+                && trackHits == other.trackHits
+                && includeFrozen == other.includeFrozen
+                && Objects.equals(limit, other.limit);
     }
 
     @Override
     public String toString() {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.humanReadable(true).prettyPrint();
-            SourceGenerator.sourceBuilder(this, null, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            SourceGenerator.sourceBuilder(this, null, null, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
             return Strings.toString(builder);
         } catch (IOException e) {
             throw new EqlIllegalArgumentException("error rendering", e);

@@ -1,0 +1,35 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.test.fixtures'
+
+description = 'Fixture for URL external service'
+tasks.named("test").configure { enabled = false }
+
+dependencies {
+  api project(':server')
+  api project(':test:framework')
+}
+
+// These directories are shared between the URL repository and the FS repository in integration tests
+project.ext {
+  fsRepositoryDir = file("${testFixturesDir}/fs-repository")
+}
+
+tasks.named("preProcessFixture").configure {
+  dependsOn "jar", configurations.runtimeClasspath
+  doLast {
+    file("${testFixturesDir}/shared").mkdirs()
+    project.copy {
+      from jar
+      from configurations.runtimeClasspath
+      into "${testFixturesDir}/shared"
+    }
+    project.fsRepositoryDir.mkdirs()
+  }
+}

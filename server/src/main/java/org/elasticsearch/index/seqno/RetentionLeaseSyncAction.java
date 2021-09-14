@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.seqno;
@@ -25,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
@@ -40,11 +30,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.gateway.WriteStateException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,25 +63,31 @@ public class RetentionLeaseSyncAction extends
 
     @Inject
     public RetentionLeaseSyncAction(
-            final Settings settings,
-            final TransportService transportService,
-            final ClusterService clusterService,
-            final IndicesService indicesService,
-            final ThreadPool threadPool,
-            final ShardStateAction shardStateAction,
-            final ActionFilters actionFilters) {
+        final Settings settings,
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final IndicesService indicesService,
+        final ThreadPool threadPool,
+        final ShardStateAction shardStateAction,
+        final ActionFilters actionFilters,
+        final IndexingPressure indexingPressure,
+        final SystemIndices systemIndices) {
         super(
-                settings,
-                ACTION_NAME,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                actionFilters,
-                RetentionLeaseSyncAction.Request::new,
-                RetentionLeaseSyncAction.Request::new,
-                ThreadPool.Names.MANAGEMENT, false);
+            settings,
+            ACTION_NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            RetentionLeaseSyncAction.Request::new,
+            RetentionLeaseSyncAction.Request::new,
+            (service, ignore) -> ThreadPool.Names.MANAGEMENT,
+            false,
+            indexingPressure,
+            systemIndices
+        );
     }
 
     @Override
@@ -117,11 +114,6 @@ public class RetentionLeaseSyncAction extends
                     }
 
                     @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-
-                    @Override
                     public void handleResponse(ReplicationResponse response) {
                         task.setPhase("finished");
                         taskManager.unregister(task);
@@ -130,7 +122,10 @@ public class RetentionLeaseSyncAction extends
 
                     @Override
                     public void handleException(TransportException e) {
-                        if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
+                        if (ExceptionsHelper.unwrap(e,
+                                                    IndexNotFoundException.class,
+                                                    AlreadyClosedException.class,
+                                                    IndexShardClosedException.class) == null) {
                             getLogger().warn(new ParameterizedMessage("{} retention lease sync failed", shardId), e);
                         }
                         task.setPhase("finished");
@@ -142,7 +137,7 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected void shardOperationOnPrimary(Request request, IndexShard primary,
+    protected void dispatchedShardOperationOnPrimary(Request request, IndexShard primary,
             ActionListener<PrimaryResult<Request, Response>> listener) {
         ActionListener.completeWith(listener, () -> {
             assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
@@ -154,14 +149,15 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected WriteReplicaResult<Request> shardOperationOnReplica(
-            final Request request,
-            final IndexShard replica) throws WriteStateException {
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(replica);
-        replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
-        replica.persistRetentionLeases();
-        return new WriteReplicaResult<>(request, null, null, replica, getLogger());
+    protected void dispatchedShardOperationOnReplica(Request request, IndexShard replica,
+            ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(replica);
+            replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
+            replica.persistRetentionLeases();
+            return new WriteReplicaResult<>(request, null, null, replica, getLogger());
+        });
     }
 
     @Override

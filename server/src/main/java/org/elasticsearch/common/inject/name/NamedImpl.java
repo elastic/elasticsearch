@@ -40,7 +40,7 @@ class NamedImpl implements Named {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof Named)) {
+        if ((o instanceof Named) == false) {
             return false;
         }
 

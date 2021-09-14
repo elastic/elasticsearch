@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -9,27 +10,22 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobDeletionTask;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
 public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteJobAction INSTANCE = new DeleteJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/delete";
+    public static final String DELETION_TASK_DESCRIPTION_PREFIX = "delete-job-";
 
     private DeleteJobAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -45,8 +41,6 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
-
-        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -88,8 +82,8 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new JobDeletionTask(id, type, action, "delete-job-" + jobId, parentTaskId, headers);
+        public String getDescription() {
+            return DELETION_TASK_DESCRIPTION_PREFIX + jobId;
         }
 
         @Override
@@ -114,13 +108,6 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             }
             DeleteJobAction.Request other = (DeleteJobAction.Request) obj;
             return Objects.equals(jobId, other.jobId) && Objects.equals(force, other.force);
-        }
-    }
-
-    static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
-
-        RequestBuilder(ElasticsearchClient client, DeleteJobAction action) {
-            super(client, action, new Request());
         }
     }
 }

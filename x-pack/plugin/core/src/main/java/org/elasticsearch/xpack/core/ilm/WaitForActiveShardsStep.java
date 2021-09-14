@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -10,11 +11,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,6 +27,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 
 /**
  * After we performed the index rollover we wait for the the configured number of shards for the rolled over index (ie. newly created
@@ -46,7 +51,8 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata originalIndexMeta = clusterState.metadata().index(index);
+        Metadata metadata = clusterState.metadata();
+        IndexMetadata originalIndexMeta = metadata.index(index);
 
         if (originalIndexMeta == null) {
             String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but index no longer exists",
@@ -64,43 +70,50 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             return new Result(true, new Info(message));
         }
 
-        String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
-        if (Strings.isNullOrEmpty(rolloverAlias)) {
-            throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
-                + "] is not set on index [" + originalIndexMeta.getIndex().getName() + "]");
-        }
-
-        IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(rolloverAlias);
-        assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
-
-        IndexMetadata aliasWriteIndex = indexAbstraction.getWriteIndex();
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
-        if (aliasWriteIndex != null) {
-            rolledIndexName = aliasWriteIndex.getIndex().getName();
-            waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get("index.write.wait_for_active_shards");
-        } else {
-            List<IndexMetadata> indices = indexAbstraction.getIndices();
-            int maxIndexCounter = -1;
-            IndexMetadata rolledIndexMeta = null;
-            for (IndexMetadata indexMetadata : indices) {
-                int indexNameCounter = parseIndexNameCounter(indexMetadata.getIndex().getName());
-                if (maxIndexCounter < indexNameCounter) {
-                    maxIndexCounter = indexNameCounter;
-                    rolledIndexMeta = indexMetadata;
-                }
-            }
+        if (indexAbstraction.getParentDataStream() != null) {
+            DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+            IndexAbstraction dataStreamAbstraction = metadata.getIndicesLookup().get(dataStream.getName());
+            assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
+            IndexMetadata rolledIndexMeta = dataStreamAbstraction.getWriteIndex();
             if (rolledIndexMeta == null) {
-                String errorMessage = String.format(Locale.ROOT,
-                    "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]", index.getName(),
-                    getKey().getAction());
-
-                // Index must have been since deleted
-                logger.debug(errorMessage);
-                return new Result(false, new Info(errorMessage));
+                return getErrorResultOnNullMetadata(getKey(), index);
             }
             rolledIndexName = rolledIndexMeta.getIndex().getName();
-            waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get("index.write.wait_for_active_shards");
+            waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
+        } else {
+            String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
+            if (Strings.isNullOrEmpty(rolloverAlias)) {
+                throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
+                    + "] is not set on index [" + originalIndexMeta.getIndex().getName() + "]");
+            }
+
+            IndexAbstraction aliasAbstraction = metadata.getIndicesLookup().get(rolloverAlias);
+            assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
+
+            IndexMetadata aliasWriteIndex = aliasAbstraction.getWriteIndex();
+            if (aliasWriteIndex != null) {
+                rolledIndexName = aliasWriteIndex.getIndex().getName();
+                waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
+            } else {
+                List<IndexMetadata> indices = aliasAbstraction.getIndices();
+                int maxIndexCounter = -1;
+                IndexMetadata rolledIndexMeta = null;
+                for (IndexMetadata indexMetadata : indices) {
+                    int indexNameCounter = parseIndexNameCounter(indexMetadata.getIndex().getName());
+                    if (maxIndexCounter < indexNameCounter) {
+                        maxIndexCounter = indexNameCounter;
+                        rolledIndexMeta = indexMetadata;
+                    }
+                }
+                if (rolledIndexMeta == null) {
+                    return getErrorResultOnNullMetadata(getKey(), index);
+                }
+                rolledIndexName = rolledIndexMeta.getIndex().getName();
+                waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get("index.write.wait_for_active_shards");
+            }
         }
 
         ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsSettingValue);
@@ -114,25 +127,14 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         return new Result(enoughShardsActive, new ActiveShardsInfo(currentActiveShards, activeShardCount.toString(), enoughShardsActive));
     }
 
-    /**
-     * Parses the number from the rolled over index name. It also supports the date-math format (ie. index name is wrapped in &lt; and &gt;)
-     * <p>
-     * Eg.
-     * <p>
-     * - For "logs-000002" it'll return 2
-     * - For "&lt;logs-{now/d}-3&gt;" it'll return 3
-     */
-    static int parseIndexNameCounter(String indexName) {
-        int numberIndex = indexName.lastIndexOf("-");
-        if (numberIndex == -1) {
-            throw new IllegalArgumentException("no - separator found in index name [" + indexName + "]");
-        }
-        try {
-            return Integer.parseInt(indexName.substring(numberIndex + 1, indexName.endsWith(">") ? indexName.length() - 1 :
-                indexName.length()));
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("unable to parse the index name [" + indexName + "] to extract the counter", e);
-        }
+    private static Result getErrorResultOnNullMetadata(StepKey key, Index originalIndex) {
+        String errorMessage = String.format(Locale.ROOT,
+            "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]", originalIndex.getName(),
+            key.getAction());
+
+        // Index must have been since deleted
+        logger.debug(errorMessage);
+        return new Result(false, new Info(errorMessage));
     }
 
     static final class ActiveShardsInfo implements ToXContentObject {

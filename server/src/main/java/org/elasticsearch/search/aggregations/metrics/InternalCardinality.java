@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -32,9 +21,9 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
-    private final HyperLogLogPlusPlus counts;
+    private final AbstractHyperLogLogPlusPlus counts;
 
-    InternalCardinality(String name, HyperLogLogPlusPlus counts, Map<String, Object> metadata) {
+    InternalCardinality(String name, AbstractHyperLogLogPlusPlus counts, Map<String, Object> metadata) {
         super(name, metadata);
         this.counts = counts;
     }
@@ -46,7 +35,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         if (in.readBoolean()) {
-            counts = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
+            counts = AbstractHyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
         } else {
             counts = null;
         }
@@ -78,34 +67,29 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         return counts == null ? 0 : counts.cardinality(0);
     }
 
-    public HyperLogLogPlusPlus getCounts() {
+    public AbstractHyperLogLogPlusPlus getCounts() {
         return counts;
     }
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        InternalCardinality reduced = null;
+        HyperLogLogPlusPlus reduced = null;
         for (InternalAggregation aggregation : aggregations) {
             final InternalCardinality cardinality = (InternalCardinality) aggregation;
             if (cardinality.counts != null) {
                 if (reduced == null) {
-                    reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(),
-                            BigArrays.NON_RECYCLING_INSTANCE, 1), getMetadata());
+                    reduced = new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1);
                 }
-                reduced.merge(cardinality);
+                reduced.merge(0, cardinality.counts, 0);
             }
         }
 
         if (reduced == null) { // all empty
             return aggregations.get(0);
         } else {
-            return reduced;
-        }
-    }
+            return new InternalCardinality(name, reduced, getMetadata());
 
-    public void merge(InternalCardinality other) {
-        assert counts != null && other != null;
-        counts.merge(0, other.counts, 0);
+        }
     }
 
     @Override
@@ -127,11 +111,10 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         if (super.equals(obj) == false) return false;
 
         InternalCardinality other = (InternalCardinality) obj;
-        return counts.equals(0, other.counts);
+        return counts.equals(0, other.counts, 0);
     }
 
-    HyperLogLogPlusPlus getState() {
+    AbstractHyperLogLogPlusPlus getState() {
         return counts;
     }
 }
-

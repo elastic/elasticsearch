@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml;
 
@@ -13,7 +14,6 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -56,16 +56,8 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         super(in);
         this.jobsUsage = in.readMap();
         this.datafeedsUsage = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            this.analyticsUsage = in.readMap();
-        } else {
-            this.analyticsUsage = Collections.emptyMap();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            this.inferenceUsage = in.readMap();
-        } else {
-            this.inferenceUsage = Collections.emptyMap();
-        }
+        this.analyticsUsage = in.readMap();
+        this.inferenceUsage = in.readMap();
         this.nodeCount = in.readInt();
     }
 
@@ -79,12 +71,8 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         super.writeTo(out);
         out.writeMap(jobsUsage);
         out.writeMap(datafeedsUsage);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeMap(analyticsUsage);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeMap(inferenceUsage);
-        }
+        out.writeMap(analyticsUsage);
+        out.writeMap(inferenceUsage);
         out.writeInt(nodeCount);
     }
 

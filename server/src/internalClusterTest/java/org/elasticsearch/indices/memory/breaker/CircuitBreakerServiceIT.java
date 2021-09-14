@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.memory.breaker;
@@ -39,10 +28,8 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.indices.breaker.BreakerSettings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
@@ -88,8 +75,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
-            HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING,
-            HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING).forEach(s -> resetSettings.putNull(s.getKey()));
@@ -254,7 +239,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         }
     }
 
-    public void testBucketBreaker() throws Exception {
+    public void testAggTookTooMuch() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
             return;
@@ -287,7 +272,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         } catch (Exception e) {
             Throwable cause = e.getCause();
             assertThat(cause, instanceOf(CircuitBreakingException.class));
-            assertThat(cause.toString(), containsString("[request] Data too large, data for [<agg [my_terms]>] would be"));
+            assertThat(cause.toString(), containsString("[request] Data too large, data for [preallocate[aggregations]] would be"));
             assertThat(cause.toString(), containsString("which is larger than the limit of [100/100b]"));
         }
     }
@@ -304,35 +289,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                         equalTo(0L));
             }
         }, 30, TimeUnit.SECONDS);
-    }
-
-    public void testCustomCircuitBreakerRegistration() throws Exception {
-        Iterable<CircuitBreakerService> serviceIter = internalCluster().getInstances(CircuitBreakerService.class);
-
-        final String breakerName = "customBreaker";
-        BreakerSettings breakerSettings = new BreakerSettings(breakerName, 8, 1.03);
-        CircuitBreaker breaker = null;
-
-        for (CircuitBreakerService s : serviceIter) {
-            s.registerBreaker(breakerSettings);
-            breaker = s.getBreaker(breakerSettings.getName());
-        }
-
-        if (breaker != null) {
-            try {
-                breaker.addEstimateBytesAndMaybeBreak(16, "test");
-            } catch (CircuitBreakingException e) {
-                // ignore, we forced a circuit break
-            }
-        }
-
-        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().clear().setBreaker(true).get();
-        int breaks = 0;
-        for (NodeStats stat : stats.getNodes()) {
-            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(breakerName);
-            breaks += breakerStats.getTrippedCount();
-        }
-        assertThat(breaks, greaterThanOrEqualTo(1));
     }
 
     public void testCanResetUnreasonableSettings() {
@@ -355,7 +311,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
     }
 
-    public void testLimitsRequestSize() throws Exception {
+    public void testLimitsRequestSize() {
         ByteSizeValue inFlightRequestsLimit = new ByteSizeValue(8, ByteSizeUnit.KB);
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -367,7 +323,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 dataNodeStats.add(stat);
             }
         }
@@ -406,7 +362,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         // can either fail directly with an exception or the response contains exceptions (depending on client)
         try {
             BulkResponse response = client.bulk(bulkRequest).actionGet();
-            if (!response.hasFailures()) {
+            if (response.hasFailures() == false) {
                 fail("Should have thrown CircuitBreakingException");
             } else {
                 // each item must have failed with CircuitBreakingException

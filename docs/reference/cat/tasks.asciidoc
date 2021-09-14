@@ -4,7 +4,7 @@
 <titleabbrev>cat task management</titleabbrev>
 ++++
 
-beta::["The cat task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{issue}51628]
+beta::["The cat task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{es-issue}51628]
 
 Returns information about tasks currently executing in the cluster,
 similar to the <<tasks,task management>> API.
@@ -15,6 +15,11 @@ similar to the <<tasks,task management>> API.
 
 `GET /_cat/tasks`
 
+[[cat-tasks-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-tasks-api-desc]]
 ==== {api-description-title}
@@ -29,25 +34,34 @@ of the JSON <<tasks,task management>> API.
 [[cat-tasks-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+`nodes`::
+(Optional, string)
+Comma-separated list of node IDs or names used to limit the response. Supports
+wildcard (`*`) expressions.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+`parent_task_id`::
+(Optional, string)
+Parent task ID used to limit the response.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-tasks-api-response-codes]]
 ==== {api-response-codes-title}
 
-include::{docdir}/cluster/tasks.asciidoc[tag=tasks-api-404]
+include::{es-repo-dir}/cluster/tasks.asciidoc[tag=tasks-api-404]
 
 
 [[cat-tasks-api-examples]]
@@ -55,7 +69,7 @@ include::{docdir}/cluster/tasks.asciidoc[tag=tasks-api-404]
 
 [source,console]
 ----
-GET _cat/tasks?v
+GET _cat/tasks?v=true
 ----
 // TEST[skip:No tasks to retrieve]
 

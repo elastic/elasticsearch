@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.TimeValue;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
@@ -21,10 +22,6 @@ import org.opensaml.saml.saml2.core.Conditions;
 import org.opensaml.saml.saml2.core.EncryptedAssertion;
 import org.opensaml.saml.saml2.core.EncryptedAttribute;
 import org.opensaml.saml.saml2.core.Response;
-import org.opensaml.saml.saml2.core.Status;
-import org.opensaml.saml.saml2.core.StatusCode;
-import org.opensaml.saml.saml2.core.StatusDetail;
-import org.opensaml.saml.saml2.core.StatusMessage;
 import org.opensaml.saml.saml2.core.Subject;
 import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
@@ -46,7 +43,7 @@ import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_BEARER;
 /**
  * Processes the IdP's SAML Response for our AuthnRequest, validates it, and extracts the relevant properties.
  */
-class SamlAuthenticator extends SamlRequestHandler {
+class SamlAuthenticator extends SamlResponseHandler {
 
     private static final String RESPONSE_TAG_NAME = "Response";
 
@@ -94,20 +91,8 @@ class SamlAuthenticator extends SamlRequestHandler {
             requireSignedAssertions = true;
         }
 
-        if (Strings.hasText(response.getInResponseTo()) && allowedSamlRequestIds.contains(response.getInResponseTo()) == false) {
-            logger.debug("The SAML Response with ID [{}] is unsolicited. A user might have used a stale URL or the Identity Provider " +
-                    "incorrectly populates the InResponseTo attribute", response.getID());
-            throw samlException("SAML content is in-response-to [{}] but expected one of {} ",
-                    response.getInResponseTo(), allowedSamlRequestIds);
-        }
-
-        final Status status = response.getStatus();
-        if (status == null || status.getStatusCode() == null) {
-            throw samlException("SAML Response has no status code");
-        }
-        if (isSuccess(status) == false) {
-            throw samlException("SAML Response is not a 'success' response: {}", getStatusCodeMessage(status));
-        }
+        checkInResponseTo(response, allowedSamlRequestIds);
+        checkStatus(response.getStatus());
         checkIssuer(response.getIssuer(), response);
         checkResponseDestination(response);
 
@@ -134,46 +119,6 @@ class SamlAuthenticator extends SamlRequestHandler {
         }
 
         return new SamlAttributes(nameId, session, attributes);
-    }
-
-    private String getStatusCodeMessage(Status status) {
-        StatusCode firstLevel = status.getStatusCode();
-        StatusCode subLevel = firstLevel.getStatusCode();
-        StringBuilder sb = new StringBuilder();
-        if (StatusCode.REQUESTER.equals(firstLevel.getValue())) {
-            sb.append("The SAML IdP did not grant the request. It indicated that the Elastic Stack side sent something invalid (");
-        } else if (StatusCode.RESPONDER.equals(firstLevel.getValue())) {
-            sb.append("The request could not be granted due to an error in the SAML IDP side (");
-        } else if (StatusCode.VERSION_MISMATCH.equals(firstLevel.getValue())) {
-            sb.append("The request could not be granted because the SAML IDP doesn't support SAML 2.0 (");
-        } else {
-            sb.append("The request could not be granted, the SAML IDP responded with a non-standard Status code (");
-        }
-        sb.append(firstLevel.getValue()).append(").");
-        if (getMessage(status) != null) {
-            sb.append(" Message: [").append(getMessage(status)).append("]");
-        }
-        if (getDetail(status) != null) {
-            sb.append(" Detail: [").append(getDetail(status)).append("]");
-        }
-        if (null != subLevel) {
-            sb.append(" Specific status code which might indicate what the issue is: [").append(subLevel.getValue()).append("]");
-        }
-        return sb.toString();
-    }
-
-    private String getMessage(Status status) {
-        final StatusMessage sm = status.getStatusMessage();
-        return sm == null ? null : sm.getMessage();
-    }
-
-    private String getDetail(Status status) {
-        final StatusDetail sd = status.getStatusDetail();
-        return sd == null ? null : SamlUtils.toString(sd.getDOM());
-    }
-
-    private boolean isSuccess(Status status) {
-        return status.getStatusCode().getValue().equals(StatusCode.SUCCESS);
     }
 
     private String getSessionIndex(Assertion assertion) {
@@ -230,7 +175,7 @@ class SamlAuthenticator extends SamlRequestHandler {
 
     private List<Attribute> processAssertion(Assertion assertion, boolean requireSignature, Collection<String> allowedSamlRequestIds) {
         if (logger.isTraceEnabled()) {
-            logger.trace("(Possibly decrypted) Assertion: {}", SamlUtils.getXmlContent(assertion));
+            logger.trace("(Possibly decrypted) Assertion: {}", SamlUtils.getXmlContent(assertion, true));
             logger.trace(SamlUtils.describeSamlObject(assertion));
         }
         // Do not further process unsigned Assertions
@@ -253,7 +198,7 @@ class SamlAuthenticator extends SamlRequestHandler {
             for (EncryptedAttribute enc : statement.getEncryptedAttributes()) {
                 final Attribute attribute = decrypt(enc);
                 if (attribute != null) {
-                    logger.trace("Successfully decrypted attribute: {}" + SamlUtils.getXmlContent(attribute));
+                    logger.trace("Successfully decrypted attribute: {}" + SamlUtils.getXmlContent(attribute, true));
                     attributes.add(attribute);
                 }
             }
@@ -333,7 +278,17 @@ class SamlAuthenticator extends SamlRequestHandler {
         }
         checkRecipient(confirmationData.get(0));
         checkLifetimeRestrictions(confirmationData.get(0));
-        checkInResponseTo(confirmationData.get(0), allowedSamlRequestIds);
+        checkSubjectInResponseTo(confirmationData.get(0), allowedSamlRequestIds);
+    }
+
+    private void checkSubjectInResponseTo(
+        SubjectConfirmationData subjectConfirmationData, Collection<String> allowedSamlRequestIds) {
+        // Allow for IdP initiated SSO where InResponseTo MUST be missing
+        if (Strings.hasText(subjectConfirmationData.getInResponseTo())
+                && allowedSamlRequestIds.contains(subjectConfirmationData.getInResponseTo()) == false) {
+            throw samlException("SAML Assertion SubjectConfirmationData is in-response-to [{}] but expected one of [{}]",
+                    subjectConfirmationData.getInResponseTo(), allowedSamlRequestIds);
+        }
     }
 
     private void checkRecipient(SubjectConfirmationData subjectConfirmationData) {
@@ -341,15 +296,6 @@ class SamlAuthenticator extends SamlRequestHandler {
         if (sp.getAscUrl().equals(subjectConfirmationData.getRecipient()) == false) {
             throw samlException("SAML Assertion SubjectConfirmationData Recipient [{}] does not match expected value [{}]",
                     subjectConfirmationData.getRecipient(), sp.getAscUrl());
-        }
-    }
-
-    private void checkInResponseTo(SubjectConfirmationData subjectConfirmationData, Collection<String> allowedSamlRequestIds) {
-        // Allow for IdP initiated SSO where InResponseTo MUST be missing
-        if (Strings.hasText(subjectConfirmationData.getInResponseTo())
-                && allowedSamlRequestIds.contains(subjectConfirmationData.getInResponseTo()) == false) {
-            throw samlException("SAML Assertion SubjectConfirmationData is in-response-to [{}] but expected one of [{}]",
-                    subjectConfirmationData.getInResponseTo(), allowedSamlRequestIds);
         }
     }
 

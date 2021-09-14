@@ -20,11 +20,11 @@ An indexed value may not exist for a document's field due to a variety of reason
 ----
 GET /_search
 {
-    "query": {
-        "exists": {
-            "field": "user"
-        }
+  "query": {
+    "exists": {
+      "field": "user"
     }
+  }
 }
 ----
 
@@ -50,20 +50,20 @@ use the `must_not` <<query-dsl-bool-query, boolean query>> with the `exists`
 query.
 
 The following search returns documents that are missing an indexed value for
-the `user` field.
+the `user.id` field.
 
 [source,console]
 ----
 GET /_search
 {
-    "query": {
-        "bool": {
-            "must_not": {
-                "exists": {
-                    "field": "user"
-                }
-            }
+  "query": {
+    "bool": {
+      "must_not": {
+        "exists": {
+          "field": "user.id"
         }
+      }
     }
+  }
 }
 ----

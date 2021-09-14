@@ -1,16 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -69,13 +67,6 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
 
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetTrainedModelsStatsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class Response extends AbstractGetResourcesResponse<Response.TrainedModelStats> {
 
         public static class TrainedModelStats implements ToXContentObject, Writeable {
@@ -102,11 +93,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 modelId = in.readString();
                 ingestStats = new IngestStats(in);
                 pipelineCount = in.readVInt();
-                if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                    this.inferenceStats = in.readOptionalWriteable(InferenceStats::new);
-                } else {
-                    this.inferenceStats = null;
-                }
+                this.inferenceStats = in.readOptionalWriteable(InferenceStats::new);
             }
 
             public String getModelId() {
@@ -142,9 +129,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 out.writeString(modelId);
                 ingestStats.writeTo(out);
                 out.writeVInt(pipelineCount);
-                if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                    out.writeOptionalWriteable(this.inferenceStats);
-                }
+                out.writeOptionalWriteable(this.inferenceStats);
             }
 
             @Override
@@ -186,7 +171,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
         public static class Builder {
 
             private long totalModelCount;
-            private Set<String> expandedIds;
+            private Map<String, Set<String>> expandedIdsWithAliases;
             private Map<String, IngestStats> ingestStatsMap;
             private Map<String, InferenceStats> inferenceStatsMap;
 
@@ -195,13 +180,13 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this;
             }
 
-            public Builder setExpandedIds(Set<String> expandedIds) {
-                this.expandedIds = expandedIds;
+            public Builder setExpandedIdsWithAliases(Map<String, Set<String>> expandedIdsWithAliases) {
+                this.expandedIdsWithAliases = expandedIdsWithAliases;
                 return this;
             }
 
-            public Set<String> getExpandedIds() {
-                return this.expandedIds;
+            public Map<String, Set<String>> getExpandedIdsWithAliases() {
+                return this.expandedIdsWithAliases;
             }
 
             public Builder setIngestStatsByModelId(Map<String, IngestStats> ingestStatsByModelId) {
@@ -215,8 +200,8 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             }
 
             public Response build() {
-                List<TrainedModelStats> trainedModelStats = new ArrayList<>(expandedIds.size());
-                expandedIds.forEach(id -> {
+                List<TrainedModelStats> trainedModelStats = new ArrayList<>(expandedIdsWithAliases.size());
+                expandedIdsWithAliases.keySet().forEach(id -> {
                     IngestStats ingestStats = ingestStatsMap.get(id);
                     InferenceStats inferenceStats = inferenceStatsMap.get(id);
                     trainedModelStats.add(new TrainedModelStats(

@@ -1,6 +1,9 @@
 [role="xpack"]
 [[schedule-daily]]
-==== Daily schedule
+==== {watcher} Daily schedule
+++++
+<titleabbrev>Daily schedule</titleabbrev>
+++++
 
 A <<trigger-schedule,`schedule`>> that triggers at a particular time
 every day. To use the `daily` schedule, you specify the time of day (or times)
@@ -84,7 +87,7 @@ or minutes as an array. For example, following `daily` schedule triggers at
   "trigger" : {
     "schedule" : {
       "daily" : {
-        "at" {
+        "at" : {
           "hour" : [ 0, 12, 17 ],
           "minute" : [0, 30]
         }

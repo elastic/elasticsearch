@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -13,11 +14,12 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,7 +28,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * A step that waits until the index it's used on is no longer a leader index.
+ * A step that waits until the managed index is no longer a leader index.
  * This is necessary as there are some actions which are not safe to perform on
  * a leader index, such as those which delete the index, including Shrink and
  * Delete.
@@ -43,17 +45,21 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
+    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
-        String indexName = indexMetadata.getIndex().getName();
+        String indexName = index.getName();
         request.indices(indexName);
         getClient().admin().indices().stats(request, ActionListener.wrap((response) -> {
             IndexStats indexStats = response.getIndex(indexName);
             if (indexStats == null) {
                 // Index was probably deleted
-                logger.debug("got null shard stats for index {}, proceeding on the assumption it has been deleted",
-                    indexMetadata.getIndex());
+                logger.debug("got null shard stats for index {}, proceeding on the assumption it has been deleted", indexName);
                 listener.onResponse(true, null);
                 return;
             }

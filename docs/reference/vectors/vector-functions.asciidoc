@@ -8,12 +8,22 @@ linearly scanned. Thus, expect the query time grow linearly
 with the number of matched documents. For this reason, we recommend
 to limit the number of matched documents with a `query` parameter.
 
+This is the list of available vector functions and vector access methods:
+
+1. `cosineSimilarity` – calculates cosine similarity
+2. `dotProduct` – calculates dot product
+3. `l1norm` – calculates L^1^ distance
+4. `l2norm` - calculates L^2^ distance
+5. `doc[<field>].vectorValue` – returns a vector's value as an array of floats
+6. `doc[<field>].magnitude` – returns a vector's magnitude
+
+
 Let's create an index with a `dense_vector` mapping and index a couple
 of documents into it.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -28,19 +38,19 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_dense_vector": [0.5, 10, 6],
   "status" : "published"
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "my_dense_vector": [-0.5, 10, 10],
   "status" : "published"
 }
 
-POST my_index/_refresh
+POST my-index-000001/_refresh
 
 --------------------------------------------------
 // TESTSETUP
@@ -50,7 +60,7 @@ cosine similarity between a given query vector and document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -86,7 +96,7 @@ dot product between a given query vector and document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -121,7 +131,7 @@ document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -160,7 +170,7 @@ document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -195,3 +205,51 @@ You can check if a document has a value for the field `my_vector` by
 "source": "doc['my_vector'].size() == 0 ? 0 : cosineSimilarity(params.queryVector, 'my_vector')"
 --------------------------------------------------
 // NOTCONSOLE
+
+The recommended way to access dense vectors is through `cosineSimilarity`,
+`dotProduct`, `l1norm` or `l2norm` functions. But for custom use cases,
+you can access dense vectors's values directly through the following functions:
+
+- `doc[<field>].vectorValue` – returns a vector's value as an array of floats
+
+- `doc[<field>].magnitude` – returns a vector's magnitude as a float
+(for vectors created prior to version 7.5 the magnitude is not stored.
+So this function calculates it anew every time it is called).
+
+For example, the script below implements a cosine similarity using these
+two functions:
+
+[source,console]
+--------------------------------------------------
+GET my-index-000001/_search
+{
+  "query": {
+    "script_score": {
+      "query" : {
+        "bool" : {
+          "filter" : {
+            "term" : {
+              "status" : "published"
+            }
+          }
+        }
+      },
+      "script": {
+        "source": """
+          float[] v = doc['my_dense_vector'].vectorValue;
+          float vm = doc['my_dense_vector'].magnitude;
+          float dotProduct = 0;
+          for (int i = 0; i < v.length; i++) {
+            dotProduct += v[i] * params.queryVector[i];
+          }
+          return dotProduct / (vm * (float) params.queryVectorMag);
+        """,
+        "params": {
+          "queryVector": [4, 3.4, -0.2],
+          "queryVectorMag": 5.25357
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

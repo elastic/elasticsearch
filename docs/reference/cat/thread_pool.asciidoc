@@ -16,6 +16,11 @@ pools.
 
 `GET /_cat/thread_pool`
 
+[[cat-thread-pool-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-thread-pool-path-params]]
 ==== {api-path-parms-title}
@@ -28,9 +33,9 @@ request. Accepts wildcard expressions.
 [[cat-thread-pool-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
 If you do not specify which columns to include, the API returns the default
@@ -101,17 +106,17 @@ Type of thread pool. Returned values are `fixed` or `scaling`.
 
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-thread-pool-api-example]]
@@ -158,7 +163,7 @@ thread pool.
 
 [source,console]
 --------------------------------------------------
-GET /_cat/thread_pool/generic?v&h=id,name,active,rejected,completed
+GET /_cat/thread_pool/generic?v=true&h=id,name,active,rejected,completed
 --------------------------------------------------
 
 The API returns the following response:

@@ -1,33 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -43,7 +28,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -200,29 +184,19 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         afterIndexing.accept(client());
 
         assertBusy(() -> {
-            final IndicesStatsResponse stats = client().admin().indices().prepareStats().clear().get();
-            final IndexStats indexStats = stats.getIndex("test");
-            for (final IndexShardStats indexShardStats : indexStats.getIndexShards().values()) {
-                Optional<ShardStats> maybePrimary =
-                        Stream.of(indexShardStats.getShards())
-                                .filter(s -> s.getShardRouting().active() && s.getShardRouting().primary())
-                                .findFirst();
-                if (!maybePrimary.isPresent()) {
-                    continue;
-                }
-                final ShardStats primary = maybePrimary.get();
-                final SeqNoStats primarySeqNoStats = primary.getSeqNoStats();
-                for (final ShardStats shardStats : indexShardStats) {
-                    final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
-                    if (seqNoStats == null) {
-                        // the shard is initializing
-                        continue;
+            for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+                for (IndexService indexService : indicesService) {
+                    for (IndexShard shard : indexService) {
+                        if (shard.routingEntry().primary()) {
+                            final SeqNoStats seqNoStats = shard.seqNoStats();
+                            assertThat("shard " + shard.routingEntry() + " seq_no [" + seqNoStats + "]",
+                                seqNoStats.getGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
+                        }
                     }
-                    assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
                 }
             }
-        }, 30, TimeUnit.SECONDS);
-
+        }, 60, TimeUnit.SECONDS);
+        ensureGreen("test");
         for (final Thread thread : threads) {
             thread.join();
         }

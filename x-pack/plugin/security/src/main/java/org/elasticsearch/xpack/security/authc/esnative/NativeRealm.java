@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRea
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
@@ -24,25 +26,27 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
  */
 public class NativeRealm extends CachingUsernamePasswordRealm {
 
-    private final NativeUsersStore usersStore;
+    private final NativeUsersStore userStore;
 
     public NativeRealm(RealmConfig config, NativeUsersStore usersStore, ThreadPool threadPool) {
         super(config, threadPool);
-        this.usersStore = usersStore;
+        this.userStore = usersStore;
     }
 
     @Override
     protected void doLookupUser(String username, ActionListener<User> listener) {
-        usersStore.getUser(username, listener);
+        userStore.getUser(username, listener);
     }
 
     @Override
     protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
-        usersStore.verifyPassword(token.principal(), token.credentials(), listener);
+        userStore.verifyPassword(token.principal(), token.credentials(), listener);
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)) {
+        if (isMoveFromRedToNonRed(previousState, currentState)
+            || isIndexDeleted(previousState, currentState)
+            || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false) {
             clearCache();
         }
     }
@@ -50,7 +54,7 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
     @Override
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         super.usageStats(ActionListener.wrap(stats ->
-            usersStore.getUserCount(ActionListener.wrap(size -> {
+            userStore.getUserCount(ActionListener.wrap(size -> {
                 stats.put("size", size);
                 listener.onResponse(stats);
             }, listener::onFailure))

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -36,7 +25,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
@@ -66,7 +55,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         int targetShardId = randomIntBetween(0, numShards-1);
         boolean hasNested = randomBoolean();
         for (int j = 0; j < numDocs; j++) {
-            int shardId = OperationRouting.generateShardId(metadata, Integer.toString(j), null);
+            int shardId = IndexRouting.fromIndexMetadata(metadata).shardId(Integer.toString(j), null);
             if (hasNested) {
                 List<Iterable<IndexableField>> docs = new ArrayList<>();
                 int numNested = randomIntBetween(0, 10);
@@ -114,7 +103,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         int targetShardId = randomIntBetween(0, numShards-1);
         for (int j = 0; j < numDocs; j++) {
             String routing = randomRealisticUnicodeOfCodepointLengthBetween(1, 5);
-            final int shardId = OperationRouting.generateShardId(metadata, null, routing);
+            final int shardId = IndexRouting.fromIndexMetadata(metadata).shardId(null, routing);
             if (hasNested) {
                 List<Iterable<IndexableField>> docs = new ArrayList<>();
                 int numNested = randomIntBetween(0, 10);
@@ -165,7 +154,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
             final int shardId;
             if (randomBoolean()) {
                 String routing = randomRealisticUnicodeOfCodepointLengthBetween(1, 5);
-                shardId = OperationRouting.generateShardId(metadata, null, routing);
+                shardId = IndexRouting.fromIndexMetadata(metadata).shardId(null, routing);
                 rootDoc = Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
@@ -173,7 +162,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                     sequenceIDFields.primaryTerm
                 );
             } else {
-                shardId = OperationRouting.generateShardId(metadata, Integer.toString(j), null);
+                shardId = IndexRouting.fromIndexMetadata(metadata).shardId(Integer.toString(j), null);
                 rootDoc = Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new SortedNumericDocValuesField("shard_id", shardId),
@@ -220,7 +209,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         int targetShardId = randomIntBetween(0, numShards-1);
         for (int j = 0; j < numDocs; j++) {
             String routing = randomRealisticUnicodeOfCodepointLengthBetween(1, 5);
-            final int shardId = OperationRouting.generateShardId(metadata, Integer.toString(j), routing);
+            final int shardId = IndexRouting.fromIndexMetadata(metadata).shardId(Integer.toString(j), routing);
 
             if (hasNested) {
                 List<Iterable<IndexableField>> docs = new ArrayList<>();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.example;
 
@@ -35,6 +36,9 @@ public class SpiExtensionPlugin extends Plugin implements ActionPlugin {
         List<Setting<?>> list = new ArrayList<>(RealmSettings.getStandardSettings(CustomRealm.TYPE));
         list.add(RealmSettings.simpleString(CustomRealm.TYPE, "filtered_setting", Setting.Property.NodeScope, Setting.Property.Filtered));
         list.addAll(RealmSettings.getStandardSettings(CustomRoleMappingRealm.TYPE));
+        list.add(CustomRealm.USERNAME_SETTING);
+        list.add(CustomRealm.PASSWORD_SETTING);
+        list.add(CustomRealm.ROLES_SETTING);
         return list;
     }
 }

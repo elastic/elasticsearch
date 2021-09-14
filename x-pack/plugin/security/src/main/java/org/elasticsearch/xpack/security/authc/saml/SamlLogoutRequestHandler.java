@@ -1,33 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
-import java.util.zip.Inflater;
-import java.util.zip.InflaterInputStream;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.core.internal.io.Streams;
-import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.core.TimeValue;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.core.EncryptedID;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.NameID;
-import org.opensaml.xmlsec.crypto.XMLSigningUtil;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.signature.Signature;
 import org.w3c.dom.Element;
@@ -37,7 +25,7 @@ import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlExceptio
 /**
  * Processes a LogoutRequest for an IdP-initiated logout.
  */
-public class SamlLogoutRequestHandler extends SamlRequestHandler {
+public class SamlLogoutRequestHandler extends SamlObjectHandler {
 
     private static final String REQUEST_TAG_NAME = "LogoutRequest";
 
@@ -57,9 +45,9 @@ public class SamlLogoutRequestHandler extends SamlRequestHandler {
      * @throws ElasticsearchSecurityException If the SAML is invalid for this realm/configuration
      */
     public Result parseFromQueryString(String queryString) {
-        final ParsedQueryString parsed = parseQueryStringAndValidateSignature(queryString);
+        final ParsedQueryString parsed = parseQueryStringAndValidateSignature(queryString, "SAMLRequest");
 
-        final Element root = parseSamlMessage(inflate(decodeBase64(parsed.samlRequest)));
+        final Element root = parseSamlMessage(inflate(decodeBase64(parsed.samlMessage)));
         if (REQUEST_TAG_NAME.equals(root.getLocalName()) && SAML_NAMESPACE.equals(root.getNamespaceURI())) {
             try {
                 final LogoutRequest logoutRequest = buildXmlObject(root, LogoutRequest.class);
@@ -72,26 +60,6 @@ public class SamlLogoutRequestHandler extends SamlRequestHandler {
             throw samlException("SAML content [{}] should have a root element of Namespace=[{}] Tag=[{}]",
                     root, SAML_NAMESPACE, REQUEST_TAG_NAME);
         }
-    }
-
-    private ParsedQueryString parseQueryStringAndValidateSignature(String queryString) {
-        final String signatureInput = queryString.replaceAll("&Signature=.*$", "");
-        final Map<String, String> parameters = new HashMap<>();
-        RestUtils.decodeQueryString(queryString, 0, parameters);
-        final String samlRequest = parameters.get("SAMLRequest");
-        if (samlRequest == null) {
-            throw samlException("Could not parse SAMLRequest from query string: [{}]", queryString);
-        }
-
-        final String relayState = parameters.get("RelayState");
-        final String signatureAlgorithm = parameters.get("SigAlg");
-        final String signature = parameters.get("Signature");
-        if (signature == null || signatureAlgorithm == null) {
-            return new ParsedQueryString(samlRequest, false, relayState);
-        }
-
-        validateSignature(signatureInput, signatureAlgorithm, signature);
-        return new ParsedQueryString(samlRequest, true, relayState);
     }
 
     private Result parseLogout(LogoutRequest logoutRequest, boolean requireSignature, String relayState) {
@@ -109,44 +77,6 @@ public class SamlLogoutRequestHandler extends SamlRequestHandler {
         validateNotOnOrAfter(logoutRequest.getNotOnOrAfter());
 
         return new Result(logoutRequest.getID(), SamlNameId.fromXml(getNameID(logoutRequest)), getSessionIndex(logoutRequest), relayState);
-    }
-
-    private void validateSignature(String inputString, String signatureAlgorithm, String signature) {
-        final byte[] sigBytes = decodeBase64(signature);
-        final byte[] inputBytes = inputString.getBytes(StandardCharsets.US_ASCII);
-        final String signatureText = Strings.cleanTruncate(signature, 32);
-        checkIdpSignature(credential -> {
-            if (XMLSigningUtil.verifyWithURI(credential, signatureAlgorithm, sigBytes, inputBytes)) {
-                logger.debug(() -> new ParameterizedMessage("SAML Signature [{}] matches credentials [{}] [{}]",
-                        signatureText, credential.getEntityId(), credential.getPublicKey()));
-                return true;
-            } else {
-                logger.debug(() -> new ParameterizedMessage("SAML Signature [{}] failed against credentials [{}] [{}]",
-                        signatureText, credential.getEntityId(), credential.getPublicKey()));
-                return false;
-            }
-        }, signatureText);
-    }
-
-    private byte[] decodeBase64(String content) {
-        try {
-            return Base64.getDecoder().decode(content.replaceAll("\\s+", ""));
-        } catch (IllegalArgumentException e) {
-            logger.info("Failed to decode base64 string [{}] - {}", content, e.toString());
-            throw samlException("SAML message cannot be Base64 decoded", e);
-        }
-    }
-
-    private byte[] inflate(byte[] bytes) {
-        Inflater inflater = new Inflater(true);
-        try (ByteArrayInputStream in = new ByteArrayInputStream(bytes);
-             InflaterInputStream inflate = new InflaterInputStream(in, inflater);
-             ByteArrayOutputStream out = new ByteArrayOutputStream(bytes.length * 3 / 2)) {
-            Streams.copy(inflate, out);
-            return out.toByteArray();
-        } catch (IOException e) {
-            throw samlException("SAML message cannot be inflated", e);
-        }
     }
 
     private NameID getNameID(LogoutRequest logoutRequest) {
@@ -194,18 +124,6 @@ public class SamlLogoutRequestHandler extends SamlRequestHandler {
         if (url.equals(request.getDestination()) == false) {
             throw samlException("SAML request " + request.getID() + " is for destination " + request.getDestination()
                     + " but this realm uses " + url);
-        }
-    }
-
-    static class ParsedQueryString {
-        final String samlRequest;
-        final boolean hasSignature;
-        final String relayState;
-
-        ParsedQueryString(String samlRequest, boolean hasSignature, String relayState) {
-            this.samlRequest = samlRequest;
-            this.hasSignature = hasSignature;
-            this.relayState = relayState;
         }
     }
 

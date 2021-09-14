@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
@@ -162,6 +163,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                     + "            \"total_in_bytes\": 0,"
                     + "            \"reused_in_bytes\": 0,"
                     + "            \"recovered_in_bytes\": 0,"
+                    + "            \"recovered_from_snapshot_in_bytes\": 0,"
                     + "            \"percent\": \"0.0%%\""
                     + "          },"
                     + "          \"files\": {"

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.results;
 
@@ -21,9 +22,13 @@ import static org.hamcrest.Matchers.containsString;
 
 public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<CategoryDefinition> {
 
-    public CategoryDefinition createTestInstance(String jobId) {
+    public static CategoryDefinition createTestInstance(String jobId) {
         CategoryDefinition categoryDefinition = new CategoryDefinition(jobId);
         categoryDefinition.setCategoryId(randomLong());
+        if (randomBoolean()) {
+            categoryDefinition.setPartitionFieldName(randomAlphaOfLength(10));
+            categoryDefinition.setPartitionFieldValue(randomAlphaOfLength(20));
+        }
         categoryDefinition.setTerms(randomAlphaOfLength(10));
         categoryDefinition.setRegex(randomAlphaOfLength(10));
         categoryDefinition.setMaxMatchingLength(randomLong());
@@ -52,7 +57,11 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
 
     @Override
     protected CategoryDefinition doParseInstance(XContentParser parser) {
-        return CategoryDefinition.STRICT_PARSER.apply(parser, null);
+        // As a category definition contains a field named after the partition field, the parser
+        // for category definitions serialised to XContent must always ignore unknown fields.
+        // This is why the lenient parser is used in this test rather than the strict parser
+        // that most of the other tests for this package use.
+        return CategoryDefinition.LENIENT_PARSER.apply(parser, null);
     }
 
     public void testEquals_GivenSameObject() {
@@ -130,6 +139,8 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
     private static CategoryDefinition createFullyPopulatedCategoryDefinition() {
         CategoryDefinition category = new CategoryDefinition("jobName");
         category.setCategoryId(42);
+        category.setPartitionFieldName("p");
+        category.setPartitionFieldValue("v");
         category.setTerms("foo bar");
         category.setRegex(".*?foo.*?bar.*");
         category.setMaxMatchingLength(120L);
@@ -138,6 +149,9 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
         return category;
     }
 
+    /**
+     * For this class the strict parser is <em>only</em> used for parsing C++ output.
+     */
     public void testStrictParser() throws IOException {
         String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {

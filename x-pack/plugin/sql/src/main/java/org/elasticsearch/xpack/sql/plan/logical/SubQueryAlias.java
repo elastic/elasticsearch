@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
@@ -32,7 +33,7 @@ public class SubQueryAlias extends UnaryPlan {
     }
 
     @Override
-    protected SubQueryAlias replaceChild(LogicalPlan newChild) {
+    public SubQueryAlias replaceChild(LogicalPlan newChild) {
         return new SubQueryAlias(source(), newChild, alias);
     }
 
@@ -46,7 +47,7 @@ public class SubQueryAlias extends UnaryPlan {
             output = alias == null ? child().output() :
                 child().output().stream()
                 .map(e -> e.withQualifier(alias))
-                .collect(toList()); 
+                .collect(toList());
         }
         return output;
     }
@@ -63,7 +64,7 @@ public class SubQueryAlias extends UnaryPlan {
 
     @Override
     public boolean equals(Object obj) {
-        if (!super.equals(obj)) {
+        if (super.equals(obj) == false) {
             return false;
         }
 

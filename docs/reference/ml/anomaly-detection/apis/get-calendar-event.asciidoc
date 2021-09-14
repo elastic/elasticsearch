@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-calendar-event]]
-=== Get scheduled events API
+= Get scheduled events API
 ++++
 <titleabbrev>Get scheduled events</titleabbrev>
 ++++
@@ -9,60 +9,65 @@
 Retrieves information about the scheduled events in calendars.
 
 [[ml-get-calendar-event-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/calendars/<calendar_id>/events` +
 
 `GET _ml/calendars/_all/events`
 
 [[ml-get-calendar-event-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-<<security-privileges>>.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 [[ml-get-calendar-event-desc]]
-==== {api-description-title}
+== {api-description-title}
 
-You can get scheduled event information for a single calendar or for all
-calendars by using `_all`.
+You can get scheduled event information for multiple calendars in a single
+API request by using a comma-separated list of ids or a wildcard expression.
+You can get scheduled event information for all calendars by using `_all`,
+by specifying `*` as the `<calendar_id>`, or by omitting the `<calendar_id>`.
 
 For more information, see
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
 [[ml-get-calendar-event-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<calendar_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 [[ml-get-calendar-event-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `end`::
     (Optional, string) Specifies to get events with timestamps earlier than this
-    time.
+    time. Defaults to unset, which means results are not
+    limited to specific timestamps.
 
 `from`::
-    (Optional, integer) Skips the specified number of events.
+    (Optional, integer) Skips the specified number of events. Defaults to `0`.
 
 `size`::
     (Optional, integer) Specifies the maximum number of events to obtain.
+    Defaults to `100`.
 
 `start`::
     (Optional, string) Specifies to get events with timestamps after this time.
+    Defaults to unset, which means results are not limited to
+    specific timestamps.
 
 [[ml-get-calendar-event-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns an array of scheduled event resources, which have the
 following properties:
 
 `calendar_id`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `description`::
 (string) A description of the scheduled event.
@@ -79,7 +84,7 @@ the epoch or ISO 8601 format.
 since the epoch or ISO 8601 format.
 
 [[ml-get-calendar-event-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

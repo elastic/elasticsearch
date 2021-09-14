@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 
@@ -32,7 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -42,13 +31,14 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ClusterShardLimitIT extends ESIntegTestCase {
-    private static final String shardsPerNodeKey = Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey();
+    private static final String shardsPerNodeKey = ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey();
 
     public void testSettingClusterMaxShards() {
         int shardsPerNode = between(1, 500_000);
@@ -155,8 +145,8 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             fail("shouldn't be able to increase the number of replicas");
         } catch (IllegalArgumentException e) {
             String expectedError = "Validation Failed: 1: this action would add [" + (dataNodes * firstShardCount)
-                + "] total shards, but this cluster currently has [" + firstShardCount + "]/[" + dataNodes * shardsPerNode
-                + "] maximum shards open;";
+                + "] shards, but this cluster currently has [" + firstShardCount + "]/[" + dataNodes * shardsPerNode
+                + "] maximum normal shards open;";
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = client().admin().cluster().prepareState().get().getState().metadata();
@@ -202,8 +192,8 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             int difference = totalShardsAfter - totalShardsBefore;
 
             String expectedError = "Validation Failed: 1: this action would add [" + difference
-                + "] total shards, but this cluster currently has [" + totalShardsBefore + "]/[" + dataNodes * shardsPerNode
-                + "] maximum shards open;";
+                + "] shards, but this cluster currently has [" + totalShardsBefore + "]/[" + dataNodes * shardsPerNode
+                + "] maximum normal shards open;";
             assertEquals(expectedError, e.getMessage());
         }
         Metadata clusterState = client().admin().cluster().prepareState().get().getState().metadata();
@@ -264,7 +254,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         List<SnapshotInfo> snapshotInfos = client.admin().cluster().prepareGetSnapshots("test-repo")
-            .setSnapshots("test-snap").get().getSnapshots("test-repo");
+            .setSnapshots("test-snap").get().getSnapshots();
         assertThat(snapshotInfos.size(), equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
@@ -328,7 +318,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
     private int ensureMultipleDataNodes(int dataNodes) {
         if (dataNodes == 1) {
-            internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true).build());
+            internalCluster().startNode(dataNode());
             assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").setLocal(true)
                 .execute().actionGet().isTimedOut(), equalTo(false));
             dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
@@ -362,7 +352,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * dataNodes;
         String expectedError = "Validation Failed: 1: this action would add [" + totalShards
-            + "] total shards, but this cluster currently has [" + currentShards + "]/[" + maxShards + "] maximum shards open;";
+            + "] shards, but this cluster currently has [" + currentShards + "]/[" + maxShards + "] maximum normal shards open;";
         assertEquals(expectedError, e.getMessage());
     }
 

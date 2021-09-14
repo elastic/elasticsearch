@@ -1,0 +1,41 @@
+{
+  "security.disable_user":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html",
+      "description":"Disables users in the native realm."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/user/{username}/_disable",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "username":{
+              "type":"string",
+              "description":"The username of the user to disable"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "refresh":{
+        "type":"enum",
+        "options":[
+          "true",
+          "false",
+          "wait_for"
+        ],
+        "description":"If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+      }
+    }
+  }
+}

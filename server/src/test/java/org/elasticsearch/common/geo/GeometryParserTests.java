@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo;
@@ -26,11 +15,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * Tests for {@link GeometryParser}
@@ -47,8 +42,9 @@ public class GeometryParserTests extends ESTestCase {
 
         try (XContentParser parser = createParser(pointGeoJson)) {
             parser.nextToken();
-            GeometryFormat format = new GeometryParser(true, randomBoolean(), randomBoolean()).geometryFormat(parser);
-            assertEquals(new Point(100, 0), format.fromXContent(parser));
+            GeometryParserFormat format = GeometryParserFormat.geometryFormat(parser);
+            assertEquals(new Point(100, 0),
+                format.fromXContent(StandardValidator.instance(true), randomBoolean(), randomBoolean(), parser));
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder();
             format.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
             assertEquals("{\"type\":\"Point\",\"coordinates\":[100.0,10.0]}", Strings.toString(newGeoJson));
@@ -108,8 +104,9 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Start object
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
-            GeometryFormat format = new GeometryParser(true, randomBoolean(), randomBoolean()).geometryFormat(parser);
-            assertEquals(new Point(100, 0), format.fromXContent(parser));
+            GeometryParserFormat format = GeometryParserFormat.geometryFormat(parser);
+            assertEquals(new Point(100, 0),
+                format.fromXContent(StandardValidator.instance(true), randomBoolean(), randomBoolean(), parser));
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
             format.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
             newGeoJson.endObject();
@@ -141,8 +138,9 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Start object
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
-            GeometryFormat format = new GeometryParser(true, randomBoolean(), randomBoolean()).geometryFormat(parser);
-            assertNull(format.fromXContent(parser));
+
+            GeometryParserFormat format = GeometryParserFormat.geometryFormat(parser);
+            assertNull(format.fromXContent(StandardValidator.instance(true), randomBoolean(), randomBoolean(), parser));
 
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
             // if we serialize non-null value - it should be serialized as geojson
@@ -172,5 +170,46 @@ public class GeometryParserTests extends ESTestCase {
                 () -> new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser));
             assertEquals("shape must be an object consisting of type and coordinates", ex.getMessage());
         }
+    }
+
+    public void testBasics() {
+        GeometryParser parser = new GeometryParser(true, randomBoolean(), randomBoolean());
+        // point
+        Point expectedPoint = new Point(-122.084110, 37.386637);
+        testBasics(parser, Map.of("lat", 37.386637, "lon", -122.084110), expectedPoint);
+        testBasics(parser, "37.386637, -122.084110", expectedPoint);
+        testBasics(parser, "POINT (-122.084110 37.386637)", expectedPoint);
+        testBasics(parser, Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637)), expectedPoint);
+        testBasics(parser, List.of(-122.084110, 37.386637), expectedPoint);
+        // line
+        Line expectedLine = new Line(new double[] {0, 1}, new double[] {0, 1});
+        testBasics(parser, "LINESTRING(0 0, 1 1)", expectedLine);
+        testBasics(parser, Map.of("type", "LineString", "coordinates", List.of(List.of(0, 0), List.of(1, 1))), expectedLine);
+        // polygon
+        Polygon expectedPolygon = new Polygon(new LinearRing(new double[] {0, 1, 1, 0, 0}, new double[] {0, 0, 1, 1, 0}));
+        testBasics(parser, "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))", expectedPolygon);
+        testBasics(parser, Map.of("type", "Polygon", "coordinates",
+            List.of(
+                List.of(List.of(0, 0), List.of(1, 0), List.of(1, 1), List.of(0, 1), List.of(0, 0)))
+            ),
+            expectedPolygon);
+        // geometry collection
+        testBasics(parser,
+            List.of(
+                List.of(-122.084110, 37.386637),
+                "37.386637, -122.084110",
+                "POINT (-122.084110 37.386637)",
+                Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637)),
+                Map.of("type", "LineString", "coordinates", List.of(List.of(0, 0), List.of(1, 1))),
+                "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
+            ),
+            new GeometryCollection<>(List.of(expectedPoint, expectedPoint, expectedPoint, expectedPoint, expectedLine, expectedPolygon))
+        );
+        expectThrows(ElasticsearchParseException.class, () -> testBasics(parser, "not a geometry", null));
+    }
+
+    private void testBasics(GeometryParser parser, Object value, Geometry expected) {
+        Geometry geometry = parser.parseGeometry(value);
+        assertEquals(expected, geometry);
     }
 }

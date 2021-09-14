@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.annotations;
 
@@ -17,25 +18,33 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
 
     @Override
     protected Annotation doParseInstance(XContentParser parser) {
-        return Annotation.PARSER.apply(parser, null).build();
+        return Annotation.fromXContent(parser, null);
     }
 
     @Override
     protected Annotation createTestInstance() {
-        return randomAnnotation();
+        return randomAnnotation(randomBoolean() ? randomAlphaOfLengthBetween(10, 30) : null);
     }
 
-    static Annotation randomAnnotation() {
+    public static Annotation randomAnnotation(String jobId) {
         return new Annotation.Builder()
             .setAnnotation(randomAlphaOfLengthBetween(100, 1000))
             .setCreateTime(new Date(randomNonNegativeLong()))
             .setCreateUsername(randomAlphaOfLengthBetween(5, 20))
             .setTimestamp(new Date(randomNonNegativeLong()))
             .setEndTimestamp(randomBoolean() ? new Date(randomNonNegativeLong()) : null)
-            .setJobId(randomBoolean() ? randomAlphaOfLengthBetween(10, 30) : null)
+            .setJobId(jobId)
             .setModifiedTime(randomBoolean() ? new Date(randomNonNegativeLong()) : null)
             .setModifiedUsername(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
-            .setType(randomAlphaOfLengthBetween(10, 15))
+            .setType(randomFrom(Annotation.Type.values()))
+            .setEvent(randomBoolean() ? randomFrom(Annotation.Event.values()) : null)
+            .setDetectorIndex(randomBoolean() ? randomIntBetween(0, 10) : null)
+            .setPartitionFieldName(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setPartitionFieldValue(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setOverFieldName(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setOverFieldValue(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setByFieldName(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setByFieldValue(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
             .build();
     }
 

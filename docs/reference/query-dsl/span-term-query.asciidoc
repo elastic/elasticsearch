@@ -11,9 +11,9 @@ Matches spans containing a term. The span term query maps to Lucene
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "span_term" : { "user" : "kimchy" }
-    }
+  "query": {
+    "span_term" : { "user.id" : "kimchy" }
+  }
 }    
 --------------------------------------------------
 
@@ -23,9 +23,9 @@ A boost can also be associated with the query:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-       "span_term" : { "user" : { "value" : "kimchy", "boost" : 2.0 } }
-    }
+  "query": {
+    "span_term" : { "user.id" : { "value" : "kimchy", "boost" : 2.0 } }
+  }
 }    
 --------------------------------------------------
 
@@ -35,8 +35,8 @@ Or :
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "span_term" : { "user" : { "term" : "kimchy", "boost" : 2.0 } }
-    }
+  "query": {
+    "span_term" : { "user.id" : { "term" : "kimchy", "boost" : 2.0 } }
+  }
 }    
 --------------------------------------------------

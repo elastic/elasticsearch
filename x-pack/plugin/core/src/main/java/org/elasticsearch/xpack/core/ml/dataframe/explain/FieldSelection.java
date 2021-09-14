@@ -1,20 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.explain;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -56,12 +55,7 @@ public class FieldSelection implements ToXContentObject, Writeable {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), MAPPING_TYPES);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), IS_INCLUDED);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), IS_REQUIRED);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return FeatureType.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, FEATURE_TYPE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FeatureType::fromString, FEATURE_TYPE);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
     }
 

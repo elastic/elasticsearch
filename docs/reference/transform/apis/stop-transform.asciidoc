@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[stop-transform]]
-=== Stop {transforms} API
+= Stop {transforms} API
 
 [subs="attributes"]
 ++++
@@ -12,7 +12,7 @@ Stops one or more {transforms}.
 
 
 [[stop-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _transform/<transform_id>/_stop` +
 
@@ -22,20 +22,14 @@ Stops one or more {transforms}.
 
 
 [[stop-transform-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-built-in roles and privileges:
-
-* `manage_transform` 
-
-The built-in `transform_admin` role has this privilege. 
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+Requires the `manage_transform` cluster privilege. This privilege is included 
+in the `transform_admin` built-in role.
 
 
 [[stop-transform-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can stop multiple {transforms} in a single API request by using a
 comma-separated list of {transforms} or a wildcard expression.
@@ -44,21 +38,21 @@ All {transforms} can be stopped by using `_all` or `*` as the
 
 
 [[stop-transform-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<transform_id>`::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[stop-transform-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms2]
+(Optional, Boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms2]
 
 `force`::
-  (Optional, boolean) Set to `true` to stop a failed {transform} or to 
+  (Optional, Boolean) Set to `true` to stop a failed {transform} or to 
   forcefully stop a {transform} that did not respond to the initial stop 
   request.
 
@@ -71,17 +65,17 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms2]
   call itself timed out while waiting for the status change. Defaults to `30s`
 
 `wait_for_completion`::
-  (Optional, boolean) If set to `true`, causes the API to block until the indexer 
+  (Optional, Boolean) If set to `true`, causes the API to block until the indexer 
   state completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
 
 `wait_for_checkpoint`::
-  (Optional, boolean) If set to `true`, the transform will not completely stop
+  (Optional, Boolean) If set to `true`, the transform will not completely stop
   until the current checkpoint is completed. If set to `false`, the {transform}
   stops as soon as possible. Defaults to `false`.
 
 [[stop-transform-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
@@ -89,7 +83,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms2]
 
 
 [[stop-transform-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -37,16 +26,14 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation.DebugMode;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -59,32 +46,23 @@ public class TransportClusterAllocationExplainAction
     private static final Logger logger = LogManager.getLogger(TransportClusterAllocationExplainAction.class);
 
     private final ClusterInfoService clusterInfoService;
+    private final SnapshotsInfoService snapshotsInfoService;
     private final AllocationDeciders allocationDeciders;
-    private final ShardsAllocator shardAllocator;
     private final AllocationService allocationService;
 
     @Inject
     public TransportClusterAllocationExplainAction(TransportService transportService, ClusterService clusterService,
                                                    ThreadPool threadPool, ActionFilters actionFilters,
                                                    IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   ClusterInfoService clusterInfoService, AllocationDeciders allocationDeciders,
-                                                   ShardsAllocator shardAllocator, AllocationService allocationService) {
+                                                   ClusterInfoService clusterInfoService, SnapshotsInfoService snapshotsInfoService,
+                                                   AllocationDeciders allocationDeciders, AllocationService allocationService) {
         super(ClusterAllocationExplainAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ClusterAllocationExplainRequest::new, indexNameExpressionResolver);
+            ClusterAllocationExplainRequest::new, indexNameExpressionResolver, ClusterAllocationExplainResponse::new,
+                ThreadPool.Names.MANAGEMENT);
         this.clusterInfoService = clusterInfoService;
+        this.snapshotsInfoService = snapshotsInfoService;
         this.allocationDeciders = allocationDeciders;
-        this.shardAllocator = shardAllocator;
         this.allocationService = allocationService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected ClusterAllocationExplainResponse read(StreamInput in) throws IOException {
-        return new ClusterAllocationExplainResponse(in);
     }
 
     @Override
@@ -98,20 +76,30 @@ public class TransportClusterAllocationExplainAction
         final RoutingNodes routingNodes = state.getRoutingNodes();
         final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state,
-                clusterInfo, System.nanoTime());
+                clusterInfo, snapshotsInfoService.snapshotShardSizes(), System.nanoTime());
 
         ShardRouting shardRouting = findShardToExplain(request, allocation);
         logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);
 
-        ClusterAllocationExplanation cae = explainShard(shardRouting, allocation,
-            request.includeDiskInfo() ? clusterInfo : null, request.includeYesDecisions(), allocationService);
+        ClusterAllocationExplanation cae = explainShard(
+            shardRouting,
+            allocation,
+            request.includeDiskInfo() ? clusterInfo : null,
+            request.includeYesDecisions(),
+            request.useAnyUnassignedShard() == false,
+            allocationService);
         listener.onResponse(new ClusterAllocationExplainResponse(cae));
     }
 
     // public for testing
-    public static ClusterAllocationExplanation explainShard(ShardRouting shardRouting, RoutingAllocation allocation,
-                                                            ClusterInfo clusterInfo, boolean includeYesDecisions,
-                                                            AllocationService allocationService) {
+    public static ClusterAllocationExplanation explainShard(
+        ShardRouting shardRouting,
+        RoutingAllocation allocation,
+        ClusterInfo clusterInfo,
+        boolean includeYesDecisions,
+        boolean isSpecificShard,
+        AllocationService allocationService) {
+
         allocation.setDebugMode(includeYesDecisions ? DebugMode.ON : DebugMode.EXCLUDE_YES_DECISIONS);
 
         ShardAllocationDecision shardDecision;
@@ -121,23 +109,34 @@ public class TransportClusterAllocationExplainAction
             shardDecision = allocationService.explainShardAllocation(shardRouting, allocation);
         }
 
-        return new ClusterAllocationExplanation(shardRouting,
+        return new ClusterAllocationExplanation(
+            isSpecificShard,
+            shardRouting,
             shardRouting.currentNodeId() != null ? allocation.nodes().get(shardRouting.currentNodeId()) : null,
             shardRouting.relocatingNodeId() != null ? allocation.nodes().get(shardRouting.relocatingNodeId()) : null,
-            clusterInfo, shardDecision);
+            clusterInfo,
+            shardDecision);
     }
 
     // public for testing
     public static ShardRouting findShardToExplain(ClusterAllocationExplainRequest request, RoutingAllocation allocation) {
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {
-            // If we can use any shard, just pick the first unassigned one (if there are any)
-            RoutingNodes.UnassignedShards.UnassignedIterator ui = allocation.routingNodes().unassigned().iterator();
-            if (ui.hasNext()) {
-                foundShard = ui.next();
+            // If we can use any shard, return the first unassigned primary (if there is one) or the first unassigned replica (if not)
+            for (ShardRouting unassigned : allocation.routingNodes().unassigned()) {
+                if (foundShard == null || unassigned.primary()) {
+                    foundShard = unassigned;
+                }
+                if (foundShard.primary()) {
+                    break;
+                }
             }
             if (foundShard == null) {
-                throw new IllegalArgumentException("unable to find any unassigned shards to explain [" + request + "]");
+                throw new IllegalArgumentException(
+                    "No shard was specified in the request which means the response should explain a randomly-chosen unassigned shard, "
+                        + "but there are no unassigned shards in this cluster. To explain the allocation of an assigned shard you must "
+                        + "specify the target shard in the request."
+                );
             }
         } else {
             String index = request.getIndex();

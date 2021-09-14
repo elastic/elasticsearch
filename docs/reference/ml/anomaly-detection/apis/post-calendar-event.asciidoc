@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-post-calendar-event]]
-=== Add events to calendar API
+= Add events to calendar API
 ++++
 <titleabbrev>Add events to calendar</titleabbrev>
 ++++
@@ -9,33 +9,33 @@
 Posts scheduled events in a calendar.
 
 [[ml-post-calendar-event-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/calendars/<calendar_id>/events`
 
 [[ml-post-calendar-event-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>>.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-post-calendar-event-desc]]
-==== {api-description-title}
+== {api-description-title}
 
-This API accepts a list of {ml-docs}/ml-calendars.html[scheduled events], each
+This API accepts a list of
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[scheduled events], each
 of which must have a start time, end time, and description.
 
 [[ml-post-calendar-event-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<calendar_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::../../ml-shared.asciidoc[tag=calendar-id]
 
 [role="child_attributes"]
 [[ml-post-calendar-event-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `events`::
 (Required, array) A list of one of more scheduled events. The event's start and
@@ -58,7 +58,7 @@ milliseconds since the epoch or ISO 8601 format.
 ====
 
 [[ml-post-calendar-event-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

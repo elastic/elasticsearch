@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.eql.session.EmptyExecutable;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.session.Executable;
-import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
@@ -23,7 +26,15 @@ public class LocalRelation extends LogicalPlan implements Executable {
 
     private final Executable executable;
 
-    public LocalRelation(Source source, Executable executable) {
+    public LocalRelation(Source source, List<Attribute> output) {
+        this(source, output, Payload.Type.EVENT);
+    }
+
+    public LocalRelation(Source source, List<Attribute> output, Payload.Type resultType) {
+        this(source, new EmptyExecutable(output, resultType));
+    }
+
+    private LocalRelation(Source source, Executable executable) {
         super(source, emptyList());
         this.executable = executable;
     }
@@ -53,7 +64,7 @@ public class LocalRelation extends LogicalPlan implements Executable {
     }
 
     @Override
-    public void execute(EqlSession session, ActionListener<Results> listener) {
+    public void execute(EqlSession session, ActionListener<Payload> listener) {
         executable.execute(session, listener);
     }
 
@@ -74,5 +85,11 @@ public class LocalRelation extends LogicalPlan implements Executable {
 
         LocalRelation other = (LocalRelation) obj;
         return Objects.equals(executable, other.executable);
+    }
+
+
+    @Override
+    public String nodeString() {
+        return nodeName() + NodeUtils.limitedToString(output());
     }
 }

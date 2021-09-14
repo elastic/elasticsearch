@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AttributeInput;
@@ -14,37 +16,14 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 
 public final class Expressions {
-
-    public enum ParamOrdinal {
-        DEFAULT,
-        FIRST,
-        SECOND,
-        THIRD,
-        FOURTH,
-        FIFTH;
-
-        public static ParamOrdinal fromIndex(int index) {
-            switch (index) {
-                case 0: return ParamOrdinal.FIRST;
-                case 1: return ParamOrdinal.SECOND;
-                case 2: return ParamOrdinal.THIRD;
-                case 3: return ParamOrdinal.FOURTH;
-                case 4: return ParamOrdinal.FIFTH;
-                default: return ParamOrdinal.DEFAULT;
-            }
-        }
-    }
 
 
     private Expressions() {}
@@ -66,7 +45,7 @@ public final class Expressions {
 
     public static AttributeMap<Expression> asAttributeMap(List<? extends NamedExpression> named) {
         if (named.isEmpty()) {
-            return new AttributeMap<>(emptyMap());
+            return AttributeMap.emptyAttributeMap();
         }
 
         AttributeMap<Expression> map = new AttributeMap<>();
@@ -94,13 +73,42 @@ public final class Expressions {
         return false;
     }
 
+    /**
+     * Return the logical AND of a list of {@code Nullability}
+     * <pre>
+     *  UNKNOWN AND TRUE/FALSE/UNKNOWN = UNKNOWN
+     *  FALSE AND FALSE = FALSE
+     *  TRUE AND FALSE/TRUE = TRUE
+     * </pre>
+     */
     public static Nullability nullable(List<? extends Expression> exps) {
-        return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
+        Nullability value = Nullability.FALSE;
+        for (Expression exp : exps) {
+            switch (exp.nullable()) {
+                case UNKNOWN:
+                    return Nullability.UNKNOWN;
+                case TRUE:
+                    value = Nullability.TRUE;
+                    break;
+                default:
+                    // not nullable
+                    break;
+            }
+        }
+        return value;
+    }
+
+    public static List<Expression> canonicalize(List<? extends Expression> exps) {
+        List<Expression> canonical = new ArrayList<>(exps.size());
+        for (Expression exp : exps) {
+            canonical.add(exp.canonical());
+        }
+        return canonical;
     }
 
     public static boolean foldable(List<? extends Expression> exps) {
         for (Expression exp : exps) {
-            if (!exp.foldable()) {
+            if (exp.foldable() == false) {
                 return false;
             }
         }
@@ -152,22 +160,27 @@ public final class Expressions {
         return null;
     }
 
+    public static boolean isPresent(NamedExpression e) {
+        return e instanceof EmptyAttribute == false;
+    }
+
     public static boolean equalsAsAttribute(Expression left, Expression right) {
-        if (!left.semanticEquals(right)) {
+        if (left.semanticEquals(right) == false) {
             Attribute l = attribute(left);
             return (l != null && l.semanticEquals(attribute(right)));
         }
         return true;
     }
 
-    public static AttributeMap<Expression> aliases(List<? extends NamedExpression> named) {
-        Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
+    public static List<Tuple<Attribute, Expression>> aliases(List<? extends NamedExpression> named) {
+        // an alias of same name and data type can be reused (by mistake): need to use a list to collect all refs (and later report them)
+        List<Tuple<Attribute, Expression>> aliases = new ArrayList<>();
         for (NamedExpression ne : named) {
             if (ne instanceof Alias) {
-                aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
+                aliases.add(new Tuple<>(ne.toAttribute(), ((Alias) ne).child()));
             }
         }
-        return new AttributeMap<>(aliasMap);
+        return aliases;
     }
 
     public static boolean hasReferenceAttribute(Collection<Attribute> output) {
@@ -190,7 +203,7 @@ public final class Expressions {
                 if (a instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) a;
                     // skip nested fields and seen multi-fields
-                    if (!fa.isNested() && !seenMultiFields.contains(fa.parent())) {
+                    if (fa.isNested() == false && seenMultiFields.contains(fa.parent()) == false) {
                         filtered.add(a);
                         seenMultiFields.add(a);
                     }

@@ -1,16 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -22,8 +20,7 @@ public class RawInferenceResultsTests extends ESTestCase {
         for (int i = 0; i < n; i++) {
             results[i] = randomDouble();
         }
-        return new RawInferenceResults(results,
-            randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("foo", new double[]{1.08}));
+        return new RawInferenceResults(results, randomBoolean() ? new double[0][] : new double[][]{{1.08}} );
     }
 
     public void testEqualityAndHashcode() {
@@ -32,11 +29,11 @@ public class RawInferenceResultsTests extends ESTestCase {
         for (int i = 0; i < n; i++) {
             results[i] = randomDouble();
         }
-        Map<String, double[]> importance = randomBoolean() ?
-            Collections.emptyMap() :
-            Collections.singletonMap("foo", new double[]{1.08, 42.0});
-        RawInferenceResults lft = new RawInferenceResults(results, new HashMap<>(importance));
-        RawInferenceResults rgt = new RawInferenceResults(Arrays.copyOf(results, n), new HashMap<>(importance));
+        double[][] importance = randomBoolean() ?
+            new double[0][] :
+            new double[][]{{1.08, 42.0}};
+        RawInferenceResults lft = new RawInferenceResults(results, importance);
+        RawInferenceResults rgt = new RawInferenceResults(Arrays.copyOf(results, n), importance);
         assertThat(lft, equalTo(rgt));
         assertThat(lft.hashCode(), equalTo(rgt.hashCode()));
     }

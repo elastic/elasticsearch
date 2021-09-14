@@ -1,0 +1,31 @@
+{
+  "ml.stop_trained_model_deployment":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/stop-trained-model-deployment.html",
+      "description":"Stop a trained model deployment."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/{model_id}/deployment/_stop",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The unique identifier of the trained model.",
+              "required":true
+            }
+          }
+        }
+      ]
+    }
+  }
+}

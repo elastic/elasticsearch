@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[get-ml-info]]
-=== Get machine learning info API
+= Get machine learning info API
 
 [subs="attributes"]
 ++++
@@ -11,29 +11,27 @@
 Returns defaults and limits used by machine learning.
 
 [[get-ml-info-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/info`
 
 [[get-ml-info-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. The
-`machine_learning_admin` and `machine_learning_user` roles provide these
-privileges. See <<security-privileges>> and
-<<built-in-roles>>.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
+`machine_learning_user` built-in role.
 
 [[get-ml-info-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This endpoint is designed to be used by a user interface that needs to fully
 understand machine learning configurations where some options are not specified,
-meaning that the defaults should be used.  This endpoint may be used to find out
-what those defaults are.
+meaning that the defaults should be used. This endpoint may be used to find out
+what those defaults are. It also provides information about the maximum size
+of {ml} jobs that could run in the current cluster configuration.
 
 [[get-ml-info-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 The endpoint takes no arguments:
 
@@ -51,7 +49,10 @@ This is a possible response:
   "defaults" : {
     "anomaly_detectors" : {
       "categorization_analyzer" : {
-        "tokenizer" : "ml_classic",
+        "char_filter" : [
+          "first_line_with_letters"
+        ],
+        "tokenizer" : "ml_standard",
         "filter" : [
           {
             "type" : "stop",
@@ -115,7 +116,8 @@ This is a possible response:
     "build_hash": "99a07c016d5a73"
   },
   "limits" : {
-    "effective_max_model_memory_limit": "28961mb"
+    "effective_max_model_memory_limit": "28961mb",
+    "total_ml_memory": "86883mb"
   }
 }
 ----
@@ -123,3 +125,4 @@ This is a possible response:
 // TESTRESPONSE[s/"version": "7.0.0",/"version": "$body.native_code.version",/]
 // TESTRESPONSE[s/"build_hash": "99a07c016d5a73"/"build_hash": "$body.native_code.build_hash"/]
 // TESTRESPONSE[s/"effective_max_model_memory_limit": "28961mb"/"effective_max_model_memory_limit": "$body.limits.effective_max_model_memory_limit"/]
+// TESTRESPONSE[s/"total_ml_memory": "86883mb"/"total_ml_memory": "$body.limits.total_ml_memory"/]

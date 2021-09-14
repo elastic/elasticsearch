@@ -1,18 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.ElasticsearchException;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -20,6 +24,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -104,19 +110,34 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         assertThat(newState, sameInstance(clusterState));
     }
 
-    public void testOnFailure() {
+    @TestLogging(reason = "logging test", value="logger.org.elasticsearch.xpack.ilm.SetStepInfoUpdateTask:WARN")
+    public void testOnFailure() throws IllegalAccessException {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         ToXContentObject stepInfo = getRandomStepInfo();
 
         setStateToKey(currentStepKey);
 
         SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
-        Exception expectedException = new RuntimeException();
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
-        assertEquals("policy [" + policy + "] for index [" + index.getName() + "] failed trying to set step info for step ["
-                + currentStepKey + "].", exception.getMessage());
-        assertSame(expectedException, exception.getCause());
+
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                        "warning",
+                        SetStepInfoUpdateTask.class.getCanonicalName(),
+                        Level.WARN,
+                        "*policy [" + policy + "] for index [" + index.getName() + "] failed trying to set step info for step ["
+                                + currentStepKey + "]."));
+
+        final Logger taskLogger = LogManager.getLogger(SetStepInfoUpdateTask.class);
+        Loggers.addAppender(taskLogger, mockAppender);
+        try {
+            task.onFailure(randomAlphaOfLength(10), new RuntimeException("test exception"));
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(taskLogger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     private void setStatePolicy(String policy) {

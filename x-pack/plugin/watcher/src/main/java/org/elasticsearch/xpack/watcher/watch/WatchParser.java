@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.watch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioException;
 
 public class WatchParser {
@@ -57,7 +58,7 @@ public class WatchParser {
     private final InputRegistry inputRegistry;
     private final CryptoService cryptoService;
     private final Clock clock;
-    private final ExecutableInput defaultInput;
+    private final ExecutableInput<?, ?> defaultInput;
     private final ExecutableCondition defaultCondition;
     private final List<ActionWrapper> defaultActions;
 
@@ -130,10 +131,10 @@ public class WatchParser {
     public Watch parse(String id, boolean includeStatus, WatcherXContentParser parser, long sourceSeqNo, long sourcePrimaryTerm)
         throws IOException {
         Trigger trigger = null;
-        ExecutableInput input = defaultInput;
+        ExecutableInput<?, ?> input = defaultInput;
         ExecutableCondition condition = defaultCondition;
         List<ActionWrapper> actions = defaultActions;
-        ExecutableTransform transform = null;
+        ExecutableTransform<?, ?> transform = null;
         TimeValue throttlePeriod = null;
         Map<String, Object> metatdata = null;
         WatchStatus status = null;
@@ -145,7 +146,7 @@ public class WatchParser {
                 throw new ElasticsearchParseException("could not parse watch [{}]. null token", id);
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == null || currentFieldName == null) {
+            } else if (currentFieldName == null) {
                 throw new ElasticsearchParseException("could not parse watch [{}], unexpected token [{}]", id, token);
             } else if (WatchField.TRIGGER.match(currentFieldName, parser.getDeprecationHandler())) {
                 trigger = triggerService.parseTrigger(id, parser);

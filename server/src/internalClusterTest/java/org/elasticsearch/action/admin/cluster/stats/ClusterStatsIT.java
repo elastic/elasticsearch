@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -29,8 +18,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.monitor.os.OsStats;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -38,10 +28,14 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -64,9 +58,17 @@ public class ClusterStatsIT extends ESIntegTestCase {
         internalCluster().startNode();
         Map<String, Integer> expectedCounts = new HashMap<>();
         expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 1);
-        expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_WARM_NODE_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.ML_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.TRANSFORM_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE.roleName(), 0);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
         int numNodes = randomIntBetween(1, 5);
 
@@ -75,14 +77,27 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
         for (int i = 0; i < numNodes; i++) {
             boolean isDataNode = randomBoolean();
-            boolean isMasterNode = randomBoolean();
             boolean isIngestNode = randomBoolean();
-            boolean isRemoteClusterClientNode = randomBoolean();
+            boolean isMasterNode = randomBoolean();
+            boolean isRemoteClusterClientNode = false;
+            final Set<DiscoveryNodeRole> roles = new HashSet<>();
+            if (isDataNode) {
+                roles.add(DiscoveryNodeRole.DATA_ROLE);
+            }
+            if (isIngestNode) {
+                roles.add(DiscoveryNodeRole.INGEST_ROLE);
+            }
+            if (isMasterNode) {
+                roles.add(DiscoveryNodeRole.MASTER_ROLE);
+            }
+            if (isRemoteClusterClientNode) {
+                roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+            }
             Settings settings = Settings.builder()
-                .put(Node.NODE_DATA_SETTING.getKey(), isDataNode)
-                .put(Node.NODE_MASTER_SETTING.getKey(), isMasterNode)
-                .put(Node.NODE_INGEST_SETTING.getKey(), isIngestNode)
-                .put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), isRemoteClusterClientNode)
+                .putList(
+                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                    roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList())
+                )
                 .build();
             internalCluster().startNode(settings);
             total++;
@@ -91,16 +106,16 @@ public class ClusterStatsIT extends ESIntegTestCase {
             if (isDataNode) {
                 incrementCountForRole(DiscoveryNodeRole.DATA_ROLE.roleName(), expectedCounts);
             }
-            if (isMasterNode) {
-                incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts);
-            }
             if (isIngestNode) {
                 incrementCountForRole(DiscoveryNodeRole.INGEST_ROLE.roleName(), expectedCounts);
+            }
+            if (isMasterNode) {
+                incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts);
             }
             if (isRemoteClusterClientNode) {
                 incrementCountForRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), expectedCounts);
             }
-            if (!isDataNode && !isMasterNode && !isIngestNode && !isRemoteClusterClientNode) {
+            if (isDataNode == false && isMasterNode == false && isIngestNode == false && isRemoteClusterClientNode == false) {
                 incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);
             }
 
@@ -219,19 +234,40 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getNodesStats().getOs().getAllocatedProcessors(), equalTo(nodeProcessors));
     }
 
-    public void testClusterStatusWhenStateNotRecovered() throws Exception {
-        internalCluster().startMasterOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
+    public void testClusterStatusWhenStateNotRecovered() {
+        internalCluster().startMasterOnlyNode(Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 1).build());
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
-        if (randomBoolean()) {
-            internalCluster().startMasterOnlyNode();
-        } else {
-            internalCluster().startDataOnlyNode();
-        }
+        internalCluster().startDataOnlyNode();
         // wait for the cluster status to settle
         ensureGreen();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+    }
+
+    public void testFieldTypes() {
+        internalCluster().startNode();
+        ensureGreen();
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
+        assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
+
+        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
+        client().admin().indices().prepareCreate("test2")
+            .setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"}," +
+                "\"eggplant\":{\"type\":\"integer\"}}}}}").get();
+        response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
+        Set<FieldStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
+        for (FieldStats stat : stats) {
+            if (stat.getName().equals("integer")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+            } else if (stat.getName().equals("keyword")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(3));
+            } else if (stat.getName().equals("object")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+            }
+        }
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -23,9 +12,10 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -71,7 +61,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 
 /**
  * A single search hit.
@@ -96,7 +85,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private BytesReference source;
 
     private Map<String, DocumentField> documentFields;
-    private Map<String, DocumentField> metaFields;
+    private final Map<String, DocumentField> metaFields;
 
     private Map<String, HighlightField> highlightFields = null;
 
@@ -137,15 +126,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             this.id = null;
         }
         this.nestedIdentity = nestedIdentity;
-        this.documentFields = documentFields;
-        if (this.documentFields == null) {
-            this.documentFields = new HashMap<>();
-        }
-
-        this.metaFields = metaFields;
-        if (this.metaFields == null) {
-            this.metaFields = new HashMap<>();
-        }
+        this.documentFields = documentFields == null ? emptyMap() : documentFields;
+        this.metaFields = metaFields == null ? emptyMap() : metaFields;
     }
 
     public SearchHit(StreamInput in) throws IOException {
@@ -173,7 +155,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             Map<String, DocumentField> fields = readFields(in);
             documentFields = new HashMap<>();
             metaFields = new HashMap<>();
-            SearchHit.splitFieldsByMetadata(fields, documentFields, metaFields);
+            fields.forEach((fieldName, docField) ->
+                (MapperService.isMetadataFieldStatic(fieldName) ? metaFields : documentFields).put(fieldName, docField));
         }
 
         int size = in.readVInt();
@@ -219,7 +202,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
 
     private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
-        Map<String, DocumentField> fields = null;
+        Map<String, DocumentField> fields;
         int size = in.readVInt();
         if (size == 0) {
             fields = emptyMap();
@@ -449,47 +432,49 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * The hit field matching the given field name.
      */
     public DocumentField field(String fieldName) {
-        return getFields().get(fieldName);
+        DocumentField result = documentFields.get(fieldName);
+        if (result != null) {
+            return result;
+        } else {
+            return metaFields.get(fieldName);
+        }
     }
 
     /*
     * Adds a new DocumentField to the map in case both parameters are not null.
     * */
-    public void setField(String fieldName, DocumentField field) {
+    public void setDocumentField(String fieldName, DocumentField field) {
         if (fieldName == null || field == null) return;
-        if (field.isMetadataField()) {
-            this.metaFields.put(fieldName, field);
-        } else {
-            this.documentFields.put(fieldName, field);
-        }
+        if (documentFields.size() == 0) this.documentFields = new HashMap<>();
+        this.documentFields.put(fieldName, field);
+    }
+
+    /**
+     * @return a map of metadata fields for this hit
+     */
+    public Map<String, DocumentField> getMetadataFields() {
+        return Collections.unmodifiableMap(metaFields);
+    }
+
+    /**
+     * @return a map of non-metadata fields requested for this hit
+     */
+    public Map<String, DocumentField> getDocumentFields() {
+        return Collections.unmodifiableMap(documentFields);
     }
 
     /**
      * A map of hit fields (from field name to hit fields) if additional fields
-     * were required to be loaded.
+     * were required to be loaded. Includes both document and metadata fields.
      */
     public Map<String, DocumentField> getFields() {
-        Map<String, DocumentField> fields = new HashMap<>();
-        fields.putAll(metaFields);
-        fields.putAll(documentFields);
-        return fields;
-    }
-
-    // returns the fields without handling null cases
-    public Map<String, DocumentField> fieldsOrNull() {
-        return getFields();
-    }
-
-    public void fields(Map<String, DocumentField> fields) {
-        Objects.requireNonNull(fields);
-        this.metaFields = new HashMap<String, DocumentField>();
-        this.documentFields = new HashMap<String, DocumentField>();
-        for (Map.Entry<String, DocumentField> fieldEntry: fields.entrySet()) {
-            if (fieldEntry.getValue().isMetadataField()) {
-                this.metaFields.put(fieldEntry.getKey(), fieldEntry.getValue());
-            } else {
-                this.documentFields.put(fieldEntry.getKey(), fieldEntry.getValue());
-            }
+        if (metaFields.size() > 0 || documentFields.size() > 0) {
+            final Map<String, DocumentField> fields = new HashMap<>();
+            fields.putAll(metaFields);
+            fields.putAll(documentFields);
+            return fields;
+        } else {
+            return emptyMap();
         }
     }
 
@@ -589,22 +574,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.innerHits = innerHits;
     }
 
-    public static void splitFieldsByMetadata(Map<String, DocumentField> fields,
-                                             Map<String, DocumentField> documentFields,
-                                             Map<String, DocumentField> metaFields) {
-        // documentFields and metaFields must be non-empty maps
-        if (fields == null) {
-            return;
-        }
-        for (Map.Entry<String, DocumentField> fieldEntry: fields.entrySet()) {
-            if (fieldEntry.getValue().isMetadataField()) {
-                metaFields.put(fieldEntry.getKey(), fieldEntry.getValue());
-            } else {
-                documentFields.put(fieldEntry.getKey(), fieldEntry.getValue());
-            }
-        }
-    }
-
     public static class Fields {
         static final String _INDEX = "_index";
         static final String _ID = "_id";
@@ -650,6 +619,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+        }
         if (id != null) {
             builder.field(Fields._ID, id);
         }
@@ -670,7 +642,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         } else {
             builder.field(Fields._SCORE, score);
         }
+
         for (DocumentField field : metaFields.values()) {
+            // ignore empty metadata fields
+            if (field.getValues().size() == 0) {
+                continue;
+            }
             // _ignored is the only multi-valued meta field
             // TODO: can we avoid having an exception here?
             if (field.getName().equals(IgnoredFieldMapper.NAME)) {
@@ -682,14 +659,19 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (source != null) {
             XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
-        if (!documentFields.isEmpty()) {
+        if (documentFields.isEmpty() == false &&
+                // ignore fields all together if they are all empty
+                documentFields.values().stream()
+                    .anyMatch(df -> df.getValues().size() > 0)) {
             builder.startObject(Fields.FIELDS);
             for (DocumentField field : documentFields.values()) {
-                field.toXContent(builder, params);
+                if (field.getValues().size() > 0) {
+                    field.toXContent(builder, params);
+                }
             }
             builder.endObject();
         }
-        if (highlightFields != null && !highlightFields.isEmpty()) {
+        if (highlightFields != null && highlightFields.isEmpty() == false) {
             builder.startObject(Fields.HIGHLIGHT);
             for (HighlightField field : highlightFields.values()) {
                 field.toXContent(builder, params);
@@ -720,6 +702,19 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return builder;
     }
 
+    // All fields on the root level of the parsed SearhHit are interpreted as metadata fields
+    // public because we use it in a completion suggestion option
+    @SuppressWarnings("unchecked")
+    public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
+        Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(
+            METADATA_FIELDS, v -> new HashMap<String, DocumentField>());
+        if (fieldName.equals(IgnoredFieldMapper.NAME)) {
+            fieldMap.put(fieldName, new DocumentField(fieldName, (List<Object>) fieldValue));
+        } else {
+            fieldMap.put(fieldName, new DocumentField(fieldName, Collections.singletonList(fieldValue)));
+        }
+    };
+
     /**
      * This parser outputs a temporary map of the objects needed to create the
      * SearchHit instead of directly creating the SearchHit. The reason for this
@@ -730,7 +725,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * of the included search hit. The output of the map is used to create the
      * actual SearchHit instance via {@link #createFromMap(Map)}
      */
-    private static final ObjectParser<Map<String, Object>, Void> MAP_PARSER = new ObjectParser<>("innerHitParser", true, HashMap::new);
+    private static final ObjectParser<Map<String, Object>, Void> MAP_PARSER = new ObjectParser<>("innerHitParser",
+        unknownMetaFieldConsumer, HashMap::new);
 
     static {
         declareInnerHitsParseFields(MAP_PARSER);
@@ -741,7 +737,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     public static void declareInnerHitsParseFields(ObjectParser<Map<String, Object>, Void> parser) {
-        declareMetadataFields(parser);
         parser.declareString((map, value) -> map.put(Fields._INDEX, value), new ParseField(Fields._INDEX));
         parser.declareString((map, value) -> map.put(Fields._ID, value), new ParseField(Fields._ID));
         parser.declareString((map, value) -> map.put(Fields._NODE, value), new ParseField(Fields._NODE));
@@ -838,39 +833,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
     }
 
-    /**
-     * we need to declare parse fields for each metadata field, except for _ID, _INDEX and _TYPE which are
-     * handled individually. All other fields are parsed to an entry in the fields map
-     */
-    private static void declareMetadataFields(ObjectParser<Map<String, Object>, Void> parser) {
-        /* TODO: This method and its usage in declareInnerHitsParseFields() must be replaced by
-            calling an UnknownFieldConsumer. All fields on the root level of the parsed SearhHit
-            should be interpreted as metadata fields.
-         */
-        for (String metadatafield : MapperService.getAllMetaFields()) {
-            if (metadatafield.equals(Fields._ID) == false && metadatafield.equals(Fields._INDEX) == false) {
-                if (metadatafield.equals(IgnoredFieldMapper.NAME)) {
-                    parser.declareObjectArray((map, list) -> {
-                            @SuppressWarnings("unchecked")
-                            Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(METADATA_FIELDS,
-                                v -> new HashMap<String, DocumentField>());
-                            DocumentField field = new DocumentField(metadatafield, list);
-                            fieldMap.put(field.getName(), field);
-                        }, (p, c) -> parseFieldsValue(p),
-                        new ParseField(metadatafield));
-                } else {
-                    parser.declareField((map, field) -> {
-                            @SuppressWarnings("unchecked")
-                            Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(METADATA_FIELDS,
-                                v -> new HashMap<String, DocumentField>());
-                            fieldMap.put(field.getName(), field);
-                        }, (p, c) -> new DocumentField(metadatafield, Collections.singletonList(parseFieldsValue(p))),
-                        new ParseField(metadatafield), ValueType.VALUE);
-                }
-            }
-        }
-    }
-
     private static Map<String, DocumentField> parseFields(XContentParser parser) throws IOException {
         Map<String, DocumentField> fields = new HashMap<>();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -883,12 +845,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private static Map<String, SearchHits> parseInnerHits(XContentParser parser) throws IOException {
         Map<String, SearchHits> innerHits = new HashMap<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String name = parser.currentName();
-            ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
             ensureFieldName(parser, parser.nextToken(), SearchHits.Fields.HITS);
             innerHits.put(name, SearchHits.fromXContent(parser));
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         }
         return innerHits;
     }
@@ -903,13 +865,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     private static Explanation parseExplanation(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         XContentParser.Token token;
         Float value = null;
         String description = null;
         List<Explanation> details = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (Fields.VALUE.equals(currentFieldName)) {
@@ -917,7 +879,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             } else if (Fields.DESCRIPTION.equals(currentFieldName)) {
                 description = parser.textOrNull();
             } else if (Fields.DETAILS.equals(currentFieldName)) {
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     details.add(parseExplanation(parser));
                 }
@@ -1037,6 +999,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(_NESTED);
             return innerToXContent(builder, params);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
 
         /**

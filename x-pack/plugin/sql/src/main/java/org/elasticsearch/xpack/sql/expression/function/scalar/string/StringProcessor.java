@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -20,7 +21,7 @@ public class StringProcessor implements Processor {
 
     private interface StringFunction<R> {
         default R apply(Object o) {
-            if (!(o instanceof String || o instanceof Character)) {
+            if ((o instanceof String || o instanceof Character) == false) {
                 throw new SqlIllegalArgumentException("A string/char is required; received [{}]", o);
             }
 
@@ -32,7 +33,7 @@ public class StringProcessor implements Processor {
 
     private interface NumericFunction<R> {
         default R apply(Object o) {
-            if (!(o instanceof Number)) {
+            if ((o instanceof Number) == false) {
                 throw new SqlIllegalArgumentException("A number is required; received [{}]", o);
             }
 
@@ -50,9 +51,10 @@ public class StringProcessor implements Processor {
         }),
         LCASE((String s) -> s.toLowerCase(Locale.ROOT)),
         UCASE((String s) -> s.toUpperCase(Locale.ROOT)),
-        LENGTH((String s) -> StringFunctionUtils.trimTrailingWhitespaces(s).length()),
-        RTRIM((String s) -> StringFunctionUtils.trimTrailingWhitespaces(s)),
-        LTRIM((String s) -> StringFunctionUtils.trimLeadingWhitespaces(s)),
+        LENGTH((String s) -> s.stripTrailing().length()),
+        RTRIM(String::stripTrailing),
+        LTRIM(String::stripLeading),
+        TRIM(String::trim),
         SPACE((Number n) -> {
             int i = n.intValue();
             if (i < 0) {

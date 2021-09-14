@@ -1,32 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
@@ -261,12 +255,13 @@ public class ClusterHealthIT extends ESIntegTestCase {
         clusterHealthThread.join();
     }
 
-    public void testWaitForEventsRetriesIfOtherConditionsNotMet() throws Exception {
+    public void testWaitForEventsRetriesIfOtherConditionsNotMet() {
         final ActionFuture<ClusterHealthResponse> healthResponseFuture
             = client().admin().cluster().prepareHealth("index").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute();
 
         final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();
         clusterService.submitStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -275,6 +270,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(String source, Exception e) {
+                    completionFuture.onFailure(e);
                     throw new AssertionError(source, e);
                 }
 
@@ -282,33 +278,100 @@ public class ClusterHealthIT extends ESIntegTestCase {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     if (keepSubmittingTasks.get()) {
                         clusterService.submitStateUpdateTask("looping task", this);
+                    } else {
+                        completionFuture.onResponse(null);
                     }
                 }
             });
 
-        createIndex("index");
-        assertFalse(client().admin().cluster().prepareHealth("index").setWaitForGreenStatus().get().isTimedOut());
+        try {
+            createIndex("index");
+            assertFalse(client().admin().cluster().prepareHealth("index").setWaitForGreenStatus().get().isTimedOut());
 
-        // at this point the original health response should not have returned: there was never a point where the index was green AND
-        // the master had processed all pending tasks above LANGUID priority.
-        assertFalse(healthResponseFuture.isDone());
-
-        keepSubmittingTasks.set(false);
-        assertFalse(healthResponseFuture.get().isTimedOut());
+            // at this point the original health response should not have returned: there was never a point where the index was green AND
+            // the master had processed all pending tasks above LANGUID priority.
+            assertFalse(healthResponseFuture.isDone());
+            keepSubmittingTasks.set(false);
+            assertFalse(healthResponseFuture.actionGet(TimeValue.timeValueSeconds(30)).isTimedOut());
+        } finally {
+            keepSubmittingTasks.set(false);
+            completionFuture.actionGet(TimeValue.timeValueSeconds(30));
+        }
     }
 
     public void testHealthOnMasterFailover() throws Exception {
         final String node = internalCluster().startDataOnlyNode();
+        final boolean withIndex = randomBoolean();
+        if (withIndex) {
+            // Create index with many shards to provoke the health request to wait (for green) while master is being shut down.
+            // Notice that this is set to 0 after the test completed starting a number of health requests and master restarts.
+            // This ensures that the cluster is yellow when the health request is made, making the health request wait on the observer,
+            // triggering a call to observer.onClusterServiceClose when master is shutdown.
+            createIndex("test",
+                Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 10))
+                    // avoid full recoveries of index, just wait for replica to reappear
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "5m")
+                .build());
+        }
         final List<ActionFuture<ClusterHealthResponse>> responseFutures = new ArrayList<>();
         // Run a few health requests concurrent to master fail-overs against a data-node to make sure master failover is handled
         // without exceptions
-        for (int i = 0; i < 20; ++i) {
+        final int iterations = withIndex ? 10 : 20;
+        // CI darwin workers are sometimes very slow, give them extra time.
+        int timeoutMinutes = Constants.MAC_OS_X ? 2 : 1;
+        for (int i = 0; i < iterations; ++i) {
             responseFutures.add(client(node).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
-                .setWaitForGreenStatus().execute());
+                .setWaitForGreenStatus().setMasterNodeTimeout(TimeValue.timeValueMinutes(timeoutMinutes)).execute());
             internalCluster().restartNode(internalCluster().getMasterName(), InternalTestCluster.EMPTY_CALLBACK);
+        }
+        if (withIndex) {
+            assertAcked(
+                client().admin().indices()
+                    .updateSettings(new UpdateSettingsRequest("test")
+                        .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))).get()
+            );
         }
         for (ActionFuture<ClusterHealthResponse> responseFuture : responseFutures) {
             assertSame(responseFuture.get().getStatus(), ClusterHealthStatus.GREEN);
+        }
+    }
+
+    public void testWaitForEventsTimesOutIfMasterBusy() {
+        final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
+        final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();
+        clusterService.submitStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                completionFuture.onFailure(e);
+                throw new AssertionError(source, e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                if (keepSubmittingTasks.get()) {
+                    clusterService.submitStateUpdateTask("looping task", this);
+                } else {
+                    completionFuture.onResponse(null);
+                }
+            }
+        });
+
+        try {
+            final ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(TimeValue.timeValueSeconds(1))
+                .get(TimeValue.timeValueSeconds(30));
+            assertTrue(clusterHealthResponse.isTimedOut());
+        } finally {
+            keepSubmittingTasks.set(false);
+            completionFuture.actionGet(TimeValue.timeValueSeconds(30));
         }
     }
 }

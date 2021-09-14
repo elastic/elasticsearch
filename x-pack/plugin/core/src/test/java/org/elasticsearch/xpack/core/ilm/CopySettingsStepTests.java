@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -10,7 +11,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.is;
 
 public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep> {
@@ -65,14 +65,15 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
         IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndex).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
+        final IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.build();
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadataBuilder).put(targetIndexMetadataBuilder).build()
+            Metadata.builder().put(sourceIndexMetadata, false).put(targetIndexMetadataBuilder).build()
         ).build();
 
         CopySettingsStep copySettingsStep = new CopySettingsStep(randomStepKey(), randomStepKey(), indexPrefix,
             LifecycleSettings.LIFECYCLE_NAME);
 
-        ClusterState newClusterState = copySettingsStep.performAction(sourceIndexMetadataBuilder.build().getIndex(), clusterState);
+        ClusterState newClusterState = copySettingsStep.performAction(sourceIndexMetadata.getIndex(), clusterState);
         IndexMetadata newTargetIndexMetadata = newClusterState.metadata().index(targetIndex);
         assertThat(newTargetIndexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME), is(policyName));
     }

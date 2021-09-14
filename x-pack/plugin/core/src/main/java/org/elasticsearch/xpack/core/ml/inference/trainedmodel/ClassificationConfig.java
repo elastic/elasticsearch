@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -97,16 +98,8 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         this.numTopClasses = in.readInt();
         this.topClassesResultsField = in.readString();
         this.resultsField = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.numTopFeatureImportanceValues = in.readVInt();
-        } else {
-            this.numTopFeatureImportanceValues = 0;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.predictionFieldType = PredictionFieldType.fromStream(in);
-        } else {
-            this.predictionFieldType = PredictionFieldType.STRING;
-        }
+        this.numTopFeatureImportanceValues = in.readVInt();
+        this.predictionFieldType = PredictionFieldType.fromStream(in);
     }
 
     public int getNumTopClasses() {
@@ -135,16 +128,17 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
     }
 
     @Override
+    public boolean isAllocateOnly() {
+        return false;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(numTopClasses);
         out.writeString(topClassesResultsField);
         out.writeString(resultsField);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeVInt(numTopFeatureImportanceValues);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            predictionFieldType.writeTo(out);
-        }
+        out.writeVInt(numTopFeatureImportanceValues);
+        predictionFieldType.writeTo(out);
     }
 
     @Override

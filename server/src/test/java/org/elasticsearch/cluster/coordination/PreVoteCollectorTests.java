@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -24,8 +13,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -46,8 +37,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME;
+import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.elasticsearch.threadpool.ThreadPool.Names.SAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -63,11 +55,12 @@ public class PreVoteCollectorTests extends ESTestCase {
     private Map<DiscoveryNode, PreVoteResponse> responsesByNode = new HashMap<>();
     private long currentTerm, lastAcceptedTerm, lastAcceptedVersion;
     private TransportService transportService;
+    private StatusInfo healthStatus;
 
     @Before
     public void createObjects() {
         Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
-        deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        deterministicTaskQueue = new DeterministicTaskQueue();
         final MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(final long requestId, final String action, final TransportRequest request,
@@ -95,6 +88,11 @@ public class PreVoteCollectorTests extends ESTestCase {
                     }
                 });
             }
+
+            @Override
+            public void handleRemoteError(long requestId, Throwable t) {
+                logger.warn("Remote error", t);
+            }
         };
         lastAcceptedTerm = randomNonNegativeLong();
         currentTerm = randomLongBetween(lastAcceptedTerm, Long.MAX_VALUE);
@@ -102,6 +100,7 @@ public class PreVoteCollectorTests extends ESTestCase {
 
         localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(localNode, new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion));
+        healthStatus = new StatusInfo(HEALTHY, "healthy-info");
         transportService = mockTransport.createTransportService(settings,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode, null, emptySet());
@@ -112,7 +111,7 @@ public class PreVoteCollectorTests extends ESTestCase {
             assert electionOccurred == false;
             electionOccurred = true;
         }, l -> {
-        }, ElectionStrategy.DEFAULT_INSTANCE);
+        }, ElectionStrategy.DEFAULT_INSTANCE, () -> healthStatus);
         preVoteCollector.update(getLocalPreVoteResponse(), null);
     }
 
@@ -147,6 +146,13 @@ public class PreVoteCollectorTests extends ESTestCase {
         assertTrue(electionOccurred);
     }
 
+    public void testNoElectionStartIfLocalNodeIsOnlyNodeAndUnhealthy() {
+        healthStatus = new StatusInfo(UNHEALTHY, "unhealthy-info");
+        preVoteCollector.update(getLocalPreVoteResponse(), null);
+        startAndRunCollector(localNode);
+        assertFalse(electionOccurred);
+    }
+
     public void testStartsElectionIfLocalNodeIsQuorum() {
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         responsesByNode.put(otherNode, getLocalPreVoteResponse());
@@ -167,6 +173,15 @@ public class PreVoteCollectorTests extends ESTestCase {
         responsesByNode.put(otherNode, null);
         startAndRunCollector(otherNode);
         assertFalse(electionOccurred);
+    }
+
+    public void testUnhealthyNodeDoesNotOfferPreVote() {
+        final long term = randomNonNegativeLong();
+        healthStatus = new StatusInfo(UNHEALTHY, "unhealthy-info");
+        final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        RemoteTransportException remoteTransportException = expectThrows(RemoteTransportException.class, () ->
+            handlePreVoteRequestViaTransportService(new PreVoteRequest(otherNode, term)));
+        assertThat(remoteTransportException.getCause(), instanceOf(NodeHealthCheckFailureException.class));
     }
 
     public void testDoesNotStartElectionIfStopped() {
@@ -270,11 +285,6 @@ public class PreVoteCollectorTests extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     exceptionRef.set(exp);
-                }
-
-                @Override
-                public String executor() {
-                    return SAME;
                 }
             });
 

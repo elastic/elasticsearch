@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -117,7 +117,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         failureListener = new HostsTrackingFailureListener();
         strictDeprecationMode = randomBoolean();
         restClient = new RestClient(this.httpClient, defaultHeaders,
-                singletonList(node), null, failureListener, NodeSelector.ANY, strictDeprecationMode);
+                singletonList(node), null, failureListener, NodeSelector.ANY, strictDeprecationMode, false);
     }
 
     @SuppressWarnings("unchecked")
@@ -519,7 +519,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * Emulates Elasticsearch's DeprecationLogger.formatWarning in simple
+     * Emulates Elasticsearch's HeaderWarningLogger.formatWarning in simple
      * cases. We don't have that available because we're testing against 1.7.
      */
     private static String formatWarningWithoutDate(String warningBody) {

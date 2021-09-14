@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.xpack.core.analytics.EnumCounters;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
+import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 
 /**
  * Tracks usage of the Analytics aggregations.
@@ -18,8 +19,7 @@ public class AnalyticsUsage {
 
     private final EnumCounters<AnalyticsStatsAction.Item> counters = new EnumCounters<>(AnalyticsStatsAction.Item.class);
 
-    public AnalyticsUsage() {
-    }
+    public AnalyticsUsage() {}
 
     /**
      * Track successful parsing.

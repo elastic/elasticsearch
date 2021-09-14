@@ -3,8 +3,8 @@
 [[getting-started-snapshot-lifecycle-management]]
 === Tutorial: Automate backups with {slm-init}
 
-This tutorial demonstrates how to automate daily backups of {es} indices using an {slm-init} policy.
-The policy takes <<modules-snapshots, snapshots>> of all indices in the cluster 
+This tutorial demonstrates how to automate daily backups of {es} data streams and indices using an {slm-init} policy.
+The policy takes <<modules-snapshots, snapshots>> of all data streams and indices in the cluster 
 and stores them in a local repository.
 It also defines a retention policy and automatically deletes snapshots 
 when they are no longer needed.
@@ -28,7 +28,7 @@ Remote repositories are generally used for production deployments.
 
 For this tutorial, you can register a local repository from 
 {kibana-ref}/snapshot-repositories.html[{kib} Management]
-or use the put repository API:
+or use the create or update repository API:
 
 [source,console]
 -----------------------------------
@@ -47,7 +47,7 @@ PUT /_snapshot/my_repository
 
 Once you have a repository in place, 
 you can define an {slm-init} policy to take snapshots automatically. 
-The policy defines when to take snapshots, which indices should be included, 
+The policy defines when to take snapshots, which data streams or indices should be included, 
 and what to name the snapshots. 
 A policy can also specify a <<slm-retention,retention policy>> and 
 automatically delete snapshots when they are no longer needed.
@@ -55,12 +55,13 @@ automatically delete snapshots when they are no longer needed.
 TIP: Don't be afraid to configure a policy that takes frequent snapshots.
 Snapshots are incremental and make efficient use of storage.
 
-You can define and manage policies through {kib} Management or with the put policy API.
+You can define and manage policies through {kib} Management or with the create
+or update policy API.
 
 For example, you could define a `nightly-snapshots` policy 
-to back up all of your indices daily at 2:30AM UTC.
+to back up all of your data streams and indices daily at 1:30AM UTC.
 
-A put policy request defines the policy configuration in JSON:
+A create or update policy request defines the policy configuration in JSON:
 
 [source,console]
 --------------------------------------------------
@@ -81,18 +82,18 @@ PUT /_slm/policy/nightly-snapshots
 --------------------------------------------------
 // TEST[continued]
 <1> When the snapshot should be taken in
-    <<schedule-cron,Cron syntax>>: daily at 2:30AM UTC
+    <<schedule-cron,Cron syntax>>: daily at 1:30AM UTC
 <2> How to name the snapshot: use  
     <<date-math-index-names,date math>> to include the current date in the snapshot name
 <3> Where to store the snapshot
 <4> The configuration to be used for the snapshot requests (see below)
-<5> Which indices to include in the snapshot: all indices
+<5> Which data streams or indices to include in the snapshot: all data streams and indices
 <6> Optional retention policy: keep snapshots for 30 days, 
 retaining at least 5 and no more than 50 snapshots regardless of age 
 
 You can specify additional snapshot configuration options to customize how snapshots are taken.
 For example, you could configure the policy to fail the snapshot 
-if one of the specified indices is missing. 
+if one of the specified data streams or indices is missing. 
 For more information about snapshot options, see <<snapshots-take-snapshot,snapshot requests>>.
 
 [discrete]
@@ -180,5 +181,5 @@ repository is lost while copying files.
 
 <1> Information about the last time the policy successfully initated a snapshot
 <2> The name of the snapshot that was successfully initiated
-<3> Unformation about the last time the policy failed to initiate a snapshot
+<3> Information about the last time the policy failed to initiate a snapshot
 <4> The next time the policy will execute

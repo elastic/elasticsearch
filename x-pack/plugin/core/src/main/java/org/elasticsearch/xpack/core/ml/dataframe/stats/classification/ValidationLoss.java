@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.classification;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.FoldValues;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,6 +30,7 @@ public class ValidationLoss implements ToXContentObject, Writeable {
         return createParser(ignoreUnknownFields).apply(parser, null);
     }
 
+    @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<ValidationLoss, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<ValidationLoss, Void> parser = new ConstructingObjectParser<>("classification_validation_loss",
             ignoreUnknownFields,
@@ -62,7 +65,9 @@ public class ValidationLoss implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(LOSS_TYPE.getPreferredName(), lossType);
-        builder.field(FOLD_VALUES.getPreferredName(), foldValues);
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            builder.field(FOLD_VALUES.getPreferredName(), foldValues);
+        }
         builder.endObject();
         return builder;
     }

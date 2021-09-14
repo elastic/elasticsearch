@@ -1,23 +1,5 @@
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -27,19 +9,19 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
 final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
-  testCompile project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
-  testCompile repositoryPlugin
+  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
+  testImplementation repositoryPlugin
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'searchable_snapshots'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots'
   }
 }
 
@@ -61,15 +43,11 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   serviceAccountFile = new File(gcsServiceAccount)
 }
 
-def encodedCredentials = {
-  Base64.encoder.encodeToString(Files.readAllBytes(serviceAccountFile.toPath()))
-}
-
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
-task createServiceAccountFile() {
+tasks.register("createServiceAccountFile") {
   doLast {
     KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(1024)
+    keyPairGenerator.initialize(2048)
     KeyPair keyPair = keyPairGenerator.generateKeyPair()
     String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
 
@@ -97,9 +75,9 @@ Map<String, Object> expansions = [
   'base_path': gcsBasePath + "_integration_tests"
 ]
 
-processTestResources {
+tasks.named("processTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 if (useFixture) {
@@ -107,25 +85,21 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'gcs-fixture-other')
 }
 
-integTest {
-  dependsOn repositoryPlugin.bundlePlugin
-  runner {
-    systemProperty 'test.gcs.bucket', gcsBucket
-    systemProperty 'test.gcs.base_path', gcsBasePath + "/searchable_snapshots_tests"
+tasks.named("integTest").configure {
+  systemProperty 'test.gcs.bucket', gcsBucket
+  nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_searchable_snapshots_tests" + BuildParams.testSeed
+
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
   }
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.bundlePlugin.archiveFile
-
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
+  plugin repositoryPlugin.path
 
   keystore 'gcs.client.searchable_snapshots.credentials_file', serviceAccountFile, IGNORE_VALUE
   if (useFixture) {
-    tasks.integTest.dependsOn createServiceAccountFile
     /* Use a closure on the string to delay evaluation until tests are executed */
     setting 'gcs.client.searchable_snapshots.endpoint', { "${-> fixtureAddress('gcs-fixture-other')}" }, IGNORE_VALUE
     setting 'gcs.client.searchable_snapshots.token_uri', { "${-> fixtureAddress('gcs-fixture-other')}/o/oauth2/token" }, IGNORE_VALUE
@@ -134,5 +108,14 @@ testClusters.integTest {
   }
 
   setting 'xpack.license.self_generated.type', 'trial'
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+
+  setting 'xpack.security.enabled', 'false'
 }
 
+
+tasks.register("gcsThirdPartyTest")  {
+  dependsOn "integTest"
+}

@@ -1,26 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.LazyInitializable;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -36,6 +27,7 @@ import java.time.format.SignStyle;
 import java.time.temporal.ChronoField;
 import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAccessor;
+import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.time.temporal.TemporalQuery;
 import java.time.temporal.WeekFields;
@@ -51,15 +43,35 @@ import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
-    public static final WeekFields WEEK_FIELDS = WeekFields.of(Locale.ROOT);
+    // DateFormatters is being used even before the logging is initialized.
+    // If LogManager.getLogger is called before logging config is loaded
+    // it results in errors sent to status logger and startup to fail.
+    // Hence a lazy initialization.
+    private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
+        = new LazyInitializable<>(() -> DeprecationLogger.getLogger(FormatNames.class));
+
+    public static final WeekFields WEEK_FIELDS_ROOT = WeekFields.of(Locale.ROOT);
 
     private static final DateTimeFormatter TIME_ZONE_FORMATTER_NO_COLON = new DateTimeFormatterBuilder()
         .appendOffset("+HHmm", "Z")
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT);
 
+    private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_PRINTER = new DateTimeFormatterBuilder()
+        .appendValue(ChronoField.YEAR, 4, 9, SignStyle.EXCEEDS_PAD)
+        .optionalStart()
+        .appendLiteral("-")
+        .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendLiteral('-')
+        .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT)
+        .withResolverStyle(ResolverStyle.STRICT);
+
     private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .optionalStart()
         .appendLiteral("-")
         .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
@@ -82,7 +94,7 @@ public class DateFormatters {
         .withResolverStyle(ResolverStyle.STRICT);
 
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .append(STRICT_YEAR_MONTH_DAY_PRINTER)
         .appendLiteral('T')
         .optionalStart()
         .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
@@ -148,11 +160,11 @@ public class DateFormatters {
         .appendLiteral('T')
         .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
         .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .optionalEnd()
         .optionalStart()
         .appendLiteral(',')
-        .appendFraction(NANO_OF_SECOND, 3, 9, false)
+        .appendFraction(NANO_OF_SECOND, 1, 9, false)
         .optionalEnd()
         .optionalStart()
         .appendZoneOrOffsetId()
@@ -165,7 +177,7 @@ public class DateFormatters {
         .withResolverStyle(ResolverStyle.STRICT);
 
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .append(STRICT_YEAR_MONTH_DAY_PRINTER)
         .appendLiteral('T')
         .optionalStart()
         .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
@@ -334,6 +346,13 @@ public class DateFormatters {
                                       .withResolverStyle(ResolverStyle.STRICT)
     );
 
+    private static final DateTimeFormatter BASIC_YEAR_MONTH_DAY_PRINTER = new DateTimeFormatterBuilder()
+        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.NORMAL)
+        .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
+        .toFormatter(Locale.ROOT)
+        .withResolverStyle(ResolverStyle.STRICT);
+
     private static final DateTimeFormatter BASIC_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.YEAR, 4, 4, SignStyle.NORMAL)
         .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
@@ -348,7 +367,7 @@ public class DateFormatters {
         .withResolverStyle(ResolverStyle.STRICT);
 
     private static final DateTimeFormatter BASIC_DATE_TIME_PRINTER = new DateTimeFormatterBuilder()
-        .append(BASIC_YEAR_MONTH_DAY_FORMATTER)
+        .append(BASIC_YEAR_MONTH_DAY_PRINTER)
         .append(BASIC_T_TIME_PRINTER)
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT);
@@ -370,12 +389,16 @@ public class DateFormatters {
         new DateTimeFormatterBuilder().append(BASIC_YEAR_MONTH_DAY_FORMATTER).appendLiteral("T").toFormatter(Locale.ROOT)
                                       .withResolverStyle(ResolverStyle.STRICT);
 
+    private static final DateTimeFormatter BASIC_DATE_T_PRINTER =
+        new DateTimeFormatterBuilder().append(BASIC_YEAR_MONTH_DAY_PRINTER).appendLiteral("T").toFormatter(Locale.ROOT)
+                                      .withResolverStyle(ResolverStyle.STRICT);
+
     /*
      * Returns a basic formatter that combines a basic date and time without millis,
      * separated by a 'T' (uuuuMMdd'T'HHmmssZ).
      */
     private static final DateFormatter BASIC_DATE_TIME_NO_MILLIS = new JavaDateFormatter("basic_date_time_no_millis",
-        new DateTimeFormatterBuilder().append(BASIC_DATE_T).append(BASIC_TIME_NO_MILLIS_BASE)
+        new DateTimeFormatterBuilder().append(BASIC_DATE_T_PRINTER).append(BASIC_TIME_NO_MILLIS_BASE)
                                       .appendOffset("+HH:MM", "Z").toFormatter(Locale.ROOT)
                                       .withResolverStyle(ResolverStyle.STRICT),
         new DateTimeFormatterBuilder().append(BASIC_DATE_T).append(BASIC_TIME_NO_MILLIS_BASE)
@@ -456,7 +479,7 @@ public class DateFormatters {
 
     private static final DateTimeFormatter STRICT_BASIC_WEEK_DATE_PRINTER = new DateTimeFormatterBuilder()
         .parseStrict()
-        .appendValue(IsoFields.WEEK_BASED_YEAR, 4)
+        .appendValue(IsoFields.WEEK_BASED_YEAR, 4, 10, SignStyle.NORMAL)
         .appendLiteral("W")
         .appendValue(IsoFields.WEEK_OF_WEEK_BASED_YEAR, 2, 2, SignStyle.NEVER)
         .appendValue(ChronoField.DAY_OF_WEEK)
@@ -566,7 +589,7 @@ public class DateFormatters {
      */
     private static final DateFormatter STRICT_YEAR_MONTH = new JavaDateFormatter("strict_year_month",
         new DateTimeFormatterBuilder()
-            .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+            .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
             .appendLiteral("-")
             .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
             .toFormatter(Locale.ROOT)
@@ -576,7 +599,7 @@ public class DateFormatters {
      * A strict formatter that formats or parses a year, such as '2011'.
      */
     private static final DateFormatter STRICT_YEAR = new JavaDateFormatter("strict_year", new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT));
 
@@ -618,7 +641,7 @@ public class DateFormatters {
     );
 
     private static final DateTimeFormatter STRICT_ORDINAL_DATE_TIME_NO_MILLIS_BASE = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .appendLiteral('-')
         .appendValue(DAY_OF_YEAR, 3, 3, SignStyle.NOT_NEGATIVE)
         .appendLiteral('T')
@@ -749,7 +772,7 @@ public class DateFormatters {
         new JavaDateFormatter("strict_hour_minute", DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT));
 
     private static final DateTimeFormatter STRICT_ORDINAL_DATE_TIME_PRINTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .appendLiteral('-')
         .appendValue(DAY_OF_YEAR, 3, 3, SignStyle.NOT_NEGATIVE)
         .appendLiteral('T')
@@ -763,7 +786,7 @@ public class DateFormatters {
         .withResolverStyle(ResolverStyle.STRICT);
 
     private static final DateTimeFormatter STRICT_ORDINAL_DATE_TIME_FORMATTER_BASE = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .appendLiteral('-')
         .appendValue(DAY_OF_YEAR, 3, 3, SignStyle.NOT_NEGATIVE)
         .appendLiteral('T')
@@ -945,14 +968,14 @@ public class DateFormatters {
      * Returns a formatter for a four digit weekyear
      */
     private static final DateFormatter STRICT_WEEKYEAR = new JavaDateFormatter("strict_weekyear", new DateTimeFormatterBuilder()
-        .appendValue(WEEK_FIELDS.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(WEEK_FIELDS_ROOT.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT));
 
     private static final DateTimeFormatter STRICT_WEEKYEAR_WEEK_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(WEEK_FIELDS.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(WEEK_FIELDS_ROOT.weekBasedYear(), 4, 10, SignStyle.EXCEEDS_PAD)
         .appendLiteral("-W")
-        .appendValue(WEEK_FIELDS.weekOfWeekBasedYear(), 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendValue(WEEK_FIELDS_ROOT.weekOfWeekBasedYear(), 2, 2, SignStyle.NOT_NEGATIVE)
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT);
 
@@ -971,7 +994,7 @@ public class DateFormatters {
         new DateTimeFormatterBuilder()
             .append(STRICT_WEEKYEAR_WEEK_FORMATTER)
             .appendLiteral("-")
-            .appendValue(WEEK_FIELDS.dayOfWeek())
+            .appendValue(WEEK_FIELDS_ROOT.dayOfWeek())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT));
 
@@ -989,7 +1012,7 @@ public class DateFormatters {
      */
     private static final DateFormatter BASIC_DATE = new JavaDateFormatter("basic_date",
         new DateTimeFormatterBuilder()
-            .appendValue(ChronoField.YEAR, 4, 4, SignStyle.NORMAL)
+            .appendValue(ChronoField.YEAR, 4, 10, SignStyle.NORMAL)
             .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
             .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
             .toFormatter(Locale.ROOT)
@@ -1004,7 +1027,7 @@ public class DateFormatters {
 
     private static final DateTimeFormatter STRICT_ORDINAL_DATE_FORMATTER = new DateTimeFormatterBuilder()
         .parseCaseInsensitive()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .appendLiteral('-')
         .appendValue(DAY_OF_YEAR, 3)
         .optionalStart()
@@ -1030,7 +1053,7 @@ public class DateFormatters {
     /////////////////////////////////////////
 
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 1, 5, SignStyle.NORMAL)
+        .appendValue(ChronoField.YEAR, 1, 9, SignStyle.NORMAL)
         .optionalStart()
         .appendLiteral('-')
         .appendValue(MONTH_OF_YEAR, 1, 2, SignStyle.NOT_NEGATIVE)
@@ -1160,10 +1183,9 @@ public class DateFormatters {
     /*
      * Returns a formatter for a four digit weekyear. (YYYY)
      */
-    private static final DateFormatter WEEK_YEAR = new JavaDateFormatter("week_year",
-        new DateTimeFormatterBuilder().appendValue(WEEK_FIELDS.weekBasedYear()).toFormatter(Locale.ROOT)
-                                      .withResolverStyle(ResolverStyle.STRICT));
-
+    private static final DateFormatter WEEKYEAR = new JavaDateFormatter("weekyear",
+        new DateTimeFormatterBuilder().appendValue(WEEK_FIELDS_ROOT.weekBasedYear()).toFormatter(Locale.ROOT)
+            .withResolverStyle(ResolverStyle.STRICT));
     /*
      * Returns a formatter for a four digit year. (uuuu)
      */
@@ -1590,9 +1612,9 @@ public class DateFormatters {
      */
     private static final DateFormatter WEEKYEAR_WEEK = new JavaDateFormatter("weekyear_week", STRICT_WEEKYEAR_WEEK_FORMATTER,
         new DateTimeFormatterBuilder()
-            .appendValue(WEEK_FIELDS.weekBasedYear())
+            .appendValue(WEEK_FIELDS_ROOT.weekBasedYear())
             .appendLiteral("-W")
-            .appendValue(WEEK_FIELDS.weekOfWeekBasedYear())
+            .appendValue(WEEK_FIELDS_ROOT.weekOfWeekBasedYear())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT)
     );
@@ -1605,15 +1627,15 @@ public class DateFormatters {
         new DateTimeFormatterBuilder()
             .append(STRICT_WEEKYEAR_WEEK_FORMATTER)
             .appendLiteral("-")
-            .appendValue(WEEK_FIELDS.dayOfWeek())
+            .appendValue(WEEK_FIELDS_ROOT.dayOfWeek())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT),
         new DateTimeFormatterBuilder()
-            .appendValue(WEEK_FIELDS.weekBasedYear())
+            .appendValue(WEEK_FIELDS_ROOT.weekBasedYear())
             .appendLiteral("-W")
-            .appendValue(WEEK_FIELDS.weekOfWeekBasedYear())
+            .appendValue(WEEK_FIELDS_ROOT.weekOfWeekBasedYear())
             .appendLiteral("-")
-            .appendValue(WEEK_FIELDS.dayOfWeek())
+            .appendValue(WEEK_FIELDS_ROOT.dayOfWeek())
             .toFormatter(Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT)
     );
@@ -1634,166 +1656,166 @@ public class DateFormatters {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
-        if ("iso8601".equals(input)) {
+        if (FormatNames.ISO8601.matches(input)) {
             return ISO_8601;
-        } else if ("basicDate".equals(input) || "basic_date".equals(input)) {
+        } else if (FormatNames.BASIC_DATE.matches(input)) {
             return BASIC_DATE;
-        } else if ("basicDateTime".equals(input) || "basic_date_time".equals(input)) {
+        } else if (FormatNames.BASIC_DATE_TIME.matches(input)) {
             return BASIC_DATE_TIME;
-        } else if ("basicDateTimeNoMillis".equals(input) || "basic_date_time_no_millis".equals(input)) {
+        } else if (FormatNames.BASIC_DATE_TIME_NO_MILLIS.matches(input)) {
             return BASIC_DATE_TIME_NO_MILLIS;
-        } else if ("basicOrdinalDate".equals(input) || "basic_ordinal_date".equals(input)) {
+        } else if (FormatNames.BASIC_ORDINAL_DATE.matches(input)) {
             return BASIC_ORDINAL_DATE;
-        } else if ("basicOrdinalDateTime".equals(input) || "basic_ordinal_date_time".equals(input)) {
+        } else if (FormatNames.BASIC_ORDINAL_DATE_TIME.matches(input)) {
             return BASIC_ORDINAL_DATE_TIME;
-        } else if ("basicOrdinalDateTimeNoMillis".equals(input) || "basic_ordinal_date_time_no_millis".equals(input)) {
+        } else if (FormatNames.BASIC_ORDINAL_DATE_TIME_NO_MILLIS.matches(input)) {
             return BASIC_ORDINAL_DATE_TIME_NO_MILLIS;
-        } else if ("basicTime".equals(input) || "basic_time".equals(input)) {
+        } else if (FormatNames.BASIC_TIME.matches(input)) {
             return BASIC_TIME;
-        } else if ("basicTimeNoMillis".equals(input) || "basic_time_no_millis".equals(input)) {
+        } else if (FormatNames.BASIC_TIME_NO_MILLIS.matches(input)) {
             return BASIC_TIME_NO_MILLIS;
-        } else if ("basicTTime".equals(input) || "basic_t_time".equals(input)) {
+        } else if (FormatNames.BASIC_T_TIME.matches(input)) {
             return BASIC_T_TIME;
-        } else if ("basicTTimeNoMillis".equals(input) || "basic_t_time_no_millis".equals(input)) {
+        } else if (FormatNames.BASIC_T_TIME_NO_MILLIS.matches(input)) {
             return BASIC_T_TIME_NO_MILLIS;
-        } else if ("basicWeekDate".equals(input) || "basic_week_date".equals(input)) {
+        } else if (FormatNames.BASIC_WEEK_DATE.matches(input)) {
             return BASIC_WEEK_DATE;
-        } else if ("basicWeekDateTime".equals(input) || "basic_week_date_time".equals(input)) {
+        } else if (FormatNames.BASIC_WEEK_DATE_TIME.matches(input)) {
             return BASIC_WEEK_DATE_TIME;
-        } else if ("basicWeekDateTimeNoMillis".equals(input) || "basic_week_date_time_no_millis".equals(input)) {
+        } else if (FormatNames.BASIC_WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
             return BASIC_WEEK_DATE_TIME_NO_MILLIS;
-        } else if ("date".equals(input)) {
+        } else if (FormatNames.DATE.matches(input)) {
             return DATE;
-        } else if ("dateHour".equals(input) || "date_hour".equals(input)) {
+        } else if (FormatNames.DATE_HOUR.matches(input)) {
             return DATE_HOUR;
-        } else if ("dateHourMinute".equals(input) || "date_hour_minute".equals(input)) {
+        } else if (FormatNames.DATE_HOUR_MINUTE.matches(input)) {
             return DATE_HOUR_MINUTE;
-        } else if ("dateHourMinuteSecond".equals(input) || "date_hour_minute_second".equals(input)) {
+        } else if (FormatNames.DATE_HOUR_MINUTE_SECOND.matches(input)) {
             return DATE_HOUR_MINUTE_SECOND;
-        } else if ("dateHourMinuteSecondFraction".equals(input) || "date_hour_minute_second_fraction".equals(input)) {
+        } else if (FormatNames.DATE_HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
             return DATE_HOUR_MINUTE_SECOND_FRACTION;
-        } else if ("dateHourMinuteSecondMillis".equals(input) || "date_hour_minute_second_millis".equals(input)) {
+        } else if (FormatNames.DATE_HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
             return DATE_HOUR_MINUTE_SECOND_MILLIS;
-        } else if ("dateOptionalTime".equals(input) || "date_optional_time".equals(input)) {
+        } else if (FormatNames.DATE_OPTIONAL_TIME.matches(input)) {
             return DATE_OPTIONAL_TIME;
-        } else if ("dateTime".equals(input) || "date_time".equals(input)) {
+        } else if (FormatNames.DATE_TIME.matches(input)) {
             return DATE_TIME;
-        } else if ("dateTimeNoMillis".equals(input) || "date_time_no_millis".equals(input)) {
+        } else if (FormatNames.DATE_TIME_NO_MILLIS.matches(input)) {
             return DATE_TIME_NO_MILLIS;
-        } else if ("hour".equals(input)) {
+        } else if (FormatNames.HOUR.matches(input)) {
             return HOUR;
-        } else if ("hourMinute".equals(input) || "hour_minute".equals(input)) {
+        } else if (FormatNames.HOUR_MINUTE.matches(input)) {
             return HOUR_MINUTE;
-        } else if ("hourMinuteSecond".equals(input) || "hour_minute_second".equals(input)) {
+        } else if (FormatNames.HOUR_MINUTE_SECOND.matches(input)) {
             return HOUR_MINUTE_SECOND;
-        } else if ("hourMinuteSecondFraction".equals(input) || "hour_minute_second_fraction".equals(input)) {
+        } else if (FormatNames.HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
             return HOUR_MINUTE_SECOND_FRACTION;
-        } else if ("hourMinuteSecondMillis".equals(input) || "hour_minute_second_millis".equals(input)) {
+        } else if (FormatNames.HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
             return HOUR_MINUTE_SECOND_MILLIS;
-        } else if ("ordinalDate".equals(input) || "ordinal_date".equals(input)) {
+        } else if (FormatNames.ORDINAL_DATE.matches(input)) {
             return ORDINAL_DATE;
-        } else if ("ordinalDateTime".equals(input) || "ordinal_date_time".equals(input)) {
+        } else if (FormatNames.ORDINAL_DATE_TIME.matches(input)) {
             return ORDINAL_DATE_TIME;
-        } else if ("ordinalDateTimeNoMillis".equals(input) || "ordinal_date_time_no_millis".equals(input)) {
+        } else if (FormatNames.ORDINAL_DATE_TIME_NO_MILLIS.matches(input)) {
             return ORDINAL_DATE_TIME_NO_MILLIS;
-        } else if ("time".equals(input)) {
+        } else if (FormatNames.TIME.matches(input)) {
             return TIME;
-        } else if ("timeNoMillis".equals(input) || "time_no_millis".equals(input)) {
+        } else if (FormatNames.TIME_NO_MILLIS.matches(input)) {
             return TIME_NO_MILLIS;
-        } else if ("tTime".equals(input) || "t_time".equals(input)) {
+        } else if (FormatNames.T_TIME.matches(input)) {
             return T_TIME;
-        } else if ("tTimeNoMillis".equals(input) || "t_time_no_millis".equals(input)) {
+        } else if (FormatNames.T_TIME_NO_MILLIS.matches(input)) {
             return T_TIME_NO_MILLIS;
-        } else if ("weekDate".equals(input) || "week_date".equals(input)) {
+        } else if (FormatNames.WEEK_DATE.matches(input)) {
             return WEEK_DATE;
-        } else if ("weekDateTime".equals(input) || "week_date_time".equals(input)) {
+        } else if (FormatNames.WEEK_DATE_TIME.matches(input)) {
             return WEEK_DATE_TIME;
-        } else if ("weekDateTimeNoMillis".equals(input) || "week_date_time_no_millis".equals(input)) {
+        } else if (FormatNames.WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
             return WEEK_DATE_TIME_NO_MILLIS;
-        } else if ("weekyear".equals(input) || "week_year".equals(input)) {
-            return WEEK_YEAR;
-        } else if ("weekyearWeek".equals(input) || "weekyear_week".equals(input)) {
+        } else if (FormatNames.WEEKYEAR.matches(input)) {
+            return WEEKYEAR;
+        } else if (FormatNames.WEEK_YEAR_WEEK.matches(input)) {
             return WEEKYEAR_WEEK;
-        } else if ("weekyearWeekDay".equals(input) || "weekyear_week_day".equals(input)) {
+        } else if (FormatNames.WEEKYEAR_WEEK_DAY.matches(input)) {
             return WEEKYEAR_WEEK_DAY;
-        } else if ("year".equals(input)) {
+        } else if (FormatNames.YEAR.matches(input)) {
             return YEAR;
-        } else if ("yearMonth".equals(input) || "year_month".equals(input)) {
+        } else if (FormatNames.YEAR_MONTH.matches(input)) {
             return YEAR_MONTH;
-        } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
+        } else if (FormatNames.YEAR_MONTH_DAY.matches(input)) {
             return YEAR_MONTH_DAY;
-        } else if ("epoch_second".equals(input)) {
+        } else if (FormatNames.EPOCH_SECOND.matches(input)) {
             return EpochTime.SECONDS_FORMATTER;
-        } else if ("epoch_millis".equals(input)) {
+        } else if (FormatNames.EPOCH_MILLIS.matches(input)) {
             return EpochTime.MILLIS_FORMATTER;
         // strict date formats here, must be at least 4 digits for year and two for months and two for day
-        } else if ("strictBasicWeekDate".equals(input) || "strict_basic_week_date".equals(input)) {
+        } else if (FormatNames.STRICT_BASIC_WEEK_DATE.matches(input)) {
             return STRICT_BASIC_WEEK_DATE;
-        } else if ("strictBasicWeekDateTime".equals(input) || "strict_basic_week_date_time".equals(input)) {
+        } else if (FormatNames.STRICT_BASIC_WEEK_DATE_TIME.matches(input)) {
             return STRICT_BASIC_WEEK_DATE_TIME;
-        } else if ("strictBasicWeekDateTimeNoMillis".equals(input) || "strict_basic_week_date_time_no_millis".equals(input)) {
+        } else if (FormatNames.STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
             return STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS;
-        } else if ("strictDate".equals(input) || "strict_date".equals(input)) {
+        } else if (FormatNames.STRICT_DATE.matches(input)) {
             return STRICT_DATE;
-        } else if ("strictDateHour".equals(input) || "strict_date_hour".equals(input)) {
+        } else if (FormatNames.STRICT_DATE_HOUR.matches(input)) {
             return STRICT_DATE_HOUR;
-        } else if ("strictDateHourMinute".equals(input) || "strict_date_hour_minute".equals(input)) {
+        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE.matches(input)) {
             return STRICT_DATE_HOUR_MINUTE;
-        } else if ("strictDateHourMinuteSecond".equals(input) || "strict_date_hour_minute_second".equals(input)) {
+        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE_SECOND.matches(input)) {
             return STRICT_DATE_HOUR_MINUTE_SECOND;
-        } else if ("strictDateHourMinuteSecondFraction".equals(input) || "strict_date_hour_minute_second_fraction".equals(input)) {
+        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
             return STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION;
-        } else if ("strictDateHourMinuteSecondMillis".equals(input) || "strict_date_hour_minute_second_millis".equals(input)) {
+        } else if (FormatNames.STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
             return STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS;
-        } else if ("strictDateOptionalTime".equals(input) || "strict_date_optional_time".equals(input)) {
+        } else if (FormatNames.STRICT_DATE_OPTIONAL_TIME.matches(input)) {
             return STRICT_DATE_OPTIONAL_TIME;
-        } else if ("strictDateOptionalTimeNanos".equals(input) || "strict_date_optional_time_nanos".equals(input)) {
+        } else if (FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS.matches(input)) {
             return STRICT_DATE_OPTIONAL_TIME_NANOS;
-        } else if ("strictDateTime".equals(input) || "strict_date_time".equals(input)) {
+        } else if (FormatNames.STRICT_DATE_TIME.matches(input)) {
             return STRICT_DATE_TIME;
-        } else if ("strictDateTimeNoMillis".equals(input) || "strict_date_time_no_millis".equals(input)) {
+        } else if (FormatNames.STRICT_DATE_TIME_NO_MILLIS.matches(input)) {
             return STRICT_DATE_TIME_NO_MILLIS;
-        } else if ("strictHour".equals(input) || "strict_hour".equals(input)) {
+        } else if (FormatNames.STRICT_HOUR.matches(input)) {
             return STRICT_HOUR;
-        } else if ("strictHourMinute".equals(input) || "strict_hour_minute".equals(input)) {
+        } else if (FormatNames.STRICT_HOUR_MINUTE.matches(input)) {
             return STRICT_HOUR_MINUTE;
-        } else if ("strictHourMinuteSecond".equals(input) || "strict_hour_minute_second".equals(input)) {
+        } else if (FormatNames.STRICT_HOUR_MINUTE_SECOND.matches(input)) {
             return STRICT_HOUR_MINUTE_SECOND;
-        } else if ("strictHourMinuteSecondFraction".equals(input) || "strict_hour_minute_second_fraction".equals(input)) {
+        } else if (FormatNames.STRICT_HOUR_MINUTE_SECOND_FRACTION.matches(input)) {
             return STRICT_HOUR_MINUTE_SECOND_FRACTION;
-        } else if ("strictHourMinuteSecondMillis".equals(input) || "strict_hour_minute_second_millis".equals(input)) {
+        } else if (FormatNames.STRICT_HOUR_MINUTE_SECOND_MILLIS.matches(input)) {
             return STRICT_HOUR_MINUTE_SECOND_MILLIS;
-        } else if ("strictOrdinalDate".equals(input) || "strict_ordinal_date".equals(input)) {
+        } else if (FormatNames.STRICT_ORDINAL_DATE.matches(input)) {
             return STRICT_ORDINAL_DATE;
-        } else if ("strictOrdinalDateTime".equals(input) || "strict_ordinal_date_time".equals(input)) {
+        } else if (FormatNames.STRICT_ORDINAL_DATE_TIME.matches(input)) {
             return STRICT_ORDINAL_DATE_TIME;
-        } else if ("strictOrdinalDateTimeNoMillis".equals(input) || "strict_ordinal_date_time_no_millis".equals(input)) {
+        } else if (FormatNames.STRICT_ORDINAL_DATE_TIME_NO_MILLIS.matches(input)) {
             return STRICT_ORDINAL_DATE_TIME_NO_MILLIS;
-        } else if ("strictTime".equals(input) || "strict_time".equals(input)) {
+        } else if (FormatNames.STRICT_TIME.matches(input)) {
             return STRICT_TIME;
-        } else if ("strictTimeNoMillis".equals(input) || "strict_time_no_millis".equals(input)) {
+        } else if (FormatNames.STRICT_TIME_NO_MILLIS.matches(input)) {
             return STRICT_TIME_NO_MILLIS;
-        } else if ("strictTTime".equals(input) || "strict_t_time".equals(input)) {
+        } else if (FormatNames.STRICT_T_TIME.matches(input)) {
             return STRICT_T_TIME;
-        } else if ("strictTTimeNoMillis".equals(input) || "strict_t_time_no_millis".equals(input)) {
+        } else if (FormatNames.STRICT_T_TIME_NO_MILLIS.matches(input)) {
             return STRICT_T_TIME_NO_MILLIS;
-        } else if ("strictWeekDate".equals(input) || "strict_week_date".equals(input)) {
+        } else if (FormatNames.STRICT_WEEK_DATE.matches(input)) {
             return STRICT_WEEK_DATE;
-        } else if ("strictWeekDateTime".equals(input) || "strict_week_date_time".equals(input)) {
+        } else if (FormatNames.STRICT_WEEK_DATE_TIME.matches(input)) {
             return STRICT_WEEK_DATE_TIME;
-        } else if ("strictWeekDateTimeNoMillis".equals(input) || "strict_week_date_time_no_millis".equals(input)) {
+        } else if (FormatNames.STRICT_WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
             return STRICT_WEEK_DATE_TIME_NO_MILLIS;
-        } else if ("strictWeekyear".equals(input) || "strict_weekyear".equals(input)) {
+        } else if (FormatNames.STRICT_WEEKYEAR.matches(input)) {
             return STRICT_WEEKYEAR;
-        } else if ("strictWeekyearWeek".equals(input) || "strict_weekyear_week".equals(input)) {
+        } else if (FormatNames.STRICT_WEEKYEAR_WEEK.matches(input)) {
             return STRICT_WEEKYEAR_WEEK;
-        } else if ("strictWeekyearWeekDay".equals(input) || "strict_weekyear_week_day".equals(input)) {
+        } else if (FormatNames.STRICT_WEEKYEAR_WEEK_DAY.matches(input)) {
             return STRICT_WEEKYEAR_WEEK_DAY;
-        } else if ("strictYear".equals(input) || "strict_year".equals(input)) {
+        } else if (FormatNames.STRICT_YEAR.matches(input)) {
             return STRICT_YEAR;
-        } else if ("strictYearMonth".equals(input) || "strict_year_month".equals(input)) {
+        } else if (FormatNames.STRICT_YEAR_MONTH.matches(input)) {
             return STRICT_YEAR_MONTH;
-        } else if ("strictYearMonthDay".equals(input) || "strict_year_month_day".equals(input)) {
+        } else if (FormatNames.STRICT_YEAR_MONTH_DAY.matches(input)) {
             return STRICT_YEAR_MONTH_DAY;
         } else {
             try {
@@ -1839,10 +1861,14 @@ public class DateFormatters {
      * @return The converted zoned date time
      */
     public static ZonedDateTime from(TemporalAccessor accessor) {
-        return from(accessor, ZoneOffset.UTC);
+        return from(accessor, Locale.ROOT, ZoneOffset.UTC);
     }
 
-    public static ZonedDateTime from(TemporalAccessor accessor, ZoneId defaultZone) {
+    public static ZonedDateTime from(TemporalAccessor accessor, Locale locale) {
+        return from(accessor, locale, ZoneOffset.UTC);
+    }
+
+    public static ZonedDateTime from(TemporalAccessor accessor, Locale locale, ZoneId defaultZone) {
         if (accessor instanceof ZonedDateTime) {
             return (ZonedDateTime) accessor;
         }
@@ -1865,7 +1891,7 @@ public class DateFormatters {
         } else if (isLocalDateSet) {
             return localDate.atStartOfDay(zoneId);
         } else if (isLocalTimeSet) {
-            return of(getLocalDate(accessor), localTime, zoneId);
+            return of(getLocalDate(accessor, locale), localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.YEAR) || accessor.isSupported(ChronoField.YEAR_OF_ERA) ) {
             if (accessor.isSupported(MONTH_OF_YEAR)) {
                 return getFirstOfMonth(accessor).atStartOfDay(zoneId);
@@ -1875,9 +1901,9 @@ public class DateFormatters {
             }
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             // missing year, falling back to the epoch and then filling
-            return getLocalDate(accessor).atStartOfDay(zoneId);
-        } else if (accessor.isSupported(WEEK_FIELDS.weekBasedYear())) {
-            return localDateFromWeekBasedDate(accessor).atStartOfDay(zoneId);
+            return getLocalDate(accessor, locale).atStartOfDay(zoneId);
+        } else if (accessor.isSupported(WeekFields.of(locale).weekBasedYear())) {
+            return localDateFromWeekBasedDate(accessor, locale).atStartOfDay(zoneId);
         }
 
         // we should not reach this piece of code, everything being parsed we should be able to
@@ -1885,16 +1911,18 @@ public class DateFormatters {
         throw new IllegalArgumentException("temporal accessor [" + accessor + "] cannot be converted to zoned date time");
     }
 
-    private static LocalDate localDateFromWeekBasedDate(TemporalAccessor accessor) {
-        if (accessor.isSupported(WEEK_FIELDS.weekOfWeekBasedYear())) {
+    private static LocalDate localDateFromWeekBasedDate(TemporalAccessor accessor, Locale locale) {
+        WeekFields weekFields = WeekFields.of(locale);
+        if (accessor.isSupported(weekFields.weekOfWeekBasedYear())) {
             return LocalDate.ofEpochDay(0)
-                            .with(WEEK_FIELDS.weekBasedYear(), accessor.get(WEEK_FIELDS.weekBasedYear()))
-                            .with(WEEK_FIELDS.weekOfWeekBasedYear(), accessor.get(WEEK_FIELDS.weekOfWeekBasedYear()))
-                            .with(ChronoField.DAY_OF_WEEK, WEEK_FIELDS.getFirstDayOfWeek().getValue());
+                            .with(weekFields.weekBasedYear(), accessor.get(weekFields.weekBasedYear()))
+                            .with(weekFields.weekOfWeekBasedYear(), accessor.get(weekFields.weekOfWeekBasedYear()))
+                            .with(TemporalAdjusters.previousOrSame(weekFields.getFirstDayOfWeek()));
         } else {
             return LocalDate.ofEpochDay(0)
-                            .with(WEEK_FIELDS.weekBasedYear(), accessor.get(WEEK_FIELDS.weekBasedYear()))
-                            .with(ChronoField.DAY_OF_WEEK, WEEK_FIELDS.getFirstDayOfWeek().getValue());
+                            .with(weekFields.weekBasedYear(), accessor.get(weekFields.weekBasedYear()))
+                            .with(TemporalAdjusters.previousOrSame(weekFields.getFirstDayOfWeek()));
+
         }
     }
 
@@ -1925,9 +1953,9 @@ public class DateFormatters {
         }
     };
 
-    private static LocalDate getLocalDate(TemporalAccessor accessor) {
-        if (accessor.isSupported(WEEK_FIELDS.weekBasedYear())) {
-            return localDateFromWeekBasedDate(accessor);
+    private static LocalDate getLocalDate(TemporalAccessor accessor, Locale locale) {
+        if (accessor.isSupported(WeekFields.of(locale).weekBasedYear())) {
+            return localDateFromWeekBasedDate(accessor, locale);
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             int year = getYear(accessor);
             if (accessor.isSupported(DAY_OF_MONTH)) {

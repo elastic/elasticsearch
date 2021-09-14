@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,6 +27,8 @@ public class CategoryDefinition implements ToXContentObject {
     public static final ParseField TYPE = new ParseField("category_definition");
 
     public static final ParseField CATEGORY_ID = new ParseField("category_id");
+    public static final ParseField PARTITION_FIELD_NAME = new ParseField("partition_field_name");
+    public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partition_field_value");
     public static final ParseField TERMS = new ParseField("terms");
     public static final ParseField REGEX = new ParseField("regex");
     public static final ParseField MAX_MATCHING_LENGTH = new ParseField("max_matching_length");
@@ -55,6 +46,8 @@ public class CategoryDefinition implements ToXContentObject {
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareLong(CategoryDefinition::setCategoryId, CATEGORY_ID);
+        PARSER.declareString(CategoryDefinition::setPartitionFieldName, PARTITION_FIELD_NAME);
+        PARSER.declareString(CategoryDefinition::setPartitionFieldValue, PARTITION_FIELD_VALUE);
         PARSER.declareString(CategoryDefinition::setTerms, TERMS);
         PARSER.declareString(CategoryDefinition::setRegex, REGEX);
         PARSER.declareLong(CategoryDefinition::setMaxMatchingLength, MAX_MATCHING_LENGTH);
@@ -66,6 +59,8 @@ public class CategoryDefinition implements ToXContentObject {
 
     private final String jobId;
     private long categoryId = 0L;
+    private String partitionFieldName;
+    private String partitionFieldValue;
     private String terms = "";
     private String regex = "";
     private long maxMatchingLength = 0L;
@@ -88,6 +83,22 @@ public class CategoryDefinition implements ToXContentObject {
 
     void setCategoryId(long categoryId) {
         this.categoryId = categoryId;
+    }
+
+    public String getPartitionFieldName() {
+        return partitionFieldName;
+    }
+
+    public void setPartitionFieldName(String partitionFieldName) {
+        this.partitionFieldName = partitionFieldName;
+    }
+
+    public String getPartitionFieldValue() {
+        return partitionFieldValue;
+    }
+
+    public void setPartitionFieldValue(String partitionFieldValue) {
+        this.partitionFieldValue = partitionFieldValue;
     }
 
     public String getTerms() {
@@ -156,6 +167,12 @@ public class CategoryDefinition implements ToXContentObject {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(CATEGORY_ID.getPreferredName(), categoryId);
+        if (partitionFieldName != null) {
+            builder.field(PARTITION_FIELD_NAME.getPreferredName(), partitionFieldName);
+        }
+        if (partitionFieldValue != null) {
+            builder.field(PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue);
+        }
         builder.field(TERMS.getPreferredName(), terms);
         builder.field(REGEX.getPreferredName(), regex);
         builder.field(MAX_MATCHING_LENGTH.getPreferredName(), maxMatchingLength);
@@ -182,6 +199,8 @@ public class CategoryDefinition implements ToXContentObject {
         CategoryDefinition that = (CategoryDefinition) other;
         return Objects.equals(this.jobId, that.jobId)
             && Objects.equals(this.categoryId, that.categoryId)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
             && Objects.equals(this.terms, that.terms)
             && Objects.equals(this.regex, that.regex)
             && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
@@ -193,6 +212,7 @@ public class CategoryDefinition implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, categoryId, terms, regex, maxMatchingLength, examples, preferredToCategories, numMatches, grokPattern);
+        return Objects.hash(jobId, categoryId, partitionFieldName, partitionFieldValue, terms, regex, maxMatchingLength, examples,
+            preferredToCategories, numMatches, grokPattern);
     }
 }

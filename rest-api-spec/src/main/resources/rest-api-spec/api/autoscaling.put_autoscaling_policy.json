@@ -1,0 +1,34 @@
+{
+  "autoscaling.put_autoscaling_policy":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-put-autoscaling-policy.html",
+      "description": "Creates a new autoscaling policy. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_autoscaling/policy/{name}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"the name of the autoscaling policy"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"the specification of the autoscaling policy",
+      "required":true
+    }
+  }
+}

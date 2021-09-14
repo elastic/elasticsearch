@@ -1,7 +1,8 @@
 /*
-* Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
@@ -57,7 +58,7 @@ public final class Processors {
      */
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        
+
         entries.addAll(org.elasticsearch.xpack.ql.expression.processor.Processors.getNamedWriteables());
 
         // base
@@ -78,17 +79,17 @@ public final class Processors {
         entries.add(new Entry(Processor.class, NullIfProcessor.NAME, NullIfProcessor::new));
 
         // datetime
-        entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));
-        entries.add(new Entry(Processor.class, TimeProcessor.NAME, TimeProcessor::new));
-        entries.add(new Entry(Processor.class, NamedDateTimeProcessor.NAME, NamedDateTimeProcessor::new));
-        entries.add(new Entry(Processor.class, NonIsoDateTimeProcessor.NAME, NonIsoDateTimeProcessor::new));
-        entries.add(new Entry(Processor.class, QuarterProcessor.NAME, QuarterProcessor::new));
         entries.add(new Entry(Processor.class, DateAddProcessor.NAME, DateAddProcessor::new));
         entries.add(new Entry(Processor.class, DateDiffProcessor.NAME, DateDiffProcessor::new));
         entries.add(new Entry(Processor.class, DatePartProcessor.NAME, DatePartProcessor::new));
         entries.add(new Entry(Processor.class, DateTimeFormatProcessor.NAME, DateTimeFormatProcessor::new));
         entries.add(new Entry(Processor.class, DateTimeParseProcessor.NAME, DateTimeParseProcessor::new));
+        entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));
         entries.add(new Entry(Processor.class, DateTruncProcessor.NAME, DateTruncProcessor::new));
+        entries.add(new Entry(Processor.class, NamedDateTimeProcessor.NAME, NamedDateTimeProcessor::new));
+        entries.add(new Entry(Processor.class, NonIsoDateTimeProcessor.NAME, NonIsoDateTimeProcessor::new));
+        entries.add(new Entry(Processor.class, QuarterProcessor.NAME, QuarterProcessor::new));
+        entries.add(new Entry(Processor.class, TimeProcessor.NAME, TimeProcessor::new));
         // math
         entries.add(new Entry(Processor.class, BinaryMathProcessor.NAME, BinaryMathProcessor::new));
         entries.add(new Entry(Processor.class, BinaryOptionalMathProcessor.NAME, BinaryOptionalMathProcessor::new));

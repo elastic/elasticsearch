@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[evaluate-dfanalytics]]
-=== Evaluate {dfanalytics} API
+= Evaluate {dfanalytics} API
 
 [subs="attributes"]
 ++++
@@ -10,28 +10,25 @@
 
 Evaluates the {dfanalytics} for an annotated index.
 
-experimental[]
-
 
 [[ml-evaluate-dfanalytics-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/data_frame/_evaluate`
 
 
 [[ml-evaluate-dfanalytics-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the following privileges:
 
-* cluster: `monitor_ml`
-  
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+* cluster: `monitor_ml` (the `machine_learning_user` built-in role grants this 
+  privilege)
+* destination index: `read`
 
 
 [[ml-evaluate-dfanalytics-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 The API packages together commonly used evaluation metrics for various types of 
 machine learning features. This has been designed for use on indexes created by 
@@ -40,7 +37,7 @@ result field to be present.
 
 
 [[ml-evaluate-dfanalytics-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `evaluation`::
 (Required, object) Defines the type of evaluation you want to perform.
@@ -49,7 +46,7 @@ See <<ml-evaluate-dfanalytics-resources>>.
 --
 Available evaluation types:
 
-* `binary_soft_classification`
+* `outlier_detection`
 * `regression`
 * `classification`
 
@@ -64,15 +61,13 @@ performed.
 source index. See <<query-dsl>>.
 
 [[ml-evaluate-dfanalytics-resources]]
-==== {dfanalytics-cap} evaluation resources
+== {dfanalytics-cap} evaluation resources
 
-[[binary-sc-resources]]
-===== Binary soft classification evaluation objects
+[[oldetection-resources]]
+=== {oldetection-cap} evaluation objects
 
-Binary soft classification evaluates the results of an analysis which outputs 
-the probability that each document belongs to a certain class. For example, in 
-the context of {oldetection}, the analysis outputs the probability whether each 
-document is an outlier.
+{oldetection-cap} evaluates the results of an {oldetection} analysis which 
+outputs the probability that each document is an outlier.
 
 `actual_field`::
   (Required, string) The field of the `index` which contains the `ground truth`. 
@@ -85,13 +80,18 @@ document is an outlier.
   contains the results of the analysis.
 
 `metrics`::
-  (Optional, object) Specifies the metrics that are used for the evaluation. 
-  Available metrics:
+  (Optional, object) Specifies the metrics that are used for the evaluation. If 
+  no metrics are specified, the following are returned by default: 
+  
+  * `auc_roc` (`include_curve`: false), 
+  * `precision` (`at`: [0.25, 0.5, 0.75]), 
+  * `recall` (`at`: [0.25, 0.5, 0.75]), 
+  * `confusion_matrix` (`at`: [0.25, 0.5, 0.75]).
   
   `auc_roc`:::
     (Optional, object) The AUC ROC (area under the curve of the receiver 
     operating characteristic) score and optionally the curve. Default value is 
-    {"includes_curve": false}.
+    {"include_curve": false}.
     
   `confusion_matrix`:::
     (Optional, object) Set the different thresholds of the {olscore} at where
@@ -109,7 +109,7 @@ document is an outlier.
 
     
 [[regression-evaluation-resources]]
-===== {regression-cap} evaluation objects
+=== {regression-cap} evaluation objects
 
 {regression-cap} evaluation evaluates the results of a {regression} analysis 
 which outputs a prediction of values.
@@ -123,21 +123,48 @@ which outputs a prediction of values.
   in other words the results of the {regression} analysis.
   
 `metrics`::
-  (Optional, object) Specifies the metrics that are used for the evaluation.
-  Available metrics:
+  (Optional, object) Specifies the metrics that are used for the evaluation. For 
+  more information on `mse`, `msle`, and `huber`, consult 
+  https://github.com/elastic/examples/tree/master/Machine%20Learning/Regression%20Loss%20Functions[the Jupyter notebook on regression loss functions].
+  If no metrics are specified, the following are returned by default: 
+  
+  * `mse`, 
+  * `r_squared`,
+  * `huber` (`delta`: 1.0). 
 
-  `mean_squared_error`:::
-    (Optional, object) Average squared difference between the predicted values and the actual (`ground truth`) value.
-    For more information, read https://en.wikipedia.org/wiki/Mean_squared_error[this wiki article].
+  `mse`:::
+    (Optional, object) Average squared difference between the predicted values 
+    and the actual (`ground truth`) value. For more information, read 
+    {wikipedia}/Mean_squared_error[this wiki article].
+
+  `msle`:::
+    (Optional, object) Average squared difference between the logarithm of the 
+    predicted values and the logarithm of the actual (`ground truth`) value.
+    
+    `offset`::::
+      (Optional, double) Defines the transition point at which you switch from 
+      minimizing quadratic error to minimizing quadratic log error. Defaults to 
+      `1`.
+
+  `huber`:::
+    (Optional, object) Pseudo Huber loss function. For more information, read 
+    {wikipedia}/Huber_loss#Pseudo-Huber_loss_function[this wiki article].
+    
+    `delta`::::
+      (Optional, double) Approximates 1/2 (prediction - actual)^2^ for values 
+      much less than delta and approximates a straight line with slope delta for 
+      values much larger than delta. Defaults to `1`. Delta needs to be greater 
+      than `0`.
 
   `r_squared`:::
-    (Optional, object) Proportion of the variance in the dependent variable that is predictable from the independent variables.
-    For more information, read https://en.wikipedia.org/wiki/Coefficient_of_determination[this wiki article].
+    (Optional, object) Proportion of the variance in the dependent variable that 
+    is predictable from the independent variables. For more information, read 
+    {wikipedia}/Coefficient_of_determination[this wiki article].
 
 
   
 [[classification-evaluation-resources]]
-==== {classification-cap} evaluation objects
+== {classification-cap} evaluation objects
 
 {classification-cap} evaluation evaluates the results of a {classanalysis} which 
 outputs a prediction that identifies to which of the classes each document 
@@ -148,15 +175,41 @@ belongs.
   The data type of this field must be categorical.
   
 `predicted_field`::
-  (Required, string) The field in the `index` that contains the predicted value, 
+  (Optional, string) The field in the `index` which contains the predicted value,
   in other words the results of the {classanalysis}.
 
+`top_classes_field`::
+  (Optional, string) The field of the `index` which is an array of documents
+  of the form `{ "class_name": XXX, "class_probability": YYY }`.
+  This field must be defined as `nested` in the mappings.
+
 `metrics`::
-  (Optional, object) Specifies the metrics that are used for the evaluation.
-  Available metrics:
+  (Optional, object) Specifies the metrics that are used for the evaluation. If 
+  no metrics are specificed, the following are returned by default: 
+  
+  * `accuracy`, 
+  * `multiclass_confusion_matrix`, 
+  * `precision`, 
+  * `recall`.
 
   `accuracy`:::
     (Optional, object) Accuracy of predictions (per-class and overall).
+
+  `auc_roc`:::
+    (Optional, object) The AUC ROC (area under the curve of the receiver
+    operating characteristic) score and optionally the curve.
+    It is calculated for a specific class (provided as "class_name") treated as 
+    positive.
+
+    `class_name`::::
+      (Required, string) Name of the only class that is treated as positive 
+      during AUC ROC calculation. Other classes are treated as negative 
+      ("one-vs-all" strategy). All the evaluated documents must have 
+      `class_name` in the list of their top classes.
+
+    `include_curve`::::
+      (Optional, Boolean) Whether or not the curve should be returned in
+      addition to the score. Default value is false.
 
   `multiclass_confusion_matrix`:::
     (Optional, object) Multiclass confusion matrix.
@@ -170,10 +223,10 @@ belongs.
 
 ////
 [[ml-evaluate-dfanalytics-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
-`binary_soft_classification`::
-  (object) If you chose to do binary soft classification, the API returns the
+`outlier_detection`::
+  (object) If you chose to do outlier detection, the API returns the
   following evaluation metrics:
   
 `auc_roc`::: TBD
@@ -187,11 +240,11 @@ belongs.
 
 
 [[ml-evaluate-dfanalytics-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 
-[[ml-evaluate-binary-soft-class-example]]
-===== Binary soft classification
+[[ml-evaluate-oldetection-example]]
+=== {oldetection-cap}
 
 [source,console]
 --------------------------------------------------
@@ -199,7 +252,7 @@ POST _ml/data_frame/_evaluate
 {
   "index": "my_analytics_dest_index",
   "evaluation": {
-    "binary_soft_classification": {
+    "outlier_detection": {
       "actual_field": "is_outlier",
       "predicted_probability_field": "ml.outlier_score"
     }
@@ -213,9 +266,9 @@ The API returns the following results:
 [source,console-result]
 ----
 {
-  "binary_soft_classification": {
+  "outlier_detection": {
     "auc_roc": {
-      "score": 0.92584757746414444
+      "value": 0.92584757746414444
     },
     "confusion_matrix": {
       "0.25": {
@@ -253,7 +306,7 @@ The API returns the following results:
 
 
 [[ml-evaluate-regression-example]]
-===== {regression-cap}
+=== {regression-cap}
 
 [source,console]
 --------------------------------------------------
@@ -273,7 +326,9 @@ POST _ml/data_frame/_evaluate
       "predicted_field": "ml.price_prediction", <4>
       "metrics": {  
         "r_squared": {},
-        "mean_squared_error": {}                             
+        "mse": {},
+        "msle": {"offset": 10},
+        "huber": {"delta": 1.5}
       }
     }
   }
@@ -310,7 +365,9 @@ POST _ml/data_frame/_evaluate
       "predicted_field": "ml.G3_prediction", <3>
       "metrics": {  
         "r_squared": {},
-        "mean_squared_error": {}                             
+        "mse": {},
+        "msle": {},
+        "huber": {}
       }
     }
   }
@@ -349,7 +406,9 @@ POST _ml/data_frame/_evaluate
       "predicted_field": "ml.G3_prediction", <3>
       "metrics": {  
         "r_squared": {},
-        "mean_squared_error": {}                             
+        "mse": {},
+        "msle": {},
+        "huber": {}
       }
     }
   }
@@ -367,7 +426,7 @@ calculated by the {reganalysis}.
 
 
 [[ml-evaluate-classification-example]]
-===== {classification-cap}
+=== {classification-cap}
 
 
 [source,console]
@@ -448,3 +507,46 @@ predictions associated with the class.
 <5> The number of cats in the dataset that are incorrectly classified as dogs.
 <6> The number of documents that are classified as a class that is not listed as 
 a `predicted_class`.
+
+
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+   "index": "animal_classification",
+   "evaluation": {
+      "classification": { <1>
+         "actual_field": "animal_class", <2>
+         "metrics": {
+            "auc_roc" : { <3>
+              "class_name": "dog" <4>
+            }
+         }
+      }
+   }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> The evaluation type.
+<2> The field that contains the ground truth value for the actual animal 
+classification. This is required in order to evaluate results.
+<3> Specifies the metric for the evaluation.
+<4> Specifies the class name that is treated as positive during the evaluation, 
+all the other classes are treated as negative.
+
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "classification" : {
+    "auc_roc" : {
+      "value" : 0.8941788639536681
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]

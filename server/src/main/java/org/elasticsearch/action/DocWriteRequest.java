@@ -1,31 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -38,7 +30,10 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
-public interface DocWriteRequest<T> extends IndicesRequest {
+public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
+
+    // Flag set for disallowing index auto creation for an individual write request.
+    String REQUIRE_ALIAS = "require_alias";
 
     /**
      * Set the index for this request
@@ -140,6 +135,11 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     OpType opType();
 
     /**
+     * Should this request override specifically require the destination to be an alias?
+     * @return boolean flag, when true specifically requires an alias
+     */
+    boolean isRequireAlias();
+    /**
      * Requested operation type to perform on the document
      */
     enum OpType {
@@ -195,16 +195,21 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         }
     }
 
-    /** read a document write (index/delete/update) request */
-    static DocWriteRequest<?> readDocumentRequest(StreamInput in) throws IOException {
+    /**
+     * Read a document write (index/delete/update) request
+     *
+     * @param shardId shard id of the request. {@code null} when reading as part of a {@link org.elasticsearch.action.bulk.BulkRequest}
+     *                that does not have a unique shard id.
+     */
+    static DocWriteRequest<?> readDocumentRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         byte type = in.readByte();
         DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
-            docWriteRequest = new IndexRequest(in);
+            docWriteRequest = new IndexRequest(shardId, in);
         } else if (type == 1) {
-            docWriteRequest = new DeleteRequest(in);
+            docWriteRequest = new DeleteRequest(shardId, in);
         } else if (type == 2) {
-            docWriteRequest = new UpdateRequest(in);
+            docWriteRequest = new UpdateRequest(shardId, in);
         } else {
             throw new IllegalStateException("invalid request type [" + type+ " ]");
         }
@@ -227,8 +232,24 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         }
     }
 
+    /** write a document write (index/delete/update) request without shard id*/
+    static void writeDocumentRequestThin(StreamOutput out, DocWriteRequest<?> request)  throws IOException {
+        if (request instanceof IndexRequest) {
+            out.writeByte((byte) 0);
+            ((IndexRequest) request).writeThin(out);
+        } else if (request instanceof DeleteRequest) {
+            out.writeByte((byte) 1);
+            ((DeleteRequest) request).writeThin(out);
+        } else if (request instanceof UpdateRequest) {
+            out.writeByte((byte) 2);
+            ((UpdateRequest) request).writeThin(out);
+        } else {
+            throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
+        }
+    }
+
     static ActionRequestValidationException validateSeqNoBasedCASParams(
-        DocWriteRequest request, ActionRequestValidationException validationException) {
+        DocWriteRequest<?> request, ActionRequestValidationException validationException) {
         final long version = request.version();
         final VersionType versionType = request.versionType();
         if (versionType.validateVersionForWrites(version) == false) {

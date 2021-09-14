@@ -1,13 +1,11 @@
-[float]
+[discrete]
 [[breaking_80_api_changes]]
-=== REST API changes
+==== REST API changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
 .The cat node API's `local` query parameter has been removed.
 [%collapsible]
 ====
@@ -24,6 +22,38 @@ Discontinue use of the `?local` query parameter. {ref}/cat-nodes.html[cat node
 API] requests that include this parameter will return an error.
 ====
 
+.The cat shard API's `local` query parameter has been removed.
+[%collapsible]
+====
+*Details* +
+The `?local` parameter to the `GET _cat/shards` API was deprecated in 7.x and is
+rejected in 8.0. This parameter caused the API to use the local cluster state
+to determine the nodes returned by the API rather than the cluster state from
+the master, but this API requests information from each selected node
+regardless of the `?local` parameter which means this API does not run in a
+fully node-local fashion.
+
+*Impact* +
+Discontinue use of the `?local` query parameter. {ref}/cat-shards.html[cat shards
+API] requests that include this parameter will return an error.
+====
+
+.The cat indices API's `local` query parameter has been removed.
+[%collapsible]
+====
+*Details* +
+The `?local` parameter to the `GET _cat/indices` API was deprecated in 7.x and is
+rejected in 8.0. This parameter caused the API to use the local cluster state
+to determine the nodes returned by the API rather than the cluster state from
+the master, but this API requests information from each selected node
+regardless of the `?local` parameter which means this API does not run in a
+fully node-local fashion.
+
+*Impact* +
+Discontinue use of the `?local` query parameter. {ref}/cat-indices.html[cat indices
+API] requests that include this parameter will return an error.
+====
+
 .The get field mapping API's `local` query parameter has been removed.
 [%collapsible]
 ====
@@ -37,3 +67,26 @@ Discontinue use of the `local` query parameter.
 {ref}/indices-get-field-mapping.html[get field mapping API] requests that
 include this parameter will return an error.
 ====
+
+.Post data to jobs API is deprecated.
+[%collapsible]
+====
+*Details* +
+The {ml} {ref}/ml-post-data.html[post data to jobs API] is deprecated starting in 7.11.0
+and will be removed in a future major version.
+
+*Impact* +
+Use {ref}/ml-apis.html#ml-api-datafeed-endpoint[{dfeeds}] instead.
+====
+
+.The `job_id` property of the Update {dfeeds} API has been removed.
+[%collapsible]
+====
+*Details* +
+The ability to update a `job_id` in a {dfeed} was deprecated in 7.3.0. and is 
+removed in 8.0.
+
+*Impact* +
+It is not possible to move {dfeeds} between {anomaly-jobs}.
+====
+// end::notable-breaking-changes[]

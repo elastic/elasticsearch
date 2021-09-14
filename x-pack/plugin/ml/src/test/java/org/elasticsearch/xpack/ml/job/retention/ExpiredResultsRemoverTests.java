@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -26,11 +27,11 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -61,40 +62,36 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         listener = mock(ActionListener.class);
     }
 
-    public void testRemove_GivenNoJobs() throws IOException {
+    public void testRemove_GivenNoJobs() {
         givenDBQRequestsSucceed();
-        AbstractExpiredJobDataRemoverTests.givenJobs(client, Collections.emptyList());
 
-        createExpiredResultsRemover().remove(listener, () -> false);
+        createExpiredResultsRemover(Collections.emptyIterator()).remove(1.0f, listener, () -> false);
 
-        verify(client).execute(eq(SearchAction.INSTANCE), any(), any());
         verify(listener).onResponse(true);
     }
 
-    public void testRemove_GivenJobsWithoutRetentionPolicy() throws IOException {
+    public void testRemove_GivenJobsWithoutRetentionPolicy() {
         givenDBQRequestsSucceed();
-        AbstractExpiredJobDataRemoverTests.givenJobs(client,
-                Arrays.asList(
+        List<Job> jobs = Arrays.asList(
                 JobTests.buildJobBuilder("foo").build(),
                 JobTests.buildJobBuilder("bar").build()
-        ));
+        );
 
-        createExpiredResultsRemover().remove(listener, () -> false);
+        createExpiredResultsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
         verify(listener).onResponse(true);
-        verify(client).execute(eq(SearchAction.INSTANCE), any(), any());
     }
 
     public void testRemove_GivenJobsWithAndWithoutRetentionPolicy() {
         givenDBQRequestsSucceed();
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
 
-        givenSearchResponses(Arrays.asList(
-                JobTests.buildJobBuilder("none").build(),
-                JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
-                JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()),
-                new Bucket("id_not_important", new Date(), 60));
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("none").build(),
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build());
 
-        createExpiredResultsRemover().remove(listener, () -> false);
+        createExpiredResultsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(2));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
@@ -106,15 +103,17 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
 
     public void testRemove_GivenTimeout() {
         givenDBQRequestsSucceed();
-        givenSearchResponses(Arrays.asList(
-                JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
-                JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
-        ), new Bucket("id_not_important", new Date(), 60));
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
+
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
+        );
 
         final int timeoutAfter = randomIntBetween(0, 1);
         AtomicInteger attemptsLeft = new AtomicInteger(timeoutAfter);
 
-        createExpiredResultsRemover().remove(listener, () -> (attemptsLeft.getAndDecrement() <= 0));
+        createExpiredResultsRemover(jobs.iterator()).remove(1.0f, listener, () -> (attemptsLeft.getAndDecrement() <= 0));
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(timeoutAfter));
         verify(listener).onResponse(false);
@@ -122,14 +121,13 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
 
     public void testRemove_GivenClientRequestsFailed() {
         givenDBQRequestsFailed();
-        givenSearchResponses(
-                Arrays.asList(
-                        JobTests.buildJobBuilder("none").build(),
-                        JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
-                        JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()),
-                new Bucket("id_not_important", new Date(), 60));
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
 
-        createExpiredResultsRemover().remove(listener, () -> false);
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("none").build(),
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build());
+        createExpiredResultsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(1));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
@@ -142,11 +140,11 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         String jobId = "calc-cutoff";
         Date latest = new Date();
 
-        givenSearchResponses(Collections.singletonList(JobTests.buildJobBuilder(jobId).setResultsRetentionDays(1L).build()),
-                new Bucket(jobId, latest, 60));
+        givenBucket(new Bucket(jobId, latest, 60));
+        List<Job> jobs = Collections.singletonList(JobTests.buildJobBuilder(jobId).setResultsRetentionDays(1L).build());
 
         ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
-        createExpiredResultsRemover().calcCutoffEpochMs(jobId, 1L, cutoffListener);
+        createExpiredResultsRemover(jobs.iterator()).calcCutoffEpochMs(jobId, 1L, cutoffListener);
 
         long dayInMills = 60 * 60 * 24 * 1000;
         long expectedCutoffTime = latest.getTime() - dayInMills;
@@ -180,22 +178,15 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void givenSearchResponses(List<Job> jobs, Bucket bucket) {
+    private void givenBucket(Bucket bucket) {
         doAnswer(invocationOnMock -> {
-            SearchRequest request = (SearchRequest) invocationOnMock.getArguments()[1];
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
-
-            if (request.indices()[0].startsWith(AnomalyDetectorsIndex.jobResultsIndexPrefix())) {
-                // asking for the bucket result
-                listener.onResponse(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket)));
-            } else {
-                listener.onResponse(AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs));
-            }
+            listener.onResponse(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket)));
             return null;
         }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
     }
 
-    private ExpiredResultsRemover createExpiredResultsRemover() {
+    private ExpiredResultsRemover createExpiredResultsRemover(Iterator<Job> jobIterator) {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
@@ -208,6 +199,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             }
         ).when(executor).execute(any());
 
-        return new ExpiredResultsRemover(originSettingClient, mock(AnomalyDetectionAuditor.class), threadPool);
+        return new ExpiredResultsRemover(originSettingClient, jobIterator, new TaskId("test", 0L),
+            mock(AnomalyDetectionAuditor.class), threadPool);
     }
 }

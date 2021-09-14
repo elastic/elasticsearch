@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-calendar-job]]
-=== Delete {anomaly-jobs} from calendar API
+= Delete {anomaly-jobs} from calendar API
 ++++
 <titleabbrev>Delete jobs from calendar</titleabbrev>
 ++++
@@ -9,30 +9,29 @@
 Deletes {anomaly-jobs} from a calendar.
 
 [[ml-delete-calendar-job-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `DELETE _ml/calendars/<calendar_id>/jobs/<job_id>`
 
 [[ml-delete-calendar-job-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>>.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-delete-calendar-job-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<calendar_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `<job_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-list]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-list]
 
 [[ml-delete-calendar-job-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

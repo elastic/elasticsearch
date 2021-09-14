@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,18 +44,13 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new ReplacedRoute(GET, "/_security/privilege/", GET, "/_xpack/security/privilege/"),
-            new ReplacedRoute(GET, "/_security/privilege/{application}",
-                GET, "/_xpack/security/privilege/{application}"),
-            new ReplacedRoute(GET, "/_security/privilege/{application}/{privilege}",
-                GET, "/_xpack/security/privilege/{application}/{privilege}")
+            Route.builder(GET, "/_security/privilege/")
+                .replaces(GET, "/_xpack/security/privilege/", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_security/privilege/{application}")
+                .replaces(GET, "/_xpack/security/privilege/{application}", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_security/privilege/{application}/{privilege}")
+                .replaces(GET, "/_xpack/security/privilege/{application}/{privilege}", RestApiVersion.V_7).build()
         );
     }
 
@@ -103,9 +100,9 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
     static Map<String, Set<ApplicationPrivilegeDescriptor>> groupByApplicationName(ApplicationPrivilegeDescriptor[] privileges) {
         return Arrays.stream(privileges).collect(Collectors.toMap(
-                ApplicationPrivilegeDescriptor::getApplication,
-                Collections::singleton,
-                Sets::union
+            ApplicationPrivilegeDescriptor::getApplication,
+            Collections::singleton,
+            Sets::union
         ));
     }
 }

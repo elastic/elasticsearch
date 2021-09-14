@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io.stream;
@@ -30,26 +19,29 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
@@ -59,7 +51,10 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.time.Instant;
+import java.time.LocalTime;
+import java.time.OffsetTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -93,25 +88,6 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
  */
 public abstract class StreamInput extends InputStream {
 
-    private static final Map<Byte, TimeUnit> BYTE_TIME_UNIT_MAP;
-
-    static {
-        final Map<Byte, TimeUnit> byteTimeUnitMap = new HashMap<>();
-        byteTimeUnitMap.put((byte)0, TimeUnit.NANOSECONDS);
-        byteTimeUnitMap.put((byte)1, TimeUnit.MICROSECONDS);
-        byteTimeUnitMap.put((byte)2, TimeUnit.MILLISECONDS);
-        byteTimeUnitMap.put((byte)3, TimeUnit.SECONDS);
-        byteTimeUnitMap.put((byte)4, TimeUnit.MINUTES);
-        byteTimeUnitMap.put((byte)5, TimeUnit.HOURS);
-        byteTimeUnitMap.put((byte)6, TimeUnit.DAYS);
-
-        for (TimeUnit value : TimeUnit.values()) {
-            assert byteTimeUnitMap.containsValue(value) : value;
-        }
-
-        BYTE_TIME_UNIT_MAP = Collections.unmodifiableMap(byteTimeUnitMap);
-    }
-
     private Version version = Version.CURRENT;
 
     /**
@@ -143,12 +119,21 @@ public abstract class StreamInput extends InputStream {
     public abstract void readBytes(byte[] b, int offset, int len) throws IOException;
 
     /**
-     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
-     * bytes of the stream.
+     * Reads a bytes reference from this stream, copying any bytes read to a new {@code byte[]}. Use {@link #readReleasableBytesReference()}
+     * when reading large bytes references where possible top avoid needless allocations and copying.
      */
     public BytesReference readBytesReference() throws IOException {
         int length = readArraySize();
         return readBytesReference(length);
+    }
+
+    /**
+     * Reads a releasable bytes reference from this stream. Unlike {@link #readBytesReference()} the returned bytes reference may reference
+     * bytes in a pooled buffer and must be explicitly released via {@link ReleasableBytesReference#close()} once no longer used.
+     * Prefer this method over {@link #readBytesReference()} when reading large bytes references to avoid allocations and copying.
+     */
+    public ReleasableBytesReference readReleasableBytesReference() throws IOException {
+        return ReleasableBytesReference.wrap(readBytesReference());
     }
 
     /**
@@ -225,6 +210,10 @@ public abstract class StreamInput extends InputStream {
      * using {@link #readInt}
      */
     public int readVInt() throws IOException {
+        return readVIntSlow();
+    }
+
+    protected final int readVIntSlow() throws IOException {
         byte b = readByte();
         int i = b & 0x7F;
         if ((b & 0x80) == 0) {
@@ -247,9 +236,13 @@ public abstract class StreamInput extends InputStream {
         }
         b = readByte();
         if ((b & 0x80) != 0) {
-            throw new IOException("Invalid vInt ((" + Integer.toHexString(b) + " & 0x7f) << 28) | " + Integer.toHexString(i));
+            throwOnBrokenVInt(b, i);
         }
         return i | ((b & 0x7F) << 28);
+    }
+
+    protected static void throwOnBrokenVInt(byte b, int accumulated) throws IOException {
+        throw new IOException("Invalid vInt ((" + Integer.toHexString(b) + " & 0x7f) << 28) | " + Integer.toHexString(accumulated));
     }
 
     /**
@@ -264,6 +257,10 @@ public abstract class StreamInput extends InputStream {
      * are encoded in ten bytes so prefer {@link #readLong()} or {@link #readZLong()} for negative numbers.
      */
     public long readVLong() throws IOException {
+        return readVLongSlow();
+    }
+
+    protected final long readVLongSlow() throws IOException {
         byte b = readByte();
         long i = b & 0x7FL;
         if ((b & 0x80) == 0) {
@@ -311,10 +308,14 @@ public abstract class StreamInput extends InputStream {
         }
         b = readByte();
         if (b != 0 && b != 1) {
-            throw new IOException("Invalid vlong (" + Integer.toHexString(b) + " << 63) | " + Long.toHexString(i));
+            throwOnBrokenVLong(b, i);
         }
         i |= ((long) b) << 63;
         return i;
+    }
+
+    protected static void throwOnBrokenVLong(byte b, long accumulated) throws IOException {
+        throw new IOException("Invalid vlong (" + Integer.toHexString(b) + " << 63) | " + Long.toHexString(accumulated));
     }
 
     @Nullable
@@ -346,6 +347,11 @@ public abstract class StreamInput extends InputStream {
         }
         return null;
     }
+
+    public BigInteger readBigInteger() throws IOException {
+        return new BigInteger(readString());
+    }
+
 
     @Nullable
     public Text readOptionalText() throws IOException {
@@ -631,11 +637,20 @@ public abstract class StreamInput extends InputStream {
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        return readMap(keyReader, valueReader, HashMap::new);
+    }
+
+    public <K, V> Map<K, V> readOrderedMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        return readMap(keyReader, valueReader, LinkedHashMap::new);
+    }
+
+    private <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader, IntFunction<Map<K, V>> constructor)
+        throws IOException {
         int size = readArraySize();
         if (size == 0) {
             return Collections.emptyMap();
         }
-        Map<K, V> map = new HashMap<>(size);
+        Map<K, V> map = constructor.apply(size);
         for (int i = 0; i < size; i++) {
             K key = keyReader.read(this);
             V value = valueReader.read(this);
@@ -676,6 +691,25 @@ public abstract class StreamInput extends InputStream {
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
+    }
+
+    /**
+     * Read {@link ImmutableOpenMap} using given key and value readers.
+     *
+     * @param keyReader   key reader
+     * @param valueReader value reader
+     */
+    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
+            throws IOException {
+        final int size = readVInt();
+        if (size == 0) {
+            return ImmutableOpenMap.of();
+        }
+        final ImmutableOpenMap.Builder<K,V> builder = ImmutableOpenMap.builder(size);
+        for (int i = 0; i < size; i++) {
+            builder.put(keyReader.read(this), valueReader.read(this));
+        }
+        return builder.build();
     }
 
     /**
@@ -740,6 +774,10 @@ public abstract class StreamInput extends InputStream {
                 return readCollection(StreamInput::readGenericValue, LinkedHashSet::new, Collections.emptySet());
             case 25:
                 return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
+            case 26:
+                return readBigInteger();
+            case 27:
+                return readOffsetTime();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -787,6 +825,11 @@ public abstract class StreamInput extends InputStream {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
     }
 
+    private OffsetTime readOffsetTime() throws IOException {
+        final String zoneOffsetId = readString();
+        return OffsetTime.of(LocalTime.ofNanoOfDay(readLong()), ZoneOffset.of(zoneOffsetId));
+    }
+
     private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
 
     private Object[] readArray() throws IOException {
@@ -801,7 +844,7 @@ public abstract class StreamInput extends InputStream {
         return list8;
     }
 
-    private Map readLinkedHashMap() throws IOException {
+    private Map<String, Object> readLinkedHashMap() throws IOException {
         int size9 = readArraySize();
         if (size9 == 0) {
             return Collections.emptyMap();
@@ -813,7 +856,7 @@ public abstract class StreamInput extends InputStream {
         return map9;
     }
 
-    private Map readHashMap() throws IOException {
+    private Map<String, Object> readHashMap() throws IOException {
         int size10 = readArraySize();
         if (size10 == 0) {
             return Collections.emptyMap();
@@ -1001,6 +1044,7 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    @Nullable
     @SuppressWarnings("unchecked")
     public <T extends Exception> T readException() throws IOException {
         if (readBoolean()) {
@@ -1231,8 +1275,23 @@ public abstract class StreamInput extends InputStream {
      * Reads an enum with type E that was serialized based on the value of its ordinal
      */
     public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
+        return readEnum(enumClass, enumClass.getEnumConstants());
+    }
+
+    /**
+     * Reads an optional enum with type E that was serialized based on the value of its ordinal
+     */
+    @Nullable
+    public <E extends Enum<E>> E readOptionalEnum(Class<E> enumClass) throws IOException {
+        if (readBoolean()) {
+            return readEnum(enumClass, enumClass.getEnumConstants());
+        } else {
+            return null;
+        }
+    }
+
+    private <E extends Enum<E>> E readEnum(Class<E> enumClass, E[] values) throws IOException {
         int ordinal = readVInt();
-        E[] values = enumClass.getEnumConstants();
         if (ordinal < 0 || ordinal >= values.length) {
             throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
         }
@@ -1244,14 +1303,15 @@ public abstract class StreamInput extends InputStream {
      */
     public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass) throws IOException {
         int size = readVInt();
+        final EnumSet<E> res = EnumSet.noneOf(enumClass);
         if (size == 0) {
-             return EnumSet.noneOf(enumClass);
+            return res;
         }
-        Set<E> enums = new HashSet<>(size);
+        final E[] values = enumClass.getEnumConstants();
         for (int i = 0; i < size; i++) {
-            enums.add(readEnum(enumClass));
+            res.add(readEnum(enumClass, values));
         }
-        return EnumSet.copyOf(enums);
+        return res;
     }
 
     public static StreamInput wrap(byte[] bytes) {
@@ -1259,14 +1319,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
-        return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length), length);
+        return new ByteBufferStreamInput(ByteBuffer.wrap(bytes, offset, length));
     }
 
     /**
      * Reads a vint via {@link #readVInt()} and applies basic checks to ensure the read array size is sane.
      * This method uses {@link #ensureCanReadBytes(int)} to ensure this stream has enough bytes to read for the read array size.
      */
-    private int readArraySize() throws IOException {
+    protected int readArraySize() throws IOException {
         final int arraySize = readVInt();
         if (arraySize > ArrayUtil.MAX_ARRAY_LENGTH) {
             throw new IllegalStateException("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH  + " but was: " + arraySize);
@@ -1287,12 +1347,22 @@ public abstract class StreamInput extends InputStream {
      */
     protected abstract void ensureCanReadBytes(int length) throws EOFException;
 
+    private static final TimeUnit[] TIME_UNITS = TimeUnit.values();
+
+    static {
+        // assert the exact form of the TimeUnit values to ensure we're not silently broken by a JDK change
+        if (Arrays.equals(TIME_UNITS, new TimeUnit[]{TimeUnit.NANOSECONDS, TimeUnit.MICROSECONDS, TimeUnit.MILLISECONDS,
+            TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS}) == false) {
+            throw new AssertionError("Incompatible JDK version used that breaks assumptions on the structure of the TimeUnit enum");
+        }
+    }
+
     /**
      * Read a {@link TimeValue} from the stream
      */
     public TimeValue readTimeValue() throws IOException {
         long duration = readZLong();
-        TimeUnit timeUnit = BYTE_TIME_UNIT_MAP.get(readByte());
+        TimeUnit timeUnit = TIME_UNITS[readByte()];
         return new TimeValue(duration, timeUnit);
     }
 

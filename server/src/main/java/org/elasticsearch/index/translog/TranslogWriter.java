@@ -399,8 +399,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             ensureOpen();
                             checkpointToSync = getCheckpoint();
                             toWrite = pollOpsToWrite();
-                            flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                            nonFsyncedSequenceNumbers = new LongArrayList(64);
+                            if (nonFsyncedSequenceNumbers.isEmpty()) {
+                                flushedSequenceNumbers = null;
+                            } else {
+                                flushedSequenceNumbers = nonFsyncedSequenceNumbers;
+                                nonFsyncedSequenceNumbers = new LongArrayList(64);
+                            }
                         }
 
                         try {
@@ -414,13 +418,17 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // now do the actual fsync outside of the synchronized block such that
                     // we can continue writing to the buffer etc.
                     try {
-                        channel.force(false);
+                        if (lastSyncedCheckpoint.offset != checkpointToSync.offset) {
+                            channel.force(false);
+                        }
                         writeCheckpoint(checkpointChannel, checkpointPath, checkpointToSync);
                     } catch (final Exception ex) {
                         closeWithTragicEvent(ex);
                         throw ex;
                     }
-                    flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
+                    if (flushedSequenceNumbers != null) {
+                        flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
+                    }
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset :
                         "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;
                     lastSyncedCheckpoint = checkpointToSync; // write protected by syncLock
@@ -459,6 +467,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private void writeAndReleaseOps(ReleasableBytesReference toWrite) throws IOException {
         try (ReleasableBytesReference toClose = toWrite) {
             assert writeLock.isHeldByCurrentThread();
+            if (toWrite.length() == 0) {
+                return;
+            }
             ByteBuffer ioBuffer = DiskIoBufferPool.getIoBuffer();
 
             BytesRefIterator iterator = toWrite.iterator();

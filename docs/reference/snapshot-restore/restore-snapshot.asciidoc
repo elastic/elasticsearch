@@ -89,7 +89,7 @@ DELETE my-index
 DELETE _data_stream/logs-my_app-default
 ----
 // TEST[setup:setup-snapshots]
-// TEST[s/_restore/_restore?wait_for_completion=true/]
+
 
 You can then restore the index or data stream from the snapshot.
 
@@ -108,6 +108,8 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
   "indices": "my-index,logs-my_app-default"
 }
 ----
+// TEST[continued]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
 
 [discrete]
 [[close-restore]]

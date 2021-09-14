@@ -261,9 +261,10 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final long startTime3 = snapshot3.startTime();
 
         assertThat(allAfterStartTimeAscending(startTime1 - 1), is(allSnapshotInfo));
-        assertThat(allAfterStartTimeAscending(startTime1), is(List.of(snapshot2, snapshot3)));
-        assertThat(allAfterStartTimeAscending(startTime2), is(List.of(snapshot3)));
-        assertThat(allAfterStartTimeAscending(startTime3), empty());
+        assertThat(allAfterStartTimeAscending(startTime1), is(allSnapshotInfo));
+        assertThat(allAfterStartTimeAscending(startTime2), is(List.of(snapshot2, snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime3), is(List.of(snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime3 + 1), empty());
 
         final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
                 .setSnapshots(matchAllPattern())
@@ -274,9 +275,10 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertThat(allSnapshotInfoDesc, is(List.of(snapshot3, snapshot2, snapshot1)));
 
         assertThat(allBeforeStartTimeDescending(startTime3 + 1), is(allSnapshotInfoDesc));
-        assertThat(allBeforeStartTimeDescending(startTime3), is(List.of(snapshot2, snapshot1)));
-        assertThat(allBeforeStartTimeDescending(startTime2), is(List.of(snapshot1)));
-        assertThat(allBeforeStartTimeDescending(startTime1), empty());
+        assertThat(allBeforeStartTimeDescending(startTime3), is(allSnapshotInfoDesc));
+        assertThat(allBeforeStartTimeDescending(startTime2), is(List.of(snapshot2, snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime1), is(List.of(snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime1 - 1), empty());
     }
 
     private List<SnapshotInfo> allAfterStartTimeAscending(long timestamp) throws IOException {

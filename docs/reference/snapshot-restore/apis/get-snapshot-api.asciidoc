@@ -142,7 +142,7 @@ Sort order. Valid values are `asc` for ascending and `desc` for descending order
 
 `after_value`::
 (Optional, string)
-Value of the current sort column after which to start pagination. Can either be a string snapshot- or repository name when sorting by
+Value of the current sort column at which to start pagination. Can either be a string snapshot- or repository name when sorting by
 snapshot or repository name, a millisecond time value or a number when sorting by index- or shard count.
 
 `after`::
@@ -635,12 +635,12 @@ The API returns the following response:
 // TESTRESPONSE[s/"duration_in_millis": 1/"duration_in_millis": $body.snapshots.1.duration_in_millis/]
 
 
-The following request returns information for all snapshots that come after `snapshot_1` when sorted by snapshot name in the default
+The following request returns information for all snapshots that come after `snapshot_2` when sorted by snapshot name in the default
 ascending order.
 
 [source,console]
 ----
-GET /_snapshot/my_repository/*?sort=name&after_value=snapshot_1
+GET /_snapshot/my_repository/*?sort=name&after_value=snapshot_2
 ----
 
 The API returns the following response:

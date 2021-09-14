@@ -466,9 +466,10 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final long startTime3 = snapshot3.startTime();
 
         assertThat(allAfterStartTimeAscending(startTime1 - 1), is(allSnapshotInfo));
-        assertThat(allAfterStartTimeAscending(startTime1), is(List.of(snapshot2, snapshot3)));
-        assertThat(allAfterStartTimeAscending(startTime2), is(List.of(snapshot3)));
-        assertThat(allAfterStartTimeAscending(startTime3), empty());
+        assertThat(allAfterStartTimeAscending(startTime1), is(allSnapshotInfo));
+        assertThat(allAfterStartTimeAscending(startTime2), is(List.of(snapshot2, snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime3), is(List.of(snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime3 + 1), empty());
 
         final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
             .setSnapshots(matchAllPattern())
@@ -479,9 +480,10 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(allSnapshotInfoDesc, is(List.of(snapshot3, snapshot2, snapshot1)));
 
         assertThat(allBeforeStartTimeDescending(startTime3 + 1), is(allSnapshotInfoDesc));
-        assertThat(allBeforeStartTimeDescending(startTime3), is(List.of(snapshot2, snapshot1)));
-        assertThat(allBeforeStartTimeDescending(startTime2), is(List.of(snapshot1)));
-        assertThat(allBeforeStartTimeDescending(startTime1), empty());
+        assertThat(allBeforeStartTimeDescending(startTime3), is(allSnapshotInfoDesc));
+        assertThat(allBeforeStartTimeDescending(startTime2), is(List.of(snapshot2, snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime1), is(List.of(snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime1 - 1), empty());
     }
 
     private List<SnapshotInfo> allAfterStartTimeAscending(long timestamp) {
@@ -522,9 +524,10 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String name3 = snapshot3.snapshotId().getName();
 
         assertThat(allAfterNameAscending("a"), is(allSnapshotInfo));
-        assertThat(allAfterNameAscending(name1), is(List.of(snapshot2, snapshot3)));
-        assertThat(allAfterNameAscending(name2), is(List.of(snapshot3)));
-        assertThat(allAfterNameAscending(name3), empty());
+        assertThat(allAfterNameAscending(name1), is(allSnapshotInfo));
+        assertThat(allAfterNameAscending(name2), is(List.of(snapshot2, snapshot3)));
+        assertThat(allAfterNameAscending(name3), is(List.of(snapshot3)));
+        assertThat(allAfterNameAscending("z"), empty());
 
         final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
             .setSnapshots(matchAllPattern())
@@ -535,9 +538,10 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(allSnapshotInfoDesc, is(List.of(snapshot3, snapshot2, snapshot1)));
 
         assertThat(allBeforeNameDescending("z"), is(allSnapshotInfoDesc));
-        assertThat(allBeforeNameDescending(name3), is(List.of(snapshot2, snapshot1)));
-        assertThat(allBeforeNameDescending(name2), is(List.of(snapshot1)));
-        assertThat(allBeforeNameDescending(name1), empty());
+        assertThat(allBeforeNameDescending(name3), is(allSnapshotInfoDesc));
+        assertThat(allBeforeNameDescending(name2), is(List.of(snapshot2, snapshot1)));
+        assertThat(allBeforeNameDescending(name1), is(List.of(snapshot1)));
+        assertThat(allBeforeNameDescending("a"), empty());
     }
 
     private List<SnapshotInfo> allAfterNameAscending(String name) {
@@ -593,9 +597,10 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final long duration3 = snapshot3.endTime() - snapshot3.startTime();
 
         assertThat(allAfterDurationAscending(duration1 - 1), is(allSnapshotInfo));
-        assertThat(allAfterDurationAscending(duration1), is(List.of(snapshot2, snapshot3)));
-        assertThat(allAfterDurationAscending(duration2), is(List.of(snapshot3)));
-        assertThat(allAfterDurationAscending(duration3), empty());
+        assertThat(allAfterDurationAscending(duration1), is(allSnapshotInfo));
+        assertThat(allAfterDurationAscending(duration2), is(List.of(snapshot2, snapshot3)));
+        assertThat(allAfterDurationAscending(duration3), is(List.of(snapshot3)));
+        assertThat(allAfterDurationAscending(duration3 + 1), empty());
 
         final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
             .setSnapshots(matchAllPattern())
@@ -606,9 +611,10 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(allSnapshotInfoDesc, is(List.of(snapshot3, snapshot2, snapshot1)));
 
         assertThat(allBeforeDurationDescending(duration3 + 1), is(allSnapshotInfoDesc));
-        assertThat(allBeforeDurationDescending(duration3), is(List.of(snapshot2, snapshot1)));
-        assertThat(allBeforeDurationDescending(duration2), is(List.of(snapshot1)));
-        assertThat(allBeforeDurationDescending(duration1), empty());
+        assertThat(allBeforeDurationDescending(duration3), is(allSnapshotInfoDesc));
+        assertThat(allBeforeDurationDescending(duration2), is(List.of(snapshot2, snapshot1)));
+        assertThat(allBeforeDurationDescending(duration1), is(List.of(snapshot1)));
+        assertThat(allBeforeDurationDescending(duration1 - 1), empty());
     }
 
     private List<SnapshotInfo> allAfterDurationAscending(long duration) {

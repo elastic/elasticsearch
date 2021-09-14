@@ -647,8 +647,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 if (snapshotName == null) {
                     assert repoName == null : "no snapshot name given but saw repo name [" + repoName + "]";
                     isAfter = order == SortOrder.ASC
-                        ? snapshotInfo -> after.compareTo(snapshotInfo.snapshotId().getName()) < 0
-                        : snapshotInfo -> after.compareTo(snapshotInfo.snapshotId().getName()) > 0;
+                        ? snapshotInfo -> after.compareTo(snapshotInfo.snapshotId().getName()) <= 0
+                        : snapshotInfo -> after.compareTo(snapshotInfo.snapshotId().getName()) >= 0;
                 } else {
                     isAfter = order == SortOrder.ASC
                         ? (info -> compareName(snapshotName, repoName, info) < 0)
@@ -677,8 +677,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 if (snapshotName == null) {
                     assert repoName == null : "no snapshot name given but saw repo name [" + repoName + "]";
                     isAfter = order == SortOrder.ASC
-                        ? snapshotInfo -> after.compareTo(snapshotInfo.repository()) < 0
-                        : snapshotInfo -> after.compareTo(snapshotInfo.repository()) > 0;
+                        ? snapshotInfo -> after.compareTo(snapshotInfo.repository()) <= 0
+                        : snapshotInfo -> after.compareTo(snapshotInfo.repository()) >= 0;
                 } else {
                     isAfter = order == SortOrder.ASC
                         ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
@@ -739,7 +739,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     ) {
         if (snapshotName == null) {
             assert repoName == null : "no snapshot name given but saw repo name [" + repoName + "]";
-            return order == SortOrder.ASC ? info -> after < extractor.applyAsLong(info) : info -> after > extractor.applyAsLong(info);
+            return order == SortOrder.ASC ? info -> after <= extractor.applyAsLong(info) : info -> after >= extractor.applyAsLong(info);
         }
         return order == SortOrder.ASC ? info -> {
             final long val = extractor.applyAsLong(info);

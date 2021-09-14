@@ -9,6 +9,9 @@ your application to Elasticsearch 7.5.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+* <<breaking_75_allocation_deprecations>>
+* <<breaking_75_search_changes>>
+
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 

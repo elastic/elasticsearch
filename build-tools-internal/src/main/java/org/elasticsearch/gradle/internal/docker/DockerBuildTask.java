@@ -29,11 +29,17 @@ import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.List;
 import javax.inject.Inject;
 
+/**
+ * This task wraps up the details of building a Docker image, including adding a pull
+ * mechanism that can retry, and emitting the image SHA as a task output.
+ */
 public class DockerBuildTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
 
@@ -168,6 +174,8 @@ public class DockerBuildTask extends DefaultTask {
                 parameters.getBaseImages().get().forEach(this::pullBaseImage);
             }
 
+            final List<String> tags = parameters.getTags().get();
+
             LoggedExec.exec(execOperations, spec -> {
                 spec.executable("docker");
 
@@ -177,16 +185,29 @@ public class DockerBuildTask extends DefaultTask {
                     spec.args("--no-cache");
                 }
 
-                parameters.getTags().get().forEach(tag -> spec.args("--tag", tag));
+                tags.forEach(tag -> spec.args("--tag", tag));
 
                 parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
             });
 
             try {
-                Files.writeString(parameters.getMarkerFile().getAsFile().get().toPath(), String.valueOf(System.currentTimeMillis()));
+                final String checksum = getImageChecksum(tags.get(0));
+                Files.writeString(parameters.getMarkerFile().getAsFile().get().toPath(), checksum + "\n");
             } catch (IOException e) {
                 throw new RuntimeException("Failed to write marker file", e);
             }
+        }
+
+        private String getImageChecksum(String imageTag) {
+            final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+            execOperations.exec(spec -> {
+                spec.setCommandLine("docker", "inspect", "--format", "{{ .Id }}", imageTag);
+                spec.setStandardOutput(stdout);
+                spec.setIgnoreExitValue(false);
+            });
+
+            return stdout.toString().trim();
         }
     }
 

@@ -10,15 +10,15 @@ plugins:
 
   # Plugins can be specified by URL (it doesn't have to be HTTP, you could use e.g. `file:`)
   - id: example-with-url
-    url: https://some.domain/path/example4.zip
+    location: https://some.domain/path/example4.zip
 
   # Or by maven coordinates:
   - id: example-with-maven-url
-    url: org.elasticsearch.plugins:example-plugin:1.2.3
+    location: org.elasticsearch.plugins:example-plugin:1.2.3
 
   # A proxy can also be configured per-plugin, if necessary
   - id: example-with-proxy
-    url: https://some.domain/path/example.zip
+    location: https://some.domain/path/example.zip
     proxy: https://some.domain:1234
 
 # Configures a proxy for all network access. Remove this if you don't need

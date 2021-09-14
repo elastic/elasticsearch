@@ -88,7 +88,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         List<PluginDescriptor> plugins = arguments.values(options)
             .stream()
-            // We only have one piece of data, which could be an ID or could be a URL, so we use it for both
+            // We only have one piece of data, which could be an ID or could be a location, so we use it for both
             .map(id -> new PluginDescriptor(id, id))
             .collect(Collectors.toList());
         final boolean isBatch = options.has(batchOption);

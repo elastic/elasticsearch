@@ -66,10 +66,10 @@ public class PluginsManifest {
         }
 
         for (PluginDescriptor plugin : this.plugins) {
-            if (InstallPluginAction.OFFICIAL_PLUGINS.contains(plugin.getId()) == false && plugin.getUrl() == null) {
+            if (InstallPluginAction.OFFICIAL_PLUGINS.contains(plugin.getId()) == false && plugin.getLocation() == null) {
                 throw new UserException(
                     ExitCodes.CONFIG,
-                    "Must specify URL for non-official plugin [" + plugin.getId() + "] in " + manifestPath
+                    "Must specify location for non-official plugin [" + plugin.getId() + "] in " + manifestPath
                 );
             }
         }
@@ -86,9 +86,9 @@ public class PluginsManifest {
         }
 
         for (PluginDescriptor p : plugins) {
-            if (p.getUrl() != null) {
+            if (p.getLocation() != null) {
                 try {
-                    new URL(p.getUrl());
+                    new URL(p.getLocation());
                 } catch (MalformedURLException e) {
                     throw new UserException(ExitCodes.CONFIG, "Malformed URL for plugin [" + p.getId() + "]");
                 }

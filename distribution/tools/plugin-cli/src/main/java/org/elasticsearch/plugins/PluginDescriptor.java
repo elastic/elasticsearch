@@ -18,18 +18,19 @@ import java.util.Objects;
  */
 public class PluginDescriptor {
     private String id;
-    private final String url;
+    private final String location;
 
     /**
      * Creates a new descriptor instance.
      *
      * @param id the name of the plugin. Cannot be null.
-     * @param url the URL from which to fetch the plugin. Can be null for official plugins
+     * @param location the location from which to fetch the plugin, e.g. a URL or Maven
+     *                 coordinates. Can be null for official plugins.
      */
     @JsonCreator
-    public PluginDescriptor(@JsonProperty("id") String id, @JsonProperty("url") String url) {
+    public PluginDescriptor(@JsonProperty("id") String id, @JsonProperty("url") String location) {
         this.id = Objects.requireNonNull(id, "id cannot be null");
-        this.url = url;
+        this.location = location;
     }
 
     public PluginDescriptor(String id) {
@@ -44,8 +45,8 @@ public class PluginDescriptor {
         this.id = id;
     }
 
-    public String getUrl() {
-        return url;
+    public String getLocation() {
+        return location;
     }
 
     @Override
@@ -53,16 +54,16 @@ public class PluginDescriptor {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PluginDescriptor that = (PluginDescriptor) o;
-        return id.equals(that.id) && Objects.equals(url, that.url);
+        return id.equals(that.id) && Objects.equals(location, that.location);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, url);
+        return Objects.hash(id, location);
     }
 
     @Override
     public String toString() {
-        return "PluginDescriptor{id='" + id + "', url='" + url + "'}";
+        return "PluginDescriptor{id='" + id + "', location='" + location + "'}";
     }
 }

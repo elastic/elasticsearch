@@ -415,7 +415,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
         StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
         yaml.add("  - id: example-plugin");
-        yaml.add("    url: https://example.com/example-plugin.zip");
+        yaml.add("    location: https://example.com/example-plugin.zip");
 
         Files.writeString(pluginsFile, yaml.toString());
 
@@ -427,9 +427,9 @@ public class SyncPluginsCommandTests extends ESTestCase {
     }
 
     /**
-     * Check that the sync tool will fail gracefully when an unofficial plugin is specified without a url.
+     * Check that the sync tool will fail gracefully when an unofficial plugin is specified without a location.
      */
-    public void testSync_withUnofficialPluginWithoutUrl_fails() throws Exception {
+    public void testSync_withUnofficialPluginWithoutLocation_fails() throws Exception {
         final StringJoiner yaml = new StringJoiner("\n", "", "\n");
         yaml.add("plugins:");
         yaml.add("  - id: example-plugin");
@@ -439,7 +439,7 @@ public class SyncPluginsCommandTests extends ESTestCase {
         final SyncPluginsCommand command = new SyncPluginsCommand();
         final UserException exception = expectThrows(UserException.class, () -> command.execute(terminal, env.v2(), false, null, null));
 
-        assertThat(exception.getMessage(), startsWith("Must specify URL for non-official plugin [example-plugin]"));
+        assertThat(exception.getMessage(), startsWith("Must specify location for non-official plugin [example-plugin]"));
         assertThat(exception.exitCode, equalTo(ExitCodes.CONFIG));
     }
 

@@ -419,7 +419,7 @@ public class InstallPluginActionTests extends ESTestCase {
         PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
         PluginDescriptor nonexistentPluginZip = new PluginDescriptor(
             pluginZip.getId() + "-does-not-exist",
-            pluginZip.getUrl() + "-does-not-exist"
+            pluginZip.getLocation() + "-does-not-exist"
         );
         final FileNotFoundException e = expectThrows(
             FileNotFoundException.class,
@@ -448,7 +448,7 @@ public class InstallPluginActionTests extends ESTestCase {
     public void testSpaceInUrl() throws Exception {
         PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
         Path pluginZipWithSpaces = createTempFile("foo bar", ".zip");
-        try (InputStream in = FileSystemUtils.openFileURLStream(new URL(pluginZip.getUrl()))) {
+        try (InputStream in = FileSystemUtils.openFileURLStream(new URL(pluginZip.getLocation()))) {
             Files.copy(in, pluginZipWithSpaces, StandardCopyOption.REPLACE_EXISTING);
         }
         PluginDescriptor modifiedPlugin = new PluginDescriptor("fake", pluginZipWithSpaces.toUri().toURL().toString());
@@ -834,7 +834,7 @@ public class InstallPluginActionTests extends ESTestCase {
      */
     public void testPluginHasDifferentNameThatDescriptor() throws Exception {
         PluginDescriptor descriptor = createPluginZip("fake", pluginDir);
-        PluginDescriptor modifiedDescriptor = new PluginDescriptor("other-fake", descriptor.getUrl());
+        PluginDescriptor modifiedDescriptor = new PluginDescriptor("other-fake", descriptor.getLocation());
 
         final UserException e = expectThrows(UserException.class, () -> installPlugin(modifiedDescriptor));
         assertThat(e.getMessage(), equalTo("Expected downloaded plugin to have ID [other-fake] but found [fake]"));
@@ -890,7 +890,7 @@ public class InstallPluginActionTests extends ESTestCase {
         final BiFunction<byte[], PGPSecretKey, String> signature
     ) throws Exception {
         PluginDescriptor pluginZip = createPlugin(pluginId, pluginDir);
-        Path pluginZipPath = Path.of(URI.create(pluginZip.getUrl()));
+        Path pluginZipPath = Path.of(URI.create(pluginZip.getLocation()));
         InstallPluginAction action = new InstallPluginAction(terminal, env.v2()) {
             @Override
             Path downloadZip(String urlString, Path tmpDir) throws IOException {

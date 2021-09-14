@@ -275,8 +275,8 @@ class InstallPluginAction implements Closeable {
     private Path download(PluginDescriptor plugin, Path tmpDir) throws Exception {
         final String pluginId = plugin.getId();
 
-        // See `InstallPluginCommand` it has to use a string argument for both the ID and the URL
-        if (OFFICIAL_PLUGINS.contains(pluginId) && (plugin.getUrl() == null || plugin.getUrl().equals(pluginId))) {
+        // See `InstallPluginCommand` it has to use a string argument for both the ID and the location
+        if (OFFICIAL_PLUGINS.contains(pluginId) && (plugin.getLocation() == null || plugin.getLocation().equals(pluginId))) {
             final String pluginArchiveDir = System.getenv("ELASTICSEARCH_PLUGIN_ARCHIVE_DIR");
             if (pluginArchiveDir != null && pluginArchiveDir.isEmpty() == false) {
                 final Path pluginPath = getPluginArchivePath(pluginId, pluginArchiveDir);
@@ -292,18 +292,18 @@ class InstallPluginAction implements Closeable {
             return downloadAndValidate(url, tmpDir, true);
         }
 
-        final String pluginUrl = plugin.getUrl();
+        final String pluginLocation = plugin.getLocation();
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
-        String[] coordinates = pluginUrl.split(":");
-        if (coordinates.length == 3 && pluginUrl.contains("/") == false && pluginUrl.startsWith("file:") == false) {
+        String[] coordinates = pluginLocation.split(":");
+        if (coordinates.length == 3 && pluginLocation.contains("/") == false && pluginLocation.startsWith("file:") == false) {
             String mavenUrl = getMavenUrl(coordinates);
             terminal.println("-> Downloading " + pluginId + " from maven central");
             return downloadAndValidate(mavenUrl, tmpDir, false);
         }
 
         // fall back to plain old URL
-        if (pluginUrl.contains(":") == false) {
+        if (pluginLocation.contains(":") == false) {
             // definitely not a valid url, so assume it is a plugin name
             List<String> pluginSuggestions = checkMisspelledPlugin(pluginId);
             String msg = "Unknown plugin " + pluginId;
@@ -312,8 +312,8 @@ class InstallPluginAction implements Closeable {
             }
             throw new UserException(ExitCodes.USAGE, msg);
         }
-        terminal.println("-> Downloading " + URLDecoder.decode(pluginUrl, StandardCharsets.UTF_8));
-        return downloadZip(pluginUrl, tmpDir);
+        terminal.println("-> Downloading " + URLDecoder.decode(pluginLocation, StandardCharsets.UTF_8));
+        return downloadZip(pluginLocation, tmpDir);
     }
 
     @SuppressForbidden(reason = "Need to use PathUtils#get")

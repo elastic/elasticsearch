@@ -272,6 +272,7 @@ POST log-messages/_search?filter_path=aggregations
             "hit": {
               "top_hits": {
                 "size": 1,
+                "sort": ["time"],
                 "_source": "message"
               }
             }
@@ -305,15 +306,18 @@ POST log-messages/_search?filter_path=aggregations
                       "value" : 2,
                       "relation" : "eq"
                     },
-                    "max_score" : 1.0,
+                    "max_score" : null,
                     "hits" : [
                       {
                         "_index" : "log-messages",
-                        "_id" : "-u5F5XsBST1JKaSDH8OW",
-                        "_score" : 1.0,
+                        "_id" : "1",
+                        "_score" : null,
                         "_source" : {
                           "message" : "2016-02-07T00:00:00+0000 Node 3 shutting down"
-                        }
+                        },
+                        "sort" : [
+                          1454803260000
+                        ]
                       }
                     ]
                   }
@@ -328,15 +332,18 @@ POST log-messages/_search?filter_path=aggregations
                       "value" : 1,
                       "relation" : "eq"
                     },
-                    "max_score" : 1.0,
+                    "max_score" : null,
                     "hits" : [
                       {
                         "_index" : "log-messages",
-                        "_id" : "--5F5XsBST1JKaSDH8OW",
-                        "_score" : 1.0,
+                        "_id" : "2",
+                        "_score" : null,
                         "_source" : {
                           "message" : "2016-02-07T00:00:00+0000 Node 5 starting up"
-                        }
+                        },
+                        "sort" : [
+                          1454803320000
+                        ]
                       }
                     ]
                   }
@@ -360,15 +367,18 @@ POST log-messages/_search?filter_path=aggregations
                       "value" : 1,
                       "relation" : "eq"
                     },
-                    "max_score" : 1.0,
+                    "max_score" : null,
                     "hits" : [
                       {
                         "_index" : "log-messages",
-                        "_id" : "_e5F5XsBST1JKaSDH8OW",
-                        "_score" : 1.0,
+                        "_id" : "4",
+                        "_score" : null,
                         "_source" : {
                           "message" : "2016-02-08T00:00:00+0000 Node 5 shutting down"
-                        }
+                        },
+                        "sort" : [
+                          1454889660000
+                        ]
                       }
                     ]
                   }
@@ -383,15 +393,18 @@ POST log-messages/_search?filter_path=aggregations
                       "value" : 1,
                       "relation" : "eq"
                     },
-                    "max_score" : 1.0,
+                    "max_score" : null,
                     "hits" : [
                       {
                         "_index" : "log-messages",
-                        "_id" : "_-5F5XsBST1JKaSDH8OW",
-                        "_score" : 1.0,
+                        "_id" : "6",
+                        "_score" : null,
                         "_source" : {
                           "message" : "2016-02-08T00:00:00+0000 User foo_864 logged off"
-                        }
+                        },
+                        "sort" : [
+                          1454889840000
+                        ]
                       }
                     ]
                   }
@@ -406,15 +419,18 @@ POST log-messages/_search?filter_path=aggregations
                       "value" : 1,
                       "relation" : "eq"
                     },
-                    "max_score" : 1.0,
+                    "max_score" : null,
                     "hits" : [
                       {
                         "_index" : "log-messages",
-                        "_id" : "_u5F5XsBST1JKaSDH8OW",
-                        "_score" : 1.0,
+                        "_id" : "5",
+                        "_score" : null,
                         "_source" : {
                           "message" : "2016-02-08T00:00:00+0000 User foo_325 logging on"
-                        }
+                        },
+                        "sort" : [
+                          1454889720000
+                        ]
                       }
                     ]
                   }

@@ -1091,18 +1091,18 @@ buildRestTests.setups['categorize_text'] = '''
           index: log-messages
           refresh: true
           body: |
-            {"index": {}}
-            {"time":"2016-02-07T00:00:00+0000", "message": "2016-02-07T00:00:00+0000 Node 3 shutting down"}
-            {"index": {}}
-            {"time":"2016-02-07T00:00:00+0000", "message": "2016-02-07T00:00:00+0000 Node 5 starting up"}
-            {"index": {}}
-            {"time":"2016-02-07T00:00:00+0000", "message": "2016-02-07T00:00:00+0000 Node 4 shutting down"}
-            {"index": {}}
-            {"time":"2016-02-08T00:00:00+0000", "message": "2016-02-08T00:00:00+0000 Node 5 shutting down"}
-            {"index": {}}
-            {"time":"2016-02-08T00:00:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_325 logging on"}
-            {"index": {}}
-            {"time":"2016-02-08T00:00:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_864 logged off"}
+            {"index": {"_id":"1"}}
+            {"time":"2016-02-07T00:01:00+0000", "message": "2016-02-07T00:00:00+0000 Node 3 shutting down"}
+            {"index": {"_id":"2"}}
+            {"time":"2016-02-07T00:02:00+0000", "message": "2016-02-07T00:00:00+0000 Node 5 starting up"}
+            {"index": {"_id":"3"}}
+            {"time":"2016-02-07T00:03:00+0000", "message": "2016-02-07T00:00:00+0000 Node 4 shutting down"}
+            {"index": {"_id":"4"}}
+            {"time":"2016-02-08T00:01:00+0000", "message": "2016-02-08T00:00:00+0000 Node 5 shutting down"}
+            {"index": {"_id":"5"}}
+            {"time":"2016-02-08T00:02:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_325 logging on"}
+            {"index": {"_id":"6"}}
+            {"time":"2016-02-08T00:04:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_864 logged off"}
 '''
 buildRestTests.setups['server_metrics_index'] = '''
   - do:

@@ -16,29 +16,27 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 
 public class ShardSnapshot {
     private final ShardSnapshotInfo shardSnapshotInfo;
     // Segment file name -> file info
     private final Map<String, BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles;
     private final Store.MetadataSnapshot metadataSnapshot;
-    private final Map<String, String> luceneCommitUserData;
+    private final org.apache.lucene.util.Version commitLuceneVersion;
 
     ShardSnapshot(ShardSnapshotInfo shardSnapshotInfo,
                   List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles,
-                  Map<String, String> luceneCommitUserData) {
+                  Map<String, String> luceneCommitUserData,
+                  org.apache.lucene.util.Version commitLuceneVersion) {
         this.shardSnapshotInfo = shardSnapshotInfo;
         this.snapshotFiles = snapshotFiles.stream()
             .collect(Collectors.toMap(snapshotFile -> snapshotFile.metadata().name(), Function.identity()));
-        this.metadataSnapshot = convertToMetadataSnapshot(snapshotFiles);
-        this.luceneCommitUserData = luceneCommitUserData;
+        this.metadataSnapshot = convertToMetadataSnapshot(snapshotFiles, luceneCommitUserData);
+        this.commitLuceneVersion = commitLuceneVersion;
     }
 
     public String getShardStateIdentifier() {
@@ -74,14 +72,13 @@ public class ShardSnapshot {
         return shardSnapshotInfo;
     }
 
-    public Map<String, String> getLuceneCommitUserData() {
-        return luceneCommitUserData;
+    @Nullable
+    public Version getCommitVersion() {
+        return metadataSnapshot.getCommitVersion();
     }
 
-    @Nullable
-    public Version getVersion() {
-        String version = luceneCommitUserData.get(ES_VERSION);
-        return version == null ? null : Version.fromString(version);
+    public org.apache.lucene.util.Version getCommitLuceneVersion() {
+        return commitLuceneVersion;
     }
 
     public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFilesMatching(List<StoreFileMetadata> segmentFiles) {
@@ -94,12 +91,13 @@ public class ShardSnapshot {
         return List.copyOf(snapshotFiles.values());
     }
 
-    static Store.MetadataSnapshot convertToMetadataSnapshot(List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles) {
+    static Store.MetadataSnapshot convertToMetadataSnapshot(List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles,
+                                                            Map<String, String> luceneCommitUserData) {
         return new Store.MetadataSnapshot(
             snapshotFiles.stream()
                 .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
                 .collect(Collectors.toMap(StoreFileMetadata::name, Function.identity())),
-            Collections.emptyMap(),
+            luceneCommitUserData,
             0
         );
     }

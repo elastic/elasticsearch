@@ -108,6 +108,7 @@ public class StoreRecoveryTests extends ESTestCase {
         assertThat(userData.get(SequenceNumbers.MAX_SEQ_NO), equalTo(Long.toString(maxSeqNo)));
         assertThat(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(maxSeqNo)));
         assertThat(userData.get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID), equalTo(Long.toString(maxUnsafeAutoIdTimestamp)));
+        assertThat(userData.get(Engine.ES_VERSION), equalTo(Version.CURRENT.toString()));
         for (SegmentCommitInfo info : segmentCommitInfos) { // check that we didn't merge
             assertEquals("all sources must be flush",
                 info.info.getDiagnostics().get("source"), "flush");

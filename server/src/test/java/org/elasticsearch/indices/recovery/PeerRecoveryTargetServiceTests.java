@@ -102,7 +102,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         recoveryTarget.receiveFileInfo(
             mdFiles.stream().map(StoreFileMetadata::name).collect(Collectors.toList()),
             mdFiles.stream().map(StoreFileMetadata::length).collect(Collectors.toList()),
-            emptyList(), emptyList(), 0, false, receiveFileInfoFuture
+            emptyList(), emptyList(), 0, receiveFileInfoFuture
         );
         receiveFileInfoFuture.actionGet();
         List<RecoveryFileChunkRequest> requests = new ArrayList<>();
@@ -586,7 +586,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final boolean deleteRecoveredFiles = randomBoolean();
-        recoveryTarget.receiveFileInfo(emptyList(), emptyList(), emptyList(), emptyList(), 0, deleteRecoveredFiles, future);
+        recoveryTarget.receiveFileInfo(emptyList(), emptyList(), emptyList(), emptyList(), 0, future);
         future.get();
 
         if (deleteRecoveredFiles) {

@@ -82,7 +82,6 @@ public interface RecoveryTargetHandler {
                          List<String> phase1ExistingFileNames,
                          List<Long> phase1ExistingFileSizes,
                          int totalTranslogOps,
-                         boolean deleteRecoveredFiles,
                          ActionListener<Void> listener);
 
     /**

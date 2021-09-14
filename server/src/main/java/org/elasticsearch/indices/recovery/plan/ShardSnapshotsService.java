@@ -12,12 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.BaseDirectory;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SingleInstanceLockFactory;
+import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
@@ -128,11 +129,30 @@ public class ShardSnapshotsService {
                 .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
                 .collect(Collectors.toMap(StoreFileMetadata::name, Function.identity()));
 
-            InMemoryDirectory directory = new InMemoryDirectory(snapshotFiles);
+            // If the snapshot is taken using a Lucene version that this node cannot read
+            // (i.e. the snapshot was taken in a node with version > than this node version)
+            // reading the segment commit information could likely fail and we won't be able
+            // to recover from a snapshot. This should be a rare edge-case since for most cases
+            // the allocation deciders won't allow allocating replicas in nodes with older versions.
+            //
+            // One possible scenario that could lead to having a snapshot taken in a newer node (credits to Henning):
+            // 1. We have a primary and a replica.
+            // 2. We upgrade one of the nodes.
+            // 3. Indexing occurs to both copies.
+            // 4. The old version node falls out.
+            // 5. A snapshot is done of the new version node.
+            // 6. The old version node comes back online.
+            // 7. The new version node falls out.
+            // 8. The old version node now becomes primary because it has an in-sync copy.
+            // 9. We establish a replica on a new version node.
+            StoreFileMetadataDirectory directory = new StoreFileMetadataDirectory(snapshotFiles);
             SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(directory);
             Map<String, String> userData = segmentCommitInfos.userData;
 
-            return Optional.of(new ShardSnapshot(latestShardSnapshot, blobStoreIndexShardSnapshot.indexFiles(), userData));
+            Version commitLuceneVersion = segmentCommitInfos.getCommitLuceneVersion();
+            return Optional.of(
+                new ShardSnapshot(latestShardSnapshot, blobStoreIndexShardSnapshot.indexFiles(), userData, commitLuceneVersion)
+            );
         } catch (Exception e) {
             logger.warn(new ParameterizedMessage("Unable to fetch shard snapshot files for {}", latestShardSnapshot), e);
             return Optional.empty();
@@ -143,11 +163,10 @@ public class ShardSnapshotsService {
         return clusterService.state().nodes().getMinNodeVersion().onOrAfter(SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
     }
 
-    private static final class InMemoryDirectory extends BaseDirectory {
+    private static final class StoreFileMetadataDirectory extends Directory {
         private final Map<String, StoreFileMetadata> files;
 
-        private InMemoryDirectory(Map<String, StoreFileMetadata> files) {
-            super(new SingleInstanceLockFactory());
+        private StoreFileMetadataDirectory(Map<String, StoreFileMetadata> files) {
             this.files = files;
         }
 
@@ -211,6 +230,11 @@ public class ShardSnapshotsService {
 
         @Override
         public Set<String> getPendingDeletions() {
+            throw new UnsupportedOperationException("this directory is read-only");
+        }
+
+        @Override
+        public Lock obtainLock(String name) {
             throw new UnsupportedOperationException("this directory is read-only");
         }
 

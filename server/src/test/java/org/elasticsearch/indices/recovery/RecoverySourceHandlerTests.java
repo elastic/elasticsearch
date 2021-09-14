@@ -745,7 +745,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             @Override
             public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
                                         List<Long> phase1ExistingFileSizes, int totalTranslogOps,
-                                        boolean deleteRecoveredFiles, ActionListener<Void> listener) {
+                                        ActionListener<Void> listener) {
                 recoveryExecutor.execute(() -> listener.onResponse(null));
                 if (randomBoolean()) {
                     wasCancelled.set(true);
@@ -1250,17 +1250,14 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                                             List<String> phase1ExistingFileNames,
                                             List<Long> phase1ExistingFileSizes,
                                             int totalTranslogOps,
-                                            boolean deleteRecoveredFiles,
                                             ActionListener<Void> listener) {
                     assert retryingUsingFallbackPlan.get() == false;
 
                     final List<StoreFileMetadata> filesToRecover;
                     if (snapshotFileRecoveryFailed.get()) {
-                        assertThat(deleteRecoveredFiles, is(equalTo(true)));
                         filesToRecover = fallbackPlan.getSourceFilesToRecover();
                         retryingUsingFallbackPlan.set(true);
                     } else {
-                        assertThat(deleteRecoveredFiles, is(equalTo(false)));
                         filesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover()
                             .getSnapshotFiles()
                             .stream()
@@ -1549,7 +1546,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         @Override
         public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
                                     List<Long> phase1ExistingFileSizes, int totalTranslogOps,
-                                    boolean deleteRecoveredFiles, ActionListener<Void> listener) {
+                                    ActionListener<Void> listener) {
 
         }
 
@@ -1576,7 +1573,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                                     List<String> phase1ExistingFileNames,
                                     List<Long> phase1ExistingFileSizes,
                                     int totalTranslogOps,
-                                    boolean deleteRecoveredFiles,
                                     ActionListener<Void> listener) {
             listener.onResponse(null);
         }

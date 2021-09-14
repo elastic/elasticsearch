@@ -50,13 +50,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     @Override
@@ -188,10 +186,12 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             assertThat(nonEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(false)));
 
             assertThat(shardSnapshotData.getMetadataSnapshot().size(), is(greaterThan(0)));
-            Map<String, String> luceneCommitUserData = shardSnapshotData.getLuceneCommitUserData();
-            assertThat(luceneCommitUserData, is(not(anEmptyMap())));
-            assertThat(luceneCommitUserData.containsKey(ES_VERSION), is(equalTo(true)));
-            assertThat(luceneCommitUserData.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
+            Version commitVersion = shardSnapshotData.getCommitVersion();
+            assertThat(commitVersion, is(notNullValue()));
+            assertThat(commitVersion, is(equalTo(Version.CURRENT)));
+            final org.apache.lucene.util.Version commitLuceneVersion = shardSnapshotData.getCommitLuceneVersion();
+            assertThat(commitLuceneVersion, is(notNullValue()));
+            assertThat(commitLuceneVersion, is(equalTo(Version.CURRENT.luceneVersion)));
 
             assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
             assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));

@@ -6163,4 +6163,54 @@ public class InternalEngineTests extends EngineTestCase {
             }
         }
     }
+
+    public void testTrimUnsafeCommitHasESVersionInUserData() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final int maxSeqNo = 40;
+        final List<Long> seqNos = LongStream.rangeClosed(0, maxSeqNo).boxed().collect(Collectors.toList());
+        Collections.shuffle(seqNos, random());
+        try (Store store = createStore()) {
+            EngineConfig config =
+                config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+
+            try (InternalEngine engine = createEngine(config)) {
+                for (int i = 0; i < seqNos.size(); i++) {
+                    ParsedDocument doc = testParsedDocument(Long.toString(seqNos.get(i)),
+                        null,
+                        testDocument(),
+                        new BytesArray("{}"),
+                        null
+                    );
+                    Engine.Index index = new Engine.Index(newUid(doc),
+                        doc,
+                        seqNos.get(i),
+                        0,
+                        1,
+                        null,
+                        REPLICA,
+                        System.nanoTime(),
+                        -1,
+                        false,
+                        UNASSIGNED_SEQ_NO,
+                        0
+                    );
+                    engine.index(index);
+                    if (randomBoolean()) {
+                        engine.flush();
+                        final Long maxSeqNoInCommit = seqNos.subList(0, i + 1).stream().max(Long::compareTo).orElse(-1L);
+                    }
+                }
+                globalCheckpoint.set(randomInt(maxSeqNo));
+                engine.syncTranslog();
+            }
+
+            store.trimUnsafeCommits(config.getTranslogConfig().getTranslogPath());
+
+            try (InternalEngine engine = createEngine(config)) {
+                Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                assertThat(userData, hasKey(ES_VERSION));
+                assertThat(userData.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
+            }
+        }
+    }
 }

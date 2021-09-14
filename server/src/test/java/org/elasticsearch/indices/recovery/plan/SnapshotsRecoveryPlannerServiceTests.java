@@ -199,10 +199,21 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             writeRandomDocs(store, randomIntBetween(10, 100));
             Store.MetadataSnapshot sourceMetadata = store.getMetadata(null);
 
-            Version snapshotVersion = randomFrom(Version.fromId(Integer.MAX_VALUE), randomCompatibleVersion(random(), Version.CURRENT));
+
+            boolean compatibleVersion = randomBoolean();
+            final Version snapshotVersion;
+            final org.apache.lucene.util.Version luceneVersion;
+            if (compatibleVersion) {
+                snapshotVersion = randomBoolean() ? null : randomCompatibleVersion(random(), Version.CURRENT);
+                luceneVersion = randomCompatibleVersion(random(), Version.CURRENT).luceneVersion;
+            } else {
+                snapshotVersion = randomBoolean() ? null : Version.fromId(Integer.MAX_VALUE);
+                luceneVersion = org.apache.lucene.util.Version.parse("255.255.255");
+            }
+
             // The snapshot shardStateIdentifier is the same as the source, but the files are different.
             // This can happen after a primary fail-over.
-            ShardSnapshot latestSnapshot = createShardSnapshotThatDoNotShareSegmentFiles("repo", snapshotVersion);
+            ShardSnapshot latestSnapshot = createShardSnapshotThatDoNotShareSegmentFiles("repo", snapshotVersion, luceneVersion);
             String shardStateIdentifier = latestSnapshot.getShardStateIdentifier();
 
             long startingSeqNo = randomNonNegativeLong();
@@ -222,7 +233,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 true
             );
 
-            if (shareFilesWithSource || snapshotVersion.after(Version.CURRENT)) {
+            if (shareFilesWithSource || compatibleVersion == false) {
                 assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
                 assertAllSourceFilesAreAvailableInSource(shardRecoveryPlan, sourceMetadata);
                 assertAllIdenticalFilesAreAvailableInTarget(shardRecoveryPlan, targetSourceMetadata);
@@ -561,16 +572,18 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     }
 
     private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(String repoName) {
-        return createShardSnapshotThatDoNotShareSegmentFiles(repoName, Version.CURRENT);
+        return createShardSnapshotThatDoNotShareSegmentFiles(repoName, Version.CURRENT, Version.CURRENT.luceneVersion);
     }
 
-    private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(String repoName, Version version) {
+    private ShardSnapshot createShardSnapshotThatDoNotShareSegmentFiles(String repoName,
+                                                                        Version version,
+                                                                        org.apache.lucene.util.Version luceneVersion) {
         List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = randomList(10, 20, () -> {
             StoreFileMetadata storeFileMetadata = randomStoreFileMetadata();
             return new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata, PART_SIZE);
         });
 
-        return createShardSnapshot(repoName, snapshotFiles, version);
+        return createShardSnapshot(repoName, snapshotFiles, version, luceneVersion);
     }
 
     private ShardSnapshot createShardSnapshotThatSharesSegmentFiles(Store store,
@@ -584,12 +597,13 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata, PART_SIZE);
             snapshotFiles.add(fileInfo);
         }
-        return createShardSnapshot(repository, snapshotFiles, Version.CURRENT);
+        return createShardSnapshot(repository, snapshotFiles, Version.CURRENT, Version.CURRENT.luceneVersion);
     }
 
     private ShardSnapshot createShardSnapshot(String repoName,
                                               List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles,
-                                              Version version) {
+                                              Version version,
+                                              org.apache.lucene.util.Version luceneVersion) {
         String shardIdentifier = randomAlphaOfLength(10);
 
         Snapshot snapshot = new Snapshot(repoName, new SnapshotId("snap", UUIDs.randomBase64UUID(random())));
@@ -597,7 +611,9 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         ShardSnapshotInfo shardSnapshotInfo =
             new ShardSnapshotInfo(indexId, shardId, snapshot, randomAlphaOfLength(10), shardIdentifier, clock.incrementAndGet());
 
-        return new ShardSnapshot(shardSnapshotInfo, snapshotFiles, Collections.singletonMap(ES_VERSION, version.toString()));
+        Map<String, String> luceneCommitUserData =
+            version == null ? Collections.emptyMap() : Collections.singletonMap(ES_VERSION, version.toString());
+        return new ShardSnapshot(shardSnapshotInfo, snapshotFiles, luceneCommitUserData, luceneVersion);
     }
 
     private StoreFileMetadata randomStoreFileMetadata() {

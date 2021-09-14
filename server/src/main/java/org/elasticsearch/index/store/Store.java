@@ -52,6 +52,7 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
@@ -95,6 +96,7 @@ import java.util.zip.Checksum;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
+import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 
 /**
  * A Store provides plain access to files written by an elasticsearch index shard. Each shard
@@ -803,6 +805,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return numDocs;
         }
 
+        @Nullable
+        public org.elasticsearch.Version getCommitVersion() {
+            String version = commitUserData.get(ES_VERSION);
+            return version == null ? null : org.elasticsearch.Version.fromString(version);
+        }
+
         static class LoadedMetadata {
             final Map<String, StoreFileMetadata> fileMetadata;
             final Map<String, String> userData;
@@ -1496,7 +1504,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
                     // The new commit will use segment files from the starting commit but userData from the last commit by default.
                     // Thus, we need to manually set the userData from the starting commit to the new commit.
-                    writer.setLiveCommitData(startingIndexCommit.getUserData().entrySet());
+                    final Map<String, String> userData = startingIndexCommit.getUserData();
+                    writer.setLiveCommitData(() -> {
+                        if (userData.containsKey(ES_VERSION)) {
+                            return userData.entrySet().iterator();
+                        } else {
+                            Map<String, String> userDataWithVersion = new HashMap<>(userData);
+                            userDataWithVersion.put(ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
+                            return userDataWithVersion.entrySet().iterator();
+                        }
+                    });
                     writer.commit();
                 }
             }

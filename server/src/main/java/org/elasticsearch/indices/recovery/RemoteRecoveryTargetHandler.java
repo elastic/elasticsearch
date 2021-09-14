@@ -155,12 +155,11 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                                 List<String> phase1ExistingFileNames,
                                 List<Long> phase1ExistingFileSizes,
                                 int totalTranslogOps,
-                                boolean deleteRecoveredFiles,
                                 ActionListener<Void> listener) {
         final String action = PeerRecoveryTargetService.Actions.FILES_INFO;
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         RecoveryFilesInfoRequest request = new RecoveryFilesInfoRequest(recoveryId, requestSeqNo, shardId, phase1FileNames, phase1FileSizes,
-            phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps, deleteRecoveredFiles);
+            phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         executeRetryableAction(action, request, standardTimeoutRequestOptions, listener.map(r -> null), reader);
     }

@@ -80,11 +80,10 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
 
         ShardSnapshot latestSnapshot = latestSnapshotOpt.get();
 
-        Version snapshotVersion = latestSnapshot.getVersion();
         // Primary failed over after the snapshot was taken
         if (latestSnapshot.isLogicallyEquivalent(shardStateIdentifier) &&
             latestSnapshot.hasDifferentPhysicalFiles(sourceMetadata) &&
-            snapshotVersion != null && snapshotVersion.onOrBefore(Version.CURRENT) &&
+            isSnapshotVersionCompatible(latestSnapshot) &&
             sourceTargetDiff.identical.isEmpty()) {
             // Use the current primary as a fallback if the download fails half-way
             ShardRecoveryPlan fallbackPlan =
@@ -124,6 +123,16 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
             translogOps,
             sourceMetadata
         );
+    }
+
+    private boolean isSnapshotVersionCompatible(ShardSnapshot snapshot) {
+        Version commitVersion = snapshot.getCommitVersion();
+        // if the snapshotVersion == null that means that the snapshot was taken in a version <= 7.15,
+        // therefore we can safely use that snapshot.
+        if (commitVersion == null) {
+            return Version.CURRENT.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
+        }
+        return commitVersion.onOrBefore(Version.CURRENT);
     }
 
     private ShardRecoveryPlan getRecoveryPlanUsingSourceNode(Store.MetadataSnapshot sourceMetadata,

@@ -28,8 +28,6 @@ public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
 
     int totalTranslogOps;
 
-    boolean deleteRecoveredFiles;
-
     public RecoveryFilesInfoRequest(StreamInput in) throws IOException {
         super(in);
         recoveryId = in.readLong();
@@ -58,17 +56,11 @@ public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
             phase1ExistingFileSizes.add(in.readVLong());
         }
         totalTranslogOps = in.readVInt();
-
-        if (in.getVersion().onOrAfter(RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)) {
-            deleteRecoveredFiles = in.readBoolean();
-        } else {
-            deleteRecoveredFiles = false;
-        }
     }
 
     RecoveryFilesInfoRequest(long recoveryId, long requestSeqNo, ShardId shardId, List<String> phase1FileNames,
                              List<Long> phase1FileSizes, List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes,
-                             int totalTranslogOps, boolean deleteRecoveredFiles) {
+                             int totalTranslogOps) {
         super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
@@ -77,7 +69,6 @@ public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
         this.phase1ExistingFileNames = phase1ExistingFileNames;
         this.phase1ExistingFileSizes = phase1ExistingFileSizes;
         this.totalTranslogOps = totalTranslogOps;
-        this.deleteRecoveredFiles = deleteRecoveredFiles;
     }
 
     public long recoveryId() {
@@ -114,9 +105,5 @@ public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
             out.writeVLong(phase1ExistingFileSize);
         }
         out.writeVInt(totalTranslogOps);
-
-        if (out.getVersion().onOrAfter(RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)) {
-            out.writeBoolean(deleteRecoveredFiles);
-        }
     }
 }

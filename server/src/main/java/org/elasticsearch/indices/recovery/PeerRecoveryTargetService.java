@@ -415,7 +415,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
                 recoveryRef.target().receiveFileInfo(
                     request.phase1FileNames, request.phase1FileSizes, request.phase1ExistingFileNames, request.phase1ExistingFileSizes,
-                    request.totalTranslogOps, request.deleteRecoveredFiles, listener);
+                    request.totalTranslogOps, listener);
             }
         }
     }

@@ -31,6 +31,7 @@ import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -48,33 +49,150 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.rest.AbstractCCSRestTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This test ensure that we keep the search states of a CCS request correctly when the local and remote clusters
  * have different but compatible versions. See SearchService#createAndPutReaderContext
  */
-public class SearchStatesIT extends AbstractCCSRestTestCase {
+public class SearchStatesIT extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(SearchStatesIT.class);
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
     private static final String CLUSTER_ALIAS = "remote_cluster";
 
-    protected static RestHighLevelClient newLocalClient(Logger logger) {
+    static class Node {
+        final String id;
+        final String name;
+        final Version version;
+        final String transportAddress;
+        final String httpAddress;
+        final Map<String, Object> attributes;
+
+        Node(String id, String name, Version version, String transportAddress, String httpAddress, Map<String, Object> attributes) {
+            this.id = id;
+            this.name = name;
+            this.version = version;
+            this.transportAddress = transportAddress;
+            this.httpAddress = httpAddress;
+            this.attributes = attributes;
+        }
+
+        @Override
+        public String toString() {
+            return "Node{" +
+                "id='" + id + '\'' +
+                ", name='" + name + '\'' +
+                ", version=" + version +
+                ", transportAddress='" + transportAddress + '\'' +
+                ", httpAddress='" + httpAddress + '\'' +
+                ", attributes=" + attributes +
+                '}';
+        }
+    }
+
+    static List<Node> getNodes(RestClient restClient) throws IOException {
+        Response response = restClient.performRequest(new Request("GET", "_nodes"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
+        final List<Node> nodes = new ArrayList<>();
+        for (String id : nodeMap.keySet()) {
+            final String name = objectPath.evaluate("nodes." + id + ".name");
+            final Version version = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
+            final String transportAddress = objectPath.evaluate("nodes." + id + ".transport.publish_address");
+            final String httpAddress = objectPath.evaluate("nodes." + id + ".http.publish_address");
+            final Map<String, Object> attributes = objectPath.evaluate("nodes." + id + ".attributes");
+            nodes.add(new Node(id, name, version, transportAddress, httpAddress, attributes));
+        }
+        return nodes;
+    }
+
+    static List<HttpHost> parseHosts(String props) {
+        final String address = System.getProperty(props);
+        assertNotNull("[" + props + "] is not configured", address);
+        String[] stringUrls = address.split(",");
+        List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
+        for (String stringUrl : stringUrls) {
+            int portSeparator = stringUrl.lastIndexOf(':');
+            if (portSeparator < 0) {
+                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+            }
+            String host = stringUrl.substring(0, portSeparator);
+            int port = Integer.parseInt(stringUrl.substring(portSeparator + 1));
+            hosts.add(new HttpHost(host, port, "http"));
+        }
+        assertThat("[" + props + "] is empty", hosts, not(empty()));
+        return hosts;
+    }
+
+    public static void configureRemoteClusters(List<Node> remoteNodes) throws Exception {
+        assertThat(remoteNodes, hasSize(3));
+        final String remoteClusterSettingPrefix = "cluster.remote." + CLUSTER_ALIAS + ".";
+        try (RestHighLevelClient localClient = newLocalClient()) {
+            final Settings remoteConnectionSettings;
+            if (UPGRADE_FROM_VERSION.before(Version.V_7_6_0) || randomBoolean()) {
+                final List<String> seeds = remoteNodes.stream()
+                    .filter(n -> n.attributes.containsKey("gateway"))
+                    .map(n -> n.transportAddress)
+                    .collect(Collectors.toList());
+                assertThat(seeds, hasSize(2));
+                LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", seeds, remoteNodes);
+                if (UPGRADE_FROM_VERSION.before(Version.V_7_6_0)) {
+                    remoteConnectionSettings = Settings.builder()
+                        .putList(remoteClusterSettingPrefix + "seeds", seeds)
+                        .build();
+                } else {
+                    remoteConnectionSettings = Settings.builder()
+                        .putNull(remoteClusterSettingPrefix + "proxy_address")
+                        .put(remoteClusterSettingPrefix + "mode", "sniff")
+                        .putList(remoteClusterSettingPrefix + "seeds", seeds)
+                        .build();
+                }
+            } else {
+                final Node proxyNode = randomFrom(remoteNodes);
+                LOGGER.info("--> use proxy node [{}], remote nodes [{}]", proxyNode, remoteNodes);
+                remoteConnectionSettings = Settings.builder()
+                    .putNull(remoteClusterSettingPrefix + "seeds")
+                    .put(remoteClusterSettingPrefix + "mode", "proxy")
+                    .put(remoteClusterSettingPrefix + "proxy_address", proxyNode.transportAddress)
+                    .build();
+            }
+            assertTrue(
+                localClient.cluster()
+                    .putSettings(new ClusterUpdateSettingsRequest().persistentSettings(remoteConnectionSettings), RequestOptions.DEFAULT)
+                    .isAcknowledged()
+            );
+            assertBusy(() -> {
+                final Response resp = localClient.getLowLevelClient().performRequest(new Request("GET", "/_remote/info"));
+                assertOK(resp);
+                final ObjectPath objectPath = ObjectPath.createFromResponse(resp);
+                assertNotNull(objectPath.evaluate(CLUSTER_ALIAS));
+                assertTrue(objectPath.evaluate(CLUSTER_ALIAS + ".connected"));
+            }, 60, TimeUnit.SECONDS);
+        }
+    }
+
+    static RestHighLevelClient newLocalClient() {
         final List<HttpHost> hosts = parseHosts("tests.rest.cluster");
         final int index = random().nextInt(hosts.size());
-        logger.info("Using client node {}", index);
+        LOGGER.info("Using client node {}", index);
         return new RestHighLevelClient(RestClient.builder(hosts.get(index)));
     }
 
-    protected static RestHighLevelClient newRemoteClient() {
+    static RestHighLevelClient newRemoteClient() {
         return new RestHighLevelClient(RestClient.builder(randomFrom(parseHosts("tests.rest.remote_cluster"))));
     }
 
@@ -90,7 +208,7 @@ public class SearchStatesIT extends AbstractCCSRestTestCase {
     }
 
     void verifySearch(String localIndex, int localNumDocs, String remoteIndex, int remoteNumDocs) {
-        try (RestHighLevelClient localClient = newLocalClient(LOGGER)) {
+        try (RestHighLevelClient localClient = newLocalClient()) {
             Request request = new Request("POST", "/_search");
             final int expectedDocs;
             if (randomBoolean()) {
@@ -121,7 +239,7 @@ public class SearchStatesIT extends AbstractCCSRestTestCase {
     public void testBWCSearchStates() throws Exception {
         String localIndex = "test_bwc_search_states_index";
         String remoteIndex = "test_bwc_search_states_remote_index";
-        try (RestHighLevelClient localClient = newLocalClient(LOGGER);
+        try (RestHighLevelClient localClient = newLocalClient();
              RestHighLevelClient remoteClient = newRemoteClient()) {
             localClient.indices().create(new CreateIndexRequest(localIndex)
                     .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))),
@@ -133,13 +251,7 @@ public class SearchStatesIT extends AbstractCCSRestTestCase {
                 RequestOptions.DEFAULT);
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 100));
 
-            List<Node> remoteNodes = getNodes(remoteClient.getLowLevelClient());
-            assertThat(remoteNodes, hasSize(3));
-            List<String> seeds = remoteNodes.stream().filter(n -> n.attributes.containsKey("gateway"))
-                .map(n -> n.transportAddress)
-                .collect(Collectors.toList());
-            assertThat(seeds, hasSize(2));
-            configureRemoteClusters(remoteNodes, CLUSTER_ALIAS, UPGRADE_FROM_VERSION, LOGGER);
+            configureRemoteClusters(getNodes(remoteClient.getLowLevelClient()));
             int iterations = between(1, 20);
             for (int i = 0; i < iterations; i++) {
                 verifySearch(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs);

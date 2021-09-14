@@ -11,11 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -99,9 +97,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public Transport.Connection getConnection(String clusterAlias, String nodeId) {
-        return new SearchAsyncActionTests.MockConnection(
-            new DiscoveryNode("id", new TransportAddress(TransportAddress.META_ADDRESS, 9300), Version.CURRENT)
-        );
+        return null; // null is ok here for this test
     }
 
     @Override

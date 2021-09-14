@@ -686,7 +686,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         final String index = "index";
         assertAcked(prepareCreate(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         ensureGreen(index);
-        populateIndex(index, scaledRandomIntBetween(0, 5_000));
+        populateIndex(index, scaledRandomIntBetween(10, 5_000));
         refresh(index);
 
         final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();
@@ -741,7 +741,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         final String index = "index";
         assertAcked(prepareCreate(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         ensureGreen(index);
-        populateIndex(index, scaledRandomIntBetween(0, 5_000));
+        populateIndex(index, scaledRandomIntBetween(10, 5_000));
         refresh(index);
 
         final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();

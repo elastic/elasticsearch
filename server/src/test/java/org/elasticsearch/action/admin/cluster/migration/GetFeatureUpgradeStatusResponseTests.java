@@ -14,7 +14,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.List;
 
-public class GetFeatureUpgradeStatusResponseTest extends AbstractWireSerializingTestCase<GetFeatureUpgradeStatusResponse> {
+public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializingTestCase<GetFeatureUpgradeStatusResponse> {
 
     @Override
     protected Writeable.Reader<GetFeatureUpgradeStatusResponse> instanceReader() {
@@ -32,7 +32,7 @@ public class GetFeatureUpgradeStatusResponseTest extends AbstractWireSerializing
     @Override
     protected GetFeatureUpgradeStatusResponse mutateInstance(GetFeatureUpgradeStatusResponse instance) throws IOException {
         return new GetFeatureUpgradeStatusResponse(
-            randomList(8, GetFeatureUpgradeStatusResponseTest::createFeatureStatus),
+            randomList(8, GetFeatureUpgradeStatusResponseTests::createFeatureStatus),
             randomValueOtherThan(instance.upgradeStatus(), () -> randomAlphaOfLengthBetween(4, 16))
         );
     }
@@ -42,7 +42,7 @@ public class GetFeatureUpgradeStatusResponseTest extends AbstractWireSerializing
             randomAlphaOfLengthBetween(3, 20),
             randomAlphaOfLengthBetween(5, 9),
             randomAlphaOfLengthBetween(4, 16),
-            randomList(4, GetFeatureUpgradeStatusResponseTest::getIndexVersion)
+            randomList(4, GetFeatureUpgradeStatusResponseTests::getIndexVersion)
         );
     }
 

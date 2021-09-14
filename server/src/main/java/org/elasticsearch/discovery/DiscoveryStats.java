@@ -9,7 +9,7 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.service.ClusterApplierTimeTracker;
+import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,13 +26,13 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
     private final PendingClusterStateStats queueStats;
     private final PublishClusterStateStats publishStats;
     private final ClusterStateUpdateStats clusterStateUpdateStats;
-    private final ClusterApplierTimeTracker.Stats timeTrackerStats;
+    private final ClusterApplierRecordingService.Stats timeTrackerStats;
 
     public DiscoveryStats(
         PendingClusterStateStats queueStats,
         PublishClusterStateStats publishStats,
         ClusterStateUpdateStats clusterStateUpdateStats,
-        ClusterApplierTimeTracker.Stats timeTrackerStats) {
+        ClusterApplierRecordingService.Stats timeTrackerStats) {
         this.queueStats = queueStats;
         this.publishStats = publishStats;
         this.clusterStateUpdateStats = clusterStateUpdateStats;
@@ -48,7 +48,7 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
             clusterStateUpdateStats = null;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            timeTrackerStats = in.readOptionalWriteable(ClusterApplierTimeTracker.Stats::new);
+            timeTrackerStats = in.readOptionalWriteable(ClusterApplierRecordingService.Stats::new);
         } else {
             timeTrackerStats = null;
         }
@@ -101,7 +101,7 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         return publishStats;
     }
 
-    public ClusterApplierTimeTracker.Stats getTimeTrackerStats() {
+    public ClusterApplierRecordingService.Stats getTimeTrackerStats() {
         return timeTrackerStats;
     }
 }

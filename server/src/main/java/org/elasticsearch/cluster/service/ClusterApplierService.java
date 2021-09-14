@@ -21,8 +21,8 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Recorder;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -38,7 +38,6 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -84,7 +83,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final String nodeName;
 
-    private final ClusterApplierTimeTracker tracker;
+    private final ClusterApplierRecordingService recordingService;
 
     private NodeConnectionsService nodeConnectionsService;
 
@@ -93,7 +92,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
         this.nodeName = nodeName;
-        this.tracker = new ClusterApplierTimeTracker();
+        this.recordingService = new ClusterApplierRecordingService();
 
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
         this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
@@ -188,7 +187,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void addHighPriorityApplier(ClusterStateApplier applier) {
         highPriorityStateAppliers.add(applier);
-        tracker.addApplier(applier.toString());
     }
 
     /**
@@ -196,7 +194,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void addLowPriorityApplier(ClusterStateApplier applier) {
         lowPriorityStateAppliers.add(applier);
-        tracker.addApplier(applier.toString());
     }
 
     /**
@@ -204,7 +201,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void addStateApplier(ClusterStateApplier applier) {
         normalPriorityStateAppliers.add(applier);
-        tracker.addApplier(applier.toString());
     }
 
     /**
@@ -214,7 +210,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         normalPriorityStateAppliers.remove(applier);
         highPriorityStateAppliers.remove(applier);
         lowPriorityStateAppliers.remove(applier);
-        tracker.removeApplier(applier.toString());
     }
 
     /**
@@ -222,7 +217,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void addListener(ClusterStateListener listener) {
         clusterStateListeners.add(listener);
-        tracker.addListener(listener.toString());
     }
 
     /**
@@ -230,7 +224,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void removeListener(ClusterStateListener listener) {
         clusterStateListeners.remove(listener);
-        tracker.removeListener(listener.toString());
     }
 
     /**
@@ -238,8 +231,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void removeTimeoutListener(TimeoutClusterStateListener listener) {
         final NotifyTimeout timeout = timeoutClusterStateListeners.remove(listener);
-        // TODO: Maybe not track these? These listeners appear and disappear quickly.
-        tracker.removeListener(listener.toString());
         if (timeout != null) {
             timeout.cancel();
         }
@@ -271,8 +262,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     final NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
                     final NotifyTimeout previous = timeoutClusterStateListeners.put(listener, notifyTimeout);
                     assert previous == null : "Added same listener [" + listener + "]";
-                    // TODO: Maybe not track these? These listeners appear and disappear quickly.
-                    tracker.addListener(listener.toString());
                     if (lifecycle.stoppedOrClosed()) {
                         listener.onClose();
                         return;
@@ -402,10 +391,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         final ClusterState previousClusterState = state.get();
 
         final long startTimeMillis = threadPool.relativeTimeInMillis();
-        final StopWatch stopWatch = new StopWatch();
+        final Recorder stopWatch = new Recorder();
         final ClusterState newClusterState;
         try {
-            try (Releasable ignored = stopWatch.timing("running task [" + source + ']')) {
+            try (Releasable ignored = stopWatch.record("running task [" + source + ']')) {
                 newClusterState = updateFunction.apply(previousClusterState);
             }
         } catch (Exception e) {
@@ -461,7 +450,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         return TimeValue.timeValueMillis(Math.max(0, threadPool.relativeTimeInMillis() - startTimeMillis));
     }
 
-    private void applyChanges(ClusterState previousClusterState, ClusterState newClusterState, String source, StopWatch stopWatch) {
+    private void applyChanges(ClusterState previousClusterState, ClusterState newClusterState, String source, Recorder stopWatch) {
         ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(source, newClusterState, previousClusterState);
         // new cluster state, notify all listeners
         final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
@@ -478,7 +467,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
 
         logger.trace("connecting to nodes of cluster state with version {}", newClusterState.version());
-        try (Releasable ignored = stopWatch.timing("connecting to new nodes")) {
+        try (Releasable ignored = stopWatch.record("connecting to new nodes")) {
             connectToNodesAndWait(newClusterState);
         }
 
@@ -486,7 +475,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metadataChanged()) {
             logger.debug("applying settings from cluster state with version {}", newClusterState.version());
             final Settings incomingSettings = clusterChangedEvent.state().metadata().settings();
-            try (Releasable ignored = stopWatch.timing("applying settings")) {
+            try (Releasable ignored = stopWatch.record("applying settings")) {
                 clusterSettings.applySettings(incomingSettings);
             }
         }
@@ -518,40 +507,36 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         nodeConnectionsService.connectToNodes(newClusterState.nodes(), onCompletion);
     }
 
-    private void callClusterStateAppliers(ClusterChangedEvent clusterChangedEvent, StopWatch stopWatch) {
-        callClusterStateAppliers(clusterChangedEvent, stopWatch, highPriorityStateAppliers, tracker);
-        callClusterStateAppliers(clusterChangedEvent, stopWatch, normalPriorityStateAppliers, tracker);
-        callClusterStateAppliers(clusterChangedEvent, stopWatch, lowPriorityStateAppliers, tracker);
+    private void callClusterStateAppliers(ClusterChangedEvent clusterChangedEvent, Recorder stopWatch) {
+        callClusterStateAppliers(clusterChangedEvent, stopWatch, highPriorityStateAppliers);
+        callClusterStateAppliers(clusterChangedEvent, stopWatch, normalPriorityStateAppliers);
+        callClusterStateAppliers(clusterChangedEvent, stopWatch, lowPriorityStateAppliers);
     }
 
-    private static void callClusterStateAppliers(ClusterChangedEvent clusterChangedEvent, StopWatch stopWatch,
-                                                 Collection<ClusterStateApplier> clusterStateAppliers, ClusterApplierTimeTracker tracker) {
+    private static void callClusterStateAppliers(ClusterChangedEvent clusterChangedEvent, Recorder stopWatch,
+                                                 Collection<ClusterStateApplier> clusterStateAppliers) {
         for (ClusterStateApplier applier : clusterStateAppliers) {
             logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
             final String name = applier.toString();
-            try (Releasable ignored = stopWatch.timing("running applier [" + name + "]")) {
+            try (Releasable ignored = stopWatch.record(name)) {
                 applier.applyClusterState(clusterChangedEvent);
-            } finally {
-                tracker.incrementTimeSpentApplier(name, stopWatch.lastTaskTime());
             }
         }
     }
 
-    private void callClusterStateListeners(ClusterChangedEvent clusterChangedEvent, StopWatch stopWatch) {
+    private void callClusterStateListeners(ClusterChangedEvent clusterChangedEvent, Recorder stopWatch) {
         callClusterStateListener(clusterChangedEvent, stopWatch, clusterStateListeners);
         callClusterStateListener(clusterChangedEvent, stopWatch, timeoutClusterStateListeners.keySet());
     }
 
-    private void callClusterStateListener(ClusterChangedEvent clusterChangedEvent, StopWatch stopWatch,
+    private void callClusterStateListener(ClusterChangedEvent clusterChangedEvent, Recorder stopWatch,
                                           Collection<? extends ClusterStateListener> listeners) {
         for (ClusterStateListener listener : listeners) {
             try {
                 logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
                 final String name = listener.toString();
-                try (Releasable ignored = stopWatch.timing("notifying listener [" + name + "]")) {
+                try (Releasable ignored = stopWatch.record(name)) {
                     listener.clusterChanged(clusterChangedEvent);
-                } finally {
-                    tracker.incrementTimeSpentListener(name, stopWatch.lastTaskTime());
                 }
             } catch (Exception ex) {
                 logger.warn("failed to notify ClusterStateListener", ex);
@@ -598,12 +583,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
     }
 
-    private void warnAboutSlowTaskIfNeeded(TimeValue executionTime, String source, StopWatch stopWatch) {
+    private void warnAboutSlowTaskIfNeeded(TimeValue executionTime, String source, Recorder recorder) {
         if (executionTime.getMillis() > slowTaskLoggingThreshold.getMillis()) {
             logger.warn("cluster state applier task [{}] took [{}] which is above the warn threshold of [{}]: {}", source, executionTime,
-                slowTaskLoggingThreshold, Arrays.stream(stopWatch.taskInfo())
-                    .map(ti -> '[' + ti.getTaskName() + "] took [" + ti.getTime().millis() + "ms]").collect(Collectors.joining(", ")));
+                slowTaskLoggingThreshold, recorder.getRecordings().stream()
+                    .map(ti -> '[' + ti.v1() + "] took [" + ti.v2() + "ms]").collect(Collectors.joining(", ")));
         }
+        recordingService.updateStats(recorder);
     }
 
     private class NotifyTimeout implements Runnable {
@@ -644,7 +630,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public ClusterApplierTimeTracker.Stats getStats() {
-        return tracker.getStats();
+    public ClusterApplierRecordingService.Stats getStats() {
+        return recordingService.getStats();
     }
 }

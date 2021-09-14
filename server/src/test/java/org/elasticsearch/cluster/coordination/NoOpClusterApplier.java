@@ -9,7 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.cluster.service.ClusterApplierTimeTracker;
+import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -26,7 +26,7 @@ public class NoOpClusterApplier implements ClusterApplier {
     }
 
     @Override
-    public ClusterApplierTimeTracker.Stats getStats() {
-        return new ClusterApplierTimeTracker.Stats(Map.of(), Map.of());
+    public ClusterApplierRecordingService.Stats getStats() {
+        return new ClusterApplierRecordingService.Stats(Map.of());
     }
 }

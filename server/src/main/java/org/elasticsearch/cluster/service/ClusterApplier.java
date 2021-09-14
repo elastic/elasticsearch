@@ -28,7 +28,7 @@ public interface ClusterApplier {
      */
     void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener);
 
-    ClusterApplierTimeTracker.Stats getStats();
+    ClusterApplierRecordingService.Stats getStats();
 
     /**
      * Listener for results of cluster state application

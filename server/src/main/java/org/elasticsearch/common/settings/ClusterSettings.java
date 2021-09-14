@@ -275,6 +275,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE,
             HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE,
             HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED,
+            HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_AGE,
+            HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_COUNT,
             HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING,
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,

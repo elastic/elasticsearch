@@ -20,7 +20,6 @@ import java.io.IOException;
  * Explains the scoring calculations for the top hits.
  */
 public final class ExplainPhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         if (context.explain() == false) {

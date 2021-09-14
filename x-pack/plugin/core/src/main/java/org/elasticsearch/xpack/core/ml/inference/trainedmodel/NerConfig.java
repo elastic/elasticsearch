@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 public class NerConfig implements NlpConfig {
 
@@ -41,7 +43,19 @@ public class NerConfig implements NlpConfig {
     private static ConstructingObjectParser<NerConfig, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<NerConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
             a -> new NerConfig((VocabularyConfig) a[0], (Tokenization) a[1], (List<String>) a[2]));
-        parser.declareObject(ConstructingObjectParser.constructorArg(), VocabularyConfig.createParser(ignoreUnknownFields), VOCABULARY);
+        parser.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> {
+                if (ignoreUnknownFields == false) {
+                    throw ExceptionsHelper.badRequestException(
+                        "illegal setting [{}] on inference model creation",
+                        VOCABULARY.getPreferredName()
+                    );
+                }
+                return VocabularyConfig.fromXContentLenient(p);
+            },
+            VOCABULARY
+        );
         parser.declareNamedObject(
             ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
                 TOKENIZATION
@@ -54,10 +68,11 @@ public class NerConfig implements NlpConfig {
     private final Tokenization tokenization;
     private final List<String> classificationLabels;
 
-    public NerConfig(VocabularyConfig vocabularyConfig,
+    public NerConfig(@Nullable VocabularyConfig vocabularyConfig,
                      @Nullable Tokenization tokenization,
                      @Nullable List<String> classificationLabels) {
-        this.vocabularyConfig = ExceptionsHelper.requireNonNull(vocabularyConfig, VOCABULARY);
+        this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
+            .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.classificationLabels = classificationLabels == null ? Collections.emptyList() : classificationLabels;
     }
@@ -78,7 +93,7 @@ public class NerConfig implements NlpConfig {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(VOCABULARY.getPreferredName(), vocabularyConfig);
+        builder.field(VOCABULARY.getPreferredName(), vocabularyConfig, params);
         NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION.getPreferredName(), tokenization);
         if (classificationLabels.isEmpty() == false) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);

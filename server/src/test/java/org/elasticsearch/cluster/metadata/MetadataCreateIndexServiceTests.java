@@ -34,10 +34,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -91,9 +91,9 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.clus
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
-
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -279,6 +279,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         MetadataCreateIndexService.validateSplitIndex(clusterState, "source", "target",
             Settings.builder().put("index.number_of_shards", targetShards).build());
+    }
+
+    public void testValidateNoCustomPath() {
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.V_8_0_0)
+            .put(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey(), "some/path")
+            .build();
+        var e = expectThrows(IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateNoCustomPath(indexSettings));
+        assertThat(e.getMessage(), containsString("per-index custom data path"));
+
+        MetadataCreateIndexService.validateNoCustomPath(Settings.EMPTY);
     }
 
     public void testPrepareResizeIndexSettings() {

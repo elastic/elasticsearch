@@ -45,7 +45,7 @@ import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
@@ -144,7 +144,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                             searchResponse.isTerminatedEarly(),
                             searchResponse.getProfileResults() == null
                                 ? null
-                                : new SearchProfileShardResults(searchResponse.getProfileResults()),
+                                : new SearchProfileResults(searchResponse.getProfileResults()),
                             searchResponse.getNumReducePhases()
                         ),
                         searchResponse.getScrollId(),
@@ -205,9 +205,9 @@ public class RestVectorTileAction extends BaseRestHandler {
                 tileAggBuilder.subAggregations(request.getAggBuilder());
                 final Collection<AggregationBuilder> aggregations = otherAggBuilder.getAggregatorFactories();
                 for (AggregationBuilder aggregation : aggregations) {
-                    searchRequestBuilder.addAggregation(
-                        new StatsBucketPipelineAggregationBuilder(aggregation.getName(), GRID_FIELD + ">" + aggregation.getName())
-                    );
+                    // we add the metric (.value) to the path in order to support aggregation names with '.'
+                    final String bucketPath = GRID_FIELD + ">" + aggregation.getName() + ".value";
+                    searchRequestBuilder.addAggregation(new StatsBucketPipelineAggregationBuilder(aggregation.getName(), bucketPath));
                 }
             }
         }

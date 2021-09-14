@@ -82,7 +82,7 @@ public class SpatialPluginTests extends ESTestCase {
         return new SpatialPlugin() {
             protected XPackLicenseState getLicenseState() {
                 TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-                licenseState.update(operationMode, true, Long.MAX_VALUE);
+                licenseState.update(operationMode, true, null);
                 return licenseState;
             }
         };

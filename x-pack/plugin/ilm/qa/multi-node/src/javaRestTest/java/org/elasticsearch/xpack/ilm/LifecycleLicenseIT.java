@@ -129,7 +129,7 @@ public class LifecycleLicenseIT extends ESRestTestCase {
     }
 
     private void putTrialLicense() throws Exception {
-        License signedLicense = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueDays(7));
+        License signedLicense = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueDays(14));
         Request putTrialRequest = new Request("PUT", "/_license");
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder = signedLicense.toXContent(builder, ToXContent.EMPTY_PARAMS);

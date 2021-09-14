@@ -13,6 +13,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.BitSet;
@@ -61,7 +62,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return SortField.Type.LONG;
     }
 
-    private SortedNumericDocValues loadDocValues(LeafReaderContext context) {
+    protected SortedNumericDocValues getValues(LeafReaderContext context) throws IOException {
         final LeafNumericFieldData data = indexFieldData.load(context);
         SortedNumericDocValues values;
         if (data instanceof SortedNumericIndexFieldData.NanoSecondFieldData) {
@@ -69,8 +70,15 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         } else {
             values = data.getLongValues();
         }
+        return values;
+    }
+
+    private SortedNumericDocValues loadDocValues(LeafReaderContext context) throws IOException {
+        SortedNumericDocValues values = getValues(context);
         return converter != null ? converter.apply(values) : values;
     }
+
+    protected void setScorer(Scorable scorer) {}
 
     private NumericDocValues getNumericDocValues(LeafReaderContext context, long missingValue) throws IOException {
         final SortedNumericDocValues values = loadDocValues(context);
@@ -97,6 +105,11 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                         return LongValuesComparatorSource.this.getNumericDocValues(context, lMissingValue);
+                    }
+
+                    @Override
+                    public void setScorer(Scorable scorer) {
+                        LongValuesComparatorSource.this.setScorer(scorer);
                     }
                 };
             }

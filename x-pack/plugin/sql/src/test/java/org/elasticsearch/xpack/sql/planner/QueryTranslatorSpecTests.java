@@ -95,7 +95,7 @@ public class QueryTranslatorSpecTests extends ESTestCase {
 
     public void test() {
         assumeFalse("Test is ignored", name.endsWith("-Ignore"));
-        
+
         PhysicalPlan p = testContext.optimizeAndPlan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;

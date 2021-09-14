@@ -10,6 +10,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -26,14 +27,17 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
+import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -79,7 +83,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      *            The script to use.
      * @param type
      *            The type of the script, can be either {@link ScriptSortType#STRING} or
-     *            {@link ScriptSortType#NUMBER}
+     *            {@link ScriptSortType#DOUBLE}, {@link ScriptSortType#LONG}
      */
     public ScriptSortBuilder(Script script, ScriptSortType type) {
         Objects.requireNonNull(script, "script cannot be null");
@@ -302,7 +306,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                                 + "script sorting only supported on [numeric] scripts but was [" + type + "]");
                     }
                 };
-            case NUMBER:
+            case DOUBLE:
                 final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
                 // searchLookup is unnecessary here, as it's just used for expressions
                 final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), searchLookup);
@@ -319,10 +323,43 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             }
                             @Override
                             public double doubleValue() {
-                                return leafScript.execute();
+                                return leafScript.execute().doubleValue();
                             }
                         };
                         return FieldData.singleton(values);
+                    }
+                    @Override
+                    protected void setScorer(Scorable scorer) {
+                        leafScript.setScorer(scorer);
+                    }
+                };
+            case LONG:
+                final NumberSortScript.Factory numberSortFactory2 = context.compile(script, NumberSortScript.CONTEXT);
+                // searchLookup is unnecessary here, as it's just used for expressions
+                final NumberSortScript.LeafFactory numberSortScript2 = numberSortFactory2.newFactory(script.getParams(), searchLookup);
+                return new LongValuesComparatorSource(null, Long.MAX_VALUE, valueMode, nested, IndexNumericFieldData.NumericType.LONG) {
+                    NumberSortScript leafScript;
+                    @Override
+                    protected SortedNumericDocValues getValues(LeafReaderContext context) throws IOException {
+                        leafScript = numberSortScript2.newInstance(new DocValuesDocReader(searchLookup, context));
+                        final SortedNumericDocValues values = new AbstractSortedNumericDocValues() {
+                            @Override
+                            public long nextValue() throws IOException {
+                                return leafScript.execute().longValue();
+                            }
+
+                            @Override
+                            public int docValueCount() {
+                                return 1;
+                            }
+
+                            @Override
+                            public boolean advanceExact(int doc) throws IOException {
+                                leafScript.setDocument(doc);
+                                return true;
+                            }
+                        };
+                        return values;
                     }
                     @Override
                     protected void setScorer(Scorable scorer) {
@@ -363,8 +400,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public enum ScriptSortType implements Writeable {
         /** script sort for a string value **/
         STRING,
-        /** script sort for a numeric value **/
-        NUMBER;
+        /** script sort for a double value **/
+        DOUBLE,
+        /** script sort for a long value **/
+        LONG;
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
@@ -383,8 +422,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             switch (str.toLowerCase(Locale.ROOT)) {
                 case ("string"):
                     return ScriptSortType.STRING;
-                case ("number"):
-                    return ScriptSortType.NUMBER;
+                case ("double"):
+                    return ScriptSortType.DOUBLE;
+                case ("long"):
+                    return ScriptSortType.LONG;
                 default:
                     throw new IllegalArgumentException("Unknown ScriptSortType [" + str + "]");
             }

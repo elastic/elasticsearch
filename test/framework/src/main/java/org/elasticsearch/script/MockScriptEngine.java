@@ -110,7 +110,7 @@ public class MockScriptEngine implements ScriptEngine {
                 public NumberSortScript newInstance(DocReader reader) {
                     return new NumberSortScript(parameters, lookup, reader) {
                         @Override
-                        public double execute() {
+                        public Number execute() {
                             Map<String, Object> vars = new HashMap<>(parameters);
                             vars.put("params", parameters);
                             vars.put("doc", getDoc());

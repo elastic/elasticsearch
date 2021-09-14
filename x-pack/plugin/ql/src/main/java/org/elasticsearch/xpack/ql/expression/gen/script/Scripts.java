@@ -119,7 +119,7 @@ public final class Scripts {
      * Each variable is then used in a {@code java.util.function.Predicate} to iterate over the doc_values in a Painless script.
      * Multiple .docValue(doc,params.%s) calls for the same field will use multiple .docValue calls, meaning
      * a different value of the field will be used for each usage in the script.
-     * 
+     *
      * For example, a query of the form fieldA - fieldB > 0 that gets translated into the following Painless script
      * {@code InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.sub(
      * InternalQlScriptUtils.docValue(doc,params.v0),InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))}
@@ -146,7 +146,7 @@ public final class Scripts {
             // This method will use only one variable for one docValue call
             if ("InternalQlScriptUtils.docValue(doc,params.%s)".equals(token)) {
                 Object fieldName = params.get("v" + index);
-                
+
                 if (useSameValueInScript) {
                     // if the field is already in our list, don't add it one more time
                     if (fieldVars.contains(fieldName) == false) {

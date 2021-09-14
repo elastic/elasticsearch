@@ -573,7 +573,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
      * Builds a simple script that reads the "s" field.
      */
     private ScriptSortBuilder scriptSortOnS() {
-        return new ScriptSortBuilder(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "s", emptyMap()), ScriptSortType.NUMBER);
+        return new ScriptSortBuilder(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "s", emptyMap()), ScriptSortType.DOUBLE);
     }
 
     @Override

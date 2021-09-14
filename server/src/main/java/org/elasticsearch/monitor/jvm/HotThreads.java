@@ -280,7 +280,8 @@ public class HotThreads {
             }
         }
 
-        sb.append("%nNote: Any reported tracing IDs (e.g ")
+        sb.append('\n')
+            .append("Note: Any reported tracing IDs (e.g ")
             .append(Task.X_OPAQUE_ID)
             .append(',')
             .append(Task.TRACE_ID)

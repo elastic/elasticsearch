@@ -9,6 +9,7 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Matchers;
 
@@ -314,7 +315,7 @@ public class HotThreadsTests extends ESTestCase {
 
         String innerResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
 
-        assertEquals(1, innerResult.lines().count());
+        assertEquals(3, innerResult.lines().count());
     }
 
     public void testReportTypeValueGetter() {

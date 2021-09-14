@@ -498,7 +498,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         public Builder(TrainedModelConfig config) {
             this.modelId = config.getModelId();
-            this.modelType = config.getModelType();
+            this.modelType = config.modelType;
             this.createdBy = config.getCreatedBy();
             this.version = config.getVersion();
             this.createTime = config.getCreateTime();
@@ -719,10 +719,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         public Builder validate(boolean forCreation) {
             // We require a definition to be available here even though it will be stored in a different doc
             ActionRequestValidationException validationException = null;
-            if (definition == null && location == null) {
-                validationException = addValidationError("either a model [" + DEFINITION.getPreferredName() + "] " +
-                    "or [" + LOCATION.getPreferredName() + "] must be defined.", validationException);
-            }
             if (definition != null && location != null) {
                 validationException = addValidationError("[" + DEFINITION.getPreferredName() + "] " +
                     "and [" + LOCATION.getPreferredName() + "] are both defined but only one can be used.", validationException);
@@ -783,6 +779,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 validationException = checkIllegalSetting(createdBy, CREATED_BY.getPreferredName(), validationException);
                 validationException = checkIllegalSetting(createTime, CREATE_TIME.getPreferredName(), validationException);
                 validationException = checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName(), validationException);
+                validationException = checkIllegalSetting(location, LOCATION.getPreferredName(), validationException);
                 if (metadata != null) {
                     validationException = checkIllegalSetting(
                         metadata.get(TOTAL_FEATURE_IMPORTANCE),
@@ -794,7 +791,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                         validationException);
                 }
             }
-
             if (validationException != null) {
                 throw validationException;
             }

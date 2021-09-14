@@ -48,7 +48,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         TokenizationResult tokenization = new TokenizationResult(vocab);
         tokenization.addTokenization(input, tokens, tokenIds, tokenMap);
 
-        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null);
 
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
         FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 0L, null));
@@ -70,7 +70,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         TokenizationResult tokenization = new TokenizationResult(Collections.emptyList());
         tokenization.addTokenization("", Collections.emptyList(), new int[] {}, new int[] {});
 
-        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
         PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][][]{{{}}}, 0L, null);
         FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, pyTorchResult);
@@ -81,7 +81,7 @@ public class FillMaskProcessorTests extends ESTestCase {
     public void testValidate_GivenMissingMaskToken() {
         List<String> input = List.of("The capital of France is Paris");
 
-        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -93,7 +93,7 @@ public class FillMaskProcessorTests extends ESTestCase {
     public void testProcessResults_GivenMultipleMaskTokens() {
         List<String> input = List.of("The capital of [MASK] is [MASK]");
 
-        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index", "vocab"), null);
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

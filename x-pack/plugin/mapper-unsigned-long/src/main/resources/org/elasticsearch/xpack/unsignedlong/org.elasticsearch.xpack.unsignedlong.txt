@@ -12,8 +12,8 @@ class org.elasticsearch.xpack.unsignedlong.UnsignedLongScriptDocValues {
 }
 
 
-class org.elasticsearch.script.Field {
-    org.elasticsearch.script.Converter UnsignedLong @augmented[augmented_canonical_class_name="org.elasticsearch.xpack.unsignedlong.UnsignedLongField"]
+class org.elasticsearch.script.field.Field {
+    org.elasticsearch.script.field.Converter UnsignedLong @augmented[augmented_canonical_class_name="org.elasticsearch.xpack.unsignedlong.UnsignedLongField"]
 }
 
 class org.elasticsearch.xpack.unsignedlong.UnsignedLongField @no_import {

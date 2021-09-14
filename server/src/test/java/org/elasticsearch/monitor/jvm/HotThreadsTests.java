@@ -9,7 +9,6 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Matchers;
 

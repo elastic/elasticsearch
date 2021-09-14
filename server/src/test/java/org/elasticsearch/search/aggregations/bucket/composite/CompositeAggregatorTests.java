@@ -732,6 +732,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testWithKeywordAndMissingBucket() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -811,6 +812,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testWithKeywordMissingAfter() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -872,6 +874,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testWithKeywordDesc() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -961,6 +964,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testMultiValuedWithKeywordDesc() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -1083,6 +1087,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testWithKeywordAndLongDesc() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -1143,6 +1148,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testWithKeywordLongAndMissingBucket() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -1205,6 +1211,343 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=d, long=10}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            }
+        );
+
+        Consumer<InternalComposite> verifyMissingFirst = (result) -> {
+            assertEquals(7, result.getBuckets().size());
+            assertEquals("{keyword=null, long=null}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals("{keyword=null, long=100}", result.getBuckets().get(1).getKeyAsString());
+        };
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).missingOrder(MissingOrder.FIRST),
+                    new TermsValuesSourceBuilder("long").field("long").missingBucket(true).missingOrder(MissingOrder.FIRST)
+                )
+            ),
+            verifyMissingFirst
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                        .order(SortOrder.DESC)
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST),
+                    new TermsValuesSourceBuilder("long").field("long")
+                        .order(SortOrder.DESC)
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                )
+            ),
+            verifyMissingFirst
+        );
+
+        Consumer<InternalComposite> verifyMissingLast = (result) -> {
+            assertEquals(7, result.getBuckets().size());
+            assertEquals("{keyword=null, long=100}", result.getBuckets().get(5).getKeyAsString());
+            assertEquals("{keyword=null, long=null}", result.getBuckets().get(6).getKeyAsString());
+        };
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).missingOrder(MissingOrder.LAST),
+                    new TermsValuesSourceBuilder("long").field("long").missingBucket(true).missingOrder(MissingOrder.LAST)
+                )
+            ),
+            verifyMissingLast
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery()),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                        .order(SortOrder.DESC)
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST),
+                    new TermsValuesSourceBuilder("long").field("long")
+                        .order(SortOrder.DESC)
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST)
+                )
+            ),
+            verifyMissingLast
+        );
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
+    public void testMissingTermBucket() throws Exception {
+        List<Map<String, List<Object>>> dataset = Arrays.asList(
+            createDocument("const", 1, "keyword", "a"),
+            createDocument("const", 1, "keyword", "b"),
+            createDocument("const", 1, "long", 1)
+        );
+
+        testMissingBucket(dataset, new TermsValuesSourceBuilder("keyword").field("keyword").order(SortOrder.ASC), null);
+        testMissingBucket(dataset, new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).order(SortOrder.ASC), 0);
+        testMissingBucket(dataset, new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true).order(SortOrder.DESC), 2);
+        testMissingBucket(
+            dataset,
+            new TermsValuesSourceBuilder("keyword").field("keyword")
+                .missingBucket(true)
+                .missingOrder(MissingOrder.FIRST)
+                .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
+            0
+        );
+        testMissingBucket(
+            dataset,
+            new TermsValuesSourceBuilder("keyword").field("keyword")
+                .missingBucket(true)
+                .missingOrder(MissingOrder.LAST)
+                .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
+            2
+        );
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
+    public void testMissingHistogramBucket() throws Exception {
+        List<Map<String, List<Object>>> dataset = Arrays.asList(
+            createDocument("const", 1, "long", 1),
+            createDocument("const", 1, "long", 2),
+            createDocument("const", 1, "keyword", "a")
+        );
+
+        testMissingBucket(
+            dataset,
+            new HistogramValuesSourceBuilder("hist").interval(1).field("long").missingBucket(false).order(SortOrder.ASC),
+            null
+        );
+        testMissingBucket(
+            dataset,
+            new HistogramValuesSourceBuilder("hist").interval(1).field("long").missingBucket(true).order(SortOrder.ASC),
+            0
+        );
+        testMissingBucket(
+            dataset,
+            new HistogramValuesSourceBuilder("hist").interval(1).field("long").missingBucket(true).order(SortOrder.DESC),
+            2
+        );
+        testMissingBucket(
+            dataset,
+            new HistogramValuesSourceBuilder("hist").interval(1)
+                .field("long")
+                .missingBucket(true)
+                .missingOrder(MissingOrder.FIRST)
+                .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
+            0
+        );
+        testMissingBucket(
+            dataset,
+            new HistogramValuesSourceBuilder("hist").interval(1)
+                .field("long")
+                .missingBucket(true)
+                .missingOrder(MissingOrder.LAST)
+                .order(randomFrom(SortOrder.DESC, SortOrder.ASC)),
+            2
+        );
+    }
+
+    private void testMissingBucket(
+        List<Map<String, List<Object>>> dataset,
+        CompositeValuesSourceBuilder<?> sourceBuilder,
+        Integer expectedMissingIndex
+    ) throws IOException {
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder("name", Collections.singletonList(sourceBuilder)),
+            (result) -> {
+                if (expectedMissingIndex == null) {
+                    for (InternalComposite.InternalBucket bucket : result.getBuckets()) {
+                        assertFalse(bucket.getKey().containsValue(null));
+                    }
+                } else {
+                    assertTrue(result.getBuckets().get(expectedMissingIndex).getKey().containsValue(null));
+                    assertEquals(1, result.getBuckets().get(expectedMissingIndex).getKey().size());
+                    assertEquals(1, result.getBuckets().get(expectedMissingIndex).getDocCount());
+                }
+            }
+        );
+    }
+
+    public void testMissingTermBucketAfterKey() throws Exception {
+        List<Map<String, List<Object>>> dataset = Arrays.asList(
+            createDocument("const", 1, "keyword", "a"),
+            createDocument("const", 1, "keyword", "b"),
+            createDocument("const", 1, "long", 1),
+            createDocument("const", 1, "long", 2)
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Collections.singletonList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                        .order(SortOrder.ASC)
+                )
+            ).aggregateAfter(createAfterKey("keyword", null)),
+            (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{keyword=b}", result.getBuckets().get(1).getKeyAsString());
+            }
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                        .order(SortOrder.ASC),
+                    new TermsValuesSourceBuilder("long").field("long")
+                )
+            ).aggregateAfter(createAfterKey("keyword", null, "long", 1)),
+            (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{keyword=null, long=2}", result.getBuckets().get(0).getKeyAsString());
+            }
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Collections.singletonList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST)
+                        .order(SortOrder.ASC)
+                )
+            ).aggregateAfter(createAfterKey("keyword", null)),
+            (result) -> { assertEquals(0, result.getBuckets().size()); }
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST)
+                        .order(SortOrder.ASC),
+                    new TermsValuesSourceBuilder("long").field("long")
+                )
+            ).aggregateAfter(createAfterKey("keyword", null, "long", 1)),
+            (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{keyword=null, long=2}", result.getBuckets().get(0).getKeyAsString());
+            }
+        );
+    }
+
+    public void testMissingHistogramBucketAfterKey() throws Exception {
+        List<Map<String, List<Object>>> dataset = Arrays.asList(
+            createDocument("const", 1, "long", 1),
+            createDocument("const", 1, "long", 2),
+            createDocument("const", 1, "keyword", "a"),
+            createDocument("const", 1, "keyword", "b")
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Collections.singletonList(
+                    new HistogramValuesSourceBuilder("hist").interval(1)
+                        .field("long")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                        .order(SortOrder.ASC)
+                )
+            ).aggregateAfter(createAfterKey("hist", null)),
+            (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{hist=1.0}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{hist=2.0}", result.getBuckets().get(1).getKeyAsString());
+            }
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new HistogramValuesSourceBuilder("hist").interval(1)
+                        .field("long")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.FIRST)
+                        .order(SortOrder.ASC),
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                )
+            ).aggregateAfter(createAfterKey("hist", null, "keyword", "a")),
+            (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{hist=null, keyword=b}", result.getBuckets().get(0).getKeyAsString());
+            }
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Collections.singletonList(
+                    new HistogramValuesSourceBuilder("hist").interval(1)
+                        .field("long")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST)
+                        .order(SortOrder.ASC)
+                )
+            ).aggregateAfter(createAfterKey("hist", null)),
+            (result) -> { assertEquals(0, result.getBuckets().size()); }
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("const")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new HistogramValuesSourceBuilder("hist").interval(1)
+                        .field("long")
+                        .missingBucket(true)
+                        .missingOrder(MissingOrder.LAST)
+                        .order(SortOrder.ASC),
+                    new TermsValuesSourceBuilder("keyword").field("keyword")
+                )
+            ).aggregateAfter(createAfterKey("hist", null, "keyword", "a")),
+            (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{hist=null, keyword=b}", result.getBuckets().get(0).getKeyAsString());
             }
         );
     }
@@ -1281,6 +1624,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testMultiValuedWithKeywordAndLongDesc() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(

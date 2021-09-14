@@ -2042,11 +2042,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::create-api-key-execute
 
             // tag::create-api-key-response
-            SecureString apiKey = createApiKeyResponse.getKey(); // <1>
+            SecureString encoded = createApiKeyResponse.getEncoded(); // <1>
             Instant apiKeyExpiration = createApiKeyResponse.getExpiration(); // <2>
             // end::create-api-key-response
             assertThat(createApiKeyResponse.getName(), equalTo(name));
-            assertNotNull(apiKey);
+            assertNotNull(encoded);
             assertNotNull(apiKeyExpiration);
         }
 
@@ -2083,6 +2083,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(future.get(30, TimeUnit.SECONDS));
             assertThat(future.get().getName(), equalTo(name));
             assertNotNull(future.get().getKey());
+            assertNotNull(future.get().getEncoded());
             assertNotNull(future.get().getExpiration());
         }
     }
@@ -2136,11 +2137,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::grant-api-key-execute
 
             // tag::grant-api-key-response
-            SecureString apiKey = apiKeyResponse.getKey(); // <1>
+            SecureString encoded = apiKeyResponse.getEncoded(); // <1>
             Instant apiKeyExpiration = apiKeyResponse.getExpiration(); // <2>
             // end::grant-api-key-response
             assertThat(apiKeyResponse.getName(), equalTo(name));
-            assertNotNull(apiKey);
+            assertNotNull(encoded);
             assertNotNull(apiKeyExpiration);
 
             apiKeyVerifier.accept(apiKeyResponse);
@@ -2184,6 +2185,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(future.get(30, TimeUnit.SECONDS));
             assertThat(future.get().getName(), equalTo(name));
             assertNotNull(future.get().getKey());
+            assertNotNull(future.get().getEncoded());
             assertNotNull(future.get().getExpiration());
 
             apiKeyVerifier.accept(future.get());
@@ -2203,6 +2205,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
         assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
         assertNotNull(createApiKeyResponse1.getKey());
+        assertNotNull(createApiKeyResponse1.getEncoded());
 
         final ApiKey expectedApiKeyInfo = new ApiKey(createApiKeyResponse1.getName(), createApiKeyResponse1.getId(), Instant.now(),
             Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file", metadata);
@@ -2359,6 +2362,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
         assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
         assertNotNull(createApiKeyResponse1.getKey());
+        assertNotNull(createApiKeyResponse1.getEncoded());
 
         {
             // tag::invalidate-api-key-id-request
@@ -2403,6 +2407,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse2.getName(), equalTo("k2"));
             assertNotNull(createApiKeyResponse2.getKey());
+            assertNotNull(createApiKeyResponse2.getEncoded());
 
             // tag::invalidate-api-key-name-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyName(createApiKeyResponse2.getName(),
@@ -2427,6 +2432,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse3 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse3.getName(), equalTo("k3"));
             assertNotNull(createApiKeyResponse3.getKey());
+            assertNotNull(createApiKeyResponse3.getEncoded());
 
             // tag::invalidate-realm-api-keys-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmName("default_file");
@@ -2450,6 +2456,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse4 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse4.getName(), equalTo("k4"));
             assertNotNull(createApiKeyResponse4.getKey());
+            assertNotNull(createApiKeyResponse4.getEncoded());
 
             // tag::invalidate-user-api-keys-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingUserName("test_user");
@@ -2473,6 +2480,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse5 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse5.getName(), equalTo("k5"));
             assertNotNull(createApiKeyResponse5.getKey());
+            assertNotNull(createApiKeyResponse5.getEncoded());
 
             // tag::invalidate-user-realm-api-keys-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName("default_file", "test_user");
@@ -2498,6 +2506,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse6 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse6.getName(), equalTo("k6"));
             assertNotNull(createApiKeyResponse6.getKey());
+            assertNotNull(createApiKeyResponse6.getEncoded());
 
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse6.getId(), false);
 
@@ -2541,6 +2550,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse7 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse7.getName(), equalTo("k7"));
             assertNotNull(createApiKeyResponse7.getKey());
+            assertNotNull(createApiKeyResponse7.getEncoded());
 
             // tag::invalidate-api-keys-owned-by-authenticated-user-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.forOwnedApiKeys();

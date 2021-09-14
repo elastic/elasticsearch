@@ -26,6 +26,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
+
 public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateListener, IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(FailShardsOnInvalidLicenseClusterListener.class);
@@ -41,7 +43,7 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
     public FailShardsOnInvalidLicenseClusterListener(XPackLicenseState xPackLicenseState, RerouteService rerouteService) {
         this.xPackLicenseState = xPackLicenseState;
         this.rerouteService = rerouteService;
-        this.allowed = xPackLicenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS);
+        this.allowed = SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(xPackLicenseState);
         xPackLicenseState.addListener(this);
     }
 
@@ -60,7 +62,7 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
 
     @Override
     public synchronized void licenseStateChanged() {
-        final boolean allowed = xPackLicenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS);
+        final boolean allowed = SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(xPackLicenseState);
         if (allowed && this.allowed == false) {
             rerouteService.reroute("reroute after license activation", Priority.NORMAL, new ActionListener<ClusterState>() {
                 @Override

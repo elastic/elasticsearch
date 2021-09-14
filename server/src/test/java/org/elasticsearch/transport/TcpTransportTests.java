@@ -167,6 +167,10 @@ public class TcpTransportTests extends ESTestCase {
             final TcpTransport tcpTransport = new TcpTransport(settings, Version.CURRENT, testThreadPool,
                 new MockPageCacheRecycler(settings),
                 new NoneCircuitBreakerService(), writableRegistry(), new NetworkService(Collections.emptyList())) {
+                @Override
+                protected void doStart() {
+                    throw new UnsupportedOperationException();
+                }
 
                 @Override
                 protected TcpServerChannel bind(String name, InetSocketAddress address) {

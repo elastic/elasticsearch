@@ -9,6 +9,9 @@ your application to Elasticsearch 7.2.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+* <<breaking_72_discovery_changes>>
+* <<breaking_80_ilm_deprecations>>
+
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
@@ -27,4 +30,17 @@ unexpectedly ignored the rest.  For instance if you set `discovery.seed_hosts:
 "10.11.12.13:9300-9310"` then {es} would only use `10.11.12.13:9300` for
 discovery. Seed host addresses containing port ranges are now rejected.
 
+[discrete]
+[[breaking_80_ilm_deprecations]]
+=== {ilm-cap} ({ilm-init}) deprecations
+
+[discrete]
+[[deprecate-ilm-poll-interval-1s]]
+==== An {ilm-init} poll interval of less than one second is deprecated.
+
+Setting `indices.lifecycle.poll_interval` to less than one second (`1s`) is now
+deprecated. If the `indices.lifecycle.poll_interval` cluster setting is too low,
+it can cause excessive load on a cluster.
+
+To avoid deprecation warnings, use a setting value of `1s` or greater.
 // end::notable-breaking-changes[]

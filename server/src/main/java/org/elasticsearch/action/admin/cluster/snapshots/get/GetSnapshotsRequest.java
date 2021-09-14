@@ -221,9 +221,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if (after != null) {
                 validationException = addValidationError("can't use after and offset simultaneously", validationException);
             }
-            if (afterValue != null) {
-                validationException = addValidationError("can't use after_value and offset simultaneously", validationException);
-            }
         } else if (after != null && afterValue != null) {
             validationException = addValidationError("can't use after and after_value simultaneously", validationException);
         }

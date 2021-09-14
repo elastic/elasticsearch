@@ -142,17 +142,18 @@ Sort order. Valid values are `asc` for ascending and `desc` for descending order
 
 `after_value`::
 (Optional, string)
-Value of the current sort column at which to start pagination. Can either be a string snapshot- or repository name when sorting by
+Value of the current sort column at which to start retrieval. Can either be a string snapshot- or repository name when sorting by
 snapshot or repository name, a millisecond time value or a number when sorting by index- or shard count.
 
 `after`::
 (Optional, string)
-Offset identifier to start pagination from as returned by the `next` field in the response body.
+Offset identifier to start pagination from as returned by the `next` field in the response body. Using this parameter is mutually exclusive
+with using the `after_value` parameter.
 
 `offset`::
 (Optional, integer)
 Numeric offset to start pagination from based on the snapshots matching this request. Using a non-zero value for this parameter is mutually
-exclusive with using the `after` or `after_value` parameters. Defaults to `0`.
+exclusive with using the `after` parameter. Defaults to `0`.
 
 `slm_policy_filter`::
 (Optional, string)

@@ -69,12 +69,6 @@ public class GetSnapshotsRequestTests extends ESTestCase {
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").afterValue("foo")
-                .offset(randomIntBetween(1, 500));
-            final ActionRequestValidationException e = request.validate();
-            assertThat(e.getMessage(), containsString("can't use after_value and offset simultaneously"));
-        }
-        {
-            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").afterValue("foo")
                 .after(new GetSnapshotsRequest.After("foo", "repo", "bar"));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after and after_value simultaneously"));

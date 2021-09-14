@@ -876,7 +876,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         agg = createGeoBounds(new GeoPoint(100.0, 101.0), null);
         assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), is(nullValue()));
 
-        String type = "point";
+        String type = "Point";
         for (int i = 0; i < numberOfRuns; i++) {
             Map<String, Object> expectedObject = new HashMap<>();
             expectedObject.put("type", type);
@@ -887,7 +887,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo(expectedObject));
         }
 
-        type = "linestring";
+        type = "LineString";
         for (int i = 0; i < numberOfRuns; i++) {
             double lat = randomDoubleBetween(-90.0, 90.0, false);
             double lon = randomDoubleBetween(-180.0, 180.0, false);
@@ -902,17 +902,17 @@ public class AggregationResultUtilsTests extends ESTestCase {
             Object val = AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), "");
             Map<String, Object> geoJson = (Map<String, Object>) val;
             assertThat(geoJson.get("type"), equalTo(type));
-            List<Double[]> coordinates = (List<Double[]>) geoJson.get("coordinates");
-            for (Double[] coor : coordinates) {
-                assertThat(coor.length, equalTo(2));
+            List<List<Double>> coordinates = (List<List<Double>>) geoJson.get("coordinates");
+            for (List<Double> coor : coordinates) {
+                assertThat(coor.size(), equalTo(2));
             }
-            assertThat(coordinates.get(0)[0], equalTo(lon));
-            assertThat(coordinates.get(0)[1], equalTo(lat));
-            assertThat(coordinates.get(1)[0], equalTo(lon2));
-            assertThat(coordinates.get(1)[1], equalTo(lat2));
+            assertThat(coordinates.get(0).get(0), equalTo(lon));
+            assertThat(coordinates.get(0).get(1), equalTo(lat));
+            assertThat(coordinates.get(1).get(0), equalTo(lon2));
+            assertThat(coordinates.get(1).get(1), equalTo(lat2));
         }
 
-        type = "polygon";
+        type = "Polygon";
         for (int i = 0; i < numberOfRuns; i++) {
             double lat = randomDoubleBetween(-90.0, 90.0, false);
             double lon = randomDoubleBetween(-180.0, 180.0, false);
@@ -926,7 +926,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             Object val = AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), "");
             Map<String, Object> geoJson = (Map<String, Object>) val;
             assertThat(geoJson.get("type"), equalTo(type));
-            List<List<Double[]>> coordinates = (List<List<Double[]>>) geoJson.get("coordinates");
+            List<List<List<Double>>> coordinates = (List<List<List<Double>>>) geoJson.get("coordinates");
             assertThat(coordinates.size(), equalTo(1));
             assertThat(coordinates.get(0).size(), equalTo(5));
             List<List<Double>> expected = Arrays.asList(
@@ -937,10 +937,10 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 Arrays.asList(lon, lat)
             );
             for (int j = 0; j < 5; j++) {
-                Double[] coordinate = coordinates.get(0).get(j);
-                assertThat(coordinate.length, equalTo(2));
-                assertThat(coordinate[0], equalTo(expected.get(j).get(0)));
-                assertThat(coordinate[1], equalTo(expected.get(j).get(1)));
+                List<Double> coordinate = coordinates.get(0).get(j);
+                assertThat(coordinate.size(), equalTo(2));
+                assertThat(coordinate.get(0), equalTo(expected.get(j).get(0)));
+                assertThat(coordinate.get(1), equalTo(expected.get(j).get(1)));
             }
         }
     }

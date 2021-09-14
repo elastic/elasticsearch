@@ -14,6 +14,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -28,9 +30,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -47,7 +49,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortMode;
@@ -63,8 +66,6 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
-import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
@@ -76,6 +77,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -1400,13 +1402,15 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertNoFailures(response);
 
         assertThat(response.getProfileResults().size(), equalTo(1));
-        SearchProfileQueryPhaseResult shardResult = response.getProfileResults().get(response.getProfileResults().keySet().toArray()[0]);
+        SearchProfileShardResult shardResult = response.getProfileResults().get(response.getProfileResults().keySet().toArray()[0]);
         assertThat(shardResult.getQueryProfileResults().size(), equalTo(1));
         QueryProfileShardResult queryProfileShardResult = shardResult.getQueryProfileResults().get(0);
         assertThat(queryProfileShardResult.getQueryResults().size(), equalTo(1));
         logger.info("queryProfileShardResult=" + Strings.toString(queryProfileShardResult));
-//        ProfileResult profileResult = queryProfileShardResult.getQueryResults().get(0);
-//        assertThat(profileResult.getLuceneDescription(), equalTo("(other_field:value)^0.8"));
+        assertThat(
+            queryProfileShardResult.getQueryResults().stream().map(ProfileResult::getLuceneDescription).sorted().collect(toList()),
+            equalTo(List.of("(other_field:value)^0.8"))
+        );
 
         final String[] indices =
             randomFrom(List.of(new String[] { "test" }, new String[] { "fls-index", "test" }, new String[] { "test", "fls-index" }));

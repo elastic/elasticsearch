@@ -287,7 +287,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
             // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
             byteBuffer.flip();
             final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
-            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.start(), content, new ActionListener<Void>() {
+            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss, content, new ActionListener<>() {
                 @Override
                 public void onResponse(Void response) {
                     onCacheFillComplete.close();

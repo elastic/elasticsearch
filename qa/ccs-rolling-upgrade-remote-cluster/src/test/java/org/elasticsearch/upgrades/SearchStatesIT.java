@@ -227,6 +227,7 @@ public class SearchStatesIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77711")
     public void testBWCSearchStates() throws Exception {
         String localIndex = "test_bwc_search_states_index";
         String remoteIndex = "test_bwc_search_states_remote_index";

@@ -306,6 +306,7 @@ renamed to better reflect its intended use.
 *Impact* +
 Assign users with the `kibana_user` role to the `kibana_admin` role.
 Discontinue use of the `kibana_user` role.
+====
 
 [discrete]
 [[saml-realm-nameid-changes]]

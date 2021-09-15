@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -290,14 +289,6 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         logger.trace(
             () -> new ParameterizedMessage("[{}] [{}] current metadata before update {}", modelId, nodeId, Strings.toString(metadata))
         );
-        Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
-        List<DiscoveryNode> allocatableNodes = currentState.nodes()
-            .getAllNodes()
-            .stream()
-            .filter(
-                d -> StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(d) && shuttingDownNodes.contains(d.getId()) == false
-            )
-            .collect(Collectors.toList());
         final TrainedModelAllocation existingAllocation = metadata.getModelAllocation(modelId);
         final TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
         // If state is stopped, this indicates the node process is closed, remove the node from the allocation

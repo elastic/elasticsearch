@@ -263,7 +263,7 @@ POST _ml/set_upgrade_mode?enabled=false
 ----
 PUT _cluster/settings
 {
-  "persistent" : {
+  "persistent": {
     "xpack.monitoring.collection.enabled": true
   }
 }
@@ -309,8 +309,8 @@ complete.
 ----
 PUT _cluster/settings
 {
-  "persistent" : {
-    "action.destructive_requires_name" : false
+  "persistent": {
+    "action.destructive_requires_name": false
   }
 }
 ----

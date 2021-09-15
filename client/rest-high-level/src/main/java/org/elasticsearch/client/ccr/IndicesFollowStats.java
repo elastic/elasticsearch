@@ -9,9 +9,10 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 
 import java.util.AbstractMap;
 import java.util.Collections;
@@ -138,10 +139,9 @@ public final class IndicesFollowStats {
                                 (long) args[24],
                                 (long) args[25],
                                 (long) args[26],
-                                new TreeMap<>(
-                                        ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[27])
-                                                .stream()
-                                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
+                                ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[27])
+                                    .stream()
+                                    .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue)),
                                 (ElasticsearchException) args[28]));
 
         static final ConstructingObjectParser<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>, Void> READ_EXCEPTIONS_ENTRY_PARSER =

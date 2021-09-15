@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.core.security.support;
 
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -20,6 +24,29 @@ public class StringMatcherTests extends ESTestCase {
         final StringMatcher matcher = StringMatcher.of();
         for (int i = 0; i < 10; i++) {
             assertNoMatch(matcher, randomAlphaOfLengthBetween(i, 20));
+        }
+    }
+
+    public void testMatchAllWildcard() throws Exception {
+        Supplier<String> randomPattern = () -> {
+            final String s = randomAlphaOfLengthBetween(3, 5);
+            switch (randomIntBetween(1, 4)) {
+                case 1:
+                    return s;
+                case 2:
+                    return s + "*";
+                case 3:
+                    return "*" + s;
+                default:
+                    return "*" + s + "*";
+            }
+        };
+        final List<String> patterns = Stream.of(randomList(0, 3, randomPattern), List.of("*"), randomList(0, 3, randomPattern))
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+        final StringMatcher matcher = StringMatcher.of(patterns);
+        for (int i = 0; i < 10; i++) {
+            assertMatch(matcher, randomAlphaOfLengthBetween(i, 20));
         }
     }
 

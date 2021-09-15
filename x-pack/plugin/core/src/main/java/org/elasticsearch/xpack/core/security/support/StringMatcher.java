@@ -118,6 +118,9 @@ public class StringMatcher implements Predicate<String> {
             }
 
             final String description = describe(allText);
+            if (nonExactMatch.contains("*")) {
+                return new StringMatcher(description, s -> true);
+            }
             if (exactMatch.isEmpty()) {
                 return new StringMatcher(description, buildAutomataPredicate(nonExactMatch));
             }

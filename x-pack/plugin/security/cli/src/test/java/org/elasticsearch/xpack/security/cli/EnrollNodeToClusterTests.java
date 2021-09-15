@@ -245,6 +245,7 @@ public class EnrollNodeToClusterTests extends CommandTestCase {
         assertAutoConfigurationFilesNotCreated();
     }
 
+    @SuppressForbidden(reason = "Cannot use getDataPath() as Paths.get() throws UnsupportedOperationException for jimfs")
     public void testEnrollmentDoesNotExitOnExistingSecurityConfigurationIfForced() throws Exception {
         settings = Settings.builder().put(settings).put("xpack.security.enabled", true).build();
         final EnrollmentToken enrollmentToken = new EnrollmentToken(

@@ -292,7 +292,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         String source,
         Priority priority,
         Consumer<ClusterState> clusterStateConsumer,
-        ClusterApplyListener listener
+        ActionListener<Void> listener
     ) {
         submitStateUpdateTask(
             source,
@@ -312,7 +312,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     public void onNewClusterState(
         final String source,
         final Supplier<ClusterState> clusterStateSupplier,
-        final ClusterApplyListener listener
+        final ActionListener<Void> listener
     ) {
         submitStateUpdateTask(
             source,
@@ -331,7 +331,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         final String source,
         final Priority priority,
         final Function<ClusterState, ClusterState> clusterStateUpdate,
-        final ClusterApplyListener listener
+        final ActionListener<Void> listener
     ) {
         if (lifecycle.started() == false) {
             return;
@@ -546,12 +546,12 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private static class ClusterApplyActionListener implements ActionListener<Void> {
         private final String source;
-        private final ClusterApplyListener listener;
+        private final ActionListener<Void> listener;
         private final Supplier<ThreadContext.StoredContext> storedContextSupplier;
 
         ClusterApplyActionListener(
             String source,
-            ClusterApplyListener listener,
+            ActionListener<Void> listener,
             Supplier<ThreadContext.StoredContext> storedContextSupplier
         ) {
             this.source = source;
@@ -574,7 +574,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         @Override
         public void onResponse(Void unused) {
             try (ThreadContext.StoredContext ignored = storedContextSupplier.get()) {
-                listener.onSuccess();
+                listener.onResponse(null);
             } catch (Exception e) {
                 assert false : e;
                 logger.error(new ParameterizedMessage(

@@ -200,16 +200,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         return false;
     }
 
-    class InternalAsyncFetch<Response extends BaseNodeResponse, Cached> extends AsyncShardFetch<Response, Cached> {
+    abstract class InternalAsyncFetch<Response extends BaseNodeResponse, Cached> extends AsyncShardFetch<Response, Cached> {
 
         InternalAsyncFetch(Logger logger, String type, ShardId shardId, String customDataPath,
                            Lister<? extends BaseNodesResponse<Response>, Response> action) {
             super(logger, type, shardId, customDataPath, action);
-        }
-
-        @Override
-        protected Cached extract(Response value) {
-            return null;
         }
 
         @Override

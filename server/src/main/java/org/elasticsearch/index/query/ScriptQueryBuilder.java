@@ -24,8 +24,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -127,18 +129,21 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
         FilterScript.Factory factory = context.compile(script, FilterScript.CONTEXT);
-        FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), context.lookup());
-        return new ScriptQuery(script, filterScript);
+        SearchLookup lookup = context.lookup();
+        FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), lookup);
+        return new ScriptQuery(script, filterScript, lookup);
     }
 
     static class ScriptQuery extends Query {
 
         final Script script;
         final FilterScript.LeafFactory filterScript;
+        final SearchLookup lookup;
 
-        ScriptQuery(Script script, FilterScript.LeafFactory filterScript) {
+        ScriptQuery(Script script, FilterScript.LeafFactory filterScript, SearchLookup lookup) {
             this.script = script;
             this.filterScript = filterScript;
+            this.lookup = lookup;
         }
 
         @Override
@@ -172,7 +177,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
                     DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
-                    final FilterScript leafScript = filterScript.newInstance(context);
+                    final FilterScript leafScript = filterScript.newInstance(new DocValuesDocReader(lookup, context));
                     TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 
                         @Override

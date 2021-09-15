@@ -18,10 +18,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -31,6 +32,7 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.JDBCType;
 import java.time.Instant;
@@ -49,7 +51,23 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.getNumberOfSearchContexts;
+import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNS_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_ID;
+import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_PARTIAL;
+import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_ASYNC_RUNNING;
+import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_CURSOR;
+import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.IS_PARTIAL_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.IS_RUNNING_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.ROWS_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_DELETE_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_STATUS_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
+import static org.elasticsearch.xpack.sql.proto.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -91,17 +109,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     public void testNextPage() throws IOException {
-        Request request = new Request("POST", "/test/_bulk");
-        request.addParameter("refresh", "true");
-        String mode = randomMode();
-        StringBuilder bulk = new StringBuilder();
-        for (int i = 0; i < 20; i++) {
-            bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
-            bulk.append("{\"text\":\"text" + i + "\", \"number\":" + i + "}\n");
-        }
-        request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
+        final int count = 20;
+        bulkLoadTestData(count);
 
+        String mode = randomMode();
         boolean columnar = randomBoolean();
         String sqlRequest = query("SELECT text, number, SQRT(number) AS s, SCORE()" + "     FROM test" + " ORDER BY number, SCORE()").mode(
             mode
@@ -109,7 +120,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         Number value = xContentDependentFloatingNumberValue(mode, 1f);
         String cursor = null;
-        for (int i = 0; i < 20; i += 2) {
+        for (int i = 0; i < count; i += 2) {
             Map<String, Object> response;
             if (i == 0) {
                 response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "", mode);
@@ -345,16 +356,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     @Override
-    public void testSelectFromEmptyIndex() throws Exception {
-        // Create an index without any types
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("{}");
-        client().performRequest(request);
-        String mode = randomFrom("jdbc", "plain");
-        expectBadRequest(() -> runSql(mode, "SELECT * FROM test"), containsString("1:8: Cannot determine columns for [*]"));
-    }
-
-    @Override
     public void testSelectColumnFromEmptyIndex() throws Exception {
         Request request = new Request("PUT", "/test");
         request.setJsonEntity("{}");
@@ -452,7 +453,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         index("{\"foo\":1}");
         expectBadRequest(
             () -> runSql(randomMode(), "SELECT SCORE().bar FROM test"),
-            containsString("line 1:15: extraneous input '.' expecting {<EOF>, ','")
+            containsString("line 1:15: mismatched input '.' expecting {<EOF>, ")
         );
     }
 
@@ -964,7 +965,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Tuple<String, String> response = runSqlAsText(query, "text/csv");
         assertEquals(expected, response.v1());
 
-        response = runSqlAsTextFormat(query, "csv");
+        response = runSqlAsTextWithFormat(query, "csv");
         assertEquals(expected, response.v1());
     }
 
@@ -1027,7 +1028,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         String query = "SELECT * FROM test ORDER BY number";
         Tuple<String, String> response = runSqlAsText(query, "text/tab-separated-values");
         assertEquals(expected, response.v1());
-        response = runSqlAsTextFormat(query, "tsv");
+        response = runSqlAsTextWithFormat(query, "tsv");
         assertEquals(expected, response.v1());
     }
 
@@ -1137,7 +1138,19 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(0, getNumberOfSearchContexts(client(), "test"));
     }
 
-    private Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {
+    private static void bulkLoadTestData(int count) throws IOException {
+        Request request = new Request("POST", "/test/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
+            bulk.append("{\"text\":\"text" + i + "\", \"number\":" + i + "}\n");
+        }
+        request.setJsonEntity(bulk.toString());
+        client().performRequest(request);
+    }
+
+    private static Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {
         return runSqlAsText(StringUtils.EMPTY, new StringEntity(query(sql).toString(), ContentType.APPLICATION_JSON), accept);
     }
 
@@ -1145,7 +1158,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
      * Run SQL as text using the {@code Accept} header to specify the format
      * rather than the {@code format} parameter.
      */
-    private Tuple<String, String> runSqlAsText(String suffix, HttpEntity entity, String accept) throws IOException {
+    private static Tuple<String, String> runSqlAsText(String suffix, HttpEntity entity, String accept) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT + suffix);
         request.addParameter("error_trace", "true");
         request.setEntity(entity);
@@ -1153,27 +1166,25 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         options.addHeader("Accept", accept);
         request.setOptions(options);
         Response response = client().performRequest(request);
-        return new Tuple<>(
-            Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
-            response.getHeader("Cursor")
-        );
+        return new Tuple<>(responseBody(response), response.getHeader("Cursor"));
+    }
+
+    private static String responseBody(Response response) throws IOException {
+        return Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
     }
 
     /**
      * Run SQL as text using the {@code format} parameter to specify the format
      * rather than an {@code Accept} header.
      */
-    private Tuple<String, String> runSqlAsTextFormat(String sql, String format) throws IOException {
+    private static Tuple<String, String> runSqlAsTextWithFormat(String sql, String format) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");
         request.addParameter("format", format);
         request.setJsonEntity(query(sql).toString());
 
         Response response = client().performRequest(request);
-        return new Tuple<>(
-            Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
-            response.getHeader("Cursor")
-        );
+        return new Tuple<>(responseBody(response), response.getHeader("Cursor"));
     }
 
     public static void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
@@ -1182,5 +1193,208 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());
         }
+    }
+
+    //
+    // Async text formatting tests
+    //
+
+    public void testBasicAsyncWait() throws IOException {
+        RequestObjectBuilder builder = query("SELECT 1").waitForCompletionTimeout("1d") // wait "forever"
+            .keepOnCompletion(false);
+
+        String mode = randomMode();
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(IS_PARTIAL_NAME, false);
+        expected.put(IS_RUNNING_NAME, false);
+        expected.put(COLUMNS_NAME, singletonList(columnInfo(mode, "1", "integer", JDBCType.INTEGER, 11)));
+        expected.put(ROWS_NAME, singletonList(singletonList(1)));
+        assertAsyncResponse(expected, runSql(builder, mode));
+    }
+
+    public void testAsyncTextWait() throws IOException {
+        RequestObjectBuilder builder = query("SELECT 1").waitForCompletionTimeout("1d").keepOnCompletion(false);
+
+        Map<String, String> contentMap = new HashMap<>() {
+            {
+                put("txt", "       1       \n---------------\n1              \n");
+                put("csv", "1\r\n1\r\n");
+                put("tsv", "1\n1\n");
+            }
+        };
+
+        for (String format : contentMap.keySet()) {
+            Response response = runSqlAsTextWithFormat(builder, format);
+
+            assertEquals(contentMap.get(format), responseBody(response));
+
+            assertTrue(hasText(response.getHeader(HEADER_NAME_ASYNC_ID)));
+            assertEquals("false", response.getHeader(HEADER_NAME_ASYNC_PARTIAL));
+            assertEquals("false", response.getHeader(HEADER_NAME_ASYNC_RUNNING));
+        }
+    }
+
+    public void testAsyncTextPaginated() throws IOException, InterruptedException {
+        final Map<String, String> acceptMap = new HashMap<>() {
+            {
+                put("txt", "text/plain");
+                put("csv", "text/csv");
+                put("tsv", "text/tab-separated-values");
+            }
+        };
+        final int fetchSize = randomIntBetween(1, 10);
+        final int fetchCount = randomIntBetween(1, 9);
+        bulkLoadTestData(fetchSize * fetchCount); // NB: product needs to stay below 100, for txt format tests
+
+        String format = randomFrom(acceptMap.keySet());
+        String mode = randomMode();
+        String cursor = null;
+        for (int i = 0; i <= fetchCount; i++) { // the last iteration (the equality in `<=`) checks on no-cursor & no-results
+            // start the query
+            RequestObjectBuilder builder = (hasText(cursor) ? cursor(cursor) : query("SELECT text, number FROM test")).fetchSize(fetchSize)
+                .waitForCompletionTimeout("0d") // don't wait at all
+                .keepOnCompletion(true)
+                .keepAlive("1d") // keep "forever"
+                .mode(mode)
+                .binaryFormat(false); // prevent JDBC mode to (ignore `format` and) enforce CBOR
+            Response response = runSqlAsTextWithFormat(builder, format);
+
+            Character csvDelimiter = ',';
+
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            assertTrue(response.getHeader(HEADER_NAME_ASYNC_PARTIAL).equals(response.getHeader(HEADER_NAME_ASYNC_RUNNING)));
+            String asyncId = response.getHeader(HEADER_NAME_ASYNC_ID);
+            assertTrue(hasText(asyncId));
+
+            // it happens though rarely that the whole response comes through despite the given 0-wait
+            if (response.getHeader(HEADER_NAME_ASYNC_PARTIAL).equals("true")) {
+
+                // potentially wait for it to complete
+                boolean pollForCompletion = randomBoolean();
+                if (pollForCompletion) {
+                    Request request = new Request("GET", SQL_ASYNC_STATUS_REST_ENDPOINT + asyncId);
+                    Map<String, Object> asyncStatus = null;
+                    long millis = 1;
+                    for (boolean isRunning = true; isRunning; Thread.sleep(millis *= 2)) {
+                        asyncStatus = toMap(client().performRequest(request), null);
+                        isRunning = (boolean) asyncStatus.get(IS_RUNNING_NAME);
+                    }
+                    assertEquals(200, (int) asyncStatus.get("completion_status"));
+                    assertEquals(asyncStatus.get(IS_RUNNING_NAME), asyncStatus.get(IS_PARTIAL_NAME));
+                    assertEquals(asyncId, asyncStatus.get(ID_NAME));
+                }
+
+                // fetch the results (potentially waiting now to complete)
+                Request request = new Request("GET", SQL_ASYNC_REST_ENDPOINT + asyncId);
+                if (pollForCompletion == false) {
+                    request.addParameter(WAIT_FOR_COMPLETION_TIMEOUT_NAME, "1d");
+                }
+                if (randomBoolean()) {
+                    request.addParameter(URL_PARAM_FORMAT, format);
+                    if (format.equals("csv")) {
+                        csvDelimiter = ';';
+                        request.addParameter(URL_PARAM_DELIMITER, URLEncoder.encode(String.valueOf(csvDelimiter), StandardCharsets.UTF_8));
+                    }
+                } else {
+                    request.setOptions(request.getOptions().toBuilder().addHeader("Accept", acceptMap.get(format)));
+                }
+                response = client().performRequest(request);
+
+                assertEquals(200, response.getStatusLine().getStatusCode());
+                assertEquals(asyncId, response.getHeader(HEADER_NAME_ASYNC_ID));
+                assertEquals("false", response.getHeader(HEADER_NAME_ASYNC_PARTIAL));
+                assertEquals("false", response.getHeader(HEADER_NAME_ASYNC_RUNNING));
+            }
+
+            cursor = response.getHeader(HEADER_NAME_CURSOR);
+            String body = responseBody(response);
+            if (i == fetchCount) {
+                assertNull(cursor);
+                assertFalse(hasText(body));
+            } else {
+                String expected = expectedTextBody(format, fetchSize, i, csvDelimiter);
+                assertEquals(expected, body);
+
+                if (hasText(cursor) == false) { // depending on index and fetch size, the last page might or not have a cursor
+                    assertEquals(i, fetchCount - 1);
+                    i++; // end the loop after deleting the async resources
+                }
+            }
+
+            // delete the query results
+            Request request = new Request("DELETE", SQL_ASYNC_DELETE_REST_ENDPOINT + asyncId);
+            Map<String, Object> deleteStatus = toMap(client().performRequest(request), null);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            assertTrue((boolean) deleteStatus.get("acknowledged"));
+        }
+    }
+
+    static Map<String, Object> runSql(RequestObjectBuilder builder, String mode) throws IOException {
+        return toMap(runSql(builder.mode(mode)), mode);
+    }
+
+    static Response runSql(RequestObjectBuilder builder) throws IOException {
+        return runSqlAsTextWithFormat(builder, null);
+    }
+
+    static Response runSqlAsTextWithFormat(RequestObjectBuilder builder, @Nullable String format) throws IOException {
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
+        request.addParameter("pretty", "true");        // Improves error reporting readability
+        if (format != null) {
+            request.addParameter(URL_PARAM_FORMAT, format);        // Improves error reporting readability
+        }
+        request.setEntity(new StringEntity(builder.toString(), ContentType.APPLICATION_JSON));
+        return client().performRequest(request);
+
+    }
+
+    static void assertAsyncResponse(Map<String, Object> expected, Map<String, Object> actual) {
+        String actualId = (String) actual.get("id");
+        assertTrue("async ID missing in response", hasText(actualId));
+        expected.put("id", actualId);
+        assertResponse(expected, actual);
+    }
+
+    private static String expectedTextBody(String format, int fetchSize, int count, Character csvDelimiter) {
+        StringBuilder sb = new StringBuilder();
+        if (count == 0) { // add the header
+            switch (format) {
+                case "txt":
+                    sb.append("     text      |    number     \n");
+                    sb.append("---------------+---------------\n");
+                    break;
+                case "csv":
+                    sb.append("text").append(csvDelimiter).append("number\r\n");
+                    break;
+                case "tsv":
+                    sb.append("text\tnumber\n");
+                    break;
+                default:
+                    assert false : "unexpected format type [" + format + "]";
+            }
+        }
+        for (int i = 0; i < fetchSize; i++) {
+            int val = fetchSize * count + i;
+            sb.append("text").append(val);
+            switch (format) {
+                case "txt":
+                    sb.append(val < 10 ? " " : StringUtils.EMPTY).append("         |");
+                    break;
+                case "csv":
+                    sb.append(csvDelimiter);
+                    break;
+                case "tsv":
+                    sb.append('\t');
+                    break;
+            }
+            sb.append(val);
+            if (format.equals("txt")) {
+                sb.append("             ").append(val < 10 ? " " : StringUtils.EMPTY);
+            }
+            sb.append(format.equals("csv") ? "\r\n" : "\n");
+        }
+        return sb.toString();
     }
 }

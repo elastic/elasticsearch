@@ -18,6 +18,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTestCase<SetBackedScalingCuckooFilter> {
@@ -41,7 +42,9 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
 
     @Override
     protected SetBackedScalingCuckooFilter mutateInstance(SetBackedScalingCuckooFilter instance) throws IOException {
-        SetBackedScalingCuckooFilter newInstance = new SetBackedScalingCuckooFilter(instance);
+        SetBackedScalingCuckooFilter newInstance =
+            new SetBackedScalingCuckooFilter(instance.getThreshold(), instance.getRng(), instance.getFpp());
+        newInstance.merge(instance);
         int num = randomIntBetween(1, 10);
         for (int i = 0; i < num; i++) {
             newInstance.add(randomLong());

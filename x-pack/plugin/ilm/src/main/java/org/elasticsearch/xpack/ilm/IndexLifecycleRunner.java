@@ -16,9 +16,9 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
@@ -189,7 +189,7 @@ class IndexLifecycleRunner {
                 public void onFailure(Exception e) {
                     moveToErrorStep(indexMetadata.getIndex(), policy, currentStep.getKey(), e);
                 }
-            }, AsyncActionStep.getMasterTimeout(clusterService.state()));
+            }, TimeValue.MAX_VALUE);
         } else {
             logger.trace("[{}] ignoring non periodic step execution from step transition [{}]", index, currentStep.getKey());
         }
@@ -220,8 +220,7 @@ class IndexLifecycleRunner {
             // to move it back into the failed step, so we'll try again
             clusterService.submitStateUpdateTask(
                 String.format(Locale.ROOT, "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}", policy, index,
-                    failedStep.getKey()), new ClusterStateUpdateTask(
-                            LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.get(clusterService.state().metadata().settings())) {
+                    failedStep.getKey()), new ClusterStateUpdateTask(TimeValue.MAX_VALUE) {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
@@ -292,17 +291,15 @@ class IndexLifecycleRunner {
                 new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext()), new ActionListener<>() {
 
                     @Override
-                    public void onResponse(Boolean complete) {
+                    public void onResponse(Void unused) {
                         logger.trace("cs-change-async-action-callback, [{}], current-step: {}", index, currentStep.getKey());
-                        if (complete) {
-                            if (((AsyncActionStep) currentStep).indexSurvives()) {
-                                moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
-                            } else {
-                                // Delete needs special handling, because after this step we
-                                // will no longer have access to any information about the
-                                // index since it will be... deleted.
-                                registerDeleteOperation(indexMetadata);
-                            }
+                        if (((AsyncActionStep) currentStep).indexSurvives()) {
+                            moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+                        } else {
+                            // Delete needs special handling, because after this step we
+                            // will no longer have access to any information about the
+                            // index since it will be... deleted.
+                            registerDeleteOperation(indexMetadata);
                         }
                     }
 

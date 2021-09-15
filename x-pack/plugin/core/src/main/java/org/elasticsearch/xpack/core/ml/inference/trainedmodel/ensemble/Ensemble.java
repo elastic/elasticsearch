@@ -10,8 +10,8 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -42,7 +42,6 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
     public static final ParseField TRAINED_MODELS = new ParseField("trained_models");
     public static final ParseField AGGREGATE_OUTPUT  = new ParseField("aggregate_output");
-    public static final ParseField TARGET_TYPE = new ParseField("target_type");
     public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
     public static final ParseField CLASSIFICATION_WEIGHTS = new ParseField("classification_weights");
 
@@ -66,7 +65,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                 lenient ? p.namedObject(LenientlyParsedOutputAggregator.class, n, null) :
                     p.namedObject(StrictlyParsedOutputAggregator.class, n, null),
             AGGREGATE_OUTPUT);
-        parser.declareString(Ensemble.Builder::setTargetType, TARGET_TYPE);
+        parser.declareString(Ensemble.Builder::setTargetType, TargetType.TARGET_TYPE);
         parser.declareStringArray(Ensemble.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
         parser.declareDoubleArray(Ensemble.Builder::setClassificationWeights, CLASSIFICATION_WEIGHTS);
         return parser;
@@ -96,7 +95,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
         this.models = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(models, TRAINED_MODELS));
         this.outputAggregator = ExceptionsHelper.requireNonNull(outputAggregator, AGGREGATE_OUTPUT);
-        this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
+        this.targetType = ExceptionsHelper.requireNonNull(targetType, TargetType.TARGET_TYPE);
         this.classificationLabels = classificationLabels == null ? null : Collections.unmodifiableList(classificationLabels);
         this.classificationWeights = classificationWeights == null ?
             null :
@@ -163,7 +162,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
             false,
             AGGREGATE_OUTPUT.getPreferredName(),
             Collections.singletonList(outputAggregator));
-        builder.field(TARGET_TYPE.getPreferredName(), targetType.toString());
+        builder.field(TargetType.TARGET_TYPE.getPreferredName(), targetType.toString());
         if (classificationLabels != null) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }

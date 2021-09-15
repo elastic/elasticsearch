@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -61,6 +61,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         assertThat(newInfo.getQueueSize(), is(nullValue()));
     }
 
+    @SuppressWarnings("unchecked")
     public void testThatToXContentWritesOutUnboundedCorrectly() throws Exception {
         ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10, TimeValue.timeValueMillis(3000), null);
         XContentBuilder builder = jsonBuilder();
@@ -82,6 +83,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    @SuppressWarnings("unchecked")
     public void testThatToXContentWritesInteger() throws Exception {
         ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10,
                 TimeValue.timeValueMillis(3000), SizeValue.parseSizeValue("1k"));

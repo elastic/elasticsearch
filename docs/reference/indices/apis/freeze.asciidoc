@@ -57,5 +57,6 @@ The following example freezes and unfreezes an index:
 POST /my-index-000001/_freeze
 POST /my-index-000001/_unfreeze
 --------------------------------------------------
+// TEST[skip:unable to ignore deprecation warning]
 // TEST[s/^/PUT my-index-000001\n/]
 

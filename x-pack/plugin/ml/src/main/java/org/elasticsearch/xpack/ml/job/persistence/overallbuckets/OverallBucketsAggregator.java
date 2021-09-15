@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence.overallbuckets;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 

@@ -9,7 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -28,6 +28,7 @@ public class Header {
     // These are directly set by tests
     String actionName;
     Tuple<Map<String, String>, Map<String, Set<String>>> headers;
+    private Compression.Scheme compressionScheme = null;
 
     Header(int networkMessageSize, long requestId, byte status, Version version) {
         this.networkMessageSize = networkMessageSize;
@@ -76,6 +77,10 @@ public class Header {
         return actionName;
     }
 
+    public Compression.Scheme getCompressionScheme() {
+        return compressionScheme;
+    }
+
     boolean needsToReadVariableHeader() {
         return headers == null;
     }
@@ -96,6 +101,11 @@ public class Header {
         } else {
             this.actionName = RESPONSE_NAME;
         }
+    }
+
+    void setCompressionScheme(Compression.Scheme compressionScheme) {
+        assert isCompressed();
+        this.compressionScheme = compressionScheme;
     }
 
     @Override

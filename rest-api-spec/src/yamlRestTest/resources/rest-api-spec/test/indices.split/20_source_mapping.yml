@@ -1,5 +1,8 @@
 ---
 "Split index ignores target template mapping":
+  - skip:
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/74197
 
   # create index
   - do:

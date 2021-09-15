@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.Booleans.parseBoolean;
+import static org.elasticsearch.core.Booleans.parseBoolean;
 
 public class TransportInfo implements ReportingService.Info {
 
@@ -91,7 +91,7 @@ public class TransportInfo implements ReportingService.Info {
         if (InetAddresses.isInetAddress(hostString) == false) {
             publishAddressString = hostString + '/' + publishAddress.toString();
             if (cnameInPublishAddressProperty) {
-                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "cname_in_publish_address",
+                deprecationLogger.critical(DeprecationCategory.SETTINGS, "cname_in_publish_address",
                     "es.transport.cname_in_publish_address system property is deprecated and no longer affects " + propertyName +
                     " formatting. Remove this property to get rid of this deprecation warning.");
             }

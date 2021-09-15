@@ -71,10 +71,12 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         //   STARTED         NULL          Create as STARTED, Start
         //   STARTED         STARTED       Noop - running
         //   STARTED         COMPLETED     Noop - waiting for notification ack
+        //   STARTED         LOCAL_ABORTED Noop - waiting for notification ack
 
         //   NULL            NULL          Noop - nothing to do
         //   NULL            STARTED       Remove locally, Mark as PENDING_CANCEL, Cancel
         //   NULL            COMPLETED     Remove locally
+        //   NULL            LOCAL_ABORTED Remove locally
 
         // Master states:
         // NULL - doesn't exist in the cluster state
@@ -85,6 +87,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         // STARTED - registered in TaskManager, requires master notification when finishes
         // PENDING_CANCEL - registered in TaskManager, doesn't require master notification when finishes
         // COMPLETED - not registered in TaskManager, notified, waiting for master to remove it from CS so we can remove locally
+        // LOCAL_ABORTED - not registered in TaskManager, notified, waiting for master to adjust it in CS so we can remove locally
 
         // When task finishes if it is marked as STARTED or PENDING_CANCEL it is marked as COMPLETED and unregistered,
         // If the task was STARTED, the master notification is also triggered (this is handled by unregisterTask() method, which is
@@ -120,8 +123,8 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 AllocatedPersistentTask task = runningTasks.get(id);
                 if (task.isCompleted()) {
                     // Result was sent to the caller and the caller acknowledged acceptance of the result
-                    logger.trace("Found completed persistent task [{}] with id [{}] and allocation id [{}] - removing",
-                            task.getAction(), task.getPersistentTaskId(), task.getAllocationId());
+                    logger.trace("Found persistent task [{}] with id [{}], allocation id [{}] and status [{}] - removing",
+                            task.getAction(), task.getPersistentTaskId(), task.getAllocationId(), task.getStatus());
                     runningTasks.remove(id);
                 } else {
                     // task is running locally, but master doesn't know about it - that means that the persistent task was removed
@@ -201,7 +204,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
 
     private <Params extends PersistentTaskParams> void notifyMasterOfFailedTask(PersistentTask<Params> taskInProgress,
                                                                                 Exception originalException) {
-        persistentTasksService.sendCompletionRequest(taskInProgress.getId(), taskInProgress.getAllocationId(), originalException,
+        persistentTasksService.sendCompletionRequest(taskInProgress.getId(), taskInProgress.getAllocationId(), originalException, null,
             new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTask<?> persistentTask) {

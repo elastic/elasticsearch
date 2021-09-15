@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.SecurityConfig;
 import org.elasticsearch.xpack.sql.qa.cli.ErrorsTestCase;
@@ -26,6 +26,19 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CliSecurityIT extends SqlSecurityTestCase {
+
+    @Override
+    public void testDescribeWorksAsFullAccess() {}
+
+    @Override
+    public void testQuerySingleFieldGranted() {}
+
+    @Override
+    public void testScrollWithSingleFieldExcepted() {}
+
+    @Override
+    public void testQueryWorksAsAdmin() {}
+
     static SecurityConfig adminSecurityConfig() {
         String keystoreLocation;
         String keystorePassword;

@@ -50,8 +50,8 @@ public class CentroidCalculatorTests extends ESTestCase {
     }
 
     public void testPolygonWithSmallTrianglesOfZeroWeight() throws Exception {
-        Geometry geometry = new WellKnownText(false, new GeographyValidator(true))
-            .fromWKT("POLYGON((-4.385064 55.2259599,-4.385056 55.2259224,-4.3850466 55.2258994,-4.3849755 55.2258574," +
+        Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), false,
+                "POLYGON((-4.385064 55.2259599,-4.385056 55.2259224,-4.3850466 55.2258994,-4.3849755 55.2258574," +
                 "-4.3849339 55.2258589,-4.3847033 55.2258742,-4.3846805 55.2258818,-4.3846282 55.2259132,-4.3846215 55.2259247," +
                 "-4.3846121 55.2259683,-4.3846147 55.2259798,-4.3846369 55.2260157,-4.3846472 55.2260241," +
                 "-4.3846697 55.2260409,-4.3846952 55.2260562,-4.384765 55.22608,-4.3848199 55.2260861,-4.3848481 55.2260845," +

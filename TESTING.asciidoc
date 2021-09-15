@@ -293,7 +293,7 @@ YAML based REST tests should be preferred since these are shared between all
 the elasticsearch official clients. The YAML based tests describe the
 operations to be executed and the obtained results that need to be tested.
 
-The YAML tests support various operators defined in the link:/rest-api-spec/src/main/resources/rest-api-spec/test/README.asciidoc[rest-api-spec] and adhere to the link:/rest-api-spec/README.markdown[Elasticsearch REST API JSON specification]
+The YAML tests support various operators defined in the link:/rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test/README.asciidoc[rest-api-spec] and adhere to the link:/rest-api-spec/README.markdown[Elasticsearch REST API JSON specification]
 In order to run the YAML tests, the relevant API specification needs
 to be on the test classpath. Any gradle project that has support for REST
 tests will get the primary API on it's class path. However, to better support
@@ -518,7 +518,7 @@ For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
 
 Tests are ran for versions that are not yet released but with which the current version will be compatible with.
 These are automatically checked out and built from source.
-See link:./buildSrc/src/main/java/org/elasticsearch/gradle/BwcVersions.java[BwcVersions]
+See link:./build-tools-internal/src/main/java/org/elasticsearch/gradle/BwcVersions.java[BwcVersions]
 and link:./distribution/bwc/build.gradle[distribution/bwc/build.gradle]
 for more information.
 

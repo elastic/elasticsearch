@@ -58,7 +58,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             } else {
                 this.id = id;
             }
-            this.expandedIds = Collections.singletonList(id);
+            this.expandedIds = Collections.singletonList(this.id);
         }
 
         public Request(StreamInput in) throws IOException {

@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -87,9 +87,14 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     public void testTargetIsAliasWithWriteIndexDisabled() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> succeeds("target_alias_with_write_index_disabled", "foo"));
-        assertThat(e.getMessage(), containsString("no write index is defined for alias [target_alias_with_write_index_disabled]. " +
-            "The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one " +
-            "being designated as a write index"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "no write index is defined for alias [target_alias_with_write_index_disabled]. "
+                    + "The write index may be explicitly disabled using is_write_index=false or the alias points to multiple "
+                    + "indices without one being designated as a write index"
+            )
+        );
         succeeds("qux", "foo"); // writing directly into the index of which this is the alias works though
     }
 

@@ -30,9 +30,13 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
     private final Function<double[], DoubleUnaryOperator> methodSupplier;
 
-    NormalizePipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter,
-                                Function<double[], DoubleUnaryOperator> methodSupplier,
-                                Map<String, Object> metadata) {
+    NormalizePipelineAggregator(
+        String name,
+        String[] bucketsPaths,
+        DocValueFormat formatter,
+        Function<double[], DoubleUnaryOperator> methodSupplier,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
         this.methodSupplier = methodSupplier;
@@ -41,13 +45,15 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
         @SuppressWarnings("unchecked")
-        InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-            (InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket> originalAgg = (InternalMultiBucketAggregation<
+            ?,
+            InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>(buckets.size());
 
         double[] values = buckets.stream()
-            .mapToDouble(bucket -> resolveBucketValue(originalAgg, bucket, bucketsPaths()[0], GapPolicy.SKIP)).toArray();
+            .mapToDouble(bucket -> resolveBucketValue(originalAgg, bucket, bucketsPaths()[0], GapPolicy.SKIP))
+            .toArray();
 
         DoubleUnaryOperator method = methodSupplier.apply(values);
 

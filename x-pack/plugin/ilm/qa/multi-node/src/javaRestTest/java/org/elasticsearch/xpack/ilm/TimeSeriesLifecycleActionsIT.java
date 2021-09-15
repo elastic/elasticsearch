@@ -16,16 +16,15 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -42,7 +41,6 @@ import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
@@ -144,24 +142,17 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(index)));
     }
 
-    public void testRetryFreezeDeleteAction() throws Exception {
+    public void testFreezeNoop() throws Exception {
         createNewSingletonPolicy(client(), policy, "cold", new FreezeAction());
 
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_READ_ONLY, true)
             .put("index.lifecycle.name", policy));
 
-        assertBusy(() -> assertThat((Integer) explainIndex(client(), index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)),
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("cold").getKey())),
             30, TimeUnit.SECONDS);
         assertFalse(getOnlyIndexSettings(client(), index).containsKey("index.frozen"));
-
-        Request request = new Request("PUT", index + "/_settings");
-        request.setJsonEntity("{\"index.blocks.read_only\":false}");
-        assertOK(client().performRequest(request));
-
-        assertBusy(() -> assertThat(getOnlyIndexSettings(client(), index).get("index.frozen"), equalTo("true")));
     }
 
 
@@ -169,7 +160,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         String allocateNodeName = "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3";
-        AllocateAction allocateAction = new AllocateAction(null, singletonMap("_name", allocateNodeName), null, null);
+        AllocateAction allocateAction = new AllocateAction(null, null, singletonMap("_name", allocateNodeName), null, null);
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
         updatePolicy(client(), index, policy);
@@ -184,7 +175,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         int finalNumReplicas = (numReplicas + 1) % 2;
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas));
-        AllocateAction allocateAction = new AllocateAction(finalNumReplicas, null, null, null);
+        AllocateAction allocateAction = new AllocateAction(finalNumReplicas, null, null, null, null);
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
         updatePolicy(client(), index, policy);
@@ -199,18 +190,18 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
-        createNewSingletonPolicy(client(), policy, "delete", new WaitForSnapshotAction(slmPolicy));
+        final String phaseName = "delete";
+        createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy));
         updatePolicy(client(), index, policy);
+        waitForPhaseTime(phaseName);
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
         }, slmPolicy);
-
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createSlmPolicy(slmPolicy, snapshotRepo);
-
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             //wait for step to notice that the slm policy is created and to get out of error
@@ -218,18 +209,48 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
         }, slmPolicy);
+        waitForPhaseTime(phaseName); // The phase time was reset because the action went into the ERROR step and back out
 
         Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
+        assertBusy(() -> {
+            Step.StepKey stepKey = getStepKeyForIndex(client(), index);
+            logger.info("step key for index {} is {}", index, stepKey);
+            assertThat(stepKey.getAction(), equalTo("complete"));
+        }, slmPolicy);
+    }
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getAction(), equalTo("complete")), slmPolicy);
+    /*
+     * This test more rapidly creates a policy and then executes a snapshot, in an attempt to reproduce a timing bug where the snapshot
+     * time gets set to a time earlier than the policy's action's time.
+     */
+    public void testWaitForSnapshotFast() throws Exception {
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        String slmPolicy = randomAlphaOfLengthBetween(4, 10);
+        final String phaseName = "delete";
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createSlmPolicy(slmPolicy, snapshotRepo);
+        createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy));
+        updatePolicy(client(), index, policy);
+        waitForPhaseTime(phaseName);
+
+        Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
+        assertOK(client().performRequest(request));
+        assertBusy(() -> {
+            Step.StepKey stepKey = getStepKeyForIndex(client(), index);
+            logger.info("step key for index {} is {}", index, stepKey);
+            assertThat(stepKey.getAction(), equalTo("complete"));
+        }, slmPolicy);
     }
 
     public void testWaitForSnapshotSlmExecutedBefore() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
-        createNewSingletonPolicy(client(), policy, "delete", new WaitForSnapshotAction(slmPolicy));
+        final String phaseName = "delete";
+        createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy));
 
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
@@ -248,6 +269,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }, slmPolicy);
 
         updatePolicy(client(), index, policy);
+        waitForPhaseTime(phaseName);
 
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
@@ -268,7 +290,34 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             }
         }, slmPolicy);
 
+        assertBusy(() -> {
+            Step.StepKey stepKey = getStepKeyForIndex(client(), index);
+            logger.info("stepKey for index {} is {}", index, stepKey);
+            assertThat(stepKey.getAction(), equalTo("complete"));
+        }, slmPolicy);
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getAction(), equalTo("complete")), slmPolicy);
+    }
+
+    /*
+     * This method waits until phase_time gets set in the state store for the given phase name. Otherwise we can wind up starting a snapshot
+     * before the ILM policy is ready.
+     */
+    @SuppressWarnings("unchecked")
+    private void waitForPhaseTime(String phaseName) throws Exception {
+        assertBusy(() -> {
+            Request request = new Request("GET", "/_cluster/state/metadata/" + index);
+            Map<String, Object> response = entityAsMap(client().performRequest(request));
+            Map<String, Object> metadata = (Map<String, Object>) response.get("metadata");
+            Map<String, Object> indices = (Map<String, Object>) metadata.get("indices");
+            Map<String, Object> indexMap = (Map<String, Object>) indices.get(index);
+            Map<String, Object> ilm = (Map<String, Object>) indexMap.get("ilm");
+            assertNotNull(ilm);
+            Object phase = ilm.get("phase");
+            assertEquals(phaseName, phase);
+            Object phase_time = ilm.get("phase_time");
+            assertNotNull(phase_time);
+            logger.info("found phase time for {} phase: {}", phaseName, phase_time);
+        });
     }
 
     public void testDelete() throws Exception {
@@ -357,61 +406,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public void testForceMergeActionWithCompressionCodec() throws Exception {
         forceMergeActionWithCodec("best_compression");
-    }
-
-    public void testFreezeAction() throws Exception {
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy(client(), policy, "cold", new FreezeAction());
-        updatePolicy(client(), index, policy);
-        assertBusy(() -> {
-            Map<String, Object> settings = getOnlyIndexSettings(client(), index);
-            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("cold").getKey()));
-            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
-            assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
-            assertThat(settings.get("index.frozen"), equalTo("true"));
-        });
-    }
-
-    public void testFreezeDuringSnapshot() throws Exception {
-        // Create the repository before taking the snapshot.
-        Request request = new Request("PUT", "/_snapshot/repo");
-        request.setJsonEntity(Strings
-            .toString(JsonXContent.contentBuilder()
-                .startObject()
-                .field("type", "fs")
-                .startObject("settings")
-                .field("compress", randomBoolean())
-                .field("location", System.getProperty("tests.path.repo"))
-                .field("max_snapshot_bytes_per_sec", "256b")
-                .endObject()
-                .endObject()));
-        assertOK(client().performRequest(request));
-        // create delete policy
-        createNewSingletonPolicy(client(), policy, "cold", new FreezeAction(), TimeValue.timeValueMillis(0));
-        // create index without policy
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        // index document so snapshot actually does something
-        indexDocument(client(), index);
-        // start snapshot
-        request = new Request("PUT", "/_snapshot/repo/snapshot");
-        request.addParameter("wait_for_completion", "false");
-        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
-        assertOK(client().performRequest(request));
-        // add policy and expect it to trigger delete immediately (while snapshot in progress)
-        updatePolicy(client(), index, policy);
-        // assert that the index froze
-        assertBusy(() -> {
-            Map<String, Object> settings = getOnlyIndexSettings(client(), index);
-            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("cold").getKey()));
-            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
-            assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
-            assertThat(settings.get("index.frozen"), equalTo("true"));
-        }, 2, TimeUnit.MINUTES);
-        // assert that snapshot is still in progress and clean up
-        assertThat(getSnapshotState(client(), "snapshot"), equalTo("SUCCESS"));
-        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
     }
 
     public void testSetPriority() throws Exception {
@@ -884,18 +878,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
                     snapshotsResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 }
-                ArrayList<Object> responses = (ArrayList<Object>) snapshotsResponseMap.get("responses");
-                for (Object response : responses) {
-                    Map<String, Object> responseAsMap = (Map<String, Object>) response;
-                    if (responseAsMap.get("snapshots") != null) {
-                        ArrayList<Object> snapshots = (ArrayList<Object>) responseAsMap.get("snapshots");
-                        for (Object snapshot : snapshots) {
-                            Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
-                            if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
+                if (snapshotsResponseMap.get("snapshots") != null) {
+                    ArrayList<Object> snapshots = (ArrayList<Object>) snapshotsResponseMap.get("snapshots");
+                    for (Object snapshot : snapshots) {
+                        Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
+                        if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
                                 // wait for the snapshot to be completed (successfully or not) otherwise the teardown might fail
                                 SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
-                                return true;
-                            }
+                            return true;
                         }
                     }
                 }

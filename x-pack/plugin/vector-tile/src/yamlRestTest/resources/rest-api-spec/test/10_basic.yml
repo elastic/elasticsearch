@@ -1,0 +1,169 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      index:
+        index:  locations
+        body:
+          location: POINT(34.25 -21.76)
+          value: 1
+
+  - do:
+      indices.refresh: {}
+---
+"no body":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+
+---
+"size param":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+         size: 0
+---
+"extent param":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          extent: 256
+
+---
+"exact bounds":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          exact_bounds: true
+
+---
+"grid precision":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          grid_precision: 3
+
+---
+"grid type point":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          grid_type: point
+
+---
+"grid type grid":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          grid_type: grid
+---
+"field field":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          fields: [value]
+
+---
+"runtime_fields field":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          runtime_mappings:
+            lon:
+              script: emit(doc['location'].lon)
+              type: double
+          fields: [lon]
+
+---
+"query field":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          query:
+            term:
+              value: 1
+
+---
+"aggs field":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            min_value:
+              min:
+                field: value
+
+---
+"sort field":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          sort: []

@@ -26,8 +26,9 @@ abstract class OutboundMessage extends NetworkMessage {
 
     protected final Writeable message;
 
-    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message) {
-        super(threadContext, version, status, requestId);
+    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Compression.Scheme compressionScheme,
+                    Writeable message) {
+        super(threadContext, version, status, requestId, compressionScheme);
         this.message = message;
     }
 
@@ -86,8 +87,14 @@ abstract class OutboundMessage extends NetworkMessage {
 
     // compressed stream wrapped bytes must be no-close wrapped since we need to close the compressed wrapper below to release
     // resources and write EOS marker bytes but must not yet release the bytes themselves
-    private OutputStreamStreamOutput wrapCompressed(BytesStreamOutput bytesStream) throws IOException {
-        return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
+    private StreamOutput wrapCompressed(BytesStreamOutput bytesStream) throws IOException {
+        if (compressionScheme == Compression.Scheme.DEFLATE) {
+            return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
+        } else if (compressionScheme == Compression.Scheme.LZ4) {
+            return new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
+        } else {
+            throw new IllegalArgumentException("Invalid compression scheme: " + compressionScheme);
+        }
     }
 
     protected void writeVariableHeader(StreamOutput stream) throws IOException {
@@ -99,8 +106,8 @@ abstract class OutboundMessage extends NetworkMessage {
         private final String action;
 
         Request(ThreadContext threadContext, Writeable message, Version version, String action, long requestId,
-                boolean isHandshake, boolean compress) {
-            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
+                boolean isHandshake, Compression.Scheme compressionScheme) {
+            super(threadContext, version, setStatus(isHandshake), requestId, adjustCompressionScheme(compressionScheme, message), message);
             this.action = action;
         }
 
@@ -114,12 +121,18 @@ abstract class OutboundMessage extends NetworkMessage {
             stream.writeString(action);
         }
 
-        private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {
+        // Do not compress instances of BytesTransportRequest
+        private static Compression.Scheme adjustCompressionScheme(Compression.Scheme compressionScheme, Writeable message) {
+            if (message instanceof BytesTransportRequest) {
+                return null;
+            } else {
+               return compressionScheme;
+            }
+        }
+
+        private static byte setStatus(boolean isHandshake) {
             byte status = 0;
             status = TransportStatus.setRequest(status);
-            if (compress && OutboundMessage.canCompress(message)) {
-                status = TransportStatus.setCompress(status);
-            }
             if (isHandshake) {
                 status = TransportStatus.setHandshake(status);
             }
@@ -136,18 +149,16 @@ abstract class OutboundMessage extends NetworkMessage {
 
     static class Response extends OutboundMessage {
 
-        Response(ThreadContext threadContext, Writeable message, Version version, long requestId, boolean isHandshake, boolean compress) {
-            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
+        Response(ThreadContext threadContext, Writeable message, Version version, long requestId, boolean isHandshake,
+                 Compression.Scheme compressionScheme) {
+            super(threadContext, version, setStatus(isHandshake, message), requestId, compressionScheme, message);
         }
 
-        private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {
+        private static byte setStatus(boolean isHandshake, Writeable message) {
             byte status = 0;
             status = TransportStatus.setResponse(status);
             if (message instanceof RemoteTransportException) {
                 status = TransportStatus.setError(status);
-            }
-            if (compress) {
-                status = TransportStatus.setCompress(status);
             }
             if (isHandshake) {
                 status = TransportStatus.setHandshake(status);
@@ -161,9 +172,5 @@ abstract class OutboundMessage extends NetworkMessage {
             return "Response{" + requestId + "}{" + isError() + "}{" + isCompress() + "}{" + isHandshake() + "}{"
                     + message.getClass() + "}";
         }
-    }
-
-    private static boolean canCompress(Writeable message) {
-        return message instanceof BytesTransportRequest == false;
     }
 }

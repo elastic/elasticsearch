@@ -27,7 +27,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
 
     @Before
     public void init() throws Exception {
-        Set<Schedule.Parser> parsers = new HashSet<>();
+        Set<Schedule.Parser<? extends Schedule>> parsers = new HashSet<>();
         parsers.add(new IntervalSchedule.Parser());
         parsers.add(new CronSchedule.Parser());
         parsers.add(new HourlySchedule.Parser());

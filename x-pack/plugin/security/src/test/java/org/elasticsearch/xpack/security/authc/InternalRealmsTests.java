@@ -42,6 +42,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class InternalRealmsTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testNativeRealmRegistersIndexHealthChangeListener() throws Exception {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         Map<String, Realm.Factory> factories = InternalRealms.getFactories(mock(ThreadPool.class), mock(ResourceWatcherService.class),
@@ -55,10 +56,10 @@ public class InternalRealmsTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         final ThreadContext threadContext = new ThreadContext(settings);
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
-        verify(securityIndex).addIndexStateListener(isA(BiConsumer.class));
+        verify(securityIndex).addStateListener(isA(BiConsumer.class));
 
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
-        verify(securityIndex, times(2)).addIndexStateListener(isA(BiConsumer.class));
+        verify(securityIndex, times(2)).addStateListener(isA(BiConsumer.class));
     }
 
     public void testIsStandardType() {

@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -81,6 +83,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     private DatafeedConfigProvider datafeedConfigProvider;
     private Client client;
     private MlMemoryTracker mlMemoryTracker;
+    private XPackLicenseState licenseState;
 
     @Before
     public void setUpMocks() {
@@ -104,6 +107,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         client = mock(Client.class);
         mlMemoryTracker = mock(MlMemoryTracker.class);
+        licenseState = mock(XPackLicenseState.class);
     }
 
     public void testValidate_jobMissing() {
@@ -115,7 +119,15 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         jobBuilder.setDeleting(true);
         Exception e = expectThrows(ElasticsearchStatusException.class,
             () -> validateJobAndId("job_id", jobBuilder.build()));
-        assertEquals("Cannot open job [job_id] because it is being deleted", e.getMessage());
+        assertEquals("Cannot open job [job_id] because it is executing [delete]", e.getMessage());
+    }
+
+    public void testValidate_blockedReset() {
+        Job.Builder jobBuilder = buildJobBuilder("job_id");
+        jobBuilder.setBlocked(new Blocked(Blocked.Reason.REVERT, null));
+        Exception e = expectThrows(ElasticsearchStatusException.class,
+            () -> validateJobAndId("job_id", jobBuilder.build()));
+        assertEquals("Cannot open job [job_id] because it is executing [revert]", e.getMessage());
     }
 
     public void testValidate_jobWithoutVersion() {
@@ -260,6 +272,6 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     private OpenJobPersistentTasksExecutor createExecutor(Settings settings) {
         return new OpenJobPersistentTasksExecutor(
             settings, clusterService, autodetectProcessManager, datafeedConfigProvider, mlMemoryTracker, client,
-            TestIndexNameExpressionResolver.newInstance());
+            TestIndexNameExpressionResolver.newInstance(), licenseState);
     }
 }

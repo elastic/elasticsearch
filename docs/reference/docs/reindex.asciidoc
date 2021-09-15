@@ -75,18 +75,18 @@ POST _reindex
 security privileges:
 
 ** The `read` <<privileges-list-indices,index privilege>> for the source data
-stream, index, or index alias.
+stream, index, or alias.
 
 ** The `write` index privilege for the destination data stream, index, or index
 alias.
 
 ** To automatically create a data stream or index with an reindex API request,
 you must have the `auto_configure`, `create_index`, or `manage` index
-privilege for the destination data stream, index, or index alias.
+privilege for the destination data stream, index, or alias.
 
 ** If reindexing from a remote cluster, the `source.remote.user` must have the
 `monitor` <<privileges-list-cluster,cluster privilege>> and the `read` index
-privilege for the source data stream, index, or index alias.
+privilege for the source data stream, index, or alias.
 
 * If reindexing from a remote cluster, you must explicitly allow the remote host
 in the `reindex.remote.whitelist` setting of `elasticsearch.yml`. See
@@ -140,7 +140,7 @@ through every document in the source query.
 If the request contains `wait_for_completion=false`, {es}
 performs some preflight checks, launches the request, and returns a
 <<tasks,`task`>> you can use to cancel or get the status of the task.
-{es} creates a record of this task as a document at `.tasks/_doc/${taskId}`.
+{es} creates a record of this task as a document at `_tasks/<task_id>`.
 When you are done with a task, you should delete the task document so
 {es} can reclaim the space.
 
@@ -221,9 +221,11 @@ Reindex supports <<slice-scroll>> to parallelize the reindexing process.
 This parallelization can improve efficiency and provide a convenient way to
 break the request down into smaller parts.
 
+// tag::remote-reindex-slicing[]
 NOTE: Reindexing from remote clusters does not support
-<<docs-reindex-manual-slice, manual>> or
-<<docs-reindex-automatic-slice, automatic slicing>>.
+<<docs-reindex-manual-slice, manual>> or <<docs-reindex-automatic-slice,
+automatic slicing>>.
+// end::remote-reindex-slicing[]
 
 [[docs-reindex-manual-slice]]
 ====== Manual slicing
@@ -304,7 +306,7 @@ POST _reindex?slices=5&refresh
 ----------------------------------------------------------------
 // TEST[setup:my_index_big]
 
-You can also this verify works by:
+You can also verify this works by:
 
 [source,console]
 ----------------------------------------------------------------
@@ -464,7 +466,9 @@ POST _reindex
 [[docs-reindex-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, Boolean) If `true`, the request refreshes affected shards to make
+this operation visible to search. Defaults to `false`.
 
 `timeout`::
 +
@@ -507,8 +511,8 @@ Defaults to `abort`.
 
 `source`::
 `index`:::
-(Required, string) The name of the data stream, index, or index alias you are copying _from_.
-Also accepts a comma-separated list to reindex from multiple sources.
+(Required, string) The name of the data stream, index, or alias you are copying
+_from_. Also accepts a comma-separated list to reindex from multiple sources.
 
 `max_docs`:::
 (Optional, integer) The maximum number of documents to reindex. If <<conflicts, conflicts>> is equal to
@@ -1014,9 +1018,7 @@ example, you cannot reindex from a 7.x cluster into a 6.x cluster.
 To enable queries sent to older versions of Elasticsearch the `query` parameter
 is sent directly to the remote host without validation or modification.
 
-NOTE: Reindexing from remote clusters does not support
-<<docs-reindex-manual-slice, manual>> or
-<<docs-reindex-automatic-slice, automatic slicing>>.
+include::{es-ref-dir}/docs/reindex.asciidoc[tag=remote-reindex-slicing]
 
 Reindexing from a remote server uses an on-heap buffer that defaults to a
 maximum size of 100mb. If the remote index includes very large documents you'll

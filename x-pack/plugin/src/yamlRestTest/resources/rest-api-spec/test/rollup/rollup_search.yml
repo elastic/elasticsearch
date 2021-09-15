@@ -942,7 +942,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "5m",
+                "fixed_interval": "5m",
                 "time_zone": "Canada/Mountain"
               },
               "terms": {
@@ -1251,7 +1251,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "asdfasdf"
+                fixed_interval: "asdfasdf"
 
 
 ---
@@ -1267,7 +1267,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "asdfasdf"
+                fixed_interval: "asdfasdf"
 
 ---
 "Search error no matching indices":
@@ -1282,5 +1282,5 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                fixed_interval: "1h"
 

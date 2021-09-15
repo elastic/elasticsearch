@@ -17,7 +17,7 @@
             - "centos-8&&immutable"
             - "debian-9&&immutable"
             - "debian-10&&immutable"
-            - "fedora-32&&immutable"
+            - "debian-11&&immutable"
             - "opensuse-15-1&&immutable"
             - "oraclelinux-7&&immutable"
             - "oraclelinux-8&&immutable"
@@ -25,6 +25,7 @@
             - "sles-15&&immutable"
             - "ubuntu-18.04&&immutable"
             - "ubuntu-20.04&&immutable"
+            - "rocky-linux-8&&immutable"
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

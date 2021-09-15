@@ -14,10 +14,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -83,7 +83,7 @@ public interface Transport extends LifecycleComponent {
     /**
      * A unidirectional connection to a {@link DiscoveryNode}
      */
-    interface Connection extends Closeable {
+    interface Connection extends Closeable, RefCounted {
         /**
          * The node this connection is associated with
          */
@@ -128,6 +128,17 @@ public interface Transport extends LifecycleComponent {
 
         @Override
         void close();
+
+        /**
+         * Called after this connection is removed from the transport service.
+         */
+        void onRemoved();
+
+        /**
+         * Similar to {@link #addCloseListener} except that these listeners are notified once the connection is removed from the transport
+         * service.
+         */
+        void addRemovedListener(ActionListener<Void> listener);
     }
 
     /**
@@ -165,8 +176,8 @@ public interface Transport extends LifecycleComponent {
      * This class is a registry that allows
      */
     final class ResponseHandlers {
-        private final ConcurrentMapLong<ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
-            .newConcurrentMapLongWithAggressiveConcurrency();
+        private final Map<Long, ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
+            .newConcurrentMapWithAggressiveConcurrency();
         private final AtomicLong requestIdGenerator = new AtomicLong();
 
         /**

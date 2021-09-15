@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ir.IRNode.IRCondition;
@@ -165,9 +166,9 @@ public class IRDecorations {
     }
 
     /** describes an encoding used to resolve references and lambdas at runtime */
-    public static class IRDDefReferenceEncoding extends IRDecoration<String> {
+    public static class IRDDefReferenceEncoding extends IRDecoration<Def.Encoding> {
 
-        public IRDDefReferenceEncoding(String value) {
+        public IRDDefReferenceEncoding(Def.Encoding value) {
             super(value);
         }
     }
@@ -337,6 +338,14 @@ public class IRDecorations {
         }
     }
 
+    /** describes if a method needs to capture the script "this" */
+    public static class IRCInstanceCapture implements IRCondition {
+
+        private IRCInstanceCapture() {
+
+        }
+    }
+
     /** describes the maximum number of loop iterations possible in a method */
     public static class IRDMaxLoopCounter extends IRDecoration<Integer> {
 
@@ -358,6 +367,19 @@ public class IRDecorations {
 
         public IRDFunction(LocalFunction value) {
             super(value);
+        }
+    }
+
+    /** describes a method for a node on the script class; which method depends on node type */
+    public static class IRDThisMethod extends IRDecoration<PainlessMethod> {
+
+        public IRDThisMethod(PainlessMethod value) {
+            super(value);
+        }
+
+        @Override
+        public String toString() {
+            return PainlessLookupUtility.buildPainlessMethodKey(getValue().javaMethod.getName(), getValue().typeParameters.size());
         }
     }
 
@@ -431,6 +453,11 @@ public class IRDecorations {
         public IRDCaptureNames(List<String> value) {
             super(Collections.unmodifiableList(value));
         }
+    }
+
+    /** describes if the first capture of a method reference requires boxing */
+    public interface IRCCaptureBox extends IRCondition {
+
     }
 
     /** describes the type of value stored in an assignment operation */

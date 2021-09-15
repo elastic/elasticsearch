@@ -103,13 +103,13 @@ POST correlate_latency/_search?size=0&filter_path=aggregations
 {
   "aggs": {
     "buckets": {
-      "terms": {
+      "terms": { <1>
         "field": "version",
         "size": 2
       },
       "aggs": {
         "latency_ranges": {
-          "range": {
+          "range": { <2>
             "field": "latency",
             "ranges": [
               { "to": 0.0 },
@@ -126,7 +126,7 @@ POST correlate_latency/_search?size=0&filter_path=aggregations
             ]
           }
         },
-        "bucket_correlation": {
+        "bucket_correlation": { <3>
           "bucket_correlation": {
             "buckets_path": "latency_ranges>_count",
             "function": {

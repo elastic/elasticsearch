@@ -11,14 +11,14 @@ package org.elasticsearch.threadpool;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -75,6 +75,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
         public static final String SYSTEM_READ = "system_read";
         public static final String SYSTEM_WRITE = "system_write";
+        public static final String SYSTEM_CRITICAL_READ = "system_critical_read";
+        public static final String SYSTEM_CRITICAL_WRITE = "system_critical_write";
     }
 
     public enum ThreadPoolType {
@@ -123,7 +125,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING),
         entry(Names.SEARCH_THROTTLED, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_READ, ThreadPoolType.FIXED),
-        entry(Names.SYSTEM_WRITE, ThreadPoolType.FIXED));
+        entry(Names.SYSTEM_WRITE, ThreadPoolType.FIXED),
+        entry(Names.SYSTEM_CRITICAL_READ, ThreadPoolType.FIXED),
+        entry(Names.SYSTEM_CRITICAL_WRITE, ThreadPoolType.FIXED));
 
     private final Map<String, ExecutorHolder> executors;
 
@@ -200,6 +204,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(Names.SYSTEM_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_READ, halfProcMaxAt5, 2000, false));
         builders.put(Names.SYSTEM_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, false));
+        builders.put(Names.SYSTEM_CRITICAL_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_READ, halfProcMaxAt5, 2000,
+            false));
+        builders.put(Names.SYSTEM_CRITICAL_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500,
+            false));
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
@@ -260,6 +268,20 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      */
     public long relativeTimeInNanos() {
         return cachedTimeThread.relativeTimeInNanos();
+    }
+
+    /**
+     * Returns a value of milliseconds that may be used for relative time calculations. Similar to {@link #relativeTimeInMillis()} except
+     * that this method is more expensive: the return value is computed directly from {@link System#nanoTime} and is not cached. You should
+     * use {@link #relativeTimeInMillis()} unless the extra accuracy offered by this method is worth the costs.
+     *
+     * When computing a time interval by comparing relative times in milliseconds, you should make sure that both endpoints use cached
+     * values returned from {@link #relativeTimeInMillis()} or that they both use raw values returned from this method. It doesn't really
+     * make sense to compare a raw value to a cached value, even if in practice the result of such a comparison will be approximately
+     * sensible.
+     */
+    public long rawRelativeTimeInMillis() {
+        return TimeValue.nsecToMSec(System.nanoTime());
     }
 
     /**

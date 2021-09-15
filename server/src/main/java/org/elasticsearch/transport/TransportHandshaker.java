@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
@@ -118,12 +118,12 @@ final class TransportHandshaker {
         @Override
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
-                Version version = response.responseVersion;
-                if (currentVersion.isCompatible(version) == false) {
-                    listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + version
+                Version responseVersion = response.responseVersion;
+                if (currentVersion.isCompatible(responseVersion) == false) {
+                    listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + responseVersion
                         + "] minimal compatible version is: [" + currentVersion.minimumCompatibilityVersion() + "]"));
                 } else {
-                    listener.onResponse(version);
+                    listener.onResponse(responseVersion);
                 }
             }
         }

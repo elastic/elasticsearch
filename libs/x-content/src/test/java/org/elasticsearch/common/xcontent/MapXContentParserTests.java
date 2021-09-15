@@ -8,8 +8,9 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.test.ESTestCase;
 
@@ -57,19 +58,51 @@ public class MapXContentParserTests extends ESTestCase {
         });
     }
 
-
     public void testRandomObject() throws IOException {
         compareTokens(builder -> generateRandomObject(builder, randomIntBetween(0, 10)));
     }
 
-    public void compareTokens(CheckedConsumer<XContentBuilder, IOException> consumer) throws IOException {
+    /**
+     * Assert that {@link XContentParser#hasTextCharacters()} returns false because
+     * we don't support {@link XContentParser#textCharacters()}.
+     */
+    public void testHasTextCharacters() throws IOException {
+        assertFalse(
+            new MapXContentParser(
+                xContentRegistry(),
+                LoggingDeprecationHandler.INSTANCE,
+                Map.of("a", "b"),
+                randomFrom(XContentType.values())
+            ).hasTextCharacters()
+        );
+    }
+
+    public void testCopyCurrentStructure() throws IOException {
+        try (
+            XContentParser parser = new MapXContentParser(
+                xContentRegistry(),
+                LoggingDeprecationHandler.INSTANCE,
+                Map.of("a", "b"),
+                randomFrom(XContentType.values())
+            )
+        ) {
+            try (
+                XContentBuilder builder = JsonXContent.contentBuilder().copyCurrentStructure(parser);
+                XContentParser copied = createParser(builder)
+            ) {
+                assertEquals(copied.map(), Map.of("a", "b"));
+            }
+        }
+    }
+
+    private void compareTokens(CheckedConsumer<XContentBuilder, IOException> consumer) throws IOException {
         for (XContentType xContentType : EnumSet.allOf(XContentType.class)) {
             logger.info("--> testing with xcontent type: {}", xContentType);
             compareTokens(consumer, xContentType);
         }
     }
 
-    public void compareTokens(CheckedConsumer<XContentBuilder, IOException> consumer, XContentType xContentType) throws IOException {
+    private void compareTokens(CheckedConsumer<XContentBuilder, IOException> consumer, XContentType xContentType) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             consumer.accept(builder);
             final Map<String, Object> map;

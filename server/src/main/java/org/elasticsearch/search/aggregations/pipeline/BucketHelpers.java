@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -41,9 +41,40 @@ public class BucketHelpers {
      *
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "skip": empty buckets will simply be ignored
+     * "keep_values": for empty buckets the values provided by the metrics will still be used if they are available
      */
     public enum GapPolicy implements Writeable {
-        INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip");
+        INSERT_ZEROS((byte) 0, "insert_zeros", false) {
+            @Override
+            public Double processValue(long docCount, Double value) {
+                if (Double.isInfinite(value) || Double.isNaN(value) || docCount == 0) {
+                    return 0.0;
+                } else {
+                    return value;
+                }
+            }
+        },
+
+        SKIP((byte) 1, "skip", true) {
+            @Override
+            public Double processValue(long docCount, Double value) {
+                if (Double.isInfinite(value) || docCount == 0) {
+                    return Double.NaN;
+                } else {
+                    return value;
+                }
+            }
+        },
+
+        KEEP_VALUES((byte) 2, "keep_values", true) {
+            public Double processValue(long docCount, Double value) {
+                if (Double.isInfinite(value) || Double.isNaN(value)) {
+                    return Double.NaN;
+                } else {
+                    return value;
+                }
+            }
+        };
 
         /**
          * Parse a string GapPolicy into the byte enum
@@ -59,8 +90,13 @@ public class BucketHelpers {
                     if (result == null) {
                         result = policy;
                     } else {
-                        throw new IllegalStateException("Text can be parsed to 2 different gap policies: text=[" + text
-                                + "], " + "policies=" + Arrays.asList(result, policy));
+                        throw new IllegalStateException(
+                            "Text can be parsed to 2 different gap policies: text=["
+                                + text
+                                + "], "
+                                + "policies="
+                                + Arrays.asList(result, policy)
+                        );
                     }
                 }
             }
@@ -76,10 +112,12 @@ public class BucketHelpers {
 
         private final byte id;
         private final ParseField parseField;
+        public final boolean isSkippable;
 
-        GapPolicy(byte id, String name) {
+        GapPolicy(byte id, String name, boolean isSkippable) {
             this.id = id;
             this.parseField = new ParseField(name);
+            this.isSkippable = isSkippable;
         }
 
         /**
@@ -113,6 +151,8 @@ public class BucketHelpers {
         public String getName() {
             return parseField.getPreferredName();
         }
+
+        public abstract Double processValue(long docCount, Double value);
     }
 
     /**
@@ -137,20 +177,30 @@ public class BucketHelpers {
      * @return The value extracted from <code>bucket</code> found at
      *         <code>aggPath</code>
      */
-    public static Double resolveBucketValue(MultiBucketsAggregation agg,
-            InternalMultiBucketAggregation.InternalBucket bucket, String aggPath, GapPolicy gapPolicy) {
+    public static Double resolveBucketValue(
+        MultiBucketsAggregation agg,
+        InternalMultiBucketAggregation.InternalBucket bucket,
+        String aggPath,
+        GapPolicy gapPolicy
+    ) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         return resolveBucketValue(agg, bucket, aggPathsList, gapPolicy);
     }
 
-    public static Double resolveBucketValue(MultiBucketsAggregation agg,
-            InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
+    public static Double resolveBucketValue(
+        MultiBucketsAggregation agg,
+        InternalMultiBucketAggregation.InternalBucket bucket,
+        List<String> aggPathAsList,
+        GapPolicy gapPolicy
+    ) {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
 
             if (propertyValue == null) {
-                throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                        + " must reference either a number value or a single value numeric metric aggregation");
+                throw new AggregationExecutionException(
+                    AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                        + " must reference either a number value or a single value numeric metric aggregation"
+                );
             } else {
                 double value;
                 if (propertyValue instanceof Number) {
@@ -161,18 +211,12 @@ public class BucketHelpers {
                     throw formatResolutionError(agg, aggPathAsList, propertyValue);
                 }
                 // doc count never has missing values so gap policy doesn't apply here
-                boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
-                if (Double.isInfinite(value) || Double.isNaN(value) || (bucket.getDocCount() == 0 && isDocCountProperty == false)) {
-                    switch (gapPolicy) {
-                    case INSERT_ZEROS:
-                        return 0.0;
-                    case SKIP:
-                    default:
-                        return Double.NaN;
-                    }
-                } else {
+                if (aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0))) {
                     return value;
+                } else {
+                    return gapPolicy.processValue(bucket.getDocCount(), value);
                 }
+
             }
         } catch (InvalidAggregationPathException e) {
             return null;
@@ -182,8 +226,11 @@ public class BucketHelpers {
     /**
      * Inspects where we are in the agg tree and tries to format a helpful error
      */
-    private static AggregationExecutionException formatResolutionError(MultiBucketsAggregation agg,
-                                                                       List<String> aggPathAsList, Object propertyValue) {
+    private static AggregationExecutionException formatResolutionError(
+        MultiBucketsAggregation agg,
+        List<String> aggPathAsList,
+        Object propertyValue
+    ) {
         String currentAggName;
         Object currentAgg;
         if (aggPathAsList.isEmpty()) {
@@ -194,13 +241,21 @@ public class BucketHelpers {
             currentAgg = propertyValue;
         }
         if (currentAgg instanceof InternalNumericMetricsAggregation.MultiValue) {
-            return new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference either a number value or a single value numeric metric aggregation, but [" + currentAggName
-                + "] contains multiple values. Please specify which to use.");
+            return new AggregationExecutionException(
+                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                    + " must reference either a number value or a single value numeric metric aggregation, but ["
+                    + currentAggName
+                    + "] contains multiple values. Please specify which to use."
+            );
         } else {
-            return new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference either a number value or a single value numeric metric aggregation, got: ["
-                + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
+            return new AggregationExecutionException(
+                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                    + " must reference either a number value or a single value numeric metric aggregation, got: ["
+                    + propertyValue.getClass().getSimpleName()
+                    + "] at aggregation ["
+                    + currentAggName
+                    + "]"
+            );
         }
     }
 }

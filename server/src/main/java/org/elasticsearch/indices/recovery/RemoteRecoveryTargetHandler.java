@@ -10,27 +10,31 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -169,6 +173,20 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
+    public void restoreFileFromSnapshot(String repository,
+                                        IndexId indexId,
+                                        BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+                                        ActionListener<Void> listener) {
+        final String action = PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT;
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
+        final RecoverySnapshotFileRequest request =
+            new RecoverySnapshotFileRequest(recoveryId, requestSeqNo, shardId, repository, indexId, snapshotFile);
+        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
+        final ActionListener<TransportResponse.Empty> responseListener = listener.map(r -> null);
+        executeRetryableAction(action, request, TransportRequestOptions.EMPTY, responseListener, reader);
+    }
+
+    @Override
     public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content,
                                boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
         // Pause using the rate limiter, if desired, to throttle the recovery
@@ -202,7 +220,17 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(
             recoveryId, requestSeqNo, shardId, fileMetadata, position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        executeRetryableAction(action, request, fileChunkRequestOptions, listener.map(r -> null), reader);
+
+        // Fork the actual sending onto a separate thread so we can send them concurrently even if CPU-bound (e.g. using compression).
+        // The AsyncIOProcessor and MultiFileWriter both concentrate their work onto fewer threads if possible, but once we have
+        // chunks to send we want to increase parallelism again.
+        threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
+            executeRetryableAction(
+                action,
+                request,
+                fileChunkRequestOptions,
+                ActionListener.runBefore(l.map(r -> null), request::decRef),
+                reader)));
     }
 
     @Override
@@ -232,8 +260,19 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
             @Override
             public void tryAction(ActionListener<T> listener) {
-                transportService.sendRequest(targetNode, action, request, options,
-                    new ActionListenerResponseHandler<>(listener, reader, ThreadPool.Names.GENERIC));
+                if (request.tryIncRef()) {
+                    transportService.sendRequest(
+                        targetNode,
+                        action,
+                        request,
+                        options,
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.runBefore(listener, request::decRef),
+                            reader,
+                            ThreadPool.Names.GENERIC));
+                } else {
+                    listener.onFailure(new AlreadyClosedException("already closed"));
+                }
             }
 
             @Override

@@ -13,7 +13,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -78,6 +78,7 @@ public class TestSearchContext extends SearchContext {
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
     private ScrollContext scrollContext;
+    private FieldDoc searchAfter;
     private final ShardSearchRequest request;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
@@ -337,12 +338,13 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext searchAfter(FieldDoc searchAfter) {
-        return null;
+        this.searchAfter = searchAfter;
+        return this;
     }
 
     @Override
     public FieldDoc searchAfter() {
-        return null;
+        return searchAfter;
     }
 
     @Override

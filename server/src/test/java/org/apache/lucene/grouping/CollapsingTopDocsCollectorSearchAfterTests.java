@@ -133,10 +133,11 @@ public class CollapsingTopDocsCollectorSearchAfterTests extends ESTestCase {
             currentValue = fieldDoc.fields[0];
         }
 
-        if (docsWithMissingField == false) {
-            assertEquals(expectedNumGroups, collapseTopFieldDocs.scoreDocs.length - 1);
-            assertEquals(topDocs.scoreDocs.length - 1, topDocsIndex);
+        for (; topDocsIndex < topDocs.scoreDocs.length; topDocsIndex++) {
+            FieldDoc fieldDoc = (FieldDoc) topDocs.scoreDocs[topDocsIndex];
+            assertEquals(fieldDoc.fields[0], currentValue);
         }
+
         w.close();
         reader.close();
         dir.close();
@@ -223,7 +224,7 @@ public class CollapsingTopDocsCollectorSearchAfterTests extends ESTestCase {
             @Override
             public SortField sortField(boolean reversed) {
                 SortField sortField = new SortField("field", SortField.Type.DOUBLE, reversed);
-                sortField.setMissingValue(reversed ? Double.MIN_VALUE : Double.MAX_VALUE);
+                sortField.setMissingValue(reversed ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY);
                 return sortField;
             }
         };

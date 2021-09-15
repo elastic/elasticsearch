@@ -10,7 +10,7 @@ package org.elasticsearch.client.analytics;
 
 import org.elasticsearch.client.ml.inference.results.FeatureImportance;
 import org.elasticsearch.client.ml.inference.results.TopClassEntry;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -21,6 +21,8 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 /**
  * This class parses the superset of all possible fields that may be written by
  * InferenceResults. The warning field is mutually exclusive with all the other fields.
@@ -29,8 +31,6 @@ import java.util.List;
  * Boolean or a Double. For regression results {@link #getValue()} is always
  * a Double.
  */
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 public class ParsedInference extends ParsedAggregation {
 
     @SuppressWarnings("unchecked")

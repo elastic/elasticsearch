@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Objects;
 
 import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;

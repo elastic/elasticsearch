@@ -15,7 +15,7 @@ import org.elasticsearch.client.ml.job.process.ModelSizeStats;
 import org.elasticsearch.client.ml.job.process.ModelSizeStatsTests;
 import org.elasticsearch.client.ml.job.process.TimingStats;
 import org.elasticsearch.client.ml.job.process.TimingStatsTests;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.ml.job.config.JobState;
 import org.elasticsearch.client.ml.job.config.JobTests;

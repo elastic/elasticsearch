@@ -11,6 +11,8 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpDelete;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.security.AuthenticateResponse;
+import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
+import org.elasticsearch.client.security.CreateServiceAccountTokenResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
@@ -19,7 +21,6 @@ import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GetUsersResponse;
-import org.elasticsearch.client.security.NodeEnrollmentResponse;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -32,7 +33,7 @@ import org.elasticsearch.client.security.user.privileges.GlobalPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,12 +44,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityIT extends ESRestHighLevelClientTestCase {
 
@@ -129,6 +130,41 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final DeleteUserResponse deleteUserResponse2 =
             execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
         assertThat(deleteUserResponse2.isAcknowledged(), is(false));
+
+        // Test the authenticate response for a service token
+        {
+            RestHighLevelClient client = highLevelClient();
+            CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+            CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
+                client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
+
+            AuthenticateResponse response = client.security().authenticate(
+                RequestOptions.DEFAULT.toBuilder().addHeader(
+                    "Authorization", "Bearer " + createServiceAccountTokenResponse.getValue().toString()).build());
+
+            User user = response.getUser();
+            boolean enabled = response.enabled();
+            final String authenticationRealmName = response.getAuthenticationRealm().getName();
+            final String authenticationRealmType = response.getAuthenticationRealm().getType();
+            final String lookupRealmName = response.getLookupRealm().getName();
+            final String lookupRealmType = response.getLookupRealm().getType();
+            final String authenticationType = response.getAuthenticationType();
+            final Map<String, Object> token = response.getToken();
+
+            assertThat(user.getUsername(), is("elastic/fleet-server"));
+            assertThat(user.getRoles(), empty());
+            assertThat(user.getFullName(), equalTo("Service account - elastic/fleet-server"));
+            assertThat(user.getEmail(), nullValue());
+            assertThat(user.getMetadata(), equalTo(Map.of("_elastic_service_account", true)));
+            assertThat(enabled, is(true));
+            assertThat(authenticationRealmName, is("_service_account"));
+            assertThat(authenticationRealmType, is("_service_account"));
+            assertThat(lookupRealmName, is("_service_account"));
+            assertThat(lookupRealmType, is("_service_account"));
+            assertThat(authenticationType, is("token"));
+            assertThat(token, equalTo(Map.of("name", "token1", "type", "_service_account_index")));
+        }
     }
 
     public void testPutRole() throws Exception {
@@ -154,19 +190,6 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final DeleteRoleResponse deleteRoleResponse = securityClient.deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
         // assert role deleted
         assertThat(deleteRoleResponse.isFound(), is(true));
-    }
-
-    @AwaitsFix(bugUrl = "Determine behavior for keystore with multiple keys")
-    public void testEnrollNode() throws Exception {
-        final NodeEnrollmentResponse nodeEnrollmentResponse =
-            execute(highLevelClient().security()::enrollNode, highLevelClient().security()::enrollNodeAsync, RequestOptions.DEFAULT);
-        assertThat(nodeEnrollmentResponse, notNullValue());
-        assertThat(nodeEnrollmentResponse.getHttpCaKey(), endsWith("ECAwGGoA=="));
-        assertThat(nodeEnrollmentResponse.getHttpCaCert(), endsWith("ECAwGGoA=="));
-        assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("fSI09on8AgMBhqA="));
-        assertThat(nodeEnrollmentResponse.getTransportCert(), endsWith("fSI09on8AgMBhqA="));
-        List<String> nodesAddresses = nodeEnrollmentResponse.getNodesAddresses();
-        assertThat(nodesAddresses.size(), equalTo(1));
     }
 
     private void deleteUser(User user) throws IOException {

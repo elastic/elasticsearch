@@ -1,5 +1,5 @@
 
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -29,4 +29,6 @@ testClusters.all {
   extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"
   user username: "security_test_user", password: "security-test-password", role: "security_test_role"
+  user username: "api_key_admin", password: "security-test-password", role: "api_key_admin_role"
+  user username: "api_key_user", password: "security-test-password", role: "api_key_user_role"
 }

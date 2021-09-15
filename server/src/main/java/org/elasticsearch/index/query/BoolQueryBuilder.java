@@ -13,7 +13,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,6 +21,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -251,7 +252,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         doXArrayContent(FILTER, filterClauses, builder, params);
         doXArrayContent(MUST_NOT, mustNotClauses, builder, params);
         doXArrayContent(SHOULD, shouldClauses, builder, params);
-        if (adjustPureNegative != ADJUST_PURE_NEGATIVE_DEFAULT) {
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
+        } else if (adjustPureNegative != ADJUST_PURE_NEGATIVE_DEFAULT) {
             builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
         }
         if (minimumShouldMatch != null) {

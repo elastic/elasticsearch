@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -68,4 +68,3 @@ testClusters.matching { it.name == "follow-cluster" }.configureEach {
 }
 
 tasks.named("check").configure { dependsOn "follow-cluster" }
-tasks.named("test").configure { enabled = false } // no unit tests for multi-cluster-search, only the rest integration test

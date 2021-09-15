@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -18,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-//import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
-import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.rest.RestTermsEnumAction;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -63,30 +62,32 @@ public class RestTermsEnumActionTests extends ESTestCase {
      * This lower level of execution is out of the scope of this test.
      */
     @BeforeClass
-    @SuppressWarnings("rawtypes")
     public static void stubTermEnumAction() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
-        final TransportAction transportAction = new TransportAction(TermsEnumAction.NAME,
-            new ActionFilters(Collections.emptySet()), taskManager) {
+        final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
+            TermsEnumAction.NAME,
+            new ActionFilters(Collections.emptySet()),
+            taskManager
+        ) {
             @Override
-            protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
-            }
+            protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
         };
 
-        final Map<ActionType, TransportAction> actions = new HashMap<>();
+        final Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
+            new HashMap<>();
         actions.put(TermsEnumAction.INSTANCE, transportAction);
 
         client.initialize(actions, taskManager, () -> "local",
-            mock(Transport.Connection.class), null, new NamedWriteableRegistry(List.of()));        
+            mock(Transport.Connection.class), null, new NamedWriteableRegistry(List.of()));
         controller.registerHandler(action);
     }
-    
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
-    }    
+    }
 
     @AfterClass
     public static void terminateThreadPool() {
@@ -119,7 +120,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
         assertThat(channel.errors().get(), equalTo(0));
         assertNull(channel.capturedResponse());
     }
-    
+
     public void testRestTermEnumActionMissingField() throws Exception {
         // GIVEN an invalid query
         final String content = "{"
@@ -137,9 +138,9 @@ public class RestTermsEnumActionTests extends ESTestCase {
         assertThat(channel.responses().get(), equalTo(0));
         assertThat(channel.errors().get(), equalTo(1));
         assertThat(channel.capturedResponse().content().utf8ToString(), containsString("field cannot be null"));
-    }    
-    
-    
+    }
+
+
     private RestRequest createRestRequest(String content) {
         return new FakeRestRequest.Builder(xContentRegistry())
             .withPath("index1/_terms_enum")

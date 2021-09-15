@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -259,6 +261,41 @@ public class RecoveryTargetTests extends ESTestCase {
         long recoveredBytes = 0;
         long sourceThrottling = Index.UNKNOWN;
         long targetThrottling = Index.UNKNOWN;
+
+        List<FileDetail> filesToRecoverFromSnapshot = randomSubsetOf(filesToRecover);
+        for (FileDetail fileDetail : filesToRecoverFromSnapshot) {
+            if (bytesToRecover <= 0) {
+                break;
+            }
+
+            final long throttledOnTarget = rarely() ? randomIntBetween(10, 200) : 0;
+            if (targetThrottling == Index.UNKNOWN) {
+                targetThrottling = throttledOnTarget;
+            } else {
+                targetThrottling += throttledOnTarget;
+            }
+            index.addTargetThrottling(throttledOnTarget);
+
+            if (fileDetail.length() <= bytesToRecover && randomBoolean()) {
+                index.addRecoveredFromSnapshotBytesToFile(fileDetail.name(), fileDetail.length());
+                fileDetail.addRecoveredFromSnapshotBytes(fileDetail.length());
+
+                assertThat(fileDetail.recovered(), is(equalTo(fileDetail.length())));
+                assertThat(fileDetail.recoveredFromSnapshot(), is(equalTo(fileDetail.length())));
+                assertThat(fileDetail.fullyRecovered(), is(equalTo(true)));
+
+                bytesToRecover -= fileDetail.length();
+                recoveredBytes += fileDetail.length();
+                filesToRecover.remove(fileDetail);
+            } else {
+                long bytesRecoveredFromSnapshot = randomLongBetween(0, fileDetail.length());
+                index.addRecoveredFromSnapshotBytesToFile(fileDetail.name(), bytesRecoveredFromSnapshot);
+                index.resetRecoveredBytesOfFile(fileDetail.name());
+                fileDetail.addRecoveredFromSnapshotBytes(bytesRecoveredFromSnapshot);
+                fileDetail.resetRecoveredBytes();
+            }
+        }
+
         while (bytesToRecover > 0) {
             FileDetail file = randomFrom(filesToRecover);
             final long toRecover = Math.min(bytesToRecover, randomIntBetween(1, (int) (file.length() - file.recovered())));

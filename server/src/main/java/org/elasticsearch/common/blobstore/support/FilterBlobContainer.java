@@ -13,9 +13,11 @@ import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -59,6 +61,12 @@ public abstract class FilterBlobContainer implements BlobContainer {
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         delegate.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+    }
+
+    @Override
+    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        delegate.writeBlob(blobName, failIfAlreadyExists, atomic, writer);
     }
 
     @Override

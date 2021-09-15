@@ -17,12 +17,11 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;
 
@@ -54,8 +53,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 break;
         }
 
-        Point p = RandomShapeGenerator.xRandomPoint(random());
-        qb.point(new GeoPoint(p.getY(), p.getX()));
+        qb.point(new GeoPoint(GeometryTestUtils.randomLat(), GeometryTestUtils.randomLon()));
 
         if (randomBoolean()) {
             qb.setValidationMethod(randomFrom(GeoValidationMethod.values()));

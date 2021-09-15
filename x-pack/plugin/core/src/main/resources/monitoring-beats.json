@@ -9,7 +9,7 @@
     "index.number_of_replicas": 0,
     "index.number_of_shards": 1
   },
-  "version": 7120099,
+  "version": 7140099,
   "mappings": {
     "_doc": {
       "dynamic": false,
@@ -291,6 +291,9 @@
                               "type": "long"
                             }
                           }
+                        },
+                        "version": {
+                          "type": "keyword"
                         }
                       }
                     },

@@ -14,10 +14,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -44,6 +43,7 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
@@ -100,19 +100,9 @@ public class ClusterStatsRestCancellationIT extends HttpSmokeTestCase {
 
             final Request clusterStatsRequest = new Request(HttpGet.METHOD_NAME, "/_cluster/stats");
 
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            final PlainActionFuture<Response> future = new PlainActionFuture<>();
             logger.info("--> sending cluster state request");
-            final Cancellable cancellable = getRestClient().performRequestAsync(clusterStatsRequest, new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    future.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception exception) {
-                    future.onFailure(exception);
-                }
-            });
+            final Cancellable cancellable = getRestClient().performRequestAsync(clusterStatsRequest, wrapAsRestResponseListener(future));
 
             awaitTaskWithPrefix(ClusterStatsAction.NAME);
 

@@ -41,12 +41,18 @@ import java.io.IOException;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.startsWith;
 
 public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMultiTermQueryBuilder> {
+
+    @Override
+    protected boolean supportsBoost() {
+        return false;
+    }
+
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
@@ -82,7 +88,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         assertThat(query, either(instanceOf(SpanMultiTermQueryWrapper.class))
                 .or(instanceOf(FieldMaskingSpanQuery.class)));
         if (query instanceof SpanMultiTermQueryWrapper) {
-            SpanMultiTermQueryWrapper wrapper = (SpanMultiTermQueryWrapper) query;
+            SpanMultiTermQueryWrapper<?> wrapper = (SpanMultiTermQueryWrapper<?>) query;
             Query innerQuery = queryBuilder.innerQuery().toQuery(context);
             if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
                 assertThat(innerQuery, instanceOf(BoostQuery.class));
@@ -195,7 +201,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         {
             Query query = new SpanMultiTermQueryBuilder(new PrefixQueryBuilder(fieldName, "f")).toQuery(context);
             assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
-            SpanMultiTermQueryWrapper wrapper = (SpanMultiTermQueryWrapper) query;
+            SpanMultiTermQueryWrapper<?> wrapper = (SpanMultiTermQueryWrapper<?>) query;
             assertThat(wrapper.getWrappedQuery(), instanceOf(PrefixQuery.class));
             assertThat(wrapper.getField(), equalTo("prefix_field"));
             PrefixQuery prefixQuery = (PrefixQuery) wrapper.getWrappedQuery();

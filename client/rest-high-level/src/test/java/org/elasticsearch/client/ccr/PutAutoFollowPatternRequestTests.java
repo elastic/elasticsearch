@@ -10,7 +10,7 @@ package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
@@ -28,7 +28,10 @@ public class PutAutoFollowPatternRequestTests extends AbstractRequestTestCase<
     protected PutAutoFollowPatternRequest createClientTestInstance() {
         // Name isn't serialized, because it specified in url path, so no need to randomly generate it here.
         PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest("name",
-            randomAlphaOfLength(4), Arrays.asList(generateRandomStringArray(4, 4, false)));
+            randomAlphaOfLength(4),
+            Arrays.asList(generateRandomStringArray(4, 4, false)),
+            Arrays.asList(generateRandomStringArray(4, 4, false))
+        );
         if (randomBoolean()) {
             putAutoFollowPatternRequest.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
@@ -75,6 +78,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractRequestTestCase<
         assertThat(serverInstance.getName(), equalTo(clientTestInstance.getName()));
         assertThat(serverInstance.getRemoteCluster(), equalTo(clientTestInstance.getRemoteCluster()));
         assertThat(serverInstance.getLeaderIndexPatterns(), equalTo(clientTestInstance.getLeaderIndexPatterns()));
+        assertThat(serverInstance.getLeaderIndexExclusionPatterns(), equalTo(clientTestInstance.getLeaderIndexExclusionPatterns()));
         assertThat(serverInstance.getFollowIndexNamePattern(), equalTo(clientTestInstance.getFollowIndexNamePattern()));
         assertFollowConfig(serverInstance.getParameters(), clientTestInstance);
     }

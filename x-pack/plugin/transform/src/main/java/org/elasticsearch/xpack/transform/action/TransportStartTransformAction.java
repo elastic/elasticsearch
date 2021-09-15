@@ -22,9 +22,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -223,10 +224,13 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         // <2> run transform validations
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
-            if (config.isValid() == false) {
+            ValidationException validationException = config.validate(null);
+            if (validationException != null) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIG_INVALID, request.getId()),
+                        TransformMessages.getMessage(
+                            TransformMessages.TRANSFORM_CONFIGURATION_INVALID, request.getId(), validationException.getMessage()
+                        ),
                         RestStatus.BAD_REQUEST
                     )
                 );

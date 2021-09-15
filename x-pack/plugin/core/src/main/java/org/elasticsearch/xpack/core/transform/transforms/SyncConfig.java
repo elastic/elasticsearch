@@ -13,13 +13,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 public interface SyncConfig extends ToXContentObject, NamedWriteable {
 
-    /**
-     * Validate configuration
-     *
-     * @return true if valid
-     */
-    boolean isValid();
-
     String getField();
 
     QueryBuilder getRangeQuery(TransformCheckpoint newCheckpoint);

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.extractor;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.Set;

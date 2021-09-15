@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,8 +15,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Describes the capabilities of a field in a single index.
@@ -52,47 +49,22 @@ public class IndexFieldCapabilities implements Writeable {
     }
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.name = in.readString();
-            this.type = in.readString();
-            this.isMetadatafield = in.getVersion().onOrAfter(Version.V_7_13_0) ? in.readBoolean() : false;
-            this.isSearchable = in.readBoolean();
-            this.isAggregatable = in.readBoolean();
-            this.meta = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            // Previously we reused the FieldCapabilities class to represent index field capabilities.
-            FieldCapabilities fieldCaps = new FieldCapabilities(in);
-            this.name = fieldCaps.getName();
-            this.type = fieldCaps.getType();
-            this.isMetadatafield = fieldCaps.isMetadataField();
-            this.isSearchable = fieldCaps.isSearchable();
-            this.isAggregatable = fieldCaps.isAggregatable();
-            this.meta = fieldCaps.meta().entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                entry -> entry.getValue().iterator().next()));
-        }
+        this.name = in.readString();
+        this.type = in.readString();
+        this.isMetadatafield = in.readBoolean();
+        this.isSearchable = in.readBoolean();
+        this.isAggregatable = in.readBoolean();
+        this.meta = in.readMap(StreamInput::readString, StreamInput::readString);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeString(name);
-            out.writeString(type);
-            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-                out.writeBoolean(isMetadatafield);
-            }
-            out.writeBoolean(isSearchable);
-            out.writeBoolean(isAggregatable);
-            out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
-        } else {
-            // Previously we reused the FieldCapabilities class to represent index field capabilities.
-            Map<String, Set<String>> wrappedMeta = meta.entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                entry -> Set.of(entry.getValue())));
-            FieldCapabilities fieldCaps = new FieldCapabilities(name, type, isMetadatafield,
-                isSearchable, isAggregatable, null, null, null, wrappedMeta);
-            fieldCaps.writeTo(out);
-        }
+        out.writeString(name);
+        out.writeString(type);
+        out.writeBoolean(isMetadatafield);
+        out.writeBoolean(isSearchable);
+        out.writeBoolean(isAggregatable);
+        out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     public String getName() {

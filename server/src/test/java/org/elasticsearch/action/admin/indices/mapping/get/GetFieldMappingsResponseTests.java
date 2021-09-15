@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -70,6 +70,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
             response.toXContent(builder, params);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                @SuppressWarnings("unchecked")
                 Map<String, Map<String, Map<String, Object>>> index =
                     (Map<String, Map<String, Map<String, Object>>>) parser.map().get("index");
                 assertThat(index.get("mappings"), hasKey(MapperService.SINGLE_MAPPING_NAME));
@@ -82,6 +83,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                @SuppressWarnings("unchecked")
                 Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
                 assertThat(index.get("mappings"), hasKey("field"));
             }
@@ -92,6 +94,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
             response.toXContent(builder, params);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                @SuppressWarnings("unchecked")
                 Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
                 assertThat(index.get("mappings"), hasKey("field"));
             }
@@ -101,6 +104,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                @SuppressWarnings("unchecked")
                 Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
                 assertThat(index.get("mappings"), hasKey("field"));
             }

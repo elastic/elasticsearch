@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.math.BigDecimal;

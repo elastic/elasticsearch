@@ -25,20 +25,20 @@ import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -96,18 +96,18 @@ public class VersionStringFieldMapper extends FieldMapper {
             super(name);
         }
 
-        private VersionStringFieldType buildFieldType(ContentPath contentPath, FieldType fieldtype) {
-            return new VersionStringFieldType(buildFullName(contentPath), fieldtype, meta.getValue());
+        private VersionStringFieldType buildFieldType(MapperBuilderContext context, FieldType fieldtype) {
+            return new VersionStringFieldType(context.buildFullName(name), fieldtype, meta.getValue());
         }
 
         @Override
-        public VersionStringFieldMapper build(ContentPath contentPath) {
+        public VersionStringFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             return new VersionStringFieldMapper(
                 name,
                 fieldtype,
-                buildFieldType(contentPath, fieldtype),
-                multiFieldsBuilder.build(this, contentPath),
+                buildFieldType(context, fieldtype),
+                multiFieldsBuilder.build(this, context),
                 copyTo.build()
             );
         }
@@ -292,14 +292,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
-            }
-            if (timeZone != null) {
-                throw new IllegalArgumentException(
-                    "Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones"
-                );
-            }
+            checkNoFormat(format);
+            checkNoTimeZone(timeZone);
             return VERSION_DOCVALUE;
         }
 
@@ -341,7 +335,7 @@ public class VersionStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         String versionString;
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {

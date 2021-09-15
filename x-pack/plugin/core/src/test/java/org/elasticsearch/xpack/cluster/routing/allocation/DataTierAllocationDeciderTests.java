@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
 import joptsimple.internal.Strings;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -35,9 +36,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.xpack.core.DataTier;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -218,7 +220,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         Setting<String> setting = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING;
         Settings.Builder builder = Settings.builder().put(setting.getKey(), value);
         if (randomBoolean()) {
-            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
         }
 
         Settings settings = builder.build();
@@ -229,7 +231,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testFrozenLegalForPartialSnapshot() {
         Setting<String> setting = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING;
         Settings.Builder builder = Settings.builder().put(setting.getKey(), DATA_FROZEN);
-        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
         builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
         Settings settings = builder.build();
@@ -249,7 +251,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         {
             String value = Strings.join(tierList, ",");
             Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, value);
-            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
             builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
             Settings settings = builder.build();
@@ -262,7 +264,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         {
             Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "");
-            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
             builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
             Settings settings = builder.build();
@@ -275,7 +277,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         {
             Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "  ");
-            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
             builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
             Settings settings = builder.build();
@@ -291,35 +293,10 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(Settings.EMPTY), equalTo(""));
 
         Settings.Builder builder = Settings.builder();
-        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
         builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
         Settings settings = builder.build();
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings), equalTo(DATA_FROZEN));
-    }
-
-    private ClusterState prepareState(ClusterState initialState) {
-        return prepareState(initialState, Settings.EMPTY);
-    }
-
-    private ClusterState prepareState(ClusterState initialState, Settings indexSettings) {
-        return ClusterState.builder(initialState)
-            .nodes(DiscoveryNodes.builder()
-                .add(HOT_NODE)
-                .add(WARM_NODE)
-                .add(COLD_NODE)
-                .add(DATA_NODE)
-                .build())
-            .metadata(Metadata.builder()
-                .put(IndexMetadata.builder("myindex")
-                    .settings(Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(indexSettings)
-                        .build()))
-                .build())
-            .build();
     }
 }

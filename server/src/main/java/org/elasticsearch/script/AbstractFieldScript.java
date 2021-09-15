@@ -10,8 +10,6 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -21,13 +19,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 /**
  * Abstract base for scripts to execute to build scripted fields. Inspired by
  * {@link AggregationScript} but hopefully with less historical baggage.
  */
-public abstract class AbstractFieldScript {
+public abstract class AbstractFieldScript extends DocBasedScript {
     /**
      * The maximum number of values a script should be allowed to emit.
      */
@@ -69,23 +67,19 @@ public abstract class AbstractFieldScript {
     );
 
     protected final String fieldName;
+    protected final SourceLookup sourceLookup;
     private final Map<String, Object> params;
-    protected final LeafSearchLookup leafSearchLookup;
 
     public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        this.fieldName = fieldName;
-        this.leafSearchLookup = searchLookup.getLeafSearchLookup(ctx);
-        params = new HashMap<>(params);
-        params.put("_source", leafSearchLookup.source());
-        params.put("_fields", leafSearchLookup.fields());
-        this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
-    }
+        super(new DocValuesDocReader(searchLookup, ctx));
 
-    /**
-     * Set the document to run the script against.
-     */
-    public final void setDocument(int docId) {
-        this.leafSearchLookup.setDocument(docId);
+        this.fieldName = fieldName;
+        Map<String, Object> docAsMap = docAsMap();
+        this.sourceLookup = (SourceLookup)docAsMap.get("_source");
+        params = new HashMap<>(params);
+        params.put("_source", sourceLookup);
+        params.put("_fields", docAsMap.get("_fields"));
+        this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
     }
 
     /**
@@ -95,15 +89,18 @@ public abstract class AbstractFieldScript {
         return params;
     }
 
-    /**
-     * Expose field data to the script as {@code doc}.
-     */
-    public final Map<String, ScriptDocValues<?>> getDoc() {
-        return leafSearchLookup.doc();
+    protected List<Object> extractFromSource(String path) {
+        return XContentMapValues.extractRawValues(path, sourceLookup.source());
     }
 
-    protected List<Object> extractFromSource(String path) {
-        return XContentMapValues.extractRawValues(path, leafSearchLookup.source().source());
+    protected final void emitFromCompositeScript(CompositeFieldScript compositeFieldScript) {
+        List<Object> values = compositeFieldScript.getValues(fieldName);
+        if (values == null) {
+            return;
+        }
+        for (Object value : values) {
+            emitFromObject(value);
+        }
     }
 
     protected abstract void emitFromObject(Object v);

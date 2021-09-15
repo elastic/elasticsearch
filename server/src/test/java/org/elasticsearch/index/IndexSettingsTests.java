@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -543,6 +543,6 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadata metadata = newIndexMeta("test", settings);
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         assertThat(indexSettings.hasCustomDataPath(), is(true));
-        assertSettingDeprecationsAndWarnings(new Setting[] { IndexMetadata.INDEX_DATA_PATH_SETTING });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexMetadata.INDEX_DATA_PATH_SETTING });
     }
 }

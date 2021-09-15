@@ -34,6 +34,7 @@ public class MockRestHighLevelTests extends ESTestCase {
     @Before
     private void setupClient() throws IOException {
         final RestClient mockClient = mock(RestClient.class);
+        RestHighLevelClientTests.mockGetRoot(mockClient);
         final Response mockResponse = mock(Response.class);
 
         when(mockResponse.getHost()).thenReturn(new HttpHost("localhost", 9200));

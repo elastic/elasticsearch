@@ -32,10 +32,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -317,12 +317,41 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             @Override
+            public void addRemovedListener(ActionListener<Void> listener) {
+            }
+
+            @Override
             public boolean isClosed() {
                 return false;
             }
 
             @Override
             public void close() {
+            }
+
+            @Override
+            public void incRef() {
+            }
+
+            @Override
+            public boolean tryIncRef() {
+                return true;
+            }
+
+            @Override
+            public boolean decRef() {
+                assert false : "shouldn't release a mock connection";
+                return false;
+            }
+
+            @Override
+            public boolean hasReferences() {
+                return true;
+            }
+
+            @Override
+            public void onRemoved() {
+                assert false : "shouldn't remove a mock connection";
             }
         };
 

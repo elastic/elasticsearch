@@ -8,11 +8,11 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -230,6 +230,20 @@ public class RoundingTests extends ESTestCase {
             long[] bounds = randomDateBounds(unit);
             assertUnitRoundingSameAsJavaUtilTimeImplementation(unit, tz, bounds[0], bounds[1]);
         }
+    }
+
+    /**
+     * This test chooses a date in the middle of the transition, so that we can test
+     * if the transition which is before the minLookup, but still should be applied
+     * is not skipped
+     */
+    public void testRoundingAroundDST() {
+        Rounding.DateTimeUnit unit = Rounding.DateTimeUnit.DAY_OF_MONTH;
+        ZoneId tz = ZoneId.of("Canada/Newfoundland");
+        long minLookup = 688618001000L; // 1991-10-28T02:46:41.527Z
+        long maxLookup = 688618001001L; // +1sec
+        // there is a Transition[Overlap at 1991-10-27T00:01-02:30 to -03:30] ”
+        assertUnitRoundingSameAsJavaUtilTimeImplementation(unit, tz, minLookup, maxLookup);
     }
 
     private void assertUnitRoundingSameAsJavaUtilTimeImplementation(Rounding.DateTimeUnit unit, ZoneId tz, long start, long end) {

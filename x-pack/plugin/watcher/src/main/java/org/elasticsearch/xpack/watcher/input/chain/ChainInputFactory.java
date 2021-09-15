@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.chain;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
@@ -37,9 +37,11 @@ public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Resul
 
     @Override
     public ExecutableChainInput createExecutable(ChainInput input) {
-        List<Tuple<String, ExecutableInput>> executableInputs = new ArrayList<>();
+        List<Tuple<String, ExecutableInput<?, ?>>> executableInputs = new ArrayList<>();
         for (Tuple<String, Input> tuple : input.getInputs()) {
-            ExecutableInput executableInput = inputRegistry.factories().get(tuple.v2().type()).createExecutable(tuple.v2());
+            @SuppressWarnings("unchecked")
+            ExecutableInput<?, ?> executableInput =
+                ((InputFactory<Input, ?, ?>) inputRegistry.factories().get(tuple.v2().type())).createExecutable(tuple.v2());
             executableInputs.add(new Tuple<>(tuple.v1(), executableInput));
         }
 

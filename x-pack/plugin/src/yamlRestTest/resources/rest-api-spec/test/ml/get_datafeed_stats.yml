@@ -152,6 +152,7 @@ setup:
   - match:  { datafeeds.0.datafeed_id: "datafeed-1"}
   - match:  { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
+  - is_false: datafeeds.0.running_state
   - match:  { datafeeds.0.timing_stats.job_id: "get-datafeed-stats-1" }
   - match:  { datafeeds.0.timing_stats.search_count: 0 }
   - match:  { datafeeds.0.timing_stats.total_search_time_ms: 0.0}
@@ -162,6 +163,7 @@ setup:
   - match:  { datafeeds.0.datafeed_id: "datafeed-2"}
   - match:  { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
+  - is_false: datafeeds.0.running_state
   - match:  { datafeeds.0.timing_stats.job_id: "get-datafeed-stats-2" }
   - match:  { datafeeds.0.timing_stats.search_count: 0 }
   - match:  { datafeeds.0.timing_stats.total_search_time_ms: 0.0}
@@ -185,6 +187,8 @@ setup:
   - match: { datafeeds.0.state: "started"}
   - is_true: datafeeds.0.node.name
   - is_true: datafeeds.0.node.transport_address
+  - is_true: datafeeds.0.running_state
+  - is_true: datafeeds.0.running_state.real_time_configured
 
 ---
 "Test get stats for started datafeed contains timing stats":

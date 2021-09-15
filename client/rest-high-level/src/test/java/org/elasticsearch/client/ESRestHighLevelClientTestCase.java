@@ -345,7 +345,8 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             TaskGroup taskGroup = taskGroups.get(0);
             assertThat(taskGroup.getChildTasks(), empty());
             // check that the task initialized enough that it can rethrottle too.
-            if (((RawTaskStatus) taskGroup.getTaskInfo().getStatus()).toMap().containsKey("batches")) {
+            Map<String, Object> statusMap = ((RawTaskStatus) taskGroup.getTaskInfo().getStatus()).toMap();
+            if (statusMap.get("batches").equals(1)) {
                 return taskGroup.getTaskInfo().getTaskId();
             }
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));

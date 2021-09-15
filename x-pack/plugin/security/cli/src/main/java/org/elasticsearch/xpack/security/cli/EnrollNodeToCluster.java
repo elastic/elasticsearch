@@ -71,6 +71,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
@@ -425,17 +426,10 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
 
         // We have everything, let's write to the config
         try {
-            final List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
 
             fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
                 try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
-                    // Remove previous auto-configuration
-                    final List<String> existingConfigWithoutAutoconfiguration = Arrays.stream(
-                        existingConfigLines.stream()
-                            .collect(Collectors.joining(System.lineSeparator()))
-                            .replace("(?s)" + AUTO_CONFIGURATION_START_MARKER + ".*?" + AUTO_CONFIGURATION_END_MARKER, "")
-                            .split(System.lineSeparator())
-                    ).collect(Collectors.toList());
+                    List<String> existingConfigWithoutAutoconfiguration = removePreviousAutoconfiguration(ymlPath);
                     // start with the existing config lines
                     for (String line : existingConfigWithoutAutoconfiguration) {
                         bw.write(line);
@@ -651,6 +645,20 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
                 e
             );
         }
+    }
+
+    static List<String> removePreviousAutoconfiguration(Path ymlPath) throws IOException {
+        final List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
+        // Remove previous auto-configuration
+        return Arrays.stream(
+            existingConfigLines.stream()
+                .collect(Collectors.joining(System.lineSeparator()))
+                .replaceAll(
+                    "(?s)" + Pattern.quote(AUTO_CONFIGURATION_START_MARKER) + ".*?" + Pattern.quote(AUTO_CONFIGURATION_END_MARKER),
+                    ""
+                )
+                .split(System.lineSeparator())
+        ).collect(Collectors.toList());
     }
 
     void checkExistingConfiguration(Settings settings, boolean shouldForce) throws UserException {

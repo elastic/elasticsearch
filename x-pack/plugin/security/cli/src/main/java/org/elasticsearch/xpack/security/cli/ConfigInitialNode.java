@@ -86,8 +86,8 @@ public class ConfigInitialNode extends EnvironmentAwareCommand {
     private static final int HTTP_CERTIFICATE_DAYS = 2 * 365;
     private static final int HTTP_KEY_SIZE = 4096;
     private static final String TLS_CONFIG_DIR_NAME_PREFIX = "tls_auto_config_initial_node_";
-    static final String AUTO_CONFIGURATION_START_MARKER = "---------------------- Security auto configuration start ---------------------";
-    static final String AUTO_CONFIGURATION_END_MARKER = "---------------------- Security auto configuration end ---------------------";
+    static final String AUTO_CONFIGURATION_START_MARKER = "#---------------------- Security auto configuration start ---------------------#";
+    static final String AUTO_CONFIGURATION_END_MARKER = "#---------------------- Security auto configuration end -----------------------#";
 
     private final OptionSpec<Void> strictOption = parser.accepts("strict", "Error if auto config cannot be performed for any reason");
 

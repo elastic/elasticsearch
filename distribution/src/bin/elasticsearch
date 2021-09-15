@@ -20,8 +20,9 @@ DAEMONIZE=false
 ENROLL_TO_CLUSTER=false
 # Store original arg array as we will be shifting through it below
 ARG_LIST=($@)
+
 while [ $# -gt 0 ]; do
-   if [[ $1 == "--enrollment-token" ]]; then
+   if [[ $1 == "$ENROLLMENT_TOKEN_PARAM" ]]; then
      ENROLL_TO_CLUSTER=true
      ENROLLMENT_TOKEN="$2"
      shift
@@ -33,6 +34,13 @@ while [ $# -gt 0 ]; do
    if [[ $# -gt 0 ]]; then
      shift
    fi
+done
+
+# Remove enrollment related parameters before passing the arg list to Elasticsearch
+for i in "${!ARG_LIST[@]}"; do
+  if [[ ${ARG_LIST[i]} = "--enrollment-token" || ${ARG_LIST[i]} = "$ENROLLMENT_TOKEN" ]]; then
+    unset 'ARG_LIST[i]'
+  fi
 done
 
 if [ -z "$ES_TMPDIR" ]; then

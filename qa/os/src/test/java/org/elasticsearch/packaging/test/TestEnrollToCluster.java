@@ -64,8 +64,8 @@ public class TestEnrollToCluster extends PackagingTestCase {
      */
     @Before
     public void setupMockEsNode() throws Exception {
-        String enrollmentResponseBody = "{\"nodes_addresses\"=[\"127.0.0.1:9300\", \"192.168.1.10:9301\"], "
-            + "\"http_ca_key\"=\"MIIJQQIBADANBgkqhkiG9w0BAQEFAASCCSswggknAgEAAoICAQDZ3Iln8S81Y80z4DKVo8+UbB8hBwHSr17BE/YuiIFthoCne9T2"
+        String enrollmentResponseBody = "{\"nodes_addresses\":[\"127.0.0.1:9300\", \"192.168.1.10:9301\"], "
+            + "\"http_ca_key\":\"MIIJQQIBADANBgkqhkiG9w0BAQEFAASCCSswggknAgEAAoICAQDZ3Iln8S81Y80z4DKVo8+UbB8hBwHSr17BE/YuiIFthoCne9T2"
             + "1Kg1h48vCqAYH8gSZHiQYUVwqbuoLbdoHvPEDmqPPAJGbnyTHum1O1aEEduALShfsFUZ5PQH8Hx4ycqLV/63iIYvb2If0pAEyzZ95qzn7SF7F2Qus1L20h"
             + "mU9ZVA+ogcsOIui5OT21fNrUcKxAGM1KuZx0pK0aBG5mMLLJ5VbO/rSuetc/9EbKSnmW/LvDm1arBoEI9stMBA6fcLKK95JV7n5eWyCyLBjdGCWNZNn172"
             + "BmxY4FS4dKMLtKoKUTaWrPgJgrvrp+G7e+9o9f3eBuP4+ja6pjTlxcMR+pzF2TWGZn+oyey3Uy15djuuMNbZINXui/bwTEK5X43vx1QHEaTGiwbUovLHqm"
@@ -92,7 +92,7 @@ public class TestEnrollToCluster extends PackagingTestCase {
             + "rZUQKCAQAfpKXqkoh/fr545DRrd1EfZ95p3YqtntDI8LxmEYOwEt3Psa970kxHVWDmIrRn5sUhgKIupGB1LBzw3Bey2KGw0fCyO0wBhMQBXgIigKdYOzkq"
             + "AhUBaAMw0OFHbQVhR0poERcRLH88OnjaetFYtdhEh/uCHRfZnwi1S6EBgaL+du1tCsf1D+5spYFSEpvISnYhnagRQls5DxCg6gXd0Rfmxy4+mawyWMjAL3"
             + "uLIkkcxHTQ/dYOeFbkXLkBEKfmub2mJ/ZGiWeoyk6upeSEnYFjtRnVXz6DofEg71LfA3PcpBQ4GojOJDqtEn+sG7FQu8rjmDHW2o8lcCYim1H3ueoN\", "
-            + "\"http_ca_cert\"=\"MIIFvzCCA6egAwIBAgIUe1O6tJamvnXJHOyni1Lq7MHP+acwDQYJKoZIhvcNAQELBQAwbzELMAkGA1UEBhMCQVUxEzARBgNVBAgM"
+            + "\"http_ca_cert\":\"MIIFvzCCA6egAwIBAgIUe1O6tJamvnXJHOyni1Lq7MHP+acwDQYJKoZIhvcNAQELBQAwbzELMAkGA1UEBhMCQVUxEzARBgNVBAgM"
             + "ClNvbWUtU3RhdGUxITAfBgNVBAoMGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEoMCYGA1UEAwwfRWxhc3RpY3NlYXJjaCBUZXN0IENhc2UgSFRUUCBDQTAeF"
             + "w0yMTA5MDQxMjU5MTRaFw0yMjA5MDQxMjU5MTRaMG8xCzAJBgNVBAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBXaWRn"
             + "aXRzIFB0eSBMdGQxKDAmBgNVBAMMH0VsYXN0aWNzZWFyY2ggVGVzdCBDYXNlIEhUVFAgQ0EwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDZ3Il"
@@ -109,7 +109,7 @@ public class TestEnrollToCluster extends PackagingTestCase {
             + "1A7Uq1Zr6iqGYhSEzOj89e2/v6cwiMnkowsnUdSOzzRnGDZZMOalGcxdA6zJfZJ9ydmsMPfBNt4C4s4urpkOIy2+bzcbwbOc/9KYIqiCItmbxXq81Hz86y"
             + "5R1jFUn1VsTHHUIlMT+4w4PqW7gIPoat1y1sVqRLFf8TkJ6AUq0/zlv+dBFYeaHuutrh5KnCte9u5n3+W2Rv0q9v9CXXWviHSYfjsRBUx2PFDmFjSZ6sQe"
             + "NQD0yQV1WJ79aBp3agfYfAN3ke7o+YnBFbAXy4g+2aFAtflESwkpvo3pOSz+JSBUTPgLR3f4dA/cWx187Zc=\","
-            + "\"transport_cert\"=\"MIIFrzCCA5egAwIBAgIUE6nu/E57NrAOtFhYBCEZQMdFk6gwDQYJKoZIhvcNAQELBQAwZzELMAkGA1UEBhMCQVUxEzARBgNVB"
+            + "\"transport_cert\":\"MIIFrzCCA5egAwIBAgIUE6nu/E57NrAOtFhYBCEZQMdFk6gwDQYJKoZIhvcNAQELBQAwZzELMAkGA1UEBhMCQVUxEzARBgNVB"
             + "AgMClNvbWUtU3RhdGUxITAfBgNVBAoMGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEgMB4GA1UEAwwXRWxhc3RpY3NlYXJjaCBUZXN0IENhc2UwHhcNMjE"
             + "wOTA0MTI1NzQxWhcNMjIwOTA0MTI1NzQxWjBnMQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50ZXJuZXQgV2lkZ2l0c"
             + "yBQdHkgTHRkMSAwHgYDVQQDDBdFbGFzdGljc2VhcmNoIFRlc3QgQ2FzZTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBALsYS+TrqxmYJxi3VoY"
@@ -126,7 +126,7 @@ public class TestEnrollToCluster extends PackagingTestCase {
             + "Np1VBN23+FcLV2T9A8C98Qu14sDq2t9o5+JdzexfssBy6uI4YN2E+Bh3bpg4RWHZsnoRaOrR/x3LtvlaY96BuJve/3A1m6AfB2yHWOAE/HOVts+wUIlIpw"
             + "m1Y2l5qCirkl9rU9YM8bPqDmQ79StOe5Vu+vtyV9UD2SbRe07e5xmKcvMLvg+vhJ7EvvZIm94I9h4wC3CA/hT322K+1MoqCIQl3LzGnyV1o0O7hEUY4Pb1"
             + "iUPLmIRLCWjUsBB/XpPrRLJhX2fhm2jzFCcyuAZQXByKbvK+MjIsZQm7MGBa0T5Izkewv56Ye1epPEQ==\", "
-            + "\"transport_key\"=\"MIIJQwIBADANBgkqhkiG9w0BAQEFAASCCS0wggkpAgEAAoICAQC7GEvk66sZmCcYt1aGIWJDhCr+OOVG2wpmXDLCjhfHI9cUDs"
+            + "\"transport_key\":\"MIIJQwIBADANBgkqhkiG9w0BAQEFAASCCS0wggkpAgEAAoICAQC7GEvk66sZmCcYt1aGIWJDhCr+OOVG2wpmXDLCjhfHI9cUDs"
             + "IFwuHadC/BKJPAxmqdfUfwDzPtHWbbX/KD845++wk"
             + "b6aCyFz/XpY4amYUJ5jqx579REIGxyFaS6x7ud6x/k4bOFON6mlNKcvN8254L5eHEUlkUGSGg9T/Sa/ZXyggNQNVE5kZeO/R7GidFaEMRB1UeUzXJ2i9wi"
             + "UEt7oXVsaG89XrRQRelU3tObO4EFaqS/CTGVj9ns25Orgh85qkOS1lVdy0SPR5lfq1XDFfEnaDNiUn/B3nKvXX4+Kr/QjaamHKbXfi6ELLp+Sxxy70lPXn"
@@ -279,7 +279,7 @@ public class TestEnrollToCluster extends PackagingTestCase {
     private String generateMockEnrollmentToken() throws Exception {
         EnrollmentToken enrollmentToken = new EnrollmentToken(
             "some-api-key",
-            "E8:86:4F:A9:CB:5A:80:53:EA:84:A4:85:81:A6:C9:BE:F6:19:F8:F6:AA:A5:8A:63:2A:AC:3E:0A:25:D4:3E:A9",
+            "e8864fa9cb5a8053ea84a48581a6c9bef619f8f6aaa58a632aac3e0a25d43ea9",
             Version.CURRENT.toString(),
             List.of(esNode.getHostName() + ":" + esNode.getPort())
         );

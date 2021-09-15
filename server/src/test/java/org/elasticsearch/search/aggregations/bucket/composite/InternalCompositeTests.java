@@ -82,7 +82,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         for (int i = 0; i < numFields; i++) {
             sourceNames.add("field_" + i);
             reverseMuls[i] = randomBoolean() ? 1 : -1;
-            missingOrders[i] = randomFrom(MissingOrder.DEFAULT, MissingOrder.FIRST, MissingOrder.LAST);
+            missingOrders[i] = randomFrom(MissingOrder.values());
             int type = randomIntBetween(0, 2);
             types[i] = type;
             formats.add(randomDocValueFormat(type == 0));

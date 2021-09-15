@@ -8,7 +8,7 @@ indices and data streams after deletion or a hardware failure.
 In this guide, you'll learn how to:
 
 * Retrieve available snapshots
-* Restore an index or data stream
+* Restore an index or data stream from a snapshot
 * Restore an entire cluster
 * Monitor the restore operation
 * Cancel an ongoing restore
@@ -27,7 +27,7 @@ include::apis/restore-snapshot-api.asciidoc[tag=restore-prereqs]
 [[restore-snapshot-considerations]]
 === Considerations
 
-When restoring a snapshot, keep the following in mind:
+When restoring data from a snapshot, keep the following in mind:
 
 * If you restore a data stream, you also restore its backing indices.
 
@@ -61,7 +61,7 @@ GET _snapshot
 // TEST[setup:setup-snapshots]
 
 Use the <<get-snapshot-api,get snapshot API>> to retrieve snapshots for a
-repository.
+specific repository.
 
 [source,console]
 ----
@@ -94,12 +94,12 @@ stream before restoring it. To prevent the accidental re-creation of the index
 or data stream, we recommend you temporarily stop all indexing until the restore
 operation is complete.
 
-WARNING: If
-<<action-destructive-requires-name,`action.destructive_requires_name`>> is
-`false`, don't use the <<indices-delete-index,delete index API>> to target the
-`*` or `.*` wildcard expression. If you use {es}'s security features, this will
-delete system indices required for authentication. To delete all regular
-indices, use `*,-.*` instead.
+WARNING: If the
+<<action-destructive-requires-name,`action.destructive_requires_name`>> cluster
+setting is `false`, don't use the <<indices-delete-index,delete index API>> to
+target the `*` or `.*` wildcard expression. If you use {es}'s security features,
+this will delete system indices required for authentication. To delete all
+regular indices, use `*,-.*` instead.
 
 [source,console]
 ----
@@ -206,9 +206,9 @@ POST _reindex
 [[restore-entire-cluster]]
 === Restore an entire cluster
 
-In some cases, you need to restore an entire cluster, including the cluster
-state and all system indices. These cases should be rare, such as in the event
-of a catastrophic data center failure.
+In some cases, you need to restore an entire cluster from a snapshot, including
+the cluster state and all system indices. These cases should be rare, such as in
+the event of a catastrophic failure.
 
 Restoring an entire cluster involves deleting important system indices, including
 those used for authentication. Consider whether you can restore specific indices

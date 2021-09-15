@@ -32,7 +32,7 @@ managed indices.
 IMPORTANT: Mounting and relocating the shards of {search-snap} indices involves
 copying the shard contents from the snapshot repository. This may incur
 different costs from the copying between nodes that happens with regular
-indices. These costs are typically lower, but in some environments they may be
+indices. These costs are typically lower but, in some environments, may be
 higher. See <<searchable-snapshots-costs>> for more details.
 
 By default, this snapshot is deleted by the <<ilm-delete, delete action>> in the delete phase.

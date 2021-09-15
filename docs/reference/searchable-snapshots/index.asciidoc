@@ -202,10 +202,10 @@ cache can only have a single <<path-settings,data path>>.
 [[searchable-snapshots-costs]]
 === Reduce costs with {search-snaps}
 
-In most cases, {search-snaps} reduce the cost of running a cluster by removing
-the need for replica shards to exist and for shard data to be copied between
+In most cases, {search-snaps} reduce the costs of running a cluster by removing
+the need for replica shards  and for shard data to be copied between
 nodes. However, if it's particularly expensive to retrieve data from a snapshot
-repository in your environment then {search-snaps} may be more costly than
+repository in your environment, {search-snaps} may be more costly than
 regular indices. Ensure that the cost structure of your operating environment is
 compatible with {search-snaps} before using them.
 
@@ -229,12 +229,12 @@ only partially-mounted {search-snap} indices, requires even fewer resources.
 [[snapshot-retrieval-costs]]
 ==== Data transfer costs
 
-When a shard of a regular index is moved between nodes its contents are copied
-from another node in your cluster. In many environments the costs of moving data
+When a shard of a regular index is moved between nodes, its contents are copied
+from another node in your cluster. In many environments, the costs of moving data
 between nodes are significant, especially if running in a Cloud environment with
 nodes in different zones. In contrast, when mounting a {search-snap} index or
-moving one of its shards the data is always copied from the snapshot repository
-itself which is typically much cheaper.
+moving one of its shards, the data is always copied from the snapshot repository.
+This is typically much cheaper.
 
 WARNING: Most cloud providers charge significant fees for data transferred
 between regions and for data transferred out of their platforms. You should only

@@ -125,6 +125,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             e.getMessage(),
             equalTo(
                 String.format(
+                    Locale.ROOT,
                     "index [%s] is not part of data stream [%s]",
                     indexToRemove.getName(),
                     dataStreamName)
@@ -150,6 +151,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             e.getMessage(),
             equalTo(
                 String.format(
+                    Locale.ROOT,
                     "cannot remove backing index [%s] of data stream [%s] because it is the write index",
                     indices.get(numBackingIndices - 1).getName(),
                     dataStreamName
@@ -242,6 +244,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             e.getMessage(),
             equalTo(
                 String.format(
+                    Locale.ROOT,
                     "cannot add index [%s] to data stream [%s] because it is already a backing index on data stream [%s]",
                     indexToAdd.getName(),
                     ds1.getName(),
@@ -329,6 +332,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             e.getMessage(),
             equalTo(
                 String.format(
+                    Locale.ROOT,
                     "cannot add index [%s] to data stream [%s] until its alias(es) [%s] are removed",
                     indexToAdd.getName(),
                     original.getName(),

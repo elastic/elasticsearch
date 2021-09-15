@@ -54,6 +54,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs: 
@@ -69,8 +70,7 @@ setup:
                     to: 4000
 
 
-  - match: { hits.total.value: 3 }
-  - match: { hits.total.relation: "eq" }
+  - match: { hits.total: 3 }
   - length: { aggregations.date_range.buckets: 2 }
   - match: { aggregations.date_range.buckets.0.doc_count: 2 }
   - match: { aggregations.date_range.buckets.0.key: "1000-3000" }
@@ -102,6 +102,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             age_groups:
@@ -118,8 +119,7 @@ setup:
                 - key: Other
                   to: "200000"
 
-  - match: { hits.total.value: 5 }
-  - match: { hits.total.relation: "eq" }
+  - match: { hits.total: 5 }
   - length: { aggregations.age_groups.buckets: 3 }
   - match: { aggregations.age_groups.buckets.0.key: "Other" }
   - match: { aggregations.age_groups.buckets.0.doc_count: 2 }
@@ -144,6 +144,7 @@ setup:
               number_of_replicas: 0
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_a_unmapped
         body:
           size: 0
@@ -161,7 +162,7 @@ setup:
                   cardinality:
                     field: sound.keyword
 
-  - match: { hits.total.value: 0 }
+  - match: { hits.total: 0 }
   - length: { aggregations.date_range.buckets: 1 }
   - match: { aggregations.date_range.buckets.0.doc_count: 0 }
   - match: { aggregations.date_range.buckets.0.key: "2020-01-01T00:00:00.000Z-*" }

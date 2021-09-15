@@ -35,6 +35,7 @@ setup:
 "Double range":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -50,8 +51,7 @@ setup:
                   -
                     from: 150
 
-  - match: { hits.total.relation: "eq" }
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.double_range.buckets: 3 }
   - match: { aggregations.double_range.buckets.0.key: "*-50.0" }
   - is_false: aggregations.double_range.buckets.0.from
@@ -70,6 +70,7 @@ setup:
 "Double range with missing value":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -86,8 +87,7 @@ setup:
                   -
                     from: 150
 
-  - match: { hits.total.relation: "eq" }
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.double_range.buckets: 3 }
   - match: { aggregations.double_range.buckets.0.key: "*-50.0" }
   - is_false: aggregations.double_range.buckets.0.from
@@ -106,6 +106,7 @@ setup:
 "Null to and from":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -123,8 +124,7 @@ setup:
                     from: 150
                     to: null
 
-  - match: { hits.total.relation: "eq" }
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.double_range.buckets: 3 }
   - match: { aggregations.double_range.buckets.0.key: "*-50.0" }
   - is_false: aggregations.double_range.buckets.0.from
@@ -143,6 +143,7 @@ setup:
 "Range agg on long field":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -158,8 +159,7 @@ setup:
                   -
                     from: 150
 
-  - match: { hits.total.relation: "eq" }
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.long_range.buckets: 3 }
   - match: { aggregations.long_range.buckets.0.key: "*-50.0" }
   - is_false: aggregations.long_range.buckets.0.from
@@ -178,6 +178,7 @@ setup:
 "Double range default keyed response":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -197,8 +198,7 @@ setup:
                     key: "last"
                     from: 150
 
-  - match: { hits.total.relation: "eq" }
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.double_range.buckets: 3 }
   - is_false: aggregations.double_range.buckets.first.from
   - match: { aggregations.double_range.buckets.first.to: 50.0 }

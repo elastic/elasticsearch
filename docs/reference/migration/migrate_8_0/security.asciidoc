@@ -312,21 +312,19 @@ Discontinue use of the `kibana_user` role.
 [[saml-realm-nameid-changes]]
 ===== The default value of `nameid_format` setting has been removed.
 
-.The `nameid_format` setting of SAML realms has no default value.
+.The `nameid_format` SAML realm setting has no default value.
 [%collapsible]
 ====
 *Details* +
-Identity Providers can be either statically configured to release a `NameID`
-with a specific format, or they can be configured to try to conform with the
-requirements of the SP. The SP declares its requirements as part of the
-Authentication Request, using an element which is called the `NameIDPolicy`
-For the {es} SAML realm, `NameIDPolicy` is controlled by `nameid_format` in
-SAML realm settings.
+In SAML, Identity Providers (IdPs) either release a `NameID` or attempt to
+conform with the requirements of a Service Provider (SP). The SP declares its
+requirements in the `NameIDPolicy` of an authentication request. In {es}, the
+`nameid_format` SAML realm setting controls the `NameIDPolicy`.
 
-Previously, the default value for this setting was
-`urn:oasis:names:tc:SAML:2.0:nameid-format:transient` which meant that {es}
-would create SAML Authentication Requests that would require from the Identity
-Provider to release `NameID` with a transient format.
+Previously, the default value for `nameid_format` was
+`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`. This default created
+authentication requests that would require the IdP to release `NameID` with a
+transient format.
 The default value has now been removed. This means that {es} will be default
 create SAML Authentication Requests that do not put forward such requirements
 to the Identity Provider.
@@ -335,12 +333,10 @@ If you want to retain the previous behavior, you can set `nameid_format`
 to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient`.
 
 *Impact* +
-If you are not configuring `nameid_format` explicitly in
-your current configuration, there might be cases where the combination of this
-configuration and the configuration of your SAML Identity Provider will result
-in a non-working setup. If you are uncertain of how your Identity Provider is
-configured to generate a value for `NameID`, you can set `nameid_format`
-to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` explicitly.
+To avoid issues, explicitly configure `nameid_format`. If you don't configure
+`nameid_format`, some SAML setups may no longer work. If you don't know
+how your IdP generates a value for `NameID`, explicitly set `nameid_format` to
+`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`.
 
 ====
 // end::notable-breaking-changes[]

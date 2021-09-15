@@ -35,6 +35,7 @@ basic:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -49,7 +50,7 @@ basic:
                 values: [50, 99]
                 hdr: {}
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 25.0, error: 1} }
   - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 50.0, error: 1} }
   - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 25.0, error: 1} }
@@ -62,6 +63,7 @@ set significant digits:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -78,7 +80,7 @@ set significant digits:
                 hdr:
                   number_of_significant_value_digits: 3
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 25.0, error: 1} }
   - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 50.0, error: 1} }
   - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 25.0, error: 1} }
@@ -91,6 +93,7 @@ filtered:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           query:
@@ -111,7 +114,7 @@ filtered:
                 hdr:
                   number_of_significant_value_digits: 3
 
-  - match: { hits.total.value: 3 }
+  - match: { hits.total: 3 }
   - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 0.0, error: 1} }
   - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 0.0, error: 1} }
 
@@ -122,6 +125,7 @@ missing field with missing param:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -133,7 +137,7 @@ missing field with missing param:
                 hdr:
                   number_of_significant_value_digits: 3
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - close_to: { aggregations.percentile_ranks_missing.values.50\\.0: { value: 100.0, error: 1} }
   - close_to: { aggregations.percentile_ranks_missing.values.99\\.0: { value: 100.0, error: 1} }
 
@@ -141,6 +145,7 @@ missing field with missing param:
 missing field without missing param:
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -151,7 +156,7 @@ missing field without missing param:
                 hdr:
                   number_of_significant_value_digits: 3
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - is_false: aggregations.percentile_ranks_missing.value
 
 ---
@@ -211,6 +216,7 @@ non-keyed:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -222,7 +228,7 @@ non-keyed:
                 hdr:
                   number_of_significant_value_digits: 3
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - match: { aggregations.percentile_ranks_int.values.0.key: 50}
   - close_to: { aggregations.percentile_ranks_int.values.0.value: { value: 25, error: 1} }
   - match: { aggregations.percentile_ranks_int.values.1.key: 99}

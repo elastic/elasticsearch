@@ -12,37 +12,41 @@ setup:
 
   - do:
       cluster.health:
-        wait_for_status: green
+        wait_for_status: yellow
 
 ---
 "IP range":
   - do:
-      index:
+      bulk:
         index: test
-        id: 1
-        body: { "ip" : "::1" }
-
-  - do:
-      index:
-        index: test
-        id: 2
-        body: { "ip" : "192.168.0.1" }
-
-  - do:
-      index:
-        index: test
-        id: 3
-        body: { "ip" : "192.168.0.7" }
-
-  - do:
-      indices.refresh: {}
+        refresh: true
+        body:
+          - {"index": {}}
+          - { "ip" : "::1" }
+          - {"index": {}}
+          - { "ip" : "192.168.0.1" }
+          - {"index": {}}
+          - { "ip" : "192.168.0.7" }
 
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: { "size" : 0, "aggs" : { "ip_range" : { "ip_range" : { "field" : "ip", "ranges": [ { "to": "192.168.0.0" }, { "from": "192.168.0.0", "to": "192.169.0.0" }, { "from": "192.169.0.0" } ] } } } }
+        body:
+          size: 0
+          aggs:
+            ip_range:
+              ip_range:
+                field: "ip"
+                ranges:
+                  -
+                    to: "192.168.0.0"
+                  -
+                    from: "192.168.0.0"
+                    to: "192.169.0.0"
+                  -
+                    from: "192.169.0.0"
 
-  - match: { hits.total: 3 }
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
   - length: { aggregations.ip_range.buckets: 3 }
   - is_false: aggregations.ip_range.buckets.0.from
   - match: { aggregations.ip_range.buckets.0.to: "192.168.0.0" }
@@ -56,10 +60,25 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: { "size" : 0, "aggs" : { "ip_range" : { "ip_range" : { "field" : "ip", "ranges": [ { "from": null, "to": "192.168.0.0" }, { "from": "192.168.0.0", "to": "192.169.0.0" }, { "from": "192.169.0.0", "to": null } ] } } } }
+        body:
+          size: 0
+          aggs:
+            ip_range:
+              ip_range:
+                field: "ip"
+                ranges:
+                  -
+                    from: null
+                    to: "192.168.0.0"
+                  -
+                    from: "192.168.0.0"
+                    to: "192.169.0.0"
+                  -
+                    from: "192.169.0.0"
+                    to: null
 
-  - match: { hits.total: 3 }
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
   - length: { aggregations.ip_range.buckets: 3 }
   - is_false: aggregations.ip_range.buckets.0.from
   - match: { aggregations.ip_range.buckets.0.to: "192.168.0.0" }
@@ -73,10 +92,20 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: { "size" : 0, "aggs" : { "ip_range" : { "ip_range" : { "field" : "ip", "ranges": [ { "mask": "::/24" }, { "mask": "192.168.0.0/16" } ] } } } }
+        body:
+          size: 0
+          aggs:
+            ip_range:
+              ip_range:
+                field: "ip"
+                ranges:
+                  -
+                    mask: "::/24"
+                  -
+                    mask: "192.168.0.0/16"
 
-  - match: { hits.total: 3 }
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
   - length: { aggregations.ip_range.buckets: 2 }
   - match: { aggregations.ip_range.buckets.0.key: "::/24" }
   - match: { aggregations.ip_range.buckets.0.to: "0:100::" }
@@ -91,8 +120,20 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: { "size" : 0, "aggs" : { "ip_range" : { "ip_range" : { "field" : "ip", "ranges": [ { "to": "192.168.0.0" }, { "from": "192.168.0.0", "to": "192.169.0.0" }, { "from": "192.169.0.0" } ] } } } }
+        body:
+          size: 0
+          aggs:
+            ip_range:
+              ip_range:
+                field: "ip"
+                ranges:
+                  -
+                    to: "192.168.0.0"
+                  -
+                    from: "192.168.0.0"
+                    to: "192.169.0.0"
+                  -
+                    from: "192.169.0.0"
 
   - length: { aggregations.ip_range.buckets: 3 }
   - match: { aggregations.ip_range.buckets.0.key: "*-192.168.0.0" }

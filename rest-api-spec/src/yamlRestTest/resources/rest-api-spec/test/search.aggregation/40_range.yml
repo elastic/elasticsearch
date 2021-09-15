@@ -14,65 +14,44 @@ setup:
 
   - do:
       cluster.health:
-        wait_for_status: green
+        wait_for_status: yellow
 
   - do:
-      index:
+      bulk:
         index: test
-        id: 1
-        body: { "double" : 42.1, "long": 25 }
-
-  - do:
-      index:
-        index: test
-        id: 2
-        body: { "double" : 100.7, "long": 80 }
-
-  - do:
-      index:
-        index: test
-        id: 3
-        body: { "double" : 50.5, "long":  75}
-
+        refresh: true
+        body:
+         - {"index": {}}
+         - { "double" : 42.1, "long": 25 }
+         - {"index": {}}
+         - { "double" : 100.7, "long": 80 }
+         - {"index": {}}
+         - { "double" : 50.5, "long":  75}
 # For testing missing values
-  - do:
-      index:
-        index: test
-        id: 4
-        body: {}
-
-  - do:
-      indices.refresh: {}
+         - {"index": {}}
+         - {}
 
 ---
 "Double range":
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: {
-              "size": 0,
-              "aggs": {
-                "double_range": {
-                  "range": {
-                    "field": "double",
-                    "ranges": [
-                      {
-                        "to": 50
-                      },
-                      {
-                        "from": 50,
-                        "to": 150
-                      },
-                      {
-                        "from": 150
-                      }
-                    ]
-                  }
-                }
-              }
-            }
+        body:
+          size: 0
+          aggs:
+            double_range:
+              range:
+                field: "double"
+                ranges:
+                  -
+                    to: 50
+                  -
+                    from: 50
+                    to: 150
+                  -
+                    from: 150
 
-  - match: { hits.total: 4 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
   - length: { aggregations.double_range.buckets: 3 }
   - match: { aggregations.double_range.buckets.0.key: "*-50.0" }
   - is_false: aggregations.double_range.buckets.0.from
@@ -91,32 +70,24 @@ setup:
 "Double range with missing value":
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: {
-              "size": 0,
-              "aggs": {
-                "double_range": {
-                  "range": {
-                    "field": "double",
-                    "missing": 1000,
-                    "ranges": [
-                      {
-                        "to": 50
-                      },
-                      {
-                        "from": 50,
-                        "to": 150
-                      },
-                      {
-                        "from": 150
-                      }
-                    ]
-                  }
-                }
-              }
-            }
+        body:
+          size: 0
+          aggs:
+            double_range:
+              range:
+                field: "double"
+                missing: 1000
+                ranges:
+                  -
+                    to: 50
+                  -
+                    from: 50
+                    to: 150
+                  -
+                    from: 150
 
-  - match: { hits.total: 4 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
   - length: { aggregations.double_range.buckets: 3 }
   - match: { aggregations.double_range.buckets.0.key: "*-50.0" }
   - is_false: aggregations.double_range.buckets.0.from
@@ -135,33 +106,25 @@ setup:
 "Null to and from":
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: {
-              "size": 0,
-              "aggs": {
-                "double_range": {
-                  "range": {
-                    "field": "double",
-                    "ranges": [
-                      {
-                        "from": null,
-                        "to": 50
-                      },
-                      {
-                        "from": 50,
-                        "to": 150
-                      },
-                      {
-                        "from": 150,
-                        "to": null
-                      }
-                    ]
-                  }
-                }
-              }
-            }
+        body:
+          size: 0
+          aggs:
+            double_range:
+              range:
+                field: "double"
+                ranges:
+                  -
+                    from: null
+                    to: 50
+                  -
+                    from: 50
+                    to: 150
+                  -
+                    from: 150
+                    to: null
 
-  - match: { hits.total: 4 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
   - length: { aggregations.double_range.buckets: 3 }
   - match: { aggregations.double_range.buckets.0.key: "*-50.0" }
   - is_false: aggregations.double_range.buckets.0.from
@@ -180,31 +143,23 @@ setup:
 "Range agg on long field":
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: {
-              "size": 0,
-              "aggs": {
-                "long_range": {
-                  "range": {
-                    "field": "long",
-                    "ranges": [
-                      {
-                        "to": 50
-                      },
-                      {
-                        "from": 50,
-                        "to": 150
-                      },
-                      {
-                        "from": 150,
-                      }
-                    ]
-                  }
-                }
-              }
-            }
+        body:
+          size: 0
+          aggs:
+            long_range:
+              range:
+                field: "long"
+                ranges:
+                  -
+                    to: 50
+                  -
+                    from: 50
+                    to: 150
+                  -
+                    from: 150
 
-  - match: { hits.total: 4 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
   - length: { aggregations.long_range.buckets: 3 }
   - match: { aggregations.long_range.buckets.0.key: "*-50.0" }
   - is_false: aggregations.long_range.buckets.0.from
@@ -223,35 +178,27 @@ setup:
 "Double range default keyed response":
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: {
-              "size": 0,
-              "aggs": {
-                "double_range": {
-                  "range": {
-                    "field": "double",
-                    "keyed": true,
-                    "ranges": [
-                      {
-                        "key": "first",
-                        "to": 50
-                      },
-                      {
-                        "key": "another",
-                        "from": 50,
-                        "to": 150
-                      },
-                      {
-                        "key": "last",
-                        "from": 150
-                      }
-                    ]
-                  }
-                }
-              }
-            }
+        body:
+          size: 0
+          aggs:
+            double_range:
+              range:
+                field: "double"
+                keyed: true
+                ranges:
+                  -
+                    key: "first"
+                    to: 50
+                  -
+                    key: "another"
+                    from: 50
+                    to: 150
+                  -
+                    key: "last"
+                    from: 150
 
-  - match: { hits.total: 4 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
   - length: { aggregations.double_range.buckets: 3 }
   - is_false: aggregations.double_range.buckets.first.from
   - match: { aggregations.double_range.buckets.first.to: 50.0 }
@@ -262,4 +209,3 @@ setup:
   - match: { aggregations.double_range.buckets.last.from: 150.0 }
   - is_false:  aggregations.double_range.buckets.last.to
   - match: { aggregations.double_range.buckets.last.doc_count: 0 }
-

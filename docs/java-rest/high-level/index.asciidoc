@@ -1,7 +1,7 @@
 :mainid: java-rest-high
 
 [id="{mainid}"]
-= Java High Level REST Client
+= Java High Level REST Client (deprecated)
 
 [partintro]
 --

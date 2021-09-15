@@ -295,7 +295,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(sourceDocMap.get("zipcode"), is(equalTo(90210)));
 
         List<String> enrichFields = List.of("zipcode");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "range", enrichFields, null);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "range", enrichFields, false);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -385,7 +385,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(sourceDocMap.get("department"), is(equalTo("research")));
 
         List<String> enrichFields = List.of("department");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndexName), "subnet", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndexName), "subnet", enrichFields, false);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -1222,7 +1222,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String policyName = "test1";
         List<String> enrichFields = List.of("data.department", "missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "data.subnet", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "data.subnet", enrichFields, false);
 
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
@@ -1491,7 +1491,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String policyName = "test1";
         List<String> enrichFields = List.of("data.fields.department", "missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "data.fields.subnet", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(
+            EnrichPolicy.RANGE_TYPE,
+            null,
+            List.of(sourceIndex),
+            "data.fields.subnet",
+            enrichFields,
+            false
+        );
 
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
@@ -1632,7 +1639,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String policyName = "test1";
         List<String> enrichFields = List.of("data.fields.status", "missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "data.fields.period", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(
+            EnrichPolicy.RANGE_TYPE,
+            null,
+            List.of(sourceIndex),
+            "data.fields.period",
+            enrichFields,
+            false
+        );
 
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
@@ -2006,7 +2020,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         List<String> enrichFields = List.of("field2", "field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields, false);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();

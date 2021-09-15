@@ -89,7 +89,7 @@ public class EnrichPolicyExecutor {
             EnrichPolicy policy = EnrichStore.getPolicy(policyName, clusterService.state());
             if (policy.isInstant()) {
                 // noop instead of error?
-                throw new IllegalArgumentException("policy [" + request.getName() + "] is an instant policy");
+                throw new IllegalArgumentException("policy [" + policyName + "] is an instant policy");
             }
 
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.SCHEDULED));

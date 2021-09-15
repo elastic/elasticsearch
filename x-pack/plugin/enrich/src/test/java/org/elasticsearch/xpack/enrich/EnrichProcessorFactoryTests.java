@@ -146,7 +146,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testEnrichIndexDoesNotExist() {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues, false);
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService, enrichCache);
         factory.metadata = Metadata.builder().putCustom(EnrichMetadata.TYPE, new EnrichMetadata(Map.of("majestic", policy))).build();
 
         Map<String, Object> config = new HashMap<>();
@@ -275,7 +275,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         int[] requestCounter = new int[1];
         enrichCache = new EnrichCache(100L);
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues, false);
         try (Client client = new NoOpClient(this.getClass().getSimpleName() + "testCaching") {
 
             @Override

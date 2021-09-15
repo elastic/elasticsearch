@@ -109,7 +109,8 @@ The API returns the following response:
             "city",
             "zip",
             "state"
-          ]
+          ],
+          "instant": false
         }
       }
     }
@@ -145,7 +146,8 @@ The API returns the following response:
             "city",
             "zip",
             "state"
-          ]
+          ],
+          "instant": false
         }
       }
     },
@@ -161,7 +163,8 @@ The API returns the following response:
             "city",
             "zip",
             "state"
-          ]
+          ],
+          "instant": false
         }
       }
     }
@@ -197,7 +200,8 @@ The API returns the following response:
             "city",
             "zip",
             "state"
-          ]
+          ],
+          "instant": false
         }
       }
     },
@@ -213,7 +217,8 @@ The API returns the following response:
             "city",
             "zip",
             "state"
-          ]
+          ],
+          "instant": false
         }
       }
     }

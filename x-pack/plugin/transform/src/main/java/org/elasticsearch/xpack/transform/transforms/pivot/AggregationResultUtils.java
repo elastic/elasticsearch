@@ -9,13 +9,8 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Polygon;
+
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -43,6 +38,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -82,6 +78,12 @@ public final class AggregationResultUtils {
 
         BUCKET_KEY_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
+
+    private static final String FIELD_TYPE = "type";
+    private static final String FIELD_COORDINATES = "coordinates";
+    private static final String POINT = "point";
+    private static final String LINESTRING = "linestring";
+    private static final String POLYGON = "polygon";
 
     /**
      * Extracts aggregation results from a composite aggregation and puts it into a map.
@@ -411,29 +413,44 @@ public final class AggregationResultUtils {
             if (aggregation.bottomRight() == null || aggregation.topLeft() == null) {
                 return null;
             }
-            final Geometry geometry;
+            final Map<String, Object> geoShape = new HashMap<>();
+            // If the two geo_points are equal, it is a point
             if (aggregation.topLeft().equals(aggregation.bottomRight())) {
-                // If the two geo_points are equal, it is a point
-                geometry = new Point(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat());
+                geoShape.put(FIELD_TYPE, POINT);
+                geoShape.put(
+                    FIELD_COORDINATES,
+                    Arrays.asList(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat())
+                );
+                // If only the lat or the lon of the two geo_points are equal, than we know it should be a line
             } else if (Double.compare(aggregation.topLeft().getLat(), aggregation.bottomRight().getLat()) == 0
                 || Double.compare(aggregation.topLeft().getLon(), aggregation.bottomRight().getLon()) == 0) {
-                // If only the lat or the lon of the two geo_points are equal, than we know it should be a line
-                geometry = new Line(
-                    new double[]{aggregation.topLeft().getLon(), aggregation.bottomRight().getLon()},
-                    new double[]{aggregation.topLeft().getLat(), aggregation.bottomRight().getLat()}
-                );
-            } else {
-                // neither points are equal, we have a polygon that is a square
-                final GeoPoint tl = aggregation.topLeft();
-                final GeoPoint br = aggregation.bottomRight();
-                geometry = new Polygon(
-                    new LinearRing(
-                        new double[]{tl.getLon(), br.getLon(), br.getLon(), tl.getLon(), tl.getLon()},
-                        new double[]{tl.getLat(), tl.getLat(), br.getLat(), br.getLat(), tl.getLat()}
-                    )
-                );
-            }
-            return GeoJson.toMap(geometry);
+                    geoShape.put(FIELD_TYPE, LINESTRING);
+                    geoShape.put(
+                        FIELD_COORDINATES,
+                        Arrays.asList(
+                            new Double[] { aggregation.topLeft().getLon(), aggregation.topLeft().getLat() },
+                            new Double[] { aggregation.bottomRight().getLon(), aggregation.bottomRight().getLat() }
+                        )
+                    );
+                } else {
+                    // neither points are equal, we have a polygon that is a square
+                    geoShape.put(FIELD_TYPE, POLYGON);
+                    final GeoPoint tl = aggregation.topLeft();
+                    final GeoPoint br = aggregation.bottomRight();
+                    geoShape.put(
+                        FIELD_COORDINATES,
+                        Collections.singletonList(
+                            Arrays.asList(
+                                new Double[] { tl.getLon(), tl.getLat() },
+                                new Double[] { br.getLon(), tl.getLat() },
+                                new Double[] { br.getLon(), br.getLat() },
+                                new Double[] { tl.getLon(), br.getLat() },
+                                new Double[] { tl.getLon(), tl.getLat() }
+                            )
+                        )
+                    );
+                }
+            return geoShape;
         }
     }
 
@@ -452,14 +469,22 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Object key, String type) {
             assert key instanceof String;
-            Rectangle r = GeoTileUtils.toBoundingBox(key.toString());
-            Polygon polygon = new Polygon(
-                new LinearRing(
-                    new double[]{r.getMinLon(), r.getMaxLon(), r.getMaxLon(), r.getMinLon(), r.getMinLon()},
-                    new double[]{r.getMinLat(), r.getMinLat(), r.getMaxLat(), r.getMaxLat(), r.getMinLat()}
+            Rectangle rectangle = GeoTileUtils.toBoundingBox(key.toString());
+            final Map<String, Object> geoShape = new HashMap<>();
+            geoShape.put(FIELD_TYPE, POLYGON);
+            geoShape.put(
+                FIELD_COORDINATES,
+                Collections.singletonList(
+                    Arrays.asList(
+                        new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() },
+                        new Double[] { rectangle.getMinLon(), rectangle.getMinLat() },
+                        new Double[] { rectangle.getMinLon(), rectangle.getMaxLat() },
+                        new Double[] { rectangle.getMaxLon(), rectangle.getMaxLat() },
+                        new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() }
+                    )
                 )
             );
-            return GeoJson.toMap(polygon);
+            return geoShape;
         }
 
     }

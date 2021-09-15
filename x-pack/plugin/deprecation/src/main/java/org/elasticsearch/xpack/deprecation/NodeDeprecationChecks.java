@@ -65,6 +65,7 @@ import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocat
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_NAME_PREFIX;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRINCIPAL_ATTRIBUTE;
 
 class NodeDeprecationChecks {
 
@@ -994,5 +995,37 @@ class NodeDeprecationChecks {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/modules-node.html#max-local-storage-nodes",
             DeprecationIssue.Level.CRITICAL
         );
+    }
+
+    static DeprecationIssue checkSamlNameIdFormatSetting(final Settings settings,
+                                                         final PluginsAndModules pluginsAndModules,
+                                                         final ClusterState clusterState,
+                                                         final XPackLicenseState licenseState) {
+        final String principalKeySuffix = ".attributes.principal";
+        List<String> detailsList =
+            PRINCIPAL_ATTRIBUTE.getAttribute().getAllConcreteSettings(settings).sorted(Comparator.comparing(Setting::getKey))
+                .map(concreteSamlPrincipalSetting -> {
+                    String concreteSamlPrincipalSettingKey = concreteSamlPrincipalSetting.getKey();
+                    int principalKeySuffixIndex = concreteSamlPrincipalSettingKey.indexOf(principalKeySuffix);
+                    if (principalKeySuffixIndex > 0) {
+                        String realm = concreteSamlPrincipalSettingKey.substring(0, principalKeySuffixIndex);
+                        String concreteNameIdFormatSettingKey = realm + ".nameid_format";
+                        if (settings.get(concreteNameIdFormatSettingKey) == null) {
+                            return String.format(Locale.ROOT, "no value for [%s] set in realm [%s]",
+                                concreteNameIdFormatSettingKey, realm);
+                        }
+                    }
+                    return null;
+                })
+                .filter(detail -> detail != null).collect(Collectors.toList());
+        if (detailsList.isEmpty()) {
+            return null;
+        } else {
+            String message = "if nameid_format is not explicitly set, the previous default of " +
+                "'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no longer used";
+            String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/saml-guide.html";
+            String details = detailsList.stream().collect(Collectors.joining(","));
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
+        }
     }
 }

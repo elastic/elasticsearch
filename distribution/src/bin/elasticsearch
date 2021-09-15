@@ -30,7 +30,9 @@ while [ $# -gt 0 ]; do
    elif [[ $1 == "-d" || $1 == "--daemonize" ]]; then
      DAEMONIZE=true
    fi
-   shift
+   if [[ $# -gt 0 ]]; then
+     shift
+   fi
 done
 
 if [ -z "$ES_TMPDIR" ]; then

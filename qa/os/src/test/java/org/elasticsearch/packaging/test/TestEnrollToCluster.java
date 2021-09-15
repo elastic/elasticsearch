@@ -176,7 +176,9 @@ public class TestEnrollToCluster extends PackagingTestCase {
 
     @After
     public void shutdownMockEsNode() {
-        esNode.close();
+        if (esNode != null) {
+            esNode.close();
+        }
     }
 
     public void test10Install() throws Exception {

@@ -210,7 +210,9 @@ public class JavaDateMathParser implements DateMathParser {
                 return DateFormatters.from(formatter.parse(value)).toInstant();
             } else {
                 TemporalAccessor accessor = formatter.parse(value);
-                ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
+                // Use the offset if provided, otherwise fall back to the zone, or null.
+                ZoneOffset offset = TemporalQueries.offset().queryFrom(accessor);
+                ZoneId zoneId = offset == null ? TemporalQueries.zoneId().queryFrom(accessor) : ZoneId.ofOffset("", offset);
                 if (zoneId != null) {
                     timeZone = zoneId;
                 }

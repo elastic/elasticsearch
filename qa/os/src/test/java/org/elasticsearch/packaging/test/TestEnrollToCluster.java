@@ -154,6 +154,7 @@ public class TestEnrollToCluster extends PackagingTestCase {
             + "5e/uHZGA4XY7Pe+tK1Kx/HBayR3DwQ3yy1qo/BtOl/Gdhp46+CIWASjD3XSkv7xnAtCnILJ1/p3y2SYXT7t6Ro3LxUKNnW+CwPbEhPhA0gtXeEAJeRwLgn"
             + "EkfMpth4EFR8QZcmXaPMkW5ujyL6/RmHwKmwRm/esc1/9cYzVaOu9bBO00c55m9Yvhm28tnDF+c7fs=\"}";
         final Settings settings = Settings.builder()
+            .put("path.home", createTempDir(TestEnrollToCluster.class.getSimpleName()))
             .put("xpack.security.http.ssl.enabled", true)
             .put(
                 "xpack.security.http.ssl.key",

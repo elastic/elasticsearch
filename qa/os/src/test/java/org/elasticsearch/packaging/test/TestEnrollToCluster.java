@@ -15,6 +15,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
@@ -185,6 +186,8 @@ public class TestEnrollToCluster extends PackagingTestCase {
     public void test10Install() throws Exception {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
+        // this is only temporarily needed. We are fixing tests to work with security enabled in #77292
+        ServerUtils.enableSecurityFeatures(installation);
     }
 
     public void test20EnrollToClusterWithEmptyToken() throws Exception {

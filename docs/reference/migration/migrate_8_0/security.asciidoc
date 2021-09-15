@@ -320,7 +320,7 @@ with a specific format, or they can be configured to try to conform with the
 requirements of the SP. The SP declares its requirements as part of the
 Authentication Request, using an element which is called the `NameIDPolicy`
 For the {es} SAML realm, `NameIDPolicy` is controlled by `nameid_format` in
-<<saml-settings, SAML realm settings>>.
+SAML realm settings.
 
 Previously, the default value for this setting was
 `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` which meant that {es}
@@ -330,15 +330,15 @@ The default value has now been removed. This means that {es} will be default
 create SAML Authentication Requests that do not put forward such requirements
 to the Identity Provider.
 
-If you want to retain the previous behavior, you can set <<saml-settings, `nameid_format`>>
+If you want to retain the previous behavior, you can set `nameid_format`
 to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient`.
 
 *Impact* +
-If you are not configuring <<saml-settings, `nameid_format`>> explicitly in
+If you are not configuring `nameid_format` explicitly in
 your current configuration, there might be cases where the combination of this
 configuration and the configuration of your SAML Identity Provider will result
 in a non-working setup. If you are uncertain of how your Identity Provider is
-configured to generate a value for `NameID`, you can set <<saml-settings, `nameid_format`>>
+configured to generate a value for `NameID`, you can set `nameid_format`
 to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` explicitly.
 
 ====

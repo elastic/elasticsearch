@@ -314,6 +314,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77728")
     public void testConcurrentConnectsAndDisconnects() throws Exception {
         final DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         doAnswer(invocationOnMock -> {

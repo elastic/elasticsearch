@@ -31,14 +31,41 @@ public class HotThreads {
 
     private static final Object mutex = new Object();
 
+    private static final StackTraceElement[] EMPTY = new StackTraceElement[0];
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time");
 
     private int busiestThreads = 3;
     private TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);
-    private TimeValue threadElementsSnapshotDelay = new TimeValue(10);
+    private TimeValue threadElementsSnapshotDelay = new TimeValue(10, TimeUnit.MILLISECONDS);
     private int threadElementsSnapshotCount = 10;
-    private String type = "cpu";
+    private ReportType type = ReportType.CPU;
     private boolean ignoreIdleThreads = true;
+
+    public enum ReportType {
+
+        CPU("cpu"),
+        WAIT("wait"),
+        BLOCK("block");
+
+        private final String type;
+
+        ReportType(String type) {
+            this.type = type;
+        }
+
+        public String getTypeValue() {
+            return type;
+        }
+
+        public static ReportType of(String type) {
+            for (var report : values()) {
+                if (report.type.equals(type)) {
+                    return report;
+                }
+            }
+            throw new IllegalArgumentException("type not supported [" + type + "]");
+        }
+    }
 
     public HotThreads interval(TimeValue interval) {
         this.interval = interval;
@@ -65,12 +92,8 @@ public class HotThreads {
         return this;
     }
 
-    public HotThreads type(String type) {
-        if ("cpu".equals(type) || "wait".equals(type) || "block".equals(type)) {
-            this.type = type;
-        } else {
-            throw new IllegalArgumentException("type not supported [" + type + "]");
-        }
+    public HotThreads type(ReportType type) {
+        this.type = type;
         return this;
     }
 
@@ -134,7 +157,7 @@ public class HotThreads {
         sb.append(ignoreIdleThreads);
         sb.append(":\n");
 
-        Map<Long, MyThreadInfo> threadInfos = new HashMap<>();
+        Map<Long, ThreadTimeAccumulator> threadInfos = new HashMap<>();
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
             if (currentThreadId == threadId) {
@@ -148,7 +171,7 @@ public class HotThreads {
             if (info == null) {
                 continue;
             }
-            threadInfos.put(threadId, new MyThreadInfo(cpu, info));
+            threadInfos.put(threadId, new ThreadTimeAccumulator(info, cpu));
         }
         Thread.sleep(interval.millis());
         for (long threadId : threadBean.getAllThreadIds()) {
@@ -166,43 +189,25 @@ public class HotThreads {
                 threadInfos.remove(threadId);
                 continue;
             }
-            MyThreadInfo data = threadInfos.get(threadId);
+            ThreadTimeAccumulator data = threadInfos.get(threadId);
             if (data != null) {
-                data.setDelta(cpu, info);
+                data.setDelta(info, cpu);
             } else {
                 threadInfos.remove(threadId);
             }
         }
         // sort by delta CPU time on thread.
-        List<MyThreadInfo> hotties = new ArrayList<>(threadInfos.values());
+        List<ThreadTimeAccumulator> hotties = new ArrayList<>(threadInfos.values());
         final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
         // skip that for now
-        final ToLongFunction<MyThreadInfo> getter;
-        if ("cpu".equals(type)) {
-            getter = o -> {
-                assert o.cpuTime >= -1 : "cpu time should not be negative, but was " + o.cpuTime + ", thread info: " + o.info;
-                return o.cpuTime;
-            };
-        } else if ("wait".equals(type)) {
-            getter = o -> {
-                assert o.waitedTime >= -1 : "waited time should not be negative, but was " + o.waitedTime + ", thread info: " + o.info;
-                return o.waitedTime;
-            };
-        } else if ("block".equals(type)) {
-            getter = o -> {
-                assert o.blockedTime >= -1 : "blocked time should not be negative, but was " + o.blockedTime + ", thread info: " + o.info;
-                return o.blockedTime;
-            };
-        } else {
-            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
-        }
+        final ToLongFunction<ThreadTimeAccumulator> getter = ThreadTimeAccumulator.valueGetterForReportType(type);
 
         CollectionUtil.introSort(hotties, Comparator.comparingLong(getter).reversed());
 
         // analyse N stack traces for M busiest threads
         long[] ids = new long[busiestThreads];
         for (int i = 0; i < busiestThreads; i++) {
-            MyThreadInfo info = hotties.get(i);
+            ThreadTimeAccumulator info = hotties.get(i);
             ids[i] = info.info.getThreadId();
         }
         ThreadInfo[][] allInfos = new ThreadInfo[threadElementsSnapshotCount][];
@@ -231,7 +236,7 @@ public class HotThreads {
             }
             double percent = (((double) time) / interval.nanos()) * 100;
             sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
-                percent, TimeValue.timeValueNanos(time), interval, type, threadName));
+                percent, TimeValue.timeValueNanos(time), interval, type.getTypeValue(), threadName));
             // for each snapshot (2nd array index) find later snapshot for same thread with max number of
             // identical StackTraceElements (starting from end of each)
             boolean[] done = new boolean[threadElementsSnapshotCount];
@@ -276,8 +281,6 @@ public class HotThreads {
         return sb.toString();
     }
 
-    private static final StackTraceElement[] EMPTY = new StackTraceElement[0];
-
     int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
         StackTraceElement[] s1 = threadInfo == null ? EMPTY : threadInfo.getStackTrace();
         StackTraceElement[] s2 = threadInfo0 == null ? EMPTY : threadInfo0.getStackTrace();
@@ -293,7 +296,7 @@ public class HotThreads {
     }
 
 
-    class MyThreadInfo {
+    static class ThreadTimeAccumulator {
         long cpuTime;
         long blockedCount;
         long blockedTime;
@@ -302,7 +305,7 @@ public class HotThreads {
         boolean deltaDone;
         ThreadInfo info;
 
-        MyThreadInfo(long cpuTime, ThreadInfo info) {
+        ThreadTimeAccumulator(ThreadInfo info, long cpuTime) {
             blockedCount = info.getBlockedCount();
             blockedTime = info.getBlockedTime();
             waitedCount = info.getWaitedCount();
@@ -311,7 +314,7 @@ public class HotThreads {
             this.info = info;
         }
 
-        void setDelta(long cpuTime, ThreadInfo info) {
+        void setDelta(ThreadInfo info, long cpuTime) {
             if (deltaDone) throw new IllegalStateException("setDelta already called once");
             blockedCount = info.getBlockedCount() - blockedCount;
             blockedTime = info.getBlockedTime() - blockedTime;
@@ -320,6 +323,30 @@ public class HotThreads {
             this.cpuTime = cpuTime - this.cpuTime;
             deltaDone = true;
             this.info = info;
+        }
+
+        static ToLongFunction<ThreadTimeAccumulator> valueGetterForReportType(ReportType type) {
+            switch (type) {
+                case CPU:
+                    return o -> {
+                        assert o.cpuTime >= -1 :
+                            "cpu time should not be negative, but was " + o.cpuTime + ", thread info: " + o.info;
+                        return o.cpuTime;
+                    };
+                case WAIT:
+                    return o -> {
+                        assert o.waitedTime >= -1 :
+                            "waited time should not be negative, but was " + o.waitedTime + ", thread info: " + o.info;
+                        return o.waitedTime;
+                    };
+                case BLOCK:
+                    return o -> {
+                        assert o.blockedTime >= -1 :
+                            "blocked time should not be negative, but was " + o.blockedTime + ", thread info: " + o.info;
+                        return o.blockedTime;
+                    };
+            }
+            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
         }
     }
 }

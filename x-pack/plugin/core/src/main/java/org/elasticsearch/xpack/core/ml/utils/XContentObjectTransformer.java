@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xpack.core.deprecation.LoggingDeprecationAccumulationHandler;
 
 import java.io.IOException;
 import java.util.ArrayList;

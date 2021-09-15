@@ -50,31 +50,23 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
         long absError = 0L;
         long docCount = 0L;
         for (int k = 0; k < 10; k++) {
-            try (Directory dir = newDirectory();
-                 RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
                 docCount += generateDocs(w);
-                double[] steps = IntStream.range(2, 99)
-                    .filter(i -> i % 2 == 0)
-                    .mapToDouble(Double::valueOf)
-                    .toArray();
+                double[] steps = IntStream.range(2, 99).filter(i -> i % 2 == 0).mapToDouble(Double::valueOf).toArray();
 
-                PercentilesAggregationBuilder rawPercentiles = new PercentilesAggregationBuilder("my_agg")
-                    .field(RAW_FIELD_NAME)
+                PercentilesAggregationBuilder rawPercentiles = new PercentilesAggregationBuilder("my_agg").field(RAW_FIELD_NAME)
                     .percentilesConfig(new PercentilesConfig.Hdr())
                     .percentiles(steps);
 
-                PercentilesAggregationBuilder aggregatedPercentiles = new PercentilesAggregationBuilder("my_agg")
-                    .field(HISTO_FIELD_NAME)
+                PercentilesAggregationBuilder aggregatedPercentiles = new PercentilesAggregationBuilder("my_agg").field(HISTO_FIELD_NAME)
                     .percentilesConfig(new PercentilesConfig.Hdr())
                     .percentiles(steps);
 
                 try (IndexReader reader = w.getReader()) {
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg")
-                        .field(HISTO_FIELD_NAME);
+                    RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg").field(HISTO_FIELD_NAME);
 
-                    RangeAggregationBuilder rawFieldAgg = new RangeAggregationBuilder("my_agg")
-                        .field(RAW_FIELD_NAME);
+                    RangeAggregationBuilder rawFieldAgg = new RangeAggregationBuilder("my_agg").field(RAW_FIELD_NAME);
                     Percentiles rawPercentileResults = searchAndReduce(
                         searcher,
                         new MatchAllDocsQuery(),
@@ -93,7 +85,8 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                     for (int i = 1; i < steps.length; i++) {
                         aggBuilder.addRange(
                             aggregatedPercentileResults.percentile(steps[i - 1]),
-                            aggregatedPercentileResults.percentile(steps[i]));
+                            aggregatedPercentileResults.percentile(steps[i])
+                        );
                         rawFieldAgg.addRange(rawPercentileResults.percentile(steps[i - 1]), rawPercentileResults.percentile(steps[i]));
                     }
                     aggBuilder.addUnboundedFrom(aggregatedPercentileResults.percentile(steps[steps.length - 1]));
@@ -117,20 +110,21 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                 }
             }
         }
-        assertThat((double)absError/docCount, lessThan(0.1));
+        assertThat((double) absError / docCount, lessThan(0.1));
     }
 
     @SuppressWarnings("rawtypes")
     public void testMediumRangesAccuracy() throws Exception {
         List<RangeAggregator.Range> ranges = Arrays.asList(
-        new RangeAggregator.Range(null, null, 2.0),
-        new RangeAggregator.Range(null, 2.0, 4.0),
-        new RangeAggregator.Range(null, 4.0, 6.0),
-        new RangeAggregator.Range(null, 6.0, 8.0),
-        new RangeAggregator.Range(null, 8.0, 9.0),
-        new RangeAggregator.Range(null, 8.0, 11.0),
-        new RangeAggregator.Range(null, 11.0, 12.0),
-        new RangeAggregator.Range(null, 12.0, null));
+            new RangeAggregator.Range(null, null, 2.0),
+            new RangeAggregator.Range(null, 2.0, 4.0),
+            new RangeAggregator.Range(null, 4.0, 6.0),
+            new RangeAggregator.Range(null, 6.0, 8.0),
+            new RangeAggregator.Range(null, 8.0, 9.0),
+            new RangeAggregator.Range(null, 8.0, 11.0),
+            new RangeAggregator.Range(null, 11.0, 12.0),
+            new RangeAggregator.Range(null, 12.0, null)
+        );
         testRanges(ranges, "manual_medium_ranges");
     }
 
@@ -138,7 +132,8 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
         List<RangeAggregator.Range> ranges = Arrays.asList(
             new RangeAggregator.Range(null, null, 8.0),
             new RangeAggregator.Range(null, 8.0, 12.0),
-            new RangeAggregator.Range(null, 12.0, null));
+            new RangeAggregator.Range(null, 12.0, null)
+        );
         testRanges(ranges, "manual_big_ranges");
     }
 
@@ -168,7 +163,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
             new RangeAggregator.Range(null, 11.0, 11.5),
             new RangeAggregator.Range(null, 11.5, 12.0),
             new RangeAggregator.Range(null, 12.0, null)
-            );
+        );
         testRanges(ranges, "manual_small_ranges");
     }
 
@@ -177,16 +172,13 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
         long absError = 0L;
         long docCount = 0L;
         for (int k = 0; k < 10; k++) {
-            try (Directory dir = newDirectory();
-                 RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
                 docCount += generateDocs(w);
 
                 try (IndexReader reader = w.getReader()) {
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg")
-                        .field(HISTO_FIELD_NAME);
-                    RangeAggregationBuilder rawFieldAgg = new RangeAggregationBuilder("my_agg")
-                        .field(RAW_FIELD_NAME);
+                    RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg").field(HISTO_FIELD_NAME);
+                    RangeAggregationBuilder rawFieldAgg = new RangeAggregationBuilder("my_agg").field(RAW_FIELD_NAME);
                     ranges.forEach(r -> {
                         aggBuilder.addRange(r);
                         rawFieldAgg.addRange(r);
@@ -210,28 +202,32 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                 }
             }
         }
-        assertThat("test " + name, (double)absError/docCount, lessThan(0.1));
+        assertThat("test " + name, (double) absError / docCount, lessThan(0.1));
     }
 
     @SuppressWarnings("rawtypes")
     public void testOverlapping() throws Exception {
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            w.addDocument(Arrays.asList(
-                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {0, 1.2, 10, 12, 24}, new int[] {3, 1, 2, 4, 6}),
-                new CustomTermFreqField("_doc_count", "_doc_count", 16))
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            w.addDocument(
+                Arrays.asList(
+                    histogramFieldDocValues(HISTO_FIELD_NAME, new double[] { 0, 1.2, 10, 12, 24 }, new int[] { 3, 1, 2, 4, 6 }),
+                    new CustomTermFreqField("_doc_count", "_doc_count", 16)
+                )
             );
-            w.addDocument(Arrays.asList(
-                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {5.3, 6, 6, 20}, new int[] {1, 3, 4, 5}),
-                new CustomTermFreqField("_doc_count", "_doc_count", 13))
+            w.addDocument(
+                Arrays.asList(
+                    histogramFieldDocValues(HISTO_FIELD_NAME, new double[] { 5.3, 6, 6, 20 }, new int[] { 1, 3, 4, 5 }),
+                    new CustomTermFreqField("_doc_count", "_doc_count", 13)
+                )
             );
-            w.addDocument(Arrays.asList(
-                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30}, new int[] {10, 2, 4, 14, 11}),
-                new CustomTermFreqField("_doc_count", "_doc_count", 41))
+            w.addDocument(
+                Arrays.asList(
+                    histogramFieldDocValues(HISTO_FIELD_NAME, new double[] { -10, 0.01, 10, 10, 30 }, new int[] { 10, 2, 4, 14, 11 }),
+                    new CustomTermFreqField("_doc_count", "_doc_count", 41)
+                )
             );
 
-            RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg")
-                .field(HISTO_FIELD_NAME)
+            RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg").field(HISTO_FIELD_NAME)
                 .addUnboundedTo(0)
                 .addRange(5, 10)
                 .addRange(7, 10)
@@ -276,23 +272,27 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
 
     @SuppressWarnings("rawtypes")
     public void testNonOverlapping() throws Exception {
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            w.addDocument(Arrays.asList(
-                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {0, 1.2, 10, 12, 24}, new int[] {3, 1, 2, 4, 6}),
-                new CustomTermFreqField("_doc_count", "_doc_count", 16))
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            w.addDocument(
+                Arrays.asList(
+                    histogramFieldDocValues(HISTO_FIELD_NAME, new double[] { 0, 1.2, 10, 12, 24 }, new int[] { 3, 1, 2, 4, 6 }),
+                    new CustomTermFreqField("_doc_count", "_doc_count", 16)
+                )
             );
-            w.addDocument(Arrays.asList(
-                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {5.3, 6, 6, 20}, new int[] {1, 3, 4, 5}),
-                new CustomTermFreqField("_doc_count", "_doc_count", 13))
+            w.addDocument(
+                Arrays.asList(
+                    histogramFieldDocValues(HISTO_FIELD_NAME, new double[] { 5.3, 6, 6, 20 }, new int[] { 1, 3, 4, 5 }),
+                    new CustomTermFreqField("_doc_count", "_doc_count", 13)
+                )
             );
-            w.addDocument(Arrays.asList(
-                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30}, new int[] {10, 2, 4, 14, 11}),
-                new CustomTermFreqField("_doc_count", "_doc_count", 41))
+            w.addDocument(
+                Arrays.asList(
+                    histogramFieldDocValues(HISTO_FIELD_NAME, new double[] { -10, 0.01, 10, 10, 30 }, new int[] { 10, 2, 4, 14, 11 }),
+                    new CustomTermFreqField("_doc_count", "_doc_count", 41)
+                )
             );
 
-            RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg")
-                .field(HISTO_FIELD_NAME)
+            RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg").field(HISTO_FIELD_NAME)
                 .addUnboundedTo(0)
                 .addRange(0, 10)
                 .addRange(10, 20)
@@ -324,19 +324,18 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSubAggs() throws Exception {
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 
-            w.addDocument(singleton(histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {-4.5, 4.3})));
-            w.addDocument(singleton(histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {-5, 3.2 })));
+            w.addDocument(singleton(histogramFieldDocValues(HISTO_FIELD_NAME, new double[] { -4.5, 4.3 })));
+            w.addDocument(singleton(histogramFieldDocValues(HISTO_FIELD_NAME, new double[] { -5, 3.2 })));
 
-            RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg")
-                .field(HISTO_FIELD_NAME)
+            RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg").field(HISTO_FIELD_NAME)
                 .addRange(-1.0, 3.0)
                 .subAggregation(new TopHitsAggregationBuilder("top_hits"));
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
                     () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(HISTO_FIELD_NAME))
                 );
                 assertEquals("Range aggregation on histogram fields does not support sub-aggregations", e.getMessage());

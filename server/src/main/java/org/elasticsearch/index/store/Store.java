@@ -136,13 +136,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardLock shardLock;
     private final OnClose onClose;
 
-    private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
-        @Override
-        protected void closeInternal() {
-            // close us once we are done
-            Store.this.closeInternal();
-        }
-    };
+    private final AbstractRefCounted refCounter = AbstractRefCounted.of(this::closeInternal); // close us once we are done
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
         this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY);
@@ -391,6 +385,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     @Override
     public final boolean decRef() {
         return refCounter.decRef();
+    }
+
+    @Override
+    public final boolean hasReferences() {
+        return refCounter.hasReferences();
     }
 
     @Override

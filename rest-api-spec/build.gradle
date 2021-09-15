@@ -1,10 +1,11 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.OS
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 restResources {
@@ -17,22 +18,32 @@ restResources {
 ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
 ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
 
+configurations {
+  // configuration to make use by external yaml rest test plugin in our examples
+  // easy and efficient
+  basicRestSpecs {
+    attributes {
+      attribute(org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
 artifacts {
+  basicRestSpecs(new File(projectDir, "src/main/resources"))
   restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 testClusters.all {
   module ':modules:mapper-extras'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }
 
 tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
-tasks.named("yamlRestCompatTest").configure {
-  onlyIf {
-    // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
-    OS.current() != OS.WINDOWS
-  }
+tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist',  [
             // Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API
             'cat*/*/*',
@@ -77,6 +88,7 @@ tasks.named("yamlRestCompatTest").configure {
             // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
             'indices.upgrade/*/*',
 
+
             'search.aggregation/20_terms/*profiler*', // The profiler results aren't backwards compatible.
             'search.aggregation/370_doc_count_field/Test filters agg with doc_count', // Uses profiler for assertions which is not backwards compatible
 
@@ -92,7 +104,7 @@ tasks.named("yamlRestCompatTest").configure {
     ].join(',')
 }
 
-tasks.named("transformV7RestTests").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.replaceValueInMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")

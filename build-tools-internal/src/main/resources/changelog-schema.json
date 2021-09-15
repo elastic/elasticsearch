@@ -103,14 +103,6 @@
           "type": "string",
           "minLength": 1
         },
-        "versions": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^v?\\d+\\.\\d+\\.\\d+$",
-            "minItems": 1
-          }
-        },
         "highlight": {
           "$ref": "#/definitions/Highlight"
         },
@@ -123,8 +115,7 @@
       },
       "required": [
         "type",
-        "summary",
-        "versions"
+        "summary"
       ]
     },
     "Highlight": {

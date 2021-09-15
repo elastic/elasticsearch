@@ -153,9 +153,9 @@ public class AutomatonsTests extends ESTestCase {
             Automatons.updateConfiguration(settings);
             assertEquals(10000, Automatons.getMaxDeterminizedStates());
 
-            final List<String> names = new ArrayList<>(1024);
-            for (int i = 0; i < 1024; i++) {
-                names.add(randomAlphaOfLength(48));
+            final List<String> names = new ArrayList<>(4096);
+            for (int i = 0; i < 4096; i++) {
+                names.add(randomAlphaOfLength(64));
             }
             TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class, () -> Automatons.patterns(names));
             assertThat(e.getDeterminizeWorkLimit(), equalTo(10000));

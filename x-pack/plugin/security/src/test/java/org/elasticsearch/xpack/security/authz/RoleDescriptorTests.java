@@ -133,6 +133,19 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(parsed, equalTo(descriptor));
     }
 
+    public void testPrivilegesAreSorted() throws Exception {
+        RoleDescriptor.ApplicationResourcePrivileges applicationResourcePrivileges = RoleDescriptor.ApplicationResourcePrivileges.builder()
+            .application("test-app")
+            .privileges("user", "dne")
+            .resources("*")
+            .build();
+
+        XContentBuilder builder = jsonBuilder();
+        applicationResourcePrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertThat(Strings.toString(builder), equalTo(
+            "{\"application\":\"test-app\",\"privileges\":[\"dne\",\"user\"],\"resources\":[\"*\"]}"));
+    }
+
     public void testParse() throws Exception {
 
         String q = "{\"cluster\":[\"a\", \"b\"]}";

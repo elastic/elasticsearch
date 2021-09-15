@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.OS
 
 apply plugin: 'elasticsearch.build'
@@ -35,6 +36,9 @@ artifacts {
 
 testClusters.all {
   module ':modules:mapper-extras'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }
 
 tasks.named("test").configure { enabled = false }

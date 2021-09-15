@@ -9,9 +9,11 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,16 +31,14 @@ import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.EnumSet;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -77,8 +77,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
     }
 
-    public void testHandleNodeJoin_incompatibleClusterState()
-            throws InterruptedException, ExecutionException, TimeoutException {
+    public void testHandleNodeJoin_incompatibleClusterState() {
         String masterNode = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
@@ -88,28 +87,29 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         mdBuilder.putCustom(CustomMetadata.TYPE, new CustomMetadata("data"));
         ClusterState stateWithCustomMetadata = ClusterState.builder(state).metadata(mdBuilder).build();
 
-        final CompletableFuture<Throwable> future = new CompletableFuture<>();
-        DiscoveryNode node = state.nodes().getLocalNode();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        final DiscoveryNode node = state.nodes().getLocalNode();
 
-        coordinator.sendValidateJoinRequest(stateWithCustomMetadata, new JoinRequest(node, 0L, Optional.empty()),
-                new JoinHelper.JoinCallback() {
-            @Override
-            public void onSuccess() {
-                future.completeExceptionally(new AssertionError("onSuccess should not be called"));
-            }
+        coordinator.sendValidateJoinRequest(
+            stateWithCustomMetadata,
+            new JoinRequest(node, 0L, Optional.empty()),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    fail("onResponse should not be called");
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                future.complete(e);
-            }
-        });
+                @Override
+                public void onFailure(Exception t) {
+                    assertThat(t, instanceOf(IllegalStateException.class));
+                    assertThat(t.getCause(), instanceOf(RemoteTransportException.class));
+                    assertThat(t.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+                    assertThat(t.getCause().getCause().getMessage(), containsString("Unknown NamedWriteable"));
+                    future.onResponse(null);
+                }
+            });
 
-        Throwable t = future.get(10, TimeUnit.SECONDS);
-
-        assertTrue(t instanceof IllegalStateException);
-        assertTrue(t.getCause() instanceof RemoteTransportException);
-        assertTrue(t.getCause().getCause() instanceof IllegalArgumentException);
-        assertThat(t.getCause().getCause().getMessage(), containsString("Unknown NamedWriteable"));
+        future.actionGet(10, TimeUnit.SECONDS);
     }
 
     public static class CustomMetadata extends TestCustomMetadata {

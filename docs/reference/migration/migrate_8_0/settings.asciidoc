@@ -147,8 +147,7 @@ Discontinue use of the removed settings. Specifying these settings in
 [%collapsible]
 ====
 *Details* +
-The following settings were deprecated in {es} 7.8.0 and have been removed in
-{es} 8.0.0:
+The following cluster settings have been removed:
 
 * `gateway.expected_nodes`
 * `gateway.expected_master_nodes`

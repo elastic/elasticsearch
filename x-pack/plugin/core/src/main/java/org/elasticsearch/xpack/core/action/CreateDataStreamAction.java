@@ -65,7 +65,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.name = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
                 this.startTime = in.readVLong();
             } else {
                 this.startTime = System.currentTimeMillis();
@@ -76,7 +76,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(name);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
                 out.writeVLong(startTime);
             }
         }

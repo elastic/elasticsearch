@@ -226,10 +226,6 @@ public class Archives {
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
-        return runElasticsearchStartCommand(installation, sh, null, true);
-    }
-
     public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword, boolean daemonize)
         throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
@@ -268,6 +264,16 @@ public class Archives {
         String keystorePassword,
         boolean daemonize
     ) {
+        return runElasticsearchStartCommand(installation, sh, keystorePassword, List.of(), daemonize);
+    }
+
+    public static Shell.Result runElasticsearchStartCommand(
+        Installation installation,
+        Shell sh,
+        String keystorePassword,
+        List<String> parameters,
+        boolean daemonize
+    ) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
         assertThat(pidFile, fileDoesNotExist());
@@ -294,6 +300,9 @@ public class Archives {
             }
             command.add("-p");
             command.add(pidFile.toString());
+            if (parameters != null && parameters.isEmpty() == false) {
+                command.addAll(parameters);
+            }
             if (keystorePassword != null) {
                 command.add("<<<'" + keystorePassword + "'");
             }

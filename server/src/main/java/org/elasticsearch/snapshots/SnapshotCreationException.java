@@ -14,7 +14,10 @@ import java.io.IOException;
 
 /**
  * Thrown when snapshot creation fails completely
+ * TODO: Remove this class in 8.0
+ * @deprecated This exception isn't thrown anymore. It's only here for BwC.
  */
+@Deprecated
 public class SnapshotCreationException extends SnapshotException {
 
     public SnapshotCreationException(StreamInput in) throws IOException {

@@ -27,7 +27,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -431,7 +430,7 @@ public class GeometryIndexerTests extends ESTestCase {
         Polygon polygon = new Polygon(new LinearRing(
             new double[]{0, 0, 1, 0.5, 1.5, 1, 2, 2, 0}, new double[]{0, 2, 1.9, 1.8, 1.8, 1.9, 2, 0, 0}
         ));
-        Exception e = expectThrows(InvalidShapeException.class, () -> indexer.prepareForIndexing(polygon));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> indexer.prepareForIndexing(polygon));
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
         assertThat(e.getMessage(), not(containsString("NaN")));
     }

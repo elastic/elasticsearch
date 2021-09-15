@@ -46,7 +46,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     }
 
     public SearchProfileResults(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             shardResults = in.readMap(StreamInput::readString, SearchProfileShardResult::new);
         } else {
             // Before 8.0.0 we only send the query phase result
@@ -59,7 +59,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeMap(shardResults, StreamOutput::writeString, (o, r) -> r.writeTo(o));
         } else {
             // Before 8.0.0 we only send the query phase

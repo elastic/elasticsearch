@@ -348,7 +348,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             // Instead, we periodically look through the indices and identify if any are searchable snapshots,
             // then marking the feature as used. We do this on each master node so that if one master fails, the
             // continue reporting usage state.
-            var usageTracker = new SearchableSnapshotsUsageTracker(getLicenseState(), clusterService::state);
+            SearchableSnapshotsUsageTracker usageTracker = new SearchableSnapshotsUsageTracker(getLicenseState(), clusterService::state);
             threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), ThreadPool.Names.GENERIC);
         }
 

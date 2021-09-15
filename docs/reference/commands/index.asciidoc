@@ -13,6 +13,7 @@ tasks from the command line:
 * <<elasticsearch-croneval>>
 * <<elasticsearch-keystore>>
 * <<node-tool>>
+* <<reset-elastic-password>>
 * <<saml-metadata>>
 * <<setup-passwords>>
 * <<shard-tool>>
@@ -27,6 +28,7 @@ include::create-enrollment-token.asciidoc[]
 include::croneval.asciidoc[]
 include::keystore.asciidoc[]
 include::node-tool.asciidoc[]
+include::reset-elastic-password.asciidoc[]
 include::saml-metadata.asciidoc[]
 include::service-tokens-command.asciidoc[]
 include::setup-passwords.asciidoc[]

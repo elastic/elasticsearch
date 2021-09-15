@@ -13,7 +13,7 @@ import com.avast.gradle.dockercompose.ServiceInfo;
 import com.avast.gradle.dockercompose.tasks.ComposeDown;
 import com.avast.gradle.dockercompose.tasks.ComposePull;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
-import org.elasticsearch.gradle.internal.test.SystemPropertyCommandLineArgumentProvider;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
@@ -78,11 +78,14 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
             TaskProvider<Task> preProcessFixture = project.getTasks().register("preProcessFixture", t -> {
                 t.getOutputs().dir(testfixturesDir);
-                t.doFirst(t2 -> {
-                    try {
-                        Files.createDirectories(testfixturesDir.toPath());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+                t.doFirst(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        try {
+                            Files.createDirectories(testfixturesDir.toPath());
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
                     }
                 });
             });

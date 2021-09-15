@@ -50,7 +50,6 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
     @Before
     public void init() throws IOException {
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)).thenReturn(true);
         threadContext = new ThreadContext(Settings.EMPTY);
         out = new BytesStreamOutput();
@@ -97,10 +96,4 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         assertThat(out.position(), equalTo(0L));
     }
 
-    public void testWillDoNothingIfSecurityIsNotEnabled() throws IOException {
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
-        when(shardSearchRequest.shardId()).thenReturn(new ShardId(dlsFlsIndexName, randomAlphaOfLength(10), randomIntBetween(0, 3)));
-        differentiator.accept(shardSearchRequest, out);
-        assertThat(out.position(), equalTo(0L));
-    }
 }

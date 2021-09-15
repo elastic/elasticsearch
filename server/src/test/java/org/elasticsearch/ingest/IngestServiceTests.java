@@ -934,7 +934,7 @@ public class IngestServiceTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         int numIndexRequests = 0;
         for (int i = 0; i < numRequest; i++) {
-            DocWriteRequest request;
+            DocWriteRequest<?> request;
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     request = new DeleteRequest("_index", "_id");

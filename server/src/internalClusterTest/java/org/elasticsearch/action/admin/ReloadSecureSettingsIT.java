@@ -26,7 +26,6 @@ import org.junit.BeforeClass;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,11 +34,11 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class ReloadSecureSettingsIT extends ESIntegTestCase {
@@ -399,17 +398,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     private SecureSettings writeEmptyKeystore(Environment environment, char[] password) throws Exception {
         final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
-        try {
-            keyStoreWrapper.save(environment.configFile(), password);
-        } catch (final AccessControlException e) {
-            if (e.getPermission() instanceof RuntimePermission && e.getPermission().getName().equals("accessUserInformation")) {
-                // this is expected: the save method is extra diligent and wants to make sure
-                // the keystore is readable, not relying on umask and whatnot. It's ok, we don't
-                // care about this in tests.
-            } else {
-                throw e;
-            }
-        }
+        keyStoreWrapper.save(environment.configFile(), password, false);
         return keyStoreWrapper;
     }
 

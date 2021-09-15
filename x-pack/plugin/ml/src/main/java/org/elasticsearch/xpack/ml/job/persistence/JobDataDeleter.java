@@ -135,26 +135,28 @@ public class JobDataDeleter {
      * @param listener Response listener
      */
     public void deleteAllAnnotations(ActionListener<Boolean> listener) {
-        deleteAnnotationsFromTime(null, null, listener);
+        deleteAnnotations(null, null, null, listener);
     }
 
     /**
      * Asynchronously delete all the auto-generated (i.e. created by the _xpack user) annotations starting from {@code cutOffTime}
      *
-     * @param cutoffEpochMs Only annotations at and after this time will be deleted. If {@code null}, no cutoff is applied
+     * @param fromEpochMs Only annotations at and after this time will be deleted. If {@code null}, no cutoff is applied
+     * @param toEpochMs Only annotations before this time will be deleted. If {@code null}, no cutoff is applied
      * @param eventsToDelete Only annotations with one of the provided event types will be deleted.
      *                       If {@code null} or empty, no event-related filtering is applied
      * @param listener Response listener
      */
-    public void deleteAnnotationsFromTime(@Nullable Long cutoffEpochMs,
-                                          @Nullable Set<String> eventsToDelete,
-                                          ActionListener<Boolean> listener) {
+    public void deleteAnnotations(@Nullable Long fromEpochMs,
+                                  @Nullable Long toEpochMs,
+                                  @Nullable Set<String> eventsToDelete,
+                                  ActionListener<Boolean> listener) {
         BoolQueryBuilder boolQuery =
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
                 .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME));
-        if (cutoffEpochMs != null) {
-            boolQuery.filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
+        if (fromEpochMs != null || toEpochMs != null) {
+            boolQuery.filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).gte(fromEpochMs).lt(toEpochMs));
         }
         if (eventsToDelete != null && eventsToDelete.isEmpty() == false) {
             boolQuery.filter(QueryBuilders.termsQuery(Annotation.EVENT.getPreferredName(), eventsToDelete));

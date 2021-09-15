@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -34,8 +34,11 @@ public class ParsedDerivative extends ParsedSimpleValue implements Derivative {
         return DerivativePipelineAggregationBuilder.NAME;
     }
 
-    private static final ObjectParser<ParsedDerivative, Void> PARSER = new ObjectParser<>(ParsedDerivative.class.getSimpleName(), true,
-            ParsedDerivative::new);
+    private static final ObjectParser<ParsedDerivative, Void> PARSER = new ObjectParser<>(
+        ParsedDerivative.class.getSimpleName(),
+        true,
+        ParsedDerivative::new
+    );
 
     static {
         declareSingleValueFields(PARSER, Double.NaN);

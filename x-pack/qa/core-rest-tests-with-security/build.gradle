@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -13,6 +15,17 @@ restResources {
   }
 }
 
+def clusterCredentials = [
+        username: providers.systemProperty('tests.rest.cluster.username')
+                .orElse('test_admin')
+                .forUseAtConfigurationTime()
+                .get(),
+        password: providers.systemProperty('tests.rest.cluster.password')
+                .orElse('x-pack-test-password')
+                .forUseAtConfigurationTime()
+                .get()
+]
+
 tasks.named("integTest").configure {
     systemProperty 'tests.rest.blacklist',
       [
@@ -20,8 +33,8 @@ tasks.named("integTest").configure {
         'indices.get_alias/10_basic/Get alias against closed indices'
       ].join(',')
 
-    systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
-    systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
+    systemProperty 'tests.rest.cluster.username', clusterCredentials.username
+    systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }
 
 testClusters.matching { it.name == "integTest" }.configureEach {
@@ -31,7 +44,11 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 
-  user username: System.getProperty('tests.rest.cluster.username', 'test_user'),
-    password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
+  user username: clusterCredentials.username,
+    password: clusterCredentials.password
 }

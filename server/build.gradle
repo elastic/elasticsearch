@@ -27,6 +27,7 @@ dependencies {
   api project(':libs:elasticsearch-secure-sm')
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
+  api project(":libs:elasticsearch-lz4")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
 
@@ -49,9 +50,6 @@ dependencies {
   // utilities
   api project(":libs:elasticsearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
-
-  // LZ4
-  api 'org.lz4:lz4-java:1.8.0'
 
   // time handling, remove with java 8 time
   api "joda-time:joda-time:${versions.joda}"
@@ -83,26 +81,6 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'server'
   }
 
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-}
-
-// Until this project is always being formatted with spotless, we need to
-// guard against `spotless()` not existing.
-try {
-  spotless {
-    java {
-      // Contains large data tables that do not format well.
-      targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
-    }
-  }
-}
-catch (Exception e) {
-  if (e.getMessage().contains("Could not find method spotless") == false) {
-    throw e;
-  }
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -269,11 +247,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2LatLng'
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
-
-    ignoreViolations(
-      // from java-lz4
-      'net.jpountz.util.UnsafeUtils'
-    )
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -341,7 +314,7 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.cli.LoggingAwareMultiCommand',
 
     // these should be temporary, query needs package private access to TermScorer though
-   'org.apache.lucene.search.XCombinedFieldQuery', 
-   'org.apache.lucene.search.XMultiNormsLeafSimScorer' 
+   'org.apache.lucene.search.XCombinedFieldQuery',
+   'org.apache.lucene.search.XMultiNormsLeafSimScorer'
 
 }

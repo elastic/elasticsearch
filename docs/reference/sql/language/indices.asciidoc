@@ -92,7 +92,7 @@ By default, {es-sql} doesn't search <<freeze-index-api,frozen indices>>. To
 search frozen indices, use one of the following features:
 
 dedicated configuration parameter::
-Set to `true` properties `index_include_frozen` in the <<sql-rest>> or `index.include.frozen` in the drivers to include frozen indices.
+Set to `true` properties `index_include_frozen` in the <<sql-search-api,SQL search API>> or `index.include.frozen` in the drivers to include frozen indices.
 
 dedicated keyword::
 Explicitly perform the inclusion through the dedicated `FROZEN` keyword in the `FROM` clause or `INCLUDE FROZEN` in the `SHOW` commands:

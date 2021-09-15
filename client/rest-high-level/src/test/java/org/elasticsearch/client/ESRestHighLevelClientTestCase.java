@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.cluster.RemoteInfoResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -66,6 +67,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     protected static final String CONFLICT_PIPELINE_ID = "conflict_pipeline";
 
     private static RestHighLevelClient restHighLevelClient;
+    private static RestHighLevelClient adminRestHighLevelClient;
     private static boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
 
     @Before
@@ -74,16 +76,33 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         if (restHighLevelClient == null) {
             restHighLevelClient = new HighLevelClient(client());
         }
+        if (adminRestHighLevelClient == null) {
+            adminRestHighLevelClient = new HighLevelClient(adminClient());
+        }
     }
 
     @AfterClass
     public static void cleanupClient() throws IOException {
         IOUtils.close(restHighLevelClient);
+        IOUtils.close(adminRestHighLevelClient);
         restHighLevelClient = null;
+        adminRestHighLevelClient = null;
     }
 
     protected static RestHighLevelClient highLevelClient() {
         return restHighLevelClient;
+    }
+
+    @Override
+    protected Settings restAdminSettings() {
+        String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
+    }
+
+    protected static RestHighLevelClient adminHighLevelClient() {
+        return adminRestHighLevelClient;
     }
 
     /**

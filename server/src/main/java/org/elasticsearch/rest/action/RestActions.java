@@ -163,6 +163,7 @@ public class RestActions {
      * @return Never {@code null}.
      * @throws IOException if building the response causes an issue
      */
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public static <NodesResponse extends BaseNodesResponse & ToXContent> BytesRestResponse nodesResponse(final XContentBuilder builder,
                                                                                                          final Params params,
                                                                                                          final NodesResponse response)
@@ -214,7 +215,7 @@ public class RestActions {
      * });
      * </code>
      */
-    public static class NodesResponseRestListener<NodesResponse extends BaseNodesResponse & ToXContent>
+    public static class NodesResponseRestListener<NodesResponse extends BaseNodesResponse<?> & ToXContent>
         extends RestBuilderListener<NodesResponse> {
 
         public NodesResponseRestListener(RestChannel channel) {

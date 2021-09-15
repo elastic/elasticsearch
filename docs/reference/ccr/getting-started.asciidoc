@@ -68,8 +68,6 @@ TIP: If you want to replicate data across clusters in the cloud, you can
 link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
 can <<modules-cross-cluster-search,search across clusters>> and set up {ccr}.
 
-video::https://static-www.elastic.co/v3/assets/bltefdd0b53724fa2ce/blt994089f5e841ad69/5f6265de6f40ab4648b5cf9b/ccr-setup-video-edited.mp4[width=700, height=500, options="autoplay,loop"]
-
 [[ccr-getting-started-prerequisites]]
 ==== Prerequisites
 To complete this tutorial, you need:
@@ -99,12 +97,10 @@ image::images/ccr-tutorial-clusters.png[ClusterA contains the leader index and C
 To configure a remote cluster from Stack Management in {kib}:
 
 . Select *Remote Clusters* from the side navigation.
-. Specify the IP address or host name of the remote cluster (`ClusterA`),
-followed by the transport port of the remote cluster (defaults to `9300`). For
-example, `192.168.1.1:9300`.
-
-[role="screenshot"]
-image::images/ccr-add-remote-cluster.png["The Add remote clusters page in {kib}"]
+. Specify the {es} endpoint URL, or the IP address or host name of the remote
+cluster (`ClusterA`) followed by the transport port (defaults to `9300`). For
+example, `cluster.es.eastus2.staging.azure.foundit.no:9400` or
+`192.168.1.1:9300`.
 
 [%collapsible]
 .API example
@@ -192,8 +188,6 @@ replicate.
 . Enter the name of the leader index, which is
 `kibana_sample_data_ecommerce` if you are following the tutorial.
 . Enter a name for your follower index, such as `follower-kibana-sample-data`.
-
-image::images/ccr-add-follower-index.png["Adding a follower index named server-metrics in {kib}"]
 
 {es} initializes the follower using the
 <<ccr-remote-recovery, remote recovery>>

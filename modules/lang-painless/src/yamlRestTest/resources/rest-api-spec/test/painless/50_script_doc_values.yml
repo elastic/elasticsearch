@@ -182,6 +182,20 @@ setup:
                             source: "doc['geo_point'].getDimensionalType()"
     - match: { hits.hits.0.fields.type.0: 0 }
 
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            script_fields:
+              width:
+                script:
+                  source: "doc['geo_point'].getMercatorWidth()"
+              height:
+                script:
+                  source: "doc['geo_point'].getMercatorHeight()"
+    - match: { hits.hits.0.fields.width.0: 0.0 }
+    - match: { hits.hits.0.fields.height.0: 0.0 }
+
 ---
 "ip":
     - do:

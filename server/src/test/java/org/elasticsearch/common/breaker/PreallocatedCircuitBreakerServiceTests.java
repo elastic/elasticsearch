@@ -25,12 +25,11 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
     public void testUseNotPreallocated() {
         try (HierarchyCircuitBreakerService real = real()) {
             try (PreallocatedCircuitBreakerService preallocated = preallocateRequest(real, 1024)) {
-                CircuitBreaker b = preallocated.getBreaker(CircuitBreaker.ACCOUNTING);
+                CircuitBreaker b = preallocated.getBreaker(CircuitBreaker.REQUEST);
                 b.addEstimateBytesAndMaybeBreak(100, "test");
                 b.addWithoutBreaking(-100);
             }
             assertThat(real.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
-            assertThat(real.getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
         }
     }
 

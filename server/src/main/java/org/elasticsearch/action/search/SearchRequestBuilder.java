@@ -454,7 +454,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescorerBuilder rescorer, int window) {
+    public SearchRequestBuilder setRescorer(RescorerBuilder<?> rescorer, int window) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer.windowSize(window));
     }

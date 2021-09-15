@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -46,6 +47,7 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToJson;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
+import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -129,7 +131,12 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         final IndexStatsMonitoringDoc document =
                 new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats, metadata, routingTable);
 
-        final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
+        final BytesReference xContent;
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            document.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            xContent = BytesReference.bytes(builder);
+        }
+
         final String expected = stripWhitespace(String.format(Locale.ROOT, "{"
             + "  \"cluster_uuid\": \"_cluster\","
             + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
@@ -180,16 +187,16 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             + "      },"
             + "      \"segments\": {"
             + "        \"count\": 21,"
-            + "        \"memory_in_bytes\": 22,"
-            + "        \"terms_memory_in_bytes\": 23,"
-            + "        \"stored_fields_memory_in_bytes\": 24,"
-            + "        \"term_vectors_memory_in_bytes\": 25,"
-            + "        \"norms_memory_in_bytes\": 26,"
-            + "        \"points_memory_in_bytes\": 27,"
-            + "        \"doc_values_memory_in_bytes\": 28,"
-            + "        \"index_writer_memory_in_bytes\": 29,"
-            + "        \"version_map_memory_in_bytes\": 30,"
-            + "        \"fixed_bit_set_memory_in_bytes\": 31"
+            + "        \"memory_in_bytes\": 0,"
+            + "        \"terms_memory_in_bytes\": 0,"
+            + "        \"stored_fields_memory_in_bytes\": 0,"
+            + "        \"term_vectors_memory_in_bytes\": 0,"
+            + "        \"norms_memory_in_bytes\": 0,"
+            + "        \"points_memory_in_bytes\": 0,"
+            + "        \"doc_values_memory_in_bytes\": 0,"
+            + "        \"index_writer_memory_in_bytes\": 22,"
+            + "        \"version_map_memory_in_bytes\": 23,"
+            + "        \"fixed_bit_set_memory_in_bytes\": 24"
             + "      },"
             + "      \"request_cache\": {"
             + "        \"memory_size_in_bytes\": 9,"
@@ -240,16 +247,16 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             + "      },"
             + "      \"segments\": {"
             + "        \"count\": 21,"
-            + "        \"memory_in_bytes\": 22,"
-            + "        \"terms_memory_in_bytes\": 23,"
-            + "        \"stored_fields_memory_in_bytes\": 24,"
-            + "        \"term_vectors_memory_in_bytes\": 25,"
-            + "        \"norms_memory_in_bytes\": 26,"
-            + "        \"points_memory_in_bytes\": 27,"
-            + "        \"doc_values_memory_in_bytes\": 28,"
-            + "        \"index_writer_memory_in_bytes\": 29,"
-            + "        \"version_map_memory_in_bytes\": 30,"
-            + "        \"fixed_bit_set_memory_in_bytes\": 31"
+            + "        \"memory_in_bytes\": 0,"
+            + "        \"terms_memory_in_bytes\": 0,"
+            + "        \"stored_fields_memory_in_bytes\": 0,"
+            + "        \"term_vectors_memory_in_bytes\": 0,"
+            + "        \"norms_memory_in_bytes\": 0,"
+            + "        \"points_memory_in_bytes\": 0,"
+            + "        \"doc_values_memory_in_bytes\": 0,"
+            + "        \"index_writer_memory_in_bytes\": 22,"
+            + "        \"version_map_memory_in_bytes\": 23,"
+            + "        \"fixed_bit_set_memory_in_bytes\": 24"
             + "      },"
             + "      \"request_cache\": {"
             + "        \"memory_size_in_bytes\": 9,"
@@ -367,13 +374,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         commonStats.getSearch().add(new SearchStats(searchStats, no, null));
 
         final SegmentsStats segmentsStats = new SegmentsStats();
-        segmentsStats.add(++iota, ++iota);
-        segmentsStats.addTermsMemoryInBytes(++iota);
-        segmentsStats.addStoredFieldsMemoryInBytes(++iota);
-        segmentsStats.addTermVectorsMemoryInBytes(++iota);
-        segmentsStats.addNormsMemoryInBytes(++iota);
-        segmentsStats.addPointsMemoryInBytes(++iota);
-        segmentsStats.addDocValuesMemoryInBytes(++iota);
+        segmentsStats.add(++iota);
         segmentsStats.addIndexWriterMemoryInBytes(++iota);
         segmentsStats.addVersionMapMemoryInBytes(++iota);
         segmentsStats.addBitsetMemoryInBytes(++iota);
@@ -424,8 +425,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                 --unassignedTotal;
                 --unassignedPrimaries;
 
-                final UnassignedInfo unassignedInfo =
-                        new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), randomAlphaOfLength(3));
+                final UnassignedInfo unassignedInfo = randomUnassignedInfo(randomAlphaOfLength(3));
                 final String nodeId;
                 final ShardRoutingState state;
 

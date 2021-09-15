@@ -25,6 +25,8 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.hamcrest.Matchers;
@@ -53,7 +55,6 @@ public class VectorTileRequestTests extends ESTestCase {
             assertThat(vectorTileRequest.getGridPrecision(), Matchers.equalTo(VectorTileRequest.Defaults.GRID_PRECISION));
             assertThat(vectorTileRequest.getExactBounds(), Matchers.equalTo(VectorTileRequest.Defaults.EXACT_BOUNDS));
             assertThat(vectorTileRequest.getRuntimeMappings(), Matchers.equalTo(VectorTileRequest.Defaults.RUNTIME_MAPPINGS));
-            assertThat(vectorTileRequest.getSortBuilders(), Matchers.equalTo(VectorTileRequest.Defaults.SORT));
             assertThat(vectorTileRequest.getQueryBuilder(), Matchers.equalTo(VectorTileRequest.Defaults.QUERY));
         });
     }
@@ -141,6 +142,14 @@ public class VectorTileRequestTests extends ESTestCase {
         }, (vectorTileRequest) -> {
             assertThat(vectorTileRequest.getRuntimeMappings(), Matchers.aMapWithSize(1));
             assertThat(vectorTileRequest.getRuntimeMappings().get(fieldName), Matchers.notNullValue());
+        });
+    }
+
+    public void testDefaultFieldSort() throws IOException {
+        assertRestRequest((builder) -> {}, (vectorTileRequest) -> {
+            assertThat(vectorTileRequest.getSortBuilders(), Matchers.iterableWithSize(1));
+            ScriptSortBuilder sortBuilder = (ScriptSortBuilder) vectorTileRequest.getSortBuilders().get(0);
+            assertThat(sortBuilder.order(), Matchers.equalTo(SortOrder.DESC));
         });
     }
 

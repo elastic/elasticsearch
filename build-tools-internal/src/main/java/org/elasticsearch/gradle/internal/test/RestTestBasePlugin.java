@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.internal.FixtureStop;
 import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;

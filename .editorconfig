@@ -19,6 +19,9 @@ ij_continuation_indent_size = 2
 indent_size = 2
 max_line_length = 150
 
+[*.md]
+max_line_length = 80
+
 [*.groovy]
 indent_size = 4
 ij_continuation_indent_size = 4

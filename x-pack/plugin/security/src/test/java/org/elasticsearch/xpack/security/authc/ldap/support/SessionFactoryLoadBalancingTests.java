@@ -319,7 +319,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         @Override
         public void run() {
             final List<Socket> openedSockets = new ArrayList<>();
-            final List<InetAddress> blacklistedAddress = new ArrayList<>();
+            final List<InetAddress> failedAddresses = new ArrayList<>();
             try {
                 final boolean allSocketsOpened = waitUntil(() -> {
                     try {
@@ -331,7 +331,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                         }
                         final List<InetAddress> inetAddressesToBind = Arrays.stream(allAddresses)
                             .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))
-                            .filter(addr -> blacklistedAddress.contains(addr) == false)
+                            .filter(addr -> failedAddresses.contains(addr) == false)
                             .collect(Collectors.toList());
                         for (InetAddress localAddress : inetAddressesToBind) {
                             try {
@@ -339,8 +339,8 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                                 openedSockets.add(socket);
                                 logger.debug("opened socket [{}]", socket);
                             } catch (NoRouteToHostException | ConnectException e) {
-                                logger.debug(new ParameterizedMessage("blacklisting address [{}] due to:", localAddress), e);
-                                blacklistedAddress.add(localAddress);
+                                logger.debug(new ParameterizedMessage("marking address [{}] as failed due to:", localAddress), e);
+                                failedAddresses.add(localAddress);
                             }
                         }
                         if (openedSockets.size() == 0) {

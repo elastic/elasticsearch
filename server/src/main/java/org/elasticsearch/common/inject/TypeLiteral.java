@@ -149,7 +149,7 @@ public class TypeLiteral<T> {
     @Override
     public final boolean equals(Object o) {
         return o instanceof TypeLiteral<?>
-                && MoreTypes.equals(type, ((TypeLiteral) o).type);
+                && MoreTypes.equals(type, ((TypeLiteral<?>) o).type);
     }
 
     @Override
@@ -194,7 +194,7 @@ public class TypeLiteral<T> {
         // this implementation is made a little more complicated in an attempt to avoid object-creation
         while (true) {
             if (toResolve instanceof TypeVariable) {
-                TypeVariable original = (TypeVariable) toResolve;
+                TypeVariable<?> original = (TypeVariable<?>) toResolve;
                 toResolve = MoreTypes.resolveTypeVariable(type, rawType, original);
                 if (toResolve == original) {
                     return toResolve;
@@ -299,7 +299,7 @@ public class TypeLiteral<T> {
             genericParameterTypes = method.getGenericParameterTypes();
 
         } else if (methodOrConstructor instanceof Constructor) {
-            Constructor constructor = (Constructor) methodOrConstructor;
+            Constructor<?> constructor = (Constructor<?>) methodOrConstructor;
             if (constructor.getDeclaringClass().isAssignableFrom(rawType) == false) {
                 throw new IllegalArgumentException(constructor + " does not construct a supertype of " + type);
             }

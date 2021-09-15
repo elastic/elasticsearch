@@ -37,8 +37,6 @@ dependencies {
   api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 }
 
-tasks.named("compileJava").configure { options.compilerArgs << '-Xlint:-cast,-unchecked' }
-
 // the main files are actually test files, so use the appropriate forbidden api sigs
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
@@ -110,6 +108,6 @@ tasks.register("verifyVersions") {
 }
 
 tasks.named('splitPackagesAudit').configure {
-  // for now we always run tests with the classpath, so we are ok with split packages for tests 
+  // for now we always run tests with the classpath, so we are ok with split packages for tests
   onlyIf { false }
 }

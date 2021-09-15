@@ -126,7 +126,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         this.fieldName = fieldName;
         this.shape = null;
         this.supplier = supplier;
-        this.indexedShapeId = indexedShapeId;;
+        this.indexedShapeId = indexedShapeId;
     }
 
     /**
@@ -190,6 +190,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * @param geometry the geometry
      * @return this
      */
+    @SuppressWarnings("unchecked")
     public QB shape(Geometry geometry) {
         if (geometry == null) {
             throw new IllegalArgumentException("No geometry defined");
@@ -218,6 +219,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * @param indexedShapeIndex Name of the index where the indexed Shape is
      * @return this
      */
+    @SuppressWarnings("unchecked")
     public QB indexedShapeIndex(String indexedShapeIndex) {
         this.indexedShapeIndex = indexedShapeIndex;
         return (QB)this;
@@ -237,6 +239,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * @param indexedShapePath Path of the field where the Shape itself is defined
      * @return this
      */
+    @SuppressWarnings("unchecked")
     public QB indexedShapePath(String indexedShapePath) {
         this.indexedShapePath = indexedShapePath;
         return (QB)this;
@@ -255,6 +258,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * @param indexedShapeRouting indexed shape routing
      * @return this
      */
+    @SuppressWarnings("unchecked")
     public QB indexedShapeRouting(String indexedShapeRouting) {
         this.indexedShapeRouting = indexedShapeRouting;
         return (QB)this;
@@ -275,6 +279,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * @param relation relation of the shapes
      * @return this
      */
+    @SuppressWarnings("unchecked")
     public QB relation(ShapeRelation relation) {
         if (relation == null) {
             throw new IllegalArgumentException("No Shape Relation defined");
@@ -427,6 +432,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     protected boolean doEquals(AbstractGeometryQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(indexedShapeId, other.indexedShapeId)
@@ -516,7 +522,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                                         params.id = parser.text();
                                     } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
                                         SHAPE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                        deprecationLogger.compatibleApiWarning("geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
+                                        deprecationLogger.compatibleCritical("geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
                                     } else if (SHAPE_INDEX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         params.index = parser.text();
                                     } else if (SHAPE_PATH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

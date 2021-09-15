@@ -37,7 +37,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -134,9 +133,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
-                if (cancellableTask.isCancelled()) {
-                    throw new TaskCancelledException("task cancelled");
-                }
+                cancellableTask.ensureNotCancelled();
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards
                     CommitStats commitStats;

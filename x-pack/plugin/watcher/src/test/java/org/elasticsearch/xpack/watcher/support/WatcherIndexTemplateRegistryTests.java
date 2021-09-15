@@ -83,6 +83,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     private ThreadPool threadPool;
     private Client client;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void createRegistryAndClient() {
         threadPool = mock(ThreadPool.class);

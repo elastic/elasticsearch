@@ -548,7 +548,7 @@ public class Setting<T> implements ToXContentObject {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
             Settings.DeprecationLoggerHolder.deprecationLogger
-                .deprecate(DeprecationCategory.SETTINGS, key,
+                .critical(DeprecationCategory.SETTINGS, key,
                     "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
                     + "See the breaking changes documentation for the next major version.", key);
         }
@@ -615,7 +615,7 @@ public class Setting<T> implements ToXContentObject {
          *
          * @return the setting
          */
-        Setting getSetting();
+        Setting<?> getSetting();
 
         /**
          * Validates the dependent setting value.
@@ -749,7 +749,7 @@ public class Setting<T> implements ToXContentObject {
     public interface AffixSettingDependency extends SettingDependency {
 
         @Override
-        AffixSetting getSetting();
+        AffixSetting<?> getSetting();
 
     }
 
@@ -793,7 +793,7 @@ public class Setting<T> implements ToXContentObject {
                     .map(s ->
                         new SettingDependency() {
                             @Override
-                            public Setting<Object> getSetting() {
+                            public Setting<?> getSetting() {
                                 return s.getSetting().getConcreteSettingForNamespace(namespace);
                             }
 
@@ -1402,7 +1402,28 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static <T extends Enum<T>> Setting<T> enumSetting(Class<T> clazz, String key, T defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue.toString(), e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), properties);
+        return enumSetting(clazz, key, defaultValue, s -> {}, properties);
+    }
+
+    /**
+     * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
+     *
+     * @param clazz the enum class
+     * @param key the key for the setting
+     * @param defaultValue the default value for this setting
+     * @param validator validator for this setting
+     * @param properties properties for this setting like scope, filtering...
+     * @param <T> the generics type parameter reflecting the actual type of the enum
+     * @return the setting object
+     */
+    public static <T extends Enum<T>> Setting<T> enumSetting(
+        Class<T> clazz,
+        String key,
+        T defaultValue,
+        Validator<T> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue.toString(), e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), validator, properties);
     }
 
     /**
@@ -1606,7 +1627,7 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    static void logSettingUpdate(Setting setting, Settings current, Settings previous, Logger logger) {
+    static void logSettingUpdate(Setting<?> setting, Settings current, Settings previous, Logger logger) {
         if (logger.isInfoEnabled()) {
             if (setting.isFiltered()) {
                 logger.info("updating [{}]", setting.key);

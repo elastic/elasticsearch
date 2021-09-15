@@ -33,8 +33,8 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -67,7 +68,6 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
@@ -129,9 +129,13 @@ public class OptimizerTests extends ESTestCase {
 
             Filter filter = (Filter) plan;
             And condition = (And) filter.condition();
-            assertTrue(condition.right() instanceof IsNotNull);
+            assertTrue(condition.right() instanceof Not);
+            Not not = (Not) condition.right();
+            List<Expression> children = not.children();
+            assertEquals(1, children.size());
+            assertTrue(children.get(0) instanceof IsNull);
 
-            IsNotNull check = (IsNotNull) condition.right();
+            IsNull check = (IsNull) children.get(0);
             assertEquals(((FieldAttribute) check.field()).name(), "command_line");
         }
     }

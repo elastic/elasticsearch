@@ -58,9 +58,4 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#mixedClusterTest"
   }
-
-  // run these bwc tests as part of the "check" task
-  tasks.named("check").configure {
-    dependsOn "${baseName}#mixedClusterTest"
-  }
 }

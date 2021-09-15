@@ -14,6 +14,11 @@ sees runtime fields no differently. You can define runtime fields in the
 <<runtime-search-request,search request>>. Your choice, which is part of the
 inherent flexibility of runtime fields.
 
+Use the <<search-fields,`fields`>> parameter on the `_search` API to
+<<runtime-retrieving-fields,retrieve the values of runtime fields>>. Runtime
+fields won't display in `_source`, but the `fields` API works for all fields,
+even those that were not sent as part of the original `_source`.
+
 Runtime fields are useful when working with log data
 (see <<runtime-examples,examples>>), especially when you're unsure about the
 data structure. Your search speed decreases, but your index size is much
@@ -82,12 +87,12 @@ your data, but can impact search performance based on the computation defined in
 the runtime script.
 
 To balance search performance and flexibility, index fields that you'll
-commonly search for and filter on, such as a timestamp. {es} automatically uses
-these indexed fields first when running a query, resulting in a fast response
-time. You can then use runtime fields to limit the number of fields that {es}
-needs to calculate values for. Using indexed fields in tandem with runtime
-fields provides flexibility in the data that you index and how you define
-queries for other fields.
+frequently search for and filter on, such as a timestamp. {es} automatically
+uses these indexed fields first when running a query, resulting in a fast 
+response time. You can then use runtime fields to limit the number of fields 
+that {es} needs to calculate values for. Using indexed fields in tandem with 
+runtime fields provides flexibility in the data that you index and how you
+define queries for other fields.
 
 Use the <<async-search,asynchronous search API>> to run searches that include
 runtime fields. This method of search helps to offset the performance impacts
@@ -624,6 +629,7 @@ which still returns in the response:
 
 [[runtime-retrieving-fields]]
 === Retrieve a runtime field
+
 Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
 the values of runtime fields. Runtime fields won't display in `_source`, but
 the `fields` API works for all fields, even those that were not sent as part of
@@ -804,8 +810,14 @@ can define runtime fields in the
 <<runtime-mapping-fields,`runtime` section>> of an index mapping. If you
 decide to index a runtime field for greater performance, just move the full
 runtime field definition (including the script) to the context of an index
-mapping. This capability means you can write a script only once, and apply
-it to any context that supports runtime fields.
+mapping. {es} automatically uses these indexed fields to drive queries,
+resulting in a fast response time. This capability means you can write a 
+script only once, and apply it to any context that supports runtime fields.
+
+You can then use runtime fields to limit the number of fields that {es} needs 
+to calculate values for. Using indexed fields in tandem with runtime fields 
+provides flexibility in the data that you index and how you define queries for 
+other fields.
 
 IMPORTANT: After indexing a runtime field, you cannot update the included
 script. If you need to change the script, create a new field with the updated

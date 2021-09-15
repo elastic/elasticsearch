@@ -15,9 +15,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -74,13 +76,20 @@ public interface Function {
         /**
          * Build the filter query to narrow the result set given the previously collected changes.
          *
-         * TODO: it might be useful to have the full checkpoint data.
-         *
-         * @param lastCheckpointTimestamp the timestamp of the last checkpoint
-         * @param nextCheckpointTimestamp the timestamp of the next (in progress) checkpoint
+         * @param lastCheckpoint the last checkpoint
+         * @param nextCheckpoint the next (in progress) checkpoint
          * @return a filter query, null in case of no filter
          */
-        QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextCheckpointTimestamp);
+        QueryBuilder buildFilterQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint);
+
+        /**
+         * Filter indices according to the given checkpoints.
+         *
+         * @param lastCheckpoint the last checkpoint
+         * @param nextCheckpoint the next (in progress) checkpoint
+         * @return set of indices to query
+         */
+        Collection<String> getIndicesToQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint);
 
         /**
          * Clear the internal state to free up memory.
@@ -209,6 +218,7 @@ public interface Function {
      * @param destinationPipeline the destination pipeline
      * @param fieldMappings field mappings for the destination
      * @param stats a stats object to record/collect stats
+     * @param progress a progress object to record/collect progress information
      * @return a tuple with the stream of index requests and the cursor
      */
     Tuple<Stream<IndexRequest>, Map<String, Object>> processSearchResponse(
@@ -216,6 +226,7 @@ public interface Function {
         String destinationIndex,
         String destinationPipeline,
         Map<String, String> fieldMappings,
-        TransformIndexerStats stats
+        TransformIndexerStats stats,
+        TransformProgress progress
     );
 }

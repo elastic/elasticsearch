@@ -10,21 +10,25 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
@@ -33,6 +37,7 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -54,7 +59,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     /** Specifies all the possible transform functions. */
     public enum Function {
-        PIVOT, LATEST;
+        PIVOT,
+        LATEST;
 
         private final ParseField parseField;
 
@@ -66,6 +72,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return parseField;
         }
     }
+
     private static final ConstructingObjectParser<TransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<TransformConfig, String> LENIENT_PARSER = createParser(true);
     static final int MAX_DESCRIPTION_LENGTH = 1_000;
@@ -125,6 +132,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 if ((args[7] == null) == (args[8] == null)) {
                     throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_BAD_FUNCTION_COUNT);
                 }
+
             }
 
             @SuppressWarnings("unchecked")
@@ -327,9 +335,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
      */
     public List<SourceDestValidation> getAdditionalSourceDestValidations() {
         if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
-            SourceDestValidation validation =
-                new SourceDestValidator.RemoteClusterMinimumVersionValidation(
-                    FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION, "source.runtime_mappings field was set");
+            SourceDestValidation validation = new SourceDestValidator.RemoteClusterMinimumVersionValidation(
+                FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION,
+                "source.runtime_mappings field was set"
+            );
             return Collections.singletonList(validation);
         } else {
             return Collections.emptyList();
@@ -350,6 +359,45 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             validationException = retentionPolicyConfig.validate(validationException);
         }
         return validationException;
+    }
+
+    /**
+     * Parses the transform configuration for deprecations
+     *
+     * @param namedXContentRegistry XContent registry required for aggregations and query DSL
+     * @return The deprecations of this transform
+     */
+    public List<DeprecationIssue> checkForDeprecations(NamedXContentRegistry namedXContentRegistry) {
+
+        List<DeprecationIssue> deprecations = new ArrayList<>();
+
+        // V_8_0_0 deprecate beta transforms
+        if (getVersion() == null || getVersion().before(Version.V_7_15_0)) {
+            deprecations.add(
+                new DeprecationIssue(
+                    Level.CRITICAL, // change to WARNING for 7.x
+                    "Transform [" + id + "] is too old",
+                    TransformDeprecations.BREAKING_CHANGES_BASE_URL,
+                    "The configuration uses an old format, you can use [_update] or [_upgrade] to update to configuration",
+                    false,
+                    null
+                )
+            );
+        }
+
+        source.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        dest.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        settings.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        if (pivotConfig != null) {
+            pivotConfig.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        }
+        if (latestConfig != null) {
+            latestConfig.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        }
+        if (retentionPolicyConfig != null) {
+            retentionPolicyConfig.checkForDeprecations(getId(), namedXContentRegistry, deprecations::add);
+        }
+        return deprecations;
     }
 
     @Override
@@ -508,7 +556,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         // quick check if a rewrite is required, if none found just return the original
         // a failing quick check, does not mean a rewrite is necessary
         if (transformConfig.getVersion() != null
-            && transformConfig.getVersion().onOrAfter(Version.V_7_11_0)
+            && transformConfig.getVersion().onOrAfter(Version.V_7_15_0)
             && (transformConfig.getPivotConfig() == null || transformConfig.getPivotConfig().getMaxPageSearchSize() == null)) {
             return transformConfig;
         }
@@ -538,7 +586,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 new SettingsConfig(
                     maxPageSearchSize,
                     builder.getSettings().getDocsPerSecond(),
-                    builder.getSettings().getDatesAsEpochMillis()
+                    builder.getSettings().getDatesAsEpochMillis(),
+                    builder.getSettings().getAlignCheckpoints()
                 )
             );
         }
@@ -546,7 +595,24 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         // 2. set dates_as_epoch_millis to true for transforms < 7.11 to keep BWC
         if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_11_0)) {
             builder.setSettings(
-                new SettingsConfig(builder.getSettings().getMaxPageSearchSize(), builder.getSettings().getDocsPerSecond(), true)
+                new SettingsConfig(
+                    builder.getSettings().getMaxPageSearchSize(),
+                    builder.getSettings().getDocsPerSecond(),
+                    true,
+                    builder.getSettings().getAlignCheckpoints()
+                )
+            );
+        }
+
+        // 3. set align_checkpoints to false for transforms < 7.15 to keep BWC
+        if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_15_0)) {
+            builder.setSettings(
+                new SettingsConfig(
+                    builder.getSettings().getMaxPageSearchSize(),
+                    builder.getSettings().getDocsPerSecond(),
+                    builder.getSettings().getDatesAsEpochMillis(),
+                    false
+                )
             );
         }
 

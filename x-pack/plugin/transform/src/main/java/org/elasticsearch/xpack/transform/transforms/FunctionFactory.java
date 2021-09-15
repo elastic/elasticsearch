@@ -26,7 +26,12 @@ public final class FunctionFactory {
      */
     public static Function create(TransformConfig config) {
         if (config.getPivotConfig() != null) {
-            return new Pivot(config.getPivotConfig(), config.getSettings(), config.getVersion());
+            return new Pivot(
+                config.getPivotConfig(),
+                config.getSettings(),
+                config.getVersion(),
+                config.getSource().getScriptBasedRuntimeMappings().keySet()
+            );
         } else if (config.getLatestConfig() != null) {
             return new Latest(config.getLatestConfig());
         } else {

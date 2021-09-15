@@ -112,8 +112,7 @@ PUT _cluster/settings
         "cluster_one": {
           "seeds": [
             "127.0.0.1:9300"
-          ],
-          "transport.ping_schedule": "30s"
+          ]
         },
         "cluster_two": {
           "mode": "sniff",
@@ -136,7 +135,7 @@ PUT _cluster/settings
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 
 You can dynamically update the compression and ping schedule settings. However,
-you must re-include seeds or `proxy_address` in the settings update request.
+you must include the `seeds` or `proxy_address` in the settings update request.
 For example:
 
 [source,console]
@@ -149,8 +148,7 @@ PUT _cluster/settings
         "cluster_one": {
           "seeds": [
             "127.0.0.1:9300"
-          ],
-          "transport.ping_schedule": "60s"
+          ]
         },
         "cluster_two": {
           "mode": "sniff",
@@ -162,7 +160,8 @@ PUT _cluster/settings
         "cluster_three": {
           "mode": "proxy",
           "proxy_address": "127.0.0.1:9302",
-          "transport.compress": true
+          "transport.compress": true,
+          "transport.ping_schedule": "60s"
         }
       }
     }
@@ -189,9 +188,7 @@ PUT _cluster/settings
           "mode": null,
           "seeds": null,
           "skip_unavailable": null,
-          "transport": {
-            "compress": null
-          }
+          "transport.compress": null
         }
       }
     }
@@ -215,15 +212,14 @@ cluster:
     remote:
         cluster_one: <1>
             seeds: 127.0.0.1:9300 <2>
-            transport.ping_schedule: 30s <3>
         cluster_two: <1>
-            mode: sniff <4>
+            mode: sniff <3>
             seeds: 127.0.0.1:9301 <2>
-            transport.compress: true <5>
-            skip_unavailable: true <6>
+            transport.compress: true <4>
+            skip_unavailable: true <5>
         cluster_three: <1>
-            mode: proxy <4>
-            proxy_address: 127.0.0.1:9302 <7>
+            mode: proxy <3>
+            proxy_address: 127.0.0.1:9302 <6>
 
 --------------------------------
 <1> `cluster_one`, `cluster_two`, and `cluster_three` are arbitrary _cluster aliases_
@@ -231,14 +227,13 @@ representing the connection to each cluster. These names are subsequently used t
 distinguish between local and remote indices.
 <2> The hostname and <<transport-settings,transport port>> (default: 9300) of a
 seed node in the remote cluster.
-<3> A keep-alive ping is configured for `cluster_one`.
-<4> The configured connection mode. By default, this is <<sniff-mode,`sniff`>>, so
+<3> The configured connection mode. By default, this is <<sniff-mode,`sniff`>>, so
 the mode is implicit for `cluster_one`. However, it can be explicitly configured
 as demonstrated by `cluster_two` and must be explicitly configured for
 <<proxy-mode,proxy mode>> as demonstrated by `cluster_three`.
-<5> Compression is explicitly enabled for requests to `cluster_two`.
-<6> Disconnected remote clusters are optional for `cluster_two`.
-<7> The address for the proxy endpoint used to connect to `cluster_three`.
+<4> Compression is explicitly enabled for requests to `cluster_two`.
+<5> Disconnected remote clusters are optional for `cluster_two`.
+<6> The address for the proxy endpoint used to connect to `cluster_three`.
 
 [discrete]
 [[remote-cluster-settings]]
@@ -280,11 +275,16 @@ separately.
 `cluster.remote.<cluster_alias>.transport.ping_schedule`::
 
   Sets the time interval between regular application-level ping messages that
-  are sent to ensure that transport connections to nodes belonging to remote
-  clusters are kept alive. If set to `-1`, application-level ping messages to
-  this remote cluster are not sent. If unset, application-level ping messages
-  are sent according to the global `transport.ping_schedule` setting, which
-  defaults to `-1` meaning that pings are not sent.
+  are sent to try and keep remote cluster connections alive. If set to `-1`,
+  application-level ping messages to this remote cluster are not sent. If
+  unset, application-level ping messages are sent according to the global
+  `transport.ping_schedule` setting, which defaults to `-1` meaning that pings
+  are not sent. It is preferable to correctly configure TCP keep-alives instead
+  of configuring a `ping_schedule`, because TCP keep-alives are handled by the
+  operating system and not by {es}. By default {es} enables TCP keep-alives on
+  remote cluster connections. Remote cluster connections are transport
+  connections so the `transport.tcp.*` <<transport-settings,advanced settings>>
+  regarding TCP keep-alives apply to them.
 
 `cluster.remote.<cluster_alias>.transport.compress`::
 
@@ -292,8 +292,17 @@ separately.
   to a specific remote cluster. This setting impacts only requests
   sent to the remote cluster. If the inbound request is compressed,
   Elasticsearch compresses the response. The setting options are `true`,
-  `indexing_data`, and `false`. The option `indexing_data` is experimental.
-  If unset, the global `transport.compress` is used as the fallback setting.
+  `indexing_data`, and `false`. If unset, the global `transport.compress` is
+  used as the fallback setting.
+
+`cluster.remote.<cluster_alias>.transport.compression_scheme`::
+
+  Per cluster setting that enables you to configure compression scheme for
+  requests to a specific remote cluster. This setting impacts only requests
+  sent to the remote cluster. If an inbound request is compressed, {es}
+  compresses the response using the same compression scheme. The setting options
+  are `deflate` and `lz4`. If unset, the global `transport.compression_scheme`
+  is used as the fallback setting.
 
 [discrete]
 [[remote-cluster-sniff-settings]]

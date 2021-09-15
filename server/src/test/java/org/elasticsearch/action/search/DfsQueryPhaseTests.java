@@ -217,6 +217,6 @@ public class DfsQueryPhaseTests extends ESTestCase {
     }
 
     private SearchPhaseController searchPhaseController() {
-        return new SearchPhaseController(writableRegistry(), request -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        return new SearchPhaseController(request -> InternalAggregationTestCase.emptyReduceContextBuilder());
     }
  }

@@ -545,18 +545,18 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         GetSnapshotsRequest.SortBy sortBy,
         SortOrder order,
         String[] slmPolicies,
-        String afterValue
+        String fromSortValue
     ) {
         Predicate<SnapshotInfo> predicate = null;
         if (slmPolicies.length > 0) {
             predicate = filterBySLMPolicies(slmPolicies);
         }
-        if (afterValue != null) {
-            final Predicate<SnapshotInfo> afterValuePredicate = buildAfterPredicate(sortBy, afterValue, order, null, null);
+        if (fromSortValue != null) {
+            final Predicate<SnapshotInfo> fromSortValuePredicate = buildFromSortValuePredicate(sortBy, fromSortValue, order, null, null);
             if (predicate == null) {
-                predicate = afterValuePredicate;
+                predicate = fromSortValuePredicate;
             } else {
-                predicate = afterValuePredicate.and(predicate);
+                predicate = fromSortValuePredicate.and(predicate);
             }
         }
         return predicate;
@@ -601,7 +601,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         if (after != null) {
             assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
-            infos = infos.filter(buildAfterPredicate(sortBy, after.value(), order, after.snapshotName(), after.repoName()));
+            infos = infos.filter(buildFromSortValuePredicate(sortBy, after.value(), order, after.snapshotName(), after.repoName()));
         }
         infos = infos.sorted(order == SortOrder.DESC ? comparator.reversed() : comparator).skip(offset);
         final List<SnapshotInfo> allSnapshots = infos.collect(Collectors.toUnmodifiableList());
@@ -617,7 +617,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return new SnapshotsInRepo(resultSet, snapshotInfos.size(), allSnapshots.size() - resultSet.size());
     }
 
-    private static Predicate<SnapshotInfo> buildAfterPredicate(
+    private static Predicate<SnapshotInfo> buildFromSortValuePredicate(
         GetSnapshotsRequest.SortBy sortBy,
         String after,
         SortOrder order,

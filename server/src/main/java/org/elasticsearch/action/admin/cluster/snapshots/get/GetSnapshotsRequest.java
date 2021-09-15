@@ -337,8 +337,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
-    public GetSnapshotsRequest fromSortValue(@Nullable String afterValue) {
-        this.fromSortValue = afterValue;
+    public GetSnapshotsRequest fromSortValue(@Nullable String fromSortValue) {
+        this.fromSortValue = fromSortValue;
         return this;
     }
 

@@ -261,7 +261,7 @@ public abstract class IndexRouting {
             int firstHash = extractItem(source);
             if (source.currentToken() == Token.END_OBJECT) {
                 // Just one routing key in this object
-                // Use ^ like Map.Entery's hashcode
+                // Use ^ like Map.Entry's hashcode
                 return Murmur3HashFunction.hash(firstFieldName) ^ firstHash;
             }
             String[] fields = new String[] { firstFieldName, null };

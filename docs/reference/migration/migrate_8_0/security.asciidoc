@@ -234,7 +234,7 @@ on startup.
 
 [discrete]
 [[ssl-misc-changes]]
-===== Other SSL/TLS changes 
+===== Other SSL/TLS changes
 
 .PKCS#11 keystores and trustores cannot be configured in `elasticsearch.yml`
 [%collapsible]
@@ -254,7 +254,7 @@ Use of a PKCS#11 keystore or truststore as the JRE's default store is not affect
 
 *Impact* +
 If you have a PKCS#11 keystore configured within your `elasticsearch.yml` file, you must remove that
-configuration and switch to a supported keystore type, or configure your PKCS#11 keystore as the 
+configuration and switch to a supported keystore type, or configure your PKCS#11 keystore as the
 JRE default store.
 ====
 
@@ -306,6 +306,41 @@ renamed to better reflect its intended use.
 *Impact* +
 Assign users with the `kibana_user` role to the `kibana_admin` role.
 Discontinue use of the `kibana_user` role.
+
+[discrete]
+[[saml-realm-nameid-changes]]
+===== The default value of `nameid_format` setting has been removed.
+
+.The `nameid_format` setting of SAML realms has no default value.
+[%collapsible]
+====
+*Details* +
+Identity Providers can be either statically configured to release a `NameID`
+with a specific format, or they can be configured to try to conform with the
+requirements of the SP. The SP declares its requirements as part of the
+Authentication Request, using an element which is called the `NameIDPolicy`
+For the {es} SAML realm, `NameIDPolicy` is controlled by `nameid_format` in
+<<saml-settings, SAML realm settings>>.
+
+Previously, the default value for this setting was
+`urn:oasis:names:tc:SAML:2.0:nameid-format:transient` which meant that {es}
+would create SAML Authentication Requests that would require from the Identity
+Provider to release `NameID` with a transient format.
+The default value has now been removed. This means that {es} will be default
+create SAML Authentication Requests that do not put forward such requirements
+to the Identity Provider.
+
+If you want to retain the previous behavior, you can set <<saml-settings, `nameid_format`>>
+to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient`.
+
+*Impact* +
+If you are not configuring <<saml-settings, `nameid_format`>> explicitly in
+your current configuration, there might be cases where the combination of this
+configuration and the configuration of your SAML Identity Provider will result
+in a non-working setup. If you are uncertain of how your Identity Provider is
+configured to generate a value for `NameID`, you can set <<saml-settings, `nameid_format`>>
+to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` explicitly.
+
 ====
 // end::notable-breaking-changes[]
 
@@ -320,7 +355,7 @@ Discontinue use of the `kibana_user` role.
 [%collapsible]
 ====
 *Details* +
-If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>), 
+If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>),
 the value of `xpack.security.authc.password_hashing.algorithm` now defaults to
 `pbkdf2_stretch`.
 

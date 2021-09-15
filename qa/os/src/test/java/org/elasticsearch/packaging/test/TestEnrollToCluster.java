@@ -190,7 +190,7 @@ public class TestEnrollToCluster extends PackagingTestCase {
         ServerUtils.enableSecurityFeatures(installation);
     }
 
-    public void test20EnrollToClusterWithEmptyToken() throws Exception {
+    public void test20EnrollToClusterWithEmptyTokenValue() throws Exception {
         Shell.Result result = Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment-token"), false);
         assertThat(result.exitCode, equalTo(65));
         assertThat(esNode.requests(), empty());
@@ -209,15 +209,11 @@ public class TestEnrollToCluster extends PackagingTestCase {
     }
 
     public void test40EnrollToClusterWithValidToken() throws Exception {
-        awaitElasticsearchStartup(
-            Archives.runElasticsearchStartCommand(
-                installation,
-                sh,
-                null,
-                List.of("--enrollment-token", generateMockEnrollmentToken()),
-                false
-            )
-        );
+        // Elasticsearch can't start successfully because we set discovery.seed_hosts as part of the enrollment process and there is no
+        // node there to connect to. We just start so that we trigger auto-configuration and validate it was done correctly
+        Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment-token", generateMockEnrollmentToken()), true);
+        // Elasticsearch will fail to start, give it enough time to do the enrollment before it fails to start
+        Thread.sleep(10000);
         verifySecurityAutoConfigured(installation);
         assertThat(esNode.requests().size(), equalTo(1));
         MockRequest request = esNode.takeRequest();

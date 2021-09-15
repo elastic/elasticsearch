@@ -22,7 +22,7 @@ ENROLL_TO_CLUSTER=false
 ARG_LIST=($@)
 
 while [ $# -gt 0 ]; do
-   if [[ $1 == "$ENROLLMENT_TOKEN_PARAM" ]]; then
+   if [[ $1 == "--enrollment-token" ]]; then
      ENROLL_TO_CLUSTER=true
      ENROLLMENT_TOKEN="$2"
      shift

@@ -17,7 +17,7 @@ public class DoubleField extends Field<Double> {
 
     /* ---- Conversion Helpers To Other Fields ---- */
 
-    public static BigIntegerField convertDoubleToBigIntegerField(DoubleField sourceField) {
+    public static BigIntegerField toBigIntegerField(DoubleField sourceField) {
         FieldValues<Double> fv = sourceField.getFieldValues();
         return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<java.math.BigInteger, Double>(fv) {
             @Override
@@ -32,7 +32,7 @@ public class DoubleField extends Field<Double> {
         });
     }
 
-    public static LongField convertDoubleToLongField(DoubleField sourceField) {
+    public static LongField toLongField(DoubleField sourceField) {
         FieldValues<Double> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, Double>(fv) {
             @Override

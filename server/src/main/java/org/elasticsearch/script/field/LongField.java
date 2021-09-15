@@ -32,27 +32,27 @@ public class LongField extends Field<Long> {
             @Override
             public LongField convert(Field<?> sourceField) {
                 if (sourceField instanceof DoubleField) {
-                    return DoubleField.convertDoubleToLongField((DoubleField) sourceField);
+                    return DoubleField.toLongField((DoubleField) sourceField);
                 }
 
                 if (sourceField instanceof StringField) {
-                    return StringField.convertStringToLongField((StringField) sourceField);
+                    return StringField.toLongField((StringField) sourceField);
                 }
 
                 if (sourceField instanceof DateMillisField) {
-                    return DateMillisField.convertDateMillisToLongField((DateMillisField) sourceField);
+                    return DateMillisField.toLongField((DateMillisField) sourceField);
                 }
 
                 if (sourceField instanceof DateNanosField) {
-                    return DateNanosField.convertDateNanosToLongField((DateNanosField) sourceField);
+                    return DateNanosField.toLongField((DateNanosField) sourceField);
                 }
 
                 if (sourceField instanceof BigIntegerField) {
-                    return BigIntegerField.convertBigIntegerToLongField((BigIntegerField) sourceField);
+                    return BigIntegerField.toLongField((BigIntegerField) sourceField);
                 }
 
                 if (sourceField instanceof BooleanField) {
-                    return BooleanField.convertBooleanToLongField((BooleanField) sourceField);
+                    return BooleanField.toLongField((BooleanField) sourceField);
                 }
 
                 throw new InvalidConversion(sourceField.getClass(), getFieldClass());
@@ -72,7 +72,7 @@ public class LongField extends Field<Long> {
 
     /* ---- Conversion Helpers To Other Fields ---- */
 
-    public static BigIntegerField convertLongToBigIntegerField(LongField sourceField) {
+    public static BigIntegerField toBigIntegerField(LongField sourceField) {
         FieldValues<Long> fv = sourceField.getFieldValues();
         return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<BigInteger, Long>(fv) {
             @Override

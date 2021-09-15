@@ -28,30 +28,27 @@ public class BigIntegerField extends Field<java.math.BigInteger> {
             @Override
             public BigIntegerField convert(Field<?> sourceField) {
                 if (sourceField instanceof LongField) {
-                    return LongField.convertLongToBigIntegerField((LongField) sourceField);
+                    return LongField.toBigIntegerField((LongField) sourceField);
                 }
 
                 if (sourceField instanceof DoubleField) {
-                    return DoubleField.convertDoubleToBigIntegerField((DoubleField) sourceField);
+                    return DoubleField.toBigIntegerField((DoubleField) sourceField);
                 }
 
                 if (sourceField instanceof StringField) {
-                    return StringField.convertStringToBigIntegerField((StringField) sourceField);
+                    return StringField.toBigIntegerField((StringField) sourceField);
                 }
 
                 if (sourceField instanceof DateMillisField) {
-                    return LongField.convertLongToBigIntegerField(
-                            DateMillisField.convertDateMillisToLongField((DateMillisField) sourceField));
+                    return LongField.toBigIntegerField(DateMillisField.toLongField((DateMillisField) sourceField));
                 }
 
                 if (sourceField instanceof DateNanosField) {
-                    return LongField.convertLongToBigIntegerField(
-                            DateNanosField.convertDateNanosToLongField((DateNanosField) sourceField));
+                    return LongField.toBigIntegerField(DateNanosField.toLongField((DateNanosField) sourceField));
                 }
 
                 if (sourceField instanceof BooleanField) {
-                    return LongField.convertLongToBigIntegerField(
-                            BooleanField.convertBooleanToLongField((BooleanField) sourceField));
+                    return LongField.toBigIntegerField(BooleanField.toLongField((BooleanField) sourceField));
                 }
 
                 throw new InvalidConversion(sourceField.getClass(), getFieldClass());
@@ -71,7 +68,7 @@ public class BigIntegerField extends Field<java.math.BigInteger> {
 
     /* ---- Conversion Helpers To Other Fields ---- */
 
-    public static LongField convertBigIntegerToLongField(BigIntegerField sourceField) {
+    public static LongField toLongField(BigIntegerField sourceField) {
         FieldValues<BigInteger> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, BigInteger>(fv) {
             @Override

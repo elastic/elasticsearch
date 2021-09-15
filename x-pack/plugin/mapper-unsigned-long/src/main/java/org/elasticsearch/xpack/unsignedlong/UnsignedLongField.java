@@ -29,10 +29,10 @@ public class UnsignedLongField extends LongField {
         @Override
         public UnsignedLongField convert(Field<?> sourceField) {
             if (sourceField instanceof BigIntegerField) {
-                return BigIntegerToUnsignedLong((BigIntegerField) sourceField);
+                return fromBigIntegerField((BigIntegerField) sourceField);
             }
             if (sourceField instanceof LongField) {
-                return LongToUnsignedLong((LongField) sourceField);
+                return fromLongField((LongField) sourceField);
             }
 
             throw new InvalidConversion(sourceField.getClass(), UnsignedLongField.class);
@@ -51,7 +51,7 @@ public class UnsignedLongField extends LongField {
 
     /* ---- Conversion Helpers To Other Fields ---- */
 
-    public static BigIntegerField UnsignedLongToBigInteger(UnsignedLongField sourceField) {
+    public static BigIntegerField toBigIntegerField(UnsignedLongField sourceField) {
         FieldValues<Long> fv = sourceField.getFieldValues();
         return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<java.math.BigInteger, Long>(fv) {
             private BigInteger toBigInteger(long formatted) {
@@ -72,7 +72,7 @@ public class UnsignedLongField extends LongField {
 
     /* ---- Conversion Helpers From Other Fields ---- */
 
-    public static UnsignedLongField BigIntegerToUnsignedLong(BigIntegerField sourceField) {
+    public static UnsignedLongField fromBigIntegerField(BigIntegerField sourceField) {
         FieldValues<BigInteger> fv = sourceField.getFieldValues();
         return new UnsignedLongField(sourceField.getName(), new DelegatingFieldValues<>(fv) {
             @Override
@@ -97,7 +97,7 @@ public class UnsignedLongField extends LongField {
         });
     }
 
-    public static UnsignedLongField LongToUnsignedLong(LongField sourceField) {
+    public static UnsignedLongField fromLongField(LongField sourceField) {
         FieldValues<Long> fv = sourceField.getFieldValues();
         return new UnsignedLongField(sourceField.getName(), new DelegatingFieldValues<>(fv) {
             @Override
@@ -133,7 +133,7 @@ public class UnsignedLongField extends LongField {
     @Override
     public <CT, CF extends Field<CT>> Field<CT> convert(Converter<CT, CF> converter) {
         if (converter.getTargetClass() == BigInteger.class) {
-            BigIntegerField bigIntegerField = UnsignedLongToBigInteger(this);
+            BigIntegerField bigIntegerField = toBigIntegerField(this);
             return converter.getFieldClass().cast(bigIntegerField);
         }
 

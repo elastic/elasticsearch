@@ -17,7 +17,7 @@ public class DateMillisField extends Field<JodaCompatibleZonedDateTime> {
 
     /* ---- Conversion Helpers To Other Fields ---- */
 
-    public static LongField convertDateMillisToLongField(DateMillisField sourceField) {
+    public static LongField toLongField(DateMillisField sourceField) {
         FieldValues<JodaCompatibleZonedDateTime> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, JodaCompatibleZonedDateTime>(fv) {
             @Override

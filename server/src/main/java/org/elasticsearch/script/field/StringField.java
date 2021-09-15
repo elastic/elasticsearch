@@ -17,7 +17,7 @@ public class StringField extends Field<String> {
 
     /* ---- Conversion Helpers To Other Fields ---- */
 
-    public static BigIntegerField convertStringToBigIntegerField(StringField sourceField) {
+    public static BigIntegerField toBigIntegerField(StringField sourceField) {
         FieldValues<String> fv = sourceField.getFieldValues();
         return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<java.math.BigInteger, String>(fv) {
             @Override
@@ -43,7 +43,7 @@ public class StringField extends Field<String> {
         });
     }
 
-    public static LongField convertStringToLongField(StringField sourceField) {
+    public static LongField toLongField(StringField sourceField) {
         FieldValues<String> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, String>(fv) {
             @Override

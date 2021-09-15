@@ -15,7 +15,7 @@ public class BooleanField extends Field<Boolean> {
 
     /* ---- Conversion Helpers To Other Fields ---- */
 
-    public static LongField convertBooleanToLongField(BooleanField sourceField) {
+    public static LongField toLongField(BooleanField sourceField) {
         FieldValues<Boolean> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, Boolean>(fv) {
             @Override

@@ -19,7 +19,7 @@ public class DateNanosField extends Field<JodaCompatibleZonedDateTime> {
 
     /* ---- Conversion Helpers To Other Fields ---- */
 
-    public static LongField convertDateNanosToLongField(DateNanosField sourceField) {
+    public static LongField toLongField(DateNanosField sourceField) {
         FieldValues<JodaCompatibleZonedDateTime> fv = sourceField.getFieldValues();
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, JodaCompatibleZonedDateTime>(fv) {
             protected long nanoLong(JodaCompatibleZonedDateTime dt) {

@@ -302,8 +302,8 @@ Use this file realm user to authenticate requests until the restore operation is
 complete.
 
 . Use the <<cluster-update-settings,update cluster settings API>> to set
-<<action-destructive-requires-name,`action.destructive_requires_name`>> to true.
-This lets you delete indices and data streams using wildcards.
+<<action-destructive-requires-name,`action.destructive_requires_name`>> to
+`true`. This lets you delete indices and data streams using wildcards.
 +
 [source,console]
 ----
@@ -389,7 +389,7 @@ POST _watcher/_start
 ----
 --
 
-. Reset the `action.destructive_requires_name` cluster setting.
+. If wanted, reset the `action.destructive_requires_name` cluster setting.
 +
 [source,console]
 ----

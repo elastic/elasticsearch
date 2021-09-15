@@ -4,3 +4,88 @@
 coming::[8.0.0-alpha2]
 
 Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
+
+[[breaking-8.0.0-alpha2]]
+[float]
+=== Breaking changes
+
+Authorization::
+* Remove dashboard only reserved role {es-pull}76507[#76507]
+
+ILM+SLM::
+* Make the ILM `freeze` action a no-op {es-pull}77158[#77158] (issue: {es-issue}70192[#70192])
+
+Infra/Core::
+* Fail index creation using custom data path {es-pull}76792[#76792] (issue: {es-issue}73168[#73168])
+
+License::
+* Set `xpack.security.enabled` to true for all licenses {es-pull}72300[#72300]
+
+MULTIPLE AREA LABELS::
+* System indices treated as restricted indices {es-pull}74212[#74212] (issue: {es-issue}69298[#69298])
+
+Packaging::
+* Remove no-jdk distributions {es-pull}76896[#76896] (issue: {es-issue}65109[#65109])
+
+
+
+[[enhancement-8.0.0-alpha2]]
+[float]
+=== Enhancements
+
+Authentication::
+* Autogenerate and print elastic pwd on startup {es-pull}77291[#77291]
+* Enroll Kibana API uses Service Accounts {es-pull}76370[#76370]
+* Introduces reset-kibana-system-user tool {es-pull}77322[#77322]
+
+FIPS::
+* Default hasher to PBKDF2_STRETCH on FIPS mode {es-pull}76274[#76274]
+
+Infra/Core::
+* Retain reference to stdout for exceptional cases {es-pull}77460[#77460]
+
+MULTIPLE AREA LABELS::
+* Enroll additional nodes to cluster {es-pull}77292[#77292]
+
+Machine Learning::
+* Adding new PUT trained model vocabulary endpoint {es-pull}77387[#77387]
+* Creating new PUT model definition part API {es-pull}76987[#76987]
+
+Network::
+* Enable LZ4 transport compression by default {es-pull}76326[#76326] (issue: {es-issue}73497[#73497])
+
+Security::
+* Adding base `RestHandler` class for Enrollment APIs {es-pull}76564[#76564] (issue: {es-issue}76097[#76097])
+* Generate and store password hash for elastic user {es-pull}76276[#76276] (issue: {es-issue}75310[#75310])
+* Set elastic password and generate enrollment token {es-pull}75816[#75816] (issue: {es-issue}75310[#75310])
+
+
+
+[[other-8.0.0-alpha2]]
+[float]
+=== NOT CLASSIFIED
+
+ILM+SLM::
+* Allow for setting the total shards per node in the Allocate ILM action #76775 {es-pull}76794[#76794] (issue: {es-issue}76775[#76775])
+* Ensuring that the `ShrinkAction` does not hang if total shards per node is too low {es-pull}76732[#76732] (issue: {es-issue}44070[#44070])
+
+MULTIPLE AREA LABELS::
+* Allow access to restricted system indices for reserved system roles {es-pull}76845[#76845]
+* [Rest Api Compatibility] Allow first empty line for msearch {es-pull}75886[#75886] (issues: {es-issue}41011[#41011], {es-issue}51816[#51816])
+
+Machine Learning::
+* Multiple items in a single inference request {es-pull}75759[#75759] (issue: {es-issue}1961[#1961])
+
+NOT CLASSIFIED::
+* Add support for `_meta` field to ingest pipelines {es-pull}76381[#76381]
+* [DOCS] Remove 8.0.0-alpha2 coming tag [OPEN] {es-pull}77793[#77793]
+
+Other::
+* Detecting when a deserialized Map is immutable before changing it in `IndexDiskUsageStats` {es-pull}77219[#77219]
+
+Search::
+* [Rest Api Compatibility] Nested path and filter sort options {es-pull}76022[#76022] (issues: {es-issue}42809[#42809], {es-issue}51816[#51816])
+* [Rest Api Compatibility] `CommonTermsQuery` and `cutoff_frequency` param {es-pull}75896[#75896] (issues: {es-issue}42654[#42654], {es-issue}51816[#51816])
+
+
+

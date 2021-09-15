@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.util.set;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -47,9 +48,7 @@ public final class Sets {
     @SuppressWarnings("varargs")
     public static <T> HashSet<T> newHashSet(T... elements) {
         Objects.requireNonNull(elements);
-        HashSet<T> set = new HashSet<>(elements.length);
-        Collections.addAll(set, elements);
-        return set;
+        return new HashSet<>(Arrays.asList(elements));
     }
 
     public static <T> Set<T> newConcurrentHashSet() {

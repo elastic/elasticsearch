@@ -1,4 +1,4 @@
-[[breaking-changes-7.15]]
+[[migrating-7.15]]
 == Migrating to 7.15
 ++++
 <titleabbrev>7.15</titleabbrev>

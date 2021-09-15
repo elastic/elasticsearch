@@ -577,6 +577,10 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertLayer(tile, HITS_LAYER, 4096, 1, 1);
         assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
         assertLayer(tile, META_LAYER, 4096, 1, 18);
+        // check pipeline aggregation values
+        final VectorTile.Tile.Layer metaLayer = getLayer(tile, META_LAYER);
+        assertTag(metaLayer, metaLayer.getFeatures(0), "aggregations.minVal.min", 1.0);
+        assertTag(metaLayer, metaLayer.getFeatures(0), "aggregations.minVal.max", 1.0);
     }
 
     public void testOverlappingMultipolygon() throws Exception {
@@ -612,6 +616,18 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(layer.getExtent(), Matchers.equalTo(extent));
         assertThat(layer.getFeaturesCount(), Matchers.equalTo(numFeatures));
         assertThat(layer.getKeysCount(), Matchers.equalTo(numTags));
+    }
+
+    private void assertTag(VectorTile.Tile.Layer layer, VectorTile.Tile.Feature feature, String tag, double value) {
+        for (int i = 0; i < feature.getTagsCount(); i += 2) {
+            String thisTag = layer.getKeys(feature.getTags(i));
+            if (tag.equals(thisTag)) {
+                VectorTile.Tile.Value thisValue = layer.getValues(feature.getTags(i + 1));
+                assertThat(value, Matchers.equalTo(thisValue.getDoubleValue()));
+                return;
+            }
+        }
+        fail("Could not find tag [" + tag + " ]");
     }
 
     private VectorTile.Tile execute(Request mvtRequest) throws IOException {

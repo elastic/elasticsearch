@@ -42,7 +42,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
@@ -69,10 +68,20 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
 
+    /**
+     * Provides the content of the mapping. Typically, it adds the type and any other attribute
+     * if necessary.
+     */
     protected abstract void getGeoShapeMapping(XContentBuilder b) throws IOException;
 
-    protected abstract Version getVersion();
+    /**
+     * Provides a supported version when the mapping was created.
+     */
+    protected abstract Version randomSupportedVersion();
 
+    /**
+     * If this field is allowed to be executed when setting allow_expensive_queries us set to false.
+     */
     protected abstract boolean allowExpensiveQueries();
 
     @Override
@@ -90,13 +99,13 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         mapping.field("orientation", "left").endObject().endObject().endObject();
 
         // create index
-        assertAcked(prepareCreate(idxName).setMapping(mapping).setSettings(settings(getVersion()).build()));
+        assertAcked(prepareCreate(idxName).setMapping(mapping).setSettings(settings(randomSupportedVersion()).build()));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("location");
         getGeoShapeMapping(mapping);
         mapping.field("orientation", "right").endObject().endObject().endObject();
 
-        assertAcked(prepareCreate(idxName+"2").setMapping(mapping).setSettings(settings(getVersion()).build()));
+        assertAcked(prepareCreate(idxName+"2").setMapping(mapping).setSettings(settings(randomSupportedVersion()).build()));
         ensureGreen(idxName, idxName+"2");
 
         internalCluster().fullRestart();
@@ -136,7 +145,7 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("shape");
         getGeoShapeMapping(mapping);
         mapping.field("ignore_malformed", true).endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setMapping(mapping).setSettings(settings(getVersion()).build()));
+        assertAcked(prepareCreate("test").setMapping(mapping).setSettings(settings(randomSupportedVersion()).build()));
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
@@ -171,7 +180,7 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         mapping.endObject().endObject().endObject().endObject();
 
         // create index
-        assertAcked(prepareCreate("test").setMapping(mapping).setSettings(settings(getVersion()).build()));
+        assertAcked(prepareCreate("test").setMapping(mapping).setSettings(settings(randomSupportedVersion()).build()));
         ensureGreen();
 
         String source = "{\n" +
@@ -196,7 +205,8 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         mapping.endObject().endObject().endObject();
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(getVersion()).build()).setMapping(mapping).get());
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(settings(randomSupportedVersion()).build()).setMapping(mapping).get());
         ensureGreen();
 
         String source = "{\n" +
@@ -224,7 +234,8 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         mapping.endObject().endObject().endObject();
 
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(getVersion()).build()).setMapping(mapping).get());
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(settings(randomSupportedVersion()).build()).setMapping(mapping).get());
         ensureGreen();
 
         String source = "{\n" +
@@ -279,7 +290,7 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         getGeoShapeMapping(mapping);
         mapping.endObject().endObject().endObject();
 
-        final Version version = getVersion();
+        final Version version = randomSupportedVersion();
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes")
             .setMapping(mapping).setSettings(settings(version).build());
         mappingRequest.get();
@@ -463,10 +474,9 @@ public abstract class GeoShapeIntegTestCase extends ESIntegTestCase {
         assertHitCount(result, 1);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77174")
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        Version version = randomSupportedVersion();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()

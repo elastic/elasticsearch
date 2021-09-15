@@ -20,8 +20,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
 import static java.nio.file.StandardOpenOption.APPEND;
@@ -119,16 +117,8 @@ public class CertGenCliTests extends PackagingTestCase {
     }
 
     private String setElasticPassword() {
-        final Pattern userpassRegex = Pattern.compile("PASSWORD (\\w+) = ([^\\s]+)");
-        Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
-        Matcher matcher = userpassRegex.matcher(result.stdout);
-        assertNotNull(matcher);
-        while (matcher.find()) {
-            if (matcher.group(1).equals("elastic")) {
-                return matcher.group(2);
-            }
-        }
-        return null;
+        Shell.Result result = installation.executables().resetElasticPasswordTool.run("--auto --batch --silent", null);
+        return result.stdout;
     }
 
 }

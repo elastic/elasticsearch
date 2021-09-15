@@ -114,6 +114,10 @@ public final class HttpTransportSettings {
 
     public static final Setting<Boolean> SETTING_HTTP_CLIENT_STATS_ENABLED =
         boolSetting("http.client_stats.enabled", true, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_COUNT =
+        intSetting("http.client_stats.closed_channels.max_count", 10000, Property.NodeScope);
+    public static final Setting<TimeValue> SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_AGE =
+        Setting.timeSetting("http.client_stats.closed_channels.max_age", TimeValue.timeValueMinutes(5), Property.NodeScope);
 
     private HttpTransportSettings() {
     }

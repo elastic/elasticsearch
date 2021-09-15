@@ -1,0 +1,95 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      index:
+        index:  locations
+        body:
+          location: POINT(34.25 -21.76)
+          value: 1
+
+  - do:
+      indices.refresh: {}
+
+---
+"min agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.min_value:
+              min:
+                field: value
+
+---
+"max agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.max_value:
+              max:
+                field: value
+---
+"avg agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.avg_value:
+              avg:
+                field: value
+
+---
+"sum agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.sum_value:
+              sum:
+                field: value
+
+---
+"cardinality agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.cardinality_value:
+              cardinality:
+                field: value

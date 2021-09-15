@@ -1112,7 +1112,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         // reduce the indexes to query to the ones that have changes
         SearchRequest request = new SearchRequest(
-            TransformCheckpoint.getChangedIndices(getLastCheckpoint(), getNextCheckpoint()).toArray(new String[0])
+            // gh#77329 optimization turned off
+            TransformCheckpoint.getChangedIndices(TransformCheckpoint.EMPTY, getNextCheckpoint()).toArray(new String[0])
         );
 
         request.allowPartialSearchResults(false) // shard failures should fail the request

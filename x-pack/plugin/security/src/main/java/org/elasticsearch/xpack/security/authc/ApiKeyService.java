@@ -850,21 +850,21 @@ public class ApiKeyService {
         @Override
         public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
+            deprecationLogger.critical(DeprecationCategory.API, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], expected [{}] instead", prefix, oldName, apiKeyId, currentName);
         }
 
         @Override
         public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
+            deprecationLogger.critical(DeprecationCategory.API, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], replaced by [{}]", prefix, oldName, apiKeyId, replacedName);
         }
 
         @Override
         public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
+            deprecationLogger.critical(DeprecationCategory.API, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
                 prefix, removedName, apiKeyId);
         }

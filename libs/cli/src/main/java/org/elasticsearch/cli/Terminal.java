@@ -49,7 +49,7 @@ public abstract class Terminal {
     }
 
     /** The current verbosity for the terminal, defaulting to {@link Verbosity#NORMAL}. */
-    private Verbosity verbosity = Verbosity.NORMAL;
+    private Verbosity currentVerbosity = Verbosity.NORMAL;
 
     /** The newline used when calling println. */
     private final String lineSeparator;
@@ -60,7 +60,7 @@ public abstract class Terminal {
 
     /** Sets the verbosity of the terminal. */
     public void setVerbosity(Verbosity verbosity) {
-        this.verbosity = verbosity;
+        this.currentVerbosity = verbosity;
     }
 
     /** Reads clear text from the terminal input. See {@link Console#readLine()}. */
@@ -128,7 +128,7 @@ public abstract class Terminal {
 
     /** Checks if is enough {@code verbosity} level to be printed */
     public final boolean isPrintable(Verbosity verbosity) {
-        return this.verbosity.ordinal() >= verbosity.ordinal();
+        return this.currentVerbosity.ordinal() >= verbosity.ordinal();
     }
 
     /**

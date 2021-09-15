@@ -25,6 +25,9 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
@@ -318,7 +321,15 @@ public final class TestUtils {
         }
 
         @Override
-        protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
+        protected void getAsync(
+            String repository,
+            SnapshotId snapshotId,
+            IndexId indexId,
+            ShardId shardId,
+            String name,
+            ByteRange range,
+            ActionListener<CachedBlob> listener
+        ) {
             listener.onResponse(CachedBlob.CACHE_NOT_READY);
         }
 
@@ -330,10 +341,12 @@ public final class TestUtils {
         @Override
         public void putAsync(
             String repository,
+            SnapshotId snapshotId,
+            IndexId indexId,
+            ShardId shardId,
             String name,
-            String path,
-            long offset,
-            BytesReference content,
+            ByteRange range,
+            BytesReference bytes,
             ActionListener<Void> listener
         ) {
             listener.onResponse(null);
@@ -354,8 +367,16 @@ public final class TestUtils {
         }
 
         @Override
-        protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
-            CachedBlob blob = blobs.get(CachedBlob.generateId(repository, name, path, offset));
+        protected void getAsync(
+            String repository,
+            SnapshotId snapshotId,
+            IndexId indexId,
+            ShardId shardId,
+            String name,
+            ByteRange range,
+            ActionListener<CachedBlob> listener
+        ) {
+            CachedBlob blob = blobs.get(generateId(repository, snapshotId, indexId, shardId, name, range));
             if (blob != null) {
                 listener.onResponse(blob);
             } else {
@@ -366,10 +387,12 @@ public final class TestUtils {
         @Override
         public void putAsync(
             String repository,
+            SnapshotId snapshotId,
+            IndexId indexId,
+            ShardId shardId,
             String name,
-            String path,
-            long offset,
-            BytesReference content,
+            ByteRange range,
+            BytesReference bytes,
             ActionListener<Void> listener
         ) {
             final CachedBlob cachedBlob = new CachedBlob(
@@ -377,11 +400,11 @@ public final class TestUtils {
                 Version.CURRENT,
                 repository,
                 name,
-                path,
-                new BytesArray(content.toBytesRef(), true),
-                offset
+                generatePath(snapshotId, indexId, shardId),
+                new BytesArray(bytes.toBytesRef(), true),
+                range.start()
             );
-            blobs.put(cachedBlob.generatedId(), cachedBlob);
+            blobs.put(generateId(repository, snapshotId, indexId, shardId, name, range), cachedBlob);
             listener.onResponse(null);
         }
     }

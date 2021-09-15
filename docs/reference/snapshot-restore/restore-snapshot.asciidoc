@@ -90,11 +90,8 @@ following methods:
 ==== Delete and restore
 
 The simplest way to avoid conflicts is to delete an existing index or data
-stream before restoring it:
+stream before restoring it.
 
-. Delete the existing index or data stream.
-+
---
 To prevent the accidental recreation of the index or data stream, we recommend
 you temporarily stop all indexing until the restore operation is complete.
 
@@ -114,11 +111,7 @@ DELETE my-index
 DELETE _data_stream/logs-my_app-default
 ----
 // TEST[setup:setup-snapshots]
---
 
-. Restore the index or data stream from a snapshot.
-+
---
 By default, a restore request attempts to restore all indices and data
 streams in the snapshot, including system indices. If your cluster already
 contains one or more of these system indices, the request will return an error.
@@ -136,7 +129,6 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 ----
 // TEST[continued]
 // TEST[s/_restore/_restore?wait_for_completion=true/]
---
 
 [discrete]
 [[rename-on-restore]]
@@ -296,7 +288,7 @@ POST _watcher/_start
 ////
 --
 
-. If you use {es} security features, log in to a node host, navigate to {es}
+. If you use {es} security features, log in to a node host, navigate to the {es}
 installation directory, and add a user with the `superuser` role to the file
 realm using the <<users-command,`elasticsearch-users`>> tool.
 +
@@ -398,8 +390,7 @@ POST _watcher/_start
 ----
 --
 
-. If wanted, reset or reconfigure the `action.destructive_requires_name` cluster
-setting.
+. Reset the `action.destructive_requires_name` cluster setting.
 +
 [source,console]
 ----

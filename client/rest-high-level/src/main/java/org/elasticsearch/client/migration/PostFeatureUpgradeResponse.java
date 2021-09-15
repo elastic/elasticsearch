@@ -8,10 +8,130 @@
 
 package org.elasticsearch.client.migration;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
 public class PostFeatureUpgradeResponse {
-    public static PostFeatureUpgradeResponse fromXContent(XContentParser parser) {
-        return new PostFeatureUpgradeResponse();
+
+    private final boolean accepted;
+    private final List<Feature> features;
+    private final String reason;
+    private final ElasticsearchException elasticsearchException;
+
+    private static final ParseField ACCEPTED = new ParseField("accepted");
+    private static final ParseField FEATURES = new ParseField("features");
+    private static final ParseField REASON = new ParseField("reason");
+    private static final ParseField ELASTICSEARCH_EXCEPTION = new ParseField("elasticsearch_exception");
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<PostFeatureUpgradeResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "post_feature_upgrade_response", true, (a, ctx) -> new PostFeatureUpgradeResponse(
+        (Boolean) a[0],
+        (List<Feature>) a[1],
+        (String) a[2],
+        (ElasticsearchException) a[3]
+    ));
+
+    static {
+        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+            (p, c) -> p.booleanValue(), ACCEPTED, ObjectParser.ValueType.BOOLEAN);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
+            Feature::parse, FEATURES);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> p.text(), REASON, ObjectParser.ValueType.STRING);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p), ELASTICSEARCH_EXCEPTION);
+    }
+
+    public static PostFeatureUpgradeResponse parse(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    public PostFeatureUpgradeResponse(
+        boolean accepted,
+        List<Feature> features,
+        String reason,
+        ElasticsearchException elasticsearchException
+    ) {
+        this.accepted = accepted;
+        this.features = features;
+        this.reason = reason;
+        this.elasticsearchException = elasticsearchException;
+    }
+
+    public boolean isAccepted() {
+        return accepted;
+    }
+
+    public List<Feature> getFeatures() {
+        return Objects.isNull(features) ? Collections.emptyList() : features;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public ElasticsearchException getElasticsearchException() {
+        return elasticsearchException;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PostFeatureUpgradeResponse that = (PostFeatureUpgradeResponse) o;
+        return accepted == that.accepted && Objects.equals(features, that.features) && Objects.equals(reason, that.reason);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(accepted, features, reason);
+    }
+
+    public static class Feature {
+        private final String featureName;
+
+        private static final ParseField FEATURE_NAME = new ParseField("feature_name");
+
+        private static final ConstructingObjectParser<Feature, Void> PARSER = new ConstructingObjectParser<>(
+            "feature", true, (a, ctx) -> new Feature((String) a[0])
+        );
+
+        static {
+            PARSER.declareField(ConstructingObjectParser.constructorArg(),
+                (p, c) -> p.text(), FEATURE_NAME, ObjectParser.ValueType.STRING);
+        }
+
+        public static Feature parse(XContentParser parser, Void ctx) {
+            return PARSER.apply(parser, ctx);
+        }
+
+        public Feature(String featureName) {
+            this.featureName = featureName;
+        }
+
+        public String getFeatureName() {
+            return featureName;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Feature feature = (Feature) o;
+            return Objects.equals(featureName, feature.featureName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(featureName);
+        }
     }
 }

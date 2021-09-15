@@ -88,7 +88,7 @@ public final class MigrationClient {
             request,
             MigrationRequestConverters::postFeatureUpgrade,
             options,
-            PostFeatureUpgradeResponse::fromXContent,
+            PostFeatureUpgradeResponse::parse,
             Collections.emptySet()
         );
     }
@@ -100,7 +100,7 @@ public final class MigrationClient {
             request,
             MigrationRequestConverters::postFeatureUpgrade,
             options,
-            PostFeatureUpgradeResponse::fromXContent,
+            PostFeatureUpgradeResponse::parse,
             listener,
             Collections.emptySet()
         );

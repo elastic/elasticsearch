@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -45,7 +46,7 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("acknowledged", this.accepted);
+        builder.field("accepted", this.accepted);
         if (accepted) {
             builder.startArray("features");
             for (Feature feature : this.features) {
@@ -57,7 +58,10 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
             builder.field("reason", this.reason);
         }
         if (Objects.nonNull(this.elasticsearchException)) {
-            builder.field("exception", elasticsearchException);
+            builder.field("exception");
+            builder.startObject();
+            elasticsearchException.toXContent(builder, params);
+            builder.endObject();
         }
         builder.endObject();
         return builder;
@@ -76,7 +80,7 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
     }
 
     public List<Feature> getFeatures() {
-        return features;
+        return Objects.isNull(features) ? Collections.emptyList() : features;
     }
 
     public String getReason() {

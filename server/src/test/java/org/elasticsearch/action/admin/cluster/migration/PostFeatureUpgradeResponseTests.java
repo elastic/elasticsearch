@@ -15,7 +15,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class PostFeatureUpgradeResponseTest extends AbstractWireSerializingTestCase<PostFeatureUpgradeResponse> {
+public class PostFeatureUpgradeResponseTests extends AbstractWireSerializingTestCase<PostFeatureUpgradeResponse> {
 
     @Override
     protected Writeable.Reader<PostFeatureUpgradeResponse> instanceReader() {
@@ -27,7 +27,7 @@ public class PostFeatureUpgradeResponseTest extends AbstractWireSerializingTestC
         if (randomBoolean()) {
             return new PostFeatureUpgradeResponse(
                 true,
-                randomList(1, 9, PostFeatureUpgradeResponseTest::createFeature),
+                randomList(1, 9, PostFeatureUpgradeResponseTests::createFeature),
                 null,
                 null);
         }
@@ -43,7 +43,7 @@ public class PostFeatureUpgradeResponseTest extends AbstractWireSerializingTestC
             return new PostFeatureUpgradeResponse(
                 true,
                 randomList(1, 9, () ->
-                    randomValueOtherThanMany(instance.getFeatures()::contains, PostFeatureUpgradeResponseTest::createFeature)),
+                    randomValueOtherThanMany(instance.getFeatures()::contains, PostFeatureUpgradeResponseTests::createFeature)),
                 null,
                 null);
         }

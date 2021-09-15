@@ -21,6 +21,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction<
     PostFeatureUpgradeRequest,
     PostFeatureUpgradeResponse> {
@@ -53,9 +56,11 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
     @Override
     protected void masterOperation(Task task, PostFeatureUpgradeRequest request, ClusterState state,
                                    ActionListener<PostFeatureUpgradeResponse> listener) throws Exception {
+        List<PostFeatureUpgradeResponse.Feature> features = new ArrayList<>();
+        features.add(new PostFeatureUpgradeResponse.Feature("security"));
         listener.onResponse(new PostFeatureUpgradeResponse(
             // TODO: implement operation for this action
-        ));
+                true, features, null, null));
     }
 
     @Override

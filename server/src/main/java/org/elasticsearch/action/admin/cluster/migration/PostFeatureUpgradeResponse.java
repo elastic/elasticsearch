@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -28,13 +27,11 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
     private final String reason;
     private final ElasticsearchException elasticsearchException;
 
-    public PostFeatureUpgradeResponse() {
-        // TODO - remove dummy data and add arguments to constructor
-        this.accepted = true;
-        this.features = new ArrayList<>();
-        features.add(new Feature("security"));
-        this.reason = null;
-        this.elasticsearchException = null;
+    public PostFeatureUpgradeResponse(boolean accepted, List<Feature> features, String reason, ElasticsearchException exception) {
+        this.accepted = accepted;
+        this.features = features;
+        this.reason = reason;
+        this.elasticsearchException = exception;
     }
 
     public PostFeatureUpgradeResponse(StreamInput in) throws IOException {
@@ -74,6 +71,53 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
         out.writeOptionalWriteable(this.elasticsearchException);
     }
 
+    public boolean isAccepted() {
+        return accepted;
+    }
+
+    public List<Feature> getFeatures() {
+        return features;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public ElasticsearchException getElasticsearchException() {
+        return elasticsearchException;
+    }
+
+    /**
+     * We disregard exceptions when determining response equality
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PostFeatureUpgradeResponse that = (PostFeatureUpgradeResponse) o;
+        return accepted == that.accepted
+            && Objects.equals(features, that.features)
+            && Objects.equals(reason, that.reason);
+    }
+
+    /**
+     * We disregard exceptions when calculating hash code
+     */
+    @Override
+    public int hashCode() {
+        return Objects.hash(accepted, features, reason);
+    }
+
+    @Override
+    public String toString() {
+        return "PostFeatureUpgradeResponse{" +
+            "accepted=" + accepted +
+            ", features=" + features +
+            ", reason='" + reason + '\'' +
+            ", elasticsearchException=" + elasticsearchException +
+            '}';
+    }
+
     public static class Feature implements Writeable, ToXContentObject {
         private final String featureName;
 
@@ -96,6 +140,30 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
             builder.field("feature_name", this.featureName);
             builder.endObject();
             return builder;
+        }
+
+        public String getFeatureName() {
+            return featureName;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Feature feature = (Feature) o;
+            return Objects.equals(featureName, feature.featureName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(featureName);
+        }
+
+        @Override
+        public String toString() {
+            return "Feature{" +
+                "featureName='" + featureName + '\'' +
+                '}';
         }
     }
 }

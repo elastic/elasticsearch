@@ -1,3 +1,13 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.build'
 
 dependencies {
@@ -30,6 +40,9 @@ subprojects {
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
       setting 'xpack.security.enabled', 'false'
+      if (BuildParams.isSnapshotBuild() == false) {
+        systemProperty 'es.index_mode_feature_flag_registered', 'true'
+      }
     }
 
     tasks.named("yamlRestTest").configure {

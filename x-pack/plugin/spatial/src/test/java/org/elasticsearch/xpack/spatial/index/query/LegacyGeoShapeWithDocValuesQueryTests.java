@@ -1,12 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.search.geo;
+package org.elasticsearch.xpack.spatial.index.query;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
@@ -22,7 +21,8 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.TestLegacyGeoShapeFieldMapperPlugin;
+import org.elasticsearch.search.geo.GeoShapeQueryTestCase;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -35,8 +35,9 @@ import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.containsString;
 
-public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
+public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase {
 
+    @SuppressWarnings( "deprecation" )
     private static final String[] PREFIX_TREES = new String[] {
         LegacyGeoShapeFieldMapper.PrefixTrees.GEOHASH,
         LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE
@@ -44,7 +45,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(TestLegacyGeoShapeFieldMapperPlugin.class);
+        return Collections.singleton(LocalStateSpatialPlugin.class);
     }
 
     @Override

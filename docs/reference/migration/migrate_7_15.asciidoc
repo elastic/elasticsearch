@@ -48,7 +48,7 @@ using any deprecated functionality, enable <<deprecation-logging, deprecation
 logging>>.
 
 // tag::notable-breaking-changes[]
-[[deprecate-6x-indices]]
+[[deprecate-simpleifs]]
 .The `simpleifs` index store type is deprecated.
 [%collapsible]
 ====

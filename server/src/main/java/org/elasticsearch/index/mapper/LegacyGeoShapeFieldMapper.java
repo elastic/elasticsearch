@@ -313,6 +313,19 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
+    @Deprecated
+    public static Mapper.TypeParser PARSER = (name, node, parserContext) -> {
+        boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
+        boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
+        FieldMapper.Builder builder = new LegacyGeoShapeFieldMapper.Builder(
+                name,
+                parserContext.indexVersionCreated(),
+                ignoreMalformedByDefault,
+                coerceByDefault);
+        builder.parse(name, parserContext, node);
+        return builder;
+    };
+
     private static class LegacyGeoShapeParser extends Parser<ShapeBuilder<?, ?, ?>> {
 
         private LegacyGeoShapeParser() {
@@ -520,9 +533,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     @Override
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        if (mergeWith instanceof GeoShapeFieldMapper) {
+        if (mergeWith instanceof AbstractShapeGeometryFieldMapper<?>
+            && (mergeWith instanceof LegacyGeoShapeFieldMapper) == false) {
             throw new IllegalArgumentException("mapper [" + name()
-                + "] of type [geo_shape] cannot change strategy from [" + strategy() + "] to [BKD]");
+                + "] of type [geo_shape] cannot change strategy from [recursive] to [BKD]");
         }
         super.checkIncomingMergeType(mergeWith);
     }

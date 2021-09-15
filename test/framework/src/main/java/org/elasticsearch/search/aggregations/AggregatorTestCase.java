@@ -430,7 +430,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
-     * <p>
+     *
      * @param splitLeavesIntoSeparateAggregators If true this creates a new {@link Aggregator}
      *          for each leaf as though it were a separate index. If false this aggregates
      *          all leaves together, like we do in production.

@@ -8,8 +8,8 @@ the TLS level. This means that the local cluster trusts the certificate
 authority (CA) of the remote cluster, and the remote cluster trusts the CA of
 the local cluster. When establishing a connection, all nodes will verify
 certificates from the nodes they are connecting to. This mutual trust is
-required to connect a remote cluster, because all connected nodes effectively
-form a single security domain.
+required to securely connect a remote cluster, because all connected nodes
+effectively form a single security domain.
 
 User authentication is performed on the local cluster and the user and user’s 
 roles names are passed to the remote clusters. A remote cluster checks the user’s
@@ -33,13 +33,13 @@ NOTE: This procedure uses the same CA to generate certificates for all nodes.
 Alternatively, you can add the CA certificates from the local cluster as a
 trusted CA in each remote cluster. The opposite is also true.
 
-. Connect <<remote-clusters-connect,remote clusters>> from a local cluster.
+After enabling and configuring security, you can 
+<<remote-clusters-connect,connect remote clusters>> from a local cluster.
 
-. Configure <<remote-clusters-privileges,remote cluster privileges>>.
+With your clusters connected, you'll need to 
+<<remote-clusters-privileges,configure cluster privileges>> on both the local
+and remote clusters.
 
-[[remote-clusters-security-ccr]]
-==== {ccr-cap} and security
-After enabling and configuring security, connecting a remote cluster, and
-configuring privileges, you need to
+If you're configuring a remote cluster for {ccr}, you need to 
 <<ccr-getting-started-follower-index,configure a follower index>> on your local
 cluster to replicate on a remote cluster.

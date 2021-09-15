@@ -16,10 +16,13 @@ cluster followed by the transport port (defaults to `9300`). For example,
 `cluster.es.eastus2.staging.azure.foundit.no:9400` or `192.168.1.1:9300`.
 
 Alternatively, use the <<cluster-update-settings,cluster update settings API>>
-to add a remote cluster. You can also use this API to apply and update settings 
-across the entire remote cluster. 
+to add a remote cluster. You can also use this API to
+<<configure-remote-clusters-dynamic,apply and update>> settings across the
+entire remote cluster. To limit which nodes can connect to a remote cluster
+and serve remote cluster requests, define
+<<configure-remote-clusters-static,static settings>> in `elasticsearch.yml`.
 
-The following request adds a remote cluster with an alias of `leader`. This
+The following request adds a remote cluster with an alias of `cluster_one`. This
 _cluster alias_ represents the connection to the remote cluster and is used 
 subsequently to distinguish between local and remote indices. When adding a
 remote cluster in {kib}, the cluster alias serves as a unique identifier for the
@@ -32,7 +35,7 @@ PUT /_cluster/settings
   "persistent" : {
     "cluster" : {
       "remote" : {
-        "leader" : {
+        "cluster_one" : {
           "seeds" : [
             "127.0.0.1:9300" <1>
           ]
@@ -57,12 +60,12 @@ GET /_remote/info
 // TEST[continued]
 
 The API response indicates that the local cluster is connected to the remote
-cluster with the cluster alias `leader`.
+cluster with the cluster alias `cluster_one`:
 
 [source,console-result]
 ----
 {
-  "leader" : {
+  "cluster_one" : {
     "seeds" : [
       "127.0.0.1:9300"
     ],
@@ -75,20 +78,13 @@ cluster with the cluster alias `leader`.
   }
 }
 ----
-// TESTRESPONSE[s/127.0.0.1:9300/$body.leader.seeds.0/]
-// TEST[s/"connected" : true/"connected" : $body.leader.connected/]
-// TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.leader.num_nodes_connected/]
+// TESTRESPONSE[s/127.0.0.1:9300/$body.cluster_one.seeds.0/]
+// TEST[s/"connected" : true/"connected" : $body.cluster_one.connected/]
+// TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.cluster_one.num_nodes_connected/]
 <1> The number of nodes in the remote cluster the local cluster is
 connected to.
 <2> Indicates whether to skip the remote cluster if searched through {ccs} but
 no nodes are available.
-
-Using the cluster update settings API applies settings across the entire
-cluster, and enables you to to
-<<configure-remote-clusters-dynamic,dynamically configure>> settings of a
-remote cluster. To limit which nodes can connect to a remote cluster
-and serve remote cluster requests, define
-<<configure-remote-clusters-static,static settings>> in `elasticsearch.yml`.
 
 [[configure-remote-clusters-dynamic]]
 ==== Dynamically configure remote clusters
@@ -140,7 +136,11 @@ PUT _cluster/settings
 You can dynamically update other cluster settings for a cluster, such as
 <<transport-settings,transport settings>>. The following request updates the
 compression settings for `cluster_two`, and the compression and ping schedule
-settings for `cluster_three`:
+settings for `cluster_three`.
+
+NOTE: When the compression or ping schedule settings change, all existing
+node connections must close and re-open, which can cause in-flight requests to
+fail.
 
 [source,console]
 ----
@@ -162,10 +162,6 @@ PUT _cluster/settings
 }
 ----
 // TEST[continued]
-
-NOTE: When the compression or ping schedule settings change, all existing
-node connections must close and re-open, which can cause in-flight requests to
-fail.
 
 You can delete a remote cluster from the cluster settings by passing `null`
 values for each remote cluster setting. The following request removes

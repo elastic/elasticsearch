@@ -96,6 +96,7 @@ public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77796")
     public void test60PasswordAutogenerationOnlyOnce() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);

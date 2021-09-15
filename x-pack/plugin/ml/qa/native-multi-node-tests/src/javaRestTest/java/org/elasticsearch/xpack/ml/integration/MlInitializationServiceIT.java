@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
 import org.elasticsearch.xpack.ml.MlInitializationService;
 import org.junit.Before;
@@ -37,8 +39,10 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
     public void setUpMocks() {
         threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         MlDailyMaintenanceService mlDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
-        mlInitializationService = new MlInitializationService(client(), threadPool, mlDailyMaintenanceService, clusterService());
+        ClusterService clusterService = mock(ClusterService.class);
+        mlInitializationService = new MlInitializationService(client(), threadPool, mlDailyMaintenanceService, clusterService);
     }
 
     public void testThatMlIndicesBecomeHiddenWhenTheNodeBecomesMaster() {

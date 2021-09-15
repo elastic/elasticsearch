@@ -9,7 +9,6 @@
 
 package org.elasticsearch.script.field;
 
-import java.math.BigInteger;
 import java.util.List;
 
 /**
@@ -22,8 +21,6 @@ import java.util.List;
  * * {@code getValue(defaultValue) == defaultValue}
  */
 public abstract class Field<T> {
-    public static final Converter<BigInteger, BigIntegerField> BigInteger = Converters.BIGINTEGER;
-    public static final Converter<Long, LongField> Long = Converters.LONG;
 
     protected final String name;
     protected final FieldValues<T> values;
@@ -94,22 +91,6 @@ public abstract class Field<T> {
     }
 
     /**
-     * Get the underlying value as a {@code double} unless {@link #isEmpty()}, in which case return {@code defaultValue}.
-     * May throw {@link InvalidConversion} if the underlying value is not representable as a {@code double}.
-     */
-    public double getDouble(double defaultValue) {
-        if (isEmpty()) {
-            return defaultValue;
-        }
-        try {
-            return values.getDoubleValue();
-        } catch (RuntimeException err) {
-            return defaultValue;
-        }
-    }
-
-
-    /**
      * Get the underlying value as a {@code long} unless {@link #isEmpty()}, in which case return {@code defaultValue}.
      * May throw {@link InvalidConversion} if the underlying value is not representable as a {@code long}.
      */
@@ -119,6 +100,21 @@ public abstract class Field<T> {
         }
         try {
             return values.getLongValue();
+        } catch (RuntimeException err) {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Get the underlying value as a {@code double} unless {@link #isEmpty()}, in which case return {@code defaultValue}.
+     * May throw {@link InvalidConversion} if the underlying value is not representable as a {@code double}.
+     */
+    public double getDouble(double defaultValue) {
+        if (isEmpty()) {
+            return defaultValue;
+        }
+        try {
+            return values.getDoubleValue();
         } catch (RuntimeException err) {
             return defaultValue;
         }

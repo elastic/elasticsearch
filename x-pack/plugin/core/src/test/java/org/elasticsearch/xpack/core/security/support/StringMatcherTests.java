@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.support;
 
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;

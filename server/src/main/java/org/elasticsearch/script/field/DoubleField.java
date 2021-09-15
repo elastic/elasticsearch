@@ -22,12 +22,12 @@ public class DoubleField extends Field<Double> {
         return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<java.math.BigInteger, Double>(fv) {
             @Override
             public List<BigInteger> getValues() {
-                return values.getValues().stream().map(DoubleField::convertDoubleToBigInteger).collect(Collectors.toList());
+                return values.getValues().stream().map(DoubleField::toBigInteger).collect(Collectors.toList());
             }
 
             @Override
             public BigInteger getNonPrimitiveValue() {
-                return convertDoubleToBigInteger(values.getDoubleValue());
+                return toBigInteger(values.getDoubleValue());
             }
         });
     }
@@ -49,7 +49,7 @@ public class DoubleField extends Field<Double> {
 
     /* ---- Conversion Helpers To Other Types ---- */
 
-    public static BigInteger convertDoubleToBigInteger(double dbl) {
+    public static BigInteger toBigInteger(double dbl) {
         return BigDecimal.valueOf(dbl).toBigInteger();
     }
 

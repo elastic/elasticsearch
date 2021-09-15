@@ -23,12 +23,12 @@ public class StringField extends Field<String> {
             @Override
             public List<BigInteger> getValues() {
                 // This may throw NumberFormatException, should we catch and truncate the List? (#76951)
-                return values.getValues().stream().map(StringField::convertStringToBigInteger).collect(Collectors.toList());
+                return values.getValues().stream().map(StringField::toBigInteger).collect(Collectors.toList());
             }
 
             @Override
             public BigInteger getNonPrimitiveValue() {
-                return convertStringToBigInteger(values.getNonPrimitiveValue());
+                return toBigInteger(values.getNonPrimitiveValue());
             }
 
             @Override
@@ -48,30 +48,30 @@ public class StringField extends Field<String> {
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, String>(fv) {
             @Override
             public List<Long> getValues() {
-                return values.getValues().stream().map(StringField::convertStringToLong).collect(Collectors.toList());
+                return values.getValues().stream().map(StringField::toLong).collect(Collectors.toList());
             }
 
             @Override
             public Long getNonPrimitiveValue() {
-                return convertStringToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public long getLongValue() {
-                return convertStringToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public double getDoubleValue() {
                 // conversion is to LongField, doesn't make sense to parse a Double out of the String here.
-                return convertStringToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
         });
     }
 
     /* ---- Conversion Helpers To Other Types ---- */
 
-    public static BigInteger convertStringToBigInteger(String str) {
+    public static BigInteger toBigInteger(String str) {
         try {
             return new BigInteger(str);
         } catch (NumberFormatException e) {
@@ -79,11 +79,11 @@ public class StringField extends Field<String> {
         }
     }
 
-    public static long convertStringToLong(String str) {
+    public static long toLong(String str) {
         return Long.parseLong(str);
     }
 
-    public static double convertStringToDouble(String str) {
+    public static double toDouble(String str) {
         return Double.parseDouble(str);
     }
 

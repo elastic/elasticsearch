@@ -248,9 +248,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         public long getLongValue() {
             throwIfEmpty();
             if (isNanos) {
-                return DateNanosField.convertDateNanosToLong(dates[0]);
+                return DateNanosField.toLong(dates[0]);
             }
-            return DateMillisField.convertDateMillisToLong(dates[0]);
+            return DateMillisField.toLong(dates[0]);
         }
 
         @Override
@@ -593,13 +593,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         @Override
         public long getLongValue() {
             throwIfEmpty();
-            return BooleanField.convertBooleanToLong(values[0]);
+            return BooleanField.toLong(values[0]);
         }
 
         @Override
         public double getDoubleValue() {
             throwIfEmpty();
-            return BooleanField.convertBooleanToDouble(values[0]);
+            return BooleanField.toDouble(values[0]);
         }
 
         @Override
@@ -681,12 +681,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public long getLongValue() {
-            return StringField.convertStringToLong(get(0));
+            return StringField.toLong(get(0));
         }
 
         @Override
         public double getDoubleValue() {
-            return StringField.convertStringToDouble(get(0));
+            return StringField.toDouble(get(0));
         }
 
         @Override

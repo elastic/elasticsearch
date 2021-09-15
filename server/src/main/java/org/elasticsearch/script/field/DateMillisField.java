@@ -27,24 +27,24 @@ public class DateMillisField extends Field<JodaCompatibleZonedDateTime> {
 
             @Override
             public Long getNonPrimitiveValue() {
-                return convertDateMillisToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public long getLongValue() {
-                return convertDateMillisToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public double getDoubleValue() {
-                return convertDateMillisToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
         });
     }
 
     /* ---- Conversion Helpers To Other Types ---- */
 
-    public static long convertDateMillisToLong(JodaCompatibleZonedDateTime dt) {
+    public static long toLong(JodaCompatibleZonedDateTime dt) {
         return dt.toInstant().toEpochMilli();
     }
 

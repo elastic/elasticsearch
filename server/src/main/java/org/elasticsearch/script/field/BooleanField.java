@@ -25,28 +25,28 @@ public class BooleanField extends Field<Boolean> {
 
             @Override
             public Long getNonPrimitiveValue() {
-                return convertBooleanToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public long getLongValue() {
-                return convertBooleanToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public double getDoubleValue() {
-                return convertBooleanToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
         });
     }
 
     /* ---- Conversion Helpers To Other Types ---- */
 
-    public static long convertBooleanToLong(boolean bool) {
+    public static long toLong(boolean bool) {
         return bool ? 1L : 0L;
     }
 
-    public static double convertBooleanToDouble(boolean bool) {
+    public static double toDouble(boolean bool) {
         return bool ? 1.0d : 0.0d;
     }
 

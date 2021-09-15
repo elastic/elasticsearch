@@ -73,33 +73,33 @@ public class BigIntegerField extends Field<java.math.BigInteger> {
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, BigInteger>(fv) {
             @Override
             public List<Long> getValues() {
-                return values.getValues().stream().map(BigIntegerField::convertBigIntegerToLong).collect(Collectors.toList());
+                return values.getValues().stream().map(BigIntegerField::toLong).collect(Collectors.toList());
             }
 
             @Override
             public Long getNonPrimitiveValue() {
-                return convertBigIntegerToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public long getLongValue() {
-                return convertBigIntegerToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public double getDoubleValue() {
-                return convertBigIntegerToDouble(values.getNonPrimitiveValue());
+                return toDouble(values.getNonPrimitiveValue());
             }
         });
     }
 
     /* ---- Conversion Helpers To Other Types ---- */
 
-    public static long convertBigIntegerToLong(BigInteger bigInteger) {
+    public static long toLong(BigInteger bigInteger) {
         return bigInteger.longValue();
     }
 
-    public static double convertBigIntegerToDouble(BigInteger bigInteger) {
+    public static double toDouble(BigInteger bigInteger) {
         return bigInteger.doubleValue();
     }
 

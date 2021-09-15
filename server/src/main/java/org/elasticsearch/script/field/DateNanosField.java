@@ -33,24 +33,24 @@ public class DateNanosField extends Field<JodaCompatibleZonedDateTime> {
 
             @Override
             public Long getNonPrimitiveValue() {
-                return convertDateNanosToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public long getLongValue() {
-                return convertDateNanosToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public double getDoubleValue() {
-                return convertDateNanosToLong(values.getNonPrimitiveValue());
+                return toLong(values.getNonPrimitiveValue());
             }
         });
     }
 
     /* ---- Conversion Helpers To Other Types ---- */
 
-    public static long convertDateNanosToLong(JodaCompatibleZonedDateTime dt) {
+    public static long toLong(JodaCompatibleZonedDateTime dt) {
         return ChronoUnit.NANOS.between(Instant.EPOCH, dt.toInstant());
     }
 

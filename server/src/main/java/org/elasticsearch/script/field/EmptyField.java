@@ -16,8 +16,6 @@ import java.util.List;
  */
 public class EmptyField<T> extends Field<T> {
 
-    /* ---- Empty Field Members ---- */
-
     public EmptyField(String name) {
         super(name, null);
     }

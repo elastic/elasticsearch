@@ -217,13 +217,22 @@ or data streams instead.
 If you're restoring to a different cluster, see <<restore-different-cluster>>
 before you start.
 
-. Configure the cluster's nodes.
+. If you <<backup-cluster-configuration,backed up the cluster's configuration
+files>>, you can restore them. If you chose this option, repeat the following
+steps for each node in the cluster:
 +
-If you previously <<backup-cluster-configuration,backed up the cluster's
-configuration files>>, you can copy these files to each node's `$ES_PATH_CONF`
-directory. If you restore these files, you must repeat this step for each node
-in the cluster. In most cases, this requires a <<restart-upgrade,full cluster
-restart>>.
+--
+.. Make a filesystem copy of the backed-up configuration files for the node.
+
+.. Add the backed-up files to the node's `$ES_PATH_CONF` directory. Overwrite
+any existing files in the directory.
+
+.. Ensure the node's `elasticsearch.yml` file contains the appropriate node
+roles and settings.
+
+You must repeat these steps on every node in the cluster. This requires a
+<<restart-upgrade,full cluster restart>>.
+--
 
 . Temporarily stop indexing and turn off the following features:
 +

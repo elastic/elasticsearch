@@ -15,9 +15,14 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
+import javax.security.auth.x500.X500Principal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.security.KeyPair;
+import java.security.cert.X509Certificate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -100,4 +105,31 @@ public class CertGenUtilsTests extends ESTestCase {
         verifyNoMoreInteractions(address);
     }
 
+    public void testIssuerCertSubjectDN() throws Exception {
+        final ZonedDateTime notBefore = LocalDateTime.now().atZone(ZoneId.of("UTC"));
+        final ZonedDateTime notAfter = LocalDateTime.of(2099, 12, 31, 23, 59, 59, 999999999).atZone(ZoneId.of("UTC"));
+
+        // root CA
+        final X500Principal rootCaPrincipal = new X500Principal("DC=example.com");
+        final KeyPair rootCaKeyPair = CertGenUtils.generateKeyPair(2048);
+        final X509Certificate rootCaCert = CertGenUtils.generateSignedCertificate(rootCaPrincipal, null, rootCaKeyPair,
+            null, rootCaKeyPair.getPrivate(), true, notBefore, notAfter, null);
+
+        // sub CA
+        final X500Principal subCaPrincipal = new X500Principal("DC=Sub CA,DC=example.com");
+        final KeyPair subCaKeyPair = CertGenUtils.generateKeyPair(2048);
+        final X509Certificate subCaCert = CertGenUtils.generateSignedCertificate(subCaPrincipal, null, subCaKeyPair,
+            rootCaCert, rootCaKeyPair.getPrivate(), true, notBefore, notAfter, null);
+
+        // end entity
+        final X500Principal endEntityPrincipal = new X500Principal("CN=TLS Client\\+Server,DC=Sub CA,DC=example.com");
+        final KeyPair endEntityKeyPair = CertGenUtils.generateKeyPair(2048);
+        final X509Certificate endEntityCert = CertGenUtils.generateSignedCertificate(endEntityPrincipal, null, endEntityKeyPair,
+            subCaCert, subCaKeyPair.getPrivate(), true, notBefore, notAfter, null);
+
+        // verify generateSignedCertificate performed DN chaining correctly
+        assertEquals(subCaCert.getSubjectX500Principal(), endEntityCert.getIssuerX500Principal());
+        assertEquals(rootCaCert.getSubjectX500Principal(), subCaCert.getIssuerX500Principal());
+        assertEquals(rootCaCert.getSubjectX500Principal(), rootCaCert.getIssuerX500Principal());
+    }
 }

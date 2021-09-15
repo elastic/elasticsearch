@@ -12,6 +12,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_712_engine_changes>>
 * <<breaking_712_search_changes>>
 * <<breaking_712_ssl_changes>>
+* <<breaking_712_settings_deprecations>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -87,8 +88,8 @@ For instructions on how to enable these older TLS versions in your {es} cluster,
 see {ref}/jdk-tls-versions.html#jdk-enable-tls-protocol[Enabling additional
 SSL/TLS versions on your JDK].
 ====
+//end::notable-breaking-changes[]
 
-////
 [discrete]
 [[deprecated-7.11]]
 === Deprecations
@@ -104,4 +105,25 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
-////
+//tag::notable-breaking-changes[]
+[discrete]
+[[breaking_712_settings_deprecations]]
+==== Settings deprecations
+
+[[deprecate-searchable_snapshot_shared_cache_size]]
+.Setting `xpack.searchable.snapshot.shared_cache.size` on non-frozen nodes is deprecated.
+[%collapsible]
+====
+*Details* +
+Setting `xpack.searchable.snapshot.shared_cache.size` to a positive value on a
+node without the `data_frozen` role is now deprecated.
+
+The `xpack.searchable.snapshot.shared_cache.size` node setting reserves space
+for a shared cache used by partially mounted {search-snap} indices. {es} only
+allocates partially mounted indices to nodes with the `data_frozen` role.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the setting on non-frozen
+nodes.
+====
+//end::notable-breaking-changes[]

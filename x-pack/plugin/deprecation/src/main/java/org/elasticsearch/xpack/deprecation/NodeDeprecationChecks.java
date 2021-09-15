@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;

@@ -90,10 +90,9 @@ following methods:
 ==== Delete and restore
 
 The simplest way to avoid conflicts is to delete an existing index or data
-stream before restoring it.
-
-To prevent the accidental recreation of the index or data stream, we recommend
-you temporarily stop all indexing until the restore operation is complete.
+stream before restoring it. To prevent the accidental re-creation of the index
+or data stream, we recommend you temporarily stop all indexing until the restore
+operation is complete.
 
 WARNING: If
 <<action-destructive-requires-name,`action.destructive_requires_name`>> is

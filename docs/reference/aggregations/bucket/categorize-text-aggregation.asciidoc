@@ -23,8 +23,8 @@ The semi-structured text field to categorize.
 `max_children`::
 (Optional, integer, default: `50`)
 The maximum number of unique tokens at any given layer of the tokenization tree.
-Must be larger than 1. Smaller values use less memory and create wider text categories.
-Larger values will use more memory and create narrower categories.
+Must be larger than 1. Smaller values use less memory and create fewer categories.
+Larger values will use more memory and create more categories.
 
 `max_depth`::
 (Optional, integer, default: `5`)
@@ -53,7 +53,7 @@ customize the tokenizer or post-tokenization filtering, use the
 `pattern_replace` character filters.
 
 `categorization_analyzer`::
-(Optional, (object or string)
+(Optional, object or string)
 The categorization analyzer specifies how the text is analyzed and tokenized before
 being categorized. The syntax is very similar to that used to define the `analyzer` in the
 <<indices-analyze,Analyze endpoint>>. This

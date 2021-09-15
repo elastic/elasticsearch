@@ -10,13 +10,9 @@ package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.analysis.CharFilterFactory;
-import org.apache.lucene.analysis.TokenFilterFactory;
-import org.apache.lucene.analysis.TokenizerFactory;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -30,6 +26,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
@@ -669,19 +666,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * register the services for use.
      */
     static void reloadLuceneSPI(ClassLoader loader) {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            // do NOT change the order of these method calls!
+        // do NOT change the order of these method calls!
 
-            // Codecs:
-            PostingsFormat.reloadPostingsFormats(loader);
-            DocValuesFormat.reloadDocValuesFormats(loader);
-            Codec.reloadCodecs(loader);
-            // Analysis:
-            CharFilterFactory.reloadCharFilters(loader);
-            TokenFilterFactory.reloadTokenFilters(loader);
-            TokenizerFactory.reloadTokenizers(loader);
-            return null;
-        });
+        // Codecs:
+        PostingsFormat.reloadPostingsFormats(loader);
+        DocValuesFormat.reloadDocValuesFormats(loader);
+        Codec.reloadCodecs(loader);
     }
 
     private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {

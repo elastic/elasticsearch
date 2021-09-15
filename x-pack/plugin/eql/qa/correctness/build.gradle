@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.internal-testclusters'
 tasks.named("test").configure { enabled = false }

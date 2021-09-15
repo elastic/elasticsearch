@@ -117,12 +117,41 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
+        }
+
+        @Override
         public boolean isClosed() {
             return false;
         }
 
         @Override
         public void close() {
+            assert false : "should not close the local node connection";
+        }
+
+        @Override
+        public void incRef() {
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
+
+        @Override
+        public void onRemoved() {
+            assert false : "should not remove the local node connection";
         }
 
         @Override
@@ -305,7 +334,7 @@ public class TransportService extends AbstractLifecycleComponent
      * @param node the node to connect to
      * @param listener the action listener to notify
      */
-    public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
+    public void connectToNode(DiscoveryNode node, ActionListener<Releasable> listener) throws ConnectTransportException {
         connectToNode(node, null, listener);
     }
 
@@ -317,7 +346,7 @@ public class TransportService extends AbstractLifecycleComponent
      * @param connectionProfile the connection profile to use when connecting to this node
      * @param listener the action listener to notify
      */
-    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener) {
+    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Releasable> listener) {
         if (isLocalNode(node)) {
             listener.onResponse(null);
             return;
@@ -761,33 +790,47 @@ public class TransportService extends AbstractLifecycleComponent
             if (ThreadPool.Names.SAME.equals(executor)) {
                 reg.processMessageReceived(request, channel);
             } else {
-                threadPool.executor(executor).execute(new AbstractRunnable() {
-                    @Override
-                    protected void doRun() throws Exception {
-                        reg.processMessageReceived(request, channel);
-                    }
-
-                    @Override
-                    public boolean isForceExecution() {
-                        return reg.isForceExecution();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (Exception inner) {
-                            inner.addSuppressed(e);
-                            logger.warn(() -> new ParameterizedMessage(
-                                    "failed to notify channel of error message for action [{}]", action), inner);
+                boolean success = false;
+                request.incRef();
+                try {
+                    threadPool.executor(executor).execute(new AbstractRunnable() {
+                        @Override
+                        protected void doRun() throws Exception {
+                            reg.processMessageReceived(request, channel);
                         }
-                    }
 
-                    @Override
-                    public String toString() {
-                        return "processing of [" + requestId + "][" + action + "]: " + request;
+                        @Override
+                        public boolean isForceExecution() {
+                            return reg.isForceExecution();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            try {
+                                channel.sendResponse(e);
+                            } catch (Exception inner) {
+                                inner.addSuppressed(e);
+                                logger.warn(() -> new ParameterizedMessage(
+                                    "failed to notify channel of error message for action [{}]", action), inner);
+                            }
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "processing of [" + requestId + "][" + action + "]: " + request;
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            request.decRef();
+                        }
+                    });
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        request.decRef();
                     }
-                });
+                }
             }
 
         } catch (Exception e) {

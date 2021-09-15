@@ -37,12 +37,14 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startArray("features");
         for (FeatureUpgradeStatus featureUpgradeStatus : featureUpgradeStatuses) {
             builder.value(featureUpgradeStatus);
         }
         builder.endArray();
         builder.field("upgrade_status", upgradeStatus);
+        builder.endObject();
         return builder;
     }
 
@@ -52,11 +54,11 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         out.writeString(upgradeStatus);
     }
 
-    public List<FeatureUpgradeStatus> featureUpgradeStatuses() {
+    public List<FeatureUpgradeStatus> getFeatureUpgradeStatuses() {
         return featureUpgradeStatuses;
     }
 
-    public String upgradeStatus() {
+    public String getUpgradeStatus() {
         return upgradeStatus;
     }
 
@@ -129,6 +131,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
                 builder.value(version);
             }
             builder.endArray();
+            builder.endObject();
             return builder;
         }
 

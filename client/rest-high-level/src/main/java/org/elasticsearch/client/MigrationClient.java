@@ -65,7 +65,7 @@ public final class MigrationClient {
             request,
             MigrationRequestConverters::getFeatureUpgradeStatus,
             options,
-            GetFeatureUpgradeStatusResponse::fromXContent,
+            GetFeatureUpgradeStatusResponse::parse,
             Collections.emptySet()
         );
     }
@@ -76,7 +76,7 @@ public final class MigrationClient {
             request,
             MigrationRequestConverters::getFeatureUpgradeStatus,
             options,
-            GetFeatureUpgradeStatusResponse::fromXContent,
+            GetFeatureUpgradeStatusResponse::parse,
             listener,
             Collections.emptySet()
         );

@@ -33,7 +33,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     protected GetFeatureUpgradeStatusResponse mutateInstance(GetFeatureUpgradeStatusResponse instance) throws IOException {
         return new GetFeatureUpgradeStatusResponse(
             randomList(8, GetFeatureUpgradeStatusResponseTests::createFeatureStatus),
-            randomValueOtherThan(instance.upgradeStatus(), () -> randomAlphaOfLengthBetween(4, 16))
+            randomValueOtherThan(instance.getUpgradeStatus(), () -> randomAlphaOfLengthBetween(4, 16))
         );
     }
 

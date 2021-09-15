@@ -121,7 +121,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.offset(),
             request.size(),
             request.order(),
-            buildSnapshotPredicate(request.sort(), request.order(), request.policies(), request.afterValue()),
+            buildSnapshotPredicate(request.sort(), request.order(), request.policies(), request.fromSortValue()),
             listener
         );
     }

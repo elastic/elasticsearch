@@ -544,7 +544,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final GetSnapshotsResponse paginatedResponse = clusterAdmin().prepareGetSnapshots(matchAllPattern())
             .setSnapshots("snap*")
             .setSort(GetSnapshotsRequest.SortBy.NAME)
-            .setAfterValue("a")
+            .setFromSortValue("a")
             .setOffset(1)
             .setSize(1)
             .get();
@@ -553,7 +553,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final GetSnapshotsResponse paginatedResponse2 = clusterAdmin().prepareGetSnapshots(matchAllPattern())
             .setSnapshots("snap*")
             .setSort(GetSnapshotsRequest.SortBy.NAME)
-            .setAfterValue("a")
+            .setFromSortValue("a")
             .setOffset(0)
             .setSize(2)
             .get();
@@ -561,7 +561,9 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(paginatedResponse2.totalCount(), is(3));
     }
 
-    // create a snapshot that is guaranteed to have a unique start time and duration for tests around ordering by either
+    // Create a snapshot that is guaranteed to have a unique start time and duration for tests around ordering by either.
+    // Don't use this with more than 3 snapshots on platforms with low-resolution clocks as the durations could always collide there
+    // causing an infinite loop
     private SnapshotInfo createFullSnapshotWithUniqueTimestamps(
         String repoName,
         String snapshotName,
@@ -610,12 +612,12 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         String[] snapshotNames,
         GetSnapshotsRequest.SortBy sortBy,
         SortOrder order,
-        Object afterValue
+        Object fromSortValue
     ) {
         return clusterAdmin().prepareGetSnapshots(matchAllPattern())
             .setSnapshots(snapshotNames)
             .setSort(sortBy)
-            .setAfterValue(afterValue.toString())
+            .setFromSortValue(fromSortValue.toString())
             .setOrder(order)
             .get()
             .getSnapshots();

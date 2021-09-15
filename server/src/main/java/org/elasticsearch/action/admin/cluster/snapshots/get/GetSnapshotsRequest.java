@@ -42,7 +42,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public static final Version SLM_POLICY_FILTERING_VERSION = Version.V_8_0_0;
 
-    public static final Version AFTER_VALUE_VERSION = Version.V_8_0_0;
+    public static final Version FROM_SORT_VALUE_VERSION = Version.V_8_0_0;
 
     public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_7_14_0;
 
@@ -68,7 +68,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     private After after;
 
     @Nullable
-    private String afterValue;
+    private String fromSortValue;
 
     private SortBy sort = SortBy.START_TIME;
 
@@ -127,8 +127,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if (in.getVersion().onOrAfter(SLM_POLICY_FILTERING_VERSION)) {
                 policies = in.readStringArray();
             }
-            if (in.getVersion().onOrAfter(AFTER_VALUE_VERSION)) {
-                afterValue = in.readOptionalString();
+            if (in.getVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
+                fromSortValue = in.readOptionalString();
             }
         }
     }
@@ -179,9 +179,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                 "can't use slm policy filter in snapshots request with node version [" + out.getVersion() + "]"
             );
         }
-        if (out.getVersion().onOrAfter(AFTER_VALUE_VERSION)) {
-            out.writeOptionalString(afterValue);
-        } else if (afterValue != null) {
+        if (out.getVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
+            out.writeOptionalString(fromSortValue);
+        } else if (fromSortValue != null) {
             throw new IllegalArgumentException("can't use after-value in snapshot request with node version [" + out.getVersion() + "]");
         }
     }
@@ -214,15 +214,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if (policies.length != 0) {
                 validationException = addValidationError("can't use slm policy filter with verbose=false", validationException);
             }
-            if (afterValue != null) {
-                validationException = addValidationError("can't use after_value with verbose=false", validationException);
+            if (fromSortValue != null) {
+                validationException = addValidationError("can't use from_sort_value with verbose=false", validationException);
             }
         } else if (offset > 0) {
             if (after != null) {
                 validationException = addValidationError("can't use after and offset simultaneously", validationException);
             }
-        } else if (after != null && afterValue != null) {
-            validationException = addValidationError("can't use after and after_value simultaneously", validationException);
+        } else if (after != null && fromSortValue != null) {
+            validationException = addValidationError("can't use after and from_sort_value simultaneously", validationException);
         }
         return validationException;
     }
@@ -337,14 +337,14 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
-    public GetSnapshotsRequest afterValue(@Nullable String afterValue) {
-        this.afterValue = afterValue;
+    public GetSnapshotsRequest fromSortValue(@Nullable String afterValue) {
+        this.fromSortValue = afterValue;
         return this;
     }
 
     @Nullable
-    public String afterValue() {
-        return afterValue;
+    public String fromSortValue() {
+        return fromSortValue;
     }
 
     public GetSnapshotsRequest sort(SortBy sort) {

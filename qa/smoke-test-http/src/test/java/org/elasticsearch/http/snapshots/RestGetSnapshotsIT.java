@@ -34,9 +34,11 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.assertSnapshotListSorted;
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.matchAllPattern;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
@@ -242,12 +244,13 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         );
     }
 
-    public void testSortAfterStartTime() throws IOException {
+    public void testSortAfterStartTime() throws Exception {
         final String repoName = "test-repo";
         AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "fs");
-        final SnapshotInfo snapshot1 = AbstractSnapshotIntegTestCase.createFullSnapshot(logger, repoName, "snapshot-1");
-        final SnapshotInfo snapshot2 = AbstractSnapshotIntegTestCase.createFullSnapshot(logger, repoName, "snapshot-2");
-        final SnapshotInfo snapshot3 = AbstractSnapshotIntegTestCase.createFullSnapshot(logger, repoName, "snapshot-3");
+        final HashSet<Long> startTimes = new HashSet<>();
+        final SnapshotInfo snapshot1 = createFullSnapshotWithUniqueStartTime(repoName, "snapshot-1", startTimes);
+        final SnapshotInfo snapshot2 = createFullSnapshotWithUniqueStartTime(repoName, "snapshot-2", startTimes);
+        final SnapshotInfo snapshot3 = createFullSnapshotWithUniqueStartTime(repoName, "snapshot-3", startTimes);
 
         final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(matchAllPattern())
                 .setSnapshots(matchAllPattern())
@@ -281,10 +284,24 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertThat(allBeforeStartTimeDescending(startTime1 - 1), empty());
     }
 
+    // create a snapshot that is guaranteed to have a unique start time
+    private SnapshotInfo createFullSnapshotWithUniqueStartTime(String repoName, String snapshotName, Set<Long> forbiddenStartTimes) {
+        while (true) {
+            final SnapshotInfo snapshotInfo = AbstractSnapshotIntegTestCase.createFullSnapshot(logger, repoName, snapshotName);
+            if (forbiddenStartTimes.contains(snapshotInfo.startTime())) {
+                logger.info("--> snapshot start time collided");
+                assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).get());
+            } else {
+                assertTrue(forbiddenStartTimes.add(snapshotInfo.startTime()));
+                return snapshotInfo;
+            }
+        }
+    }
+
     private List<SnapshotInfo> allAfterStartTimeAscending(long timestamp) throws IOException {
         final Request request = baseGetSnapshotsRequest("*");
         request.addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString());
-        request.addParameter("after_value", String.valueOf(timestamp));
+        request.addParameter("from_sort_value", String.valueOf(timestamp));
         final Response response = getRestClient().performRequest(request);
         return readSnapshotInfos(response).getSnapshots();
     }
@@ -292,7 +309,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     private List<SnapshotInfo> allBeforeStartTimeDescending(long timestamp) throws IOException {
         final Request request = baseGetSnapshotsRequest("*");
         request.addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString());
-        request.addParameter("after_value", String.valueOf(timestamp));
+        request.addParameter("from_sort_value", String.valueOf(timestamp));
         request.addParameter("order", SortOrder.DESC.toString());
         final Response response = getRestClient().performRequest(request);
         return readSnapshotInfos(response).getSnapshots();

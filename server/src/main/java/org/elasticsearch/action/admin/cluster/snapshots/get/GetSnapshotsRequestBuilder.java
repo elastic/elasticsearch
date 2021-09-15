@@ -117,8 +117,8 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
-    public GetSnapshotsRequestBuilder setAfterValue(@Nullable String afterValue) {
-        request.afterValue(afterValue);
+    public GetSnapshotsRequestBuilder setFromSortValue(@Nullable String fromSortValue) {
+        request.fromSortValue(fromSortValue);
         return this;
     }
 

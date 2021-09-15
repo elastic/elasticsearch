@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -38,6 +39,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -223,6 +225,44 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
 
         ignoreMalformed = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).ignoreMalformed();
         assertThat(ignoreMalformed, equalTo(false));
+    }
+
+    public void testIgnoreMalformedValues() throws IOException {
+
+        DocumentMapper ignoreMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "geo_shape");
+            b.field("ignore_malformed", true);
+        }));
+        DocumentMapper failMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "geo_shape");
+            b.field("ignore_malformed", false);
+        }));
+
+        {
+            BytesReference arrayedDoc = BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "Bad shape")
+                .endObject()
+            );
+            SourceToParse sourceToParse = new SourceToParse("test", "_doc", "1", arrayedDoc, XContentType.JSON);
+            ParsedDocument document = ignoreMapper.parse(sourceToParse);
+            assertThat(document.docs().get(0).getFields("field").length, equalTo(0));
+            MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
+            assertThat(exception.getCause().getMessage(), containsString("Unknown geometry type: bad"));
+        }
+        {
+            BytesReference arrayedDoc = BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869037, 18.9401790919517 " +
+                    "-33.9681188869037, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))")
+                .endObject()
+            );
+            SourceToParse sourceToParse = new SourceToParse("test", "_doc", "1", arrayedDoc, XContentType.JSON);
+            ParsedDocument document = ignoreMapper.parse(sourceToParse);
+            assertThat(document.docs().get(0).getFields("field").length, equalTo(0));
+            MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
+            assertThat(exception.getCause().getMessage(), containsString("Cannot determine orientation"));
+        }
     }
 
     /**

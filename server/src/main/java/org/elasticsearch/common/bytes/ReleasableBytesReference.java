@@ -72,6 +72,11 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return refCounted.decRef();
     }
 
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
     public ReleasableBytesReference retain() {
         refCounted.incRef();
         return this;

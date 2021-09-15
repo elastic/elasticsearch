@@ -21,7 +21,6 @@ import org.elasticsearch.script.ScriptContext;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -259,18 +258,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             b.field("dimension", true);
         })));
         assertThat(e.getCause().getMessage(), containsString("Parameter [dimension] cannot be set"));
-    }
-
-    protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker)
-        throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("time_series_metric", metricType);
-        }));
-
-        @SuppressWarnings("unchecked") // Syntactic sugar in tests
-        T fieldType = (T) mapperService.fieldType("field");
-        assertThat(checker.apply(fieldType).name(), equalTo(metricType));
     }
 
     public void testMetricType() throws IOException {

@@ -27,7 +27,7 @@ setup:
 ---
 "respect offsets in range bounds":
     - skip:
-        version: " - 7.99.99"
+        version: " - 7.15.99"
         reason: "Fixed in 7.16 (backport pending)"
     - do:
         search:
@@ -61,7 +61,7 @@ setup:
 ---
 "offsets and timezones play nicely together":
     - skip:
-        version: " - 7.99.99"
+        version: " - 7.15.99"
         reason: "Fixed in 7.16 (backport pending)"
     - do:
         search:

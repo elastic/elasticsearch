@@ -365,6 +365,14 @@ public class IndexDeprecationChecks {
         );
     }
 
+    static DeprecationIssue checkIndexMatrixFiltersSetting(IndexMetadata indexMetadata) {
+        return checkRemovedSetting(indexMetadata.getSettings(),
+            IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            DeprecationIssue.Level.WARNING
+        );
+    }
+
     protected static boolean isGeoShapeFieldWithDeprecatedParam(Map<?, ?> property) {
         return LegacyGeoShapeFieldMapper.CONTENT_TYPE.equals(property.get("type")) &&
             LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS.stream().anyMatch(deprecatedParameter ->

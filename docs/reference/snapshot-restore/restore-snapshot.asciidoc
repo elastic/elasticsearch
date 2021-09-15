@@ -8,19 +8,41 @@ indices and data streams after deletion or a hardware failure.
 In this guide, you'll learn how to:
 
 * Retrieve available snapshots
-* Restore an index or data stream from a snapshot
+* Restore an index or data stream
+* Restore an entire cluster
 * Monitor the restore operation
 * Cancel an ongoing restore
 
-The guide also provides tips for <<restore-different-cluster,restoring to
-another cluster>> and <<troubleshoot-restore,troubleshooting common
-restore errors>>.
+This guide also provides tips for <<restore-different-cluster,restoring to
+another cluster>> and <<troubleshoot-restore,troubleshooting common restore
+errors>>.
 
 [discrete]
 [[restore-snapshot-prereqs]]
 === Prerequisites
 
 include::apis/restore-snapshot-api.asciidoc[tag=restore-prereqs]
+
+[discrete]
+[[restore-snapshot-considerations]]
+=== Considerations
+
+When restoring a snapshot, keep the following in mind:
+
+* If you restore a data stream, you also restore its backing indices.
+
+* You can only restore an existing index if it's <<indices-close,closed>> and
+the index in the snapshot has the same number of primary shards. 
+
+* You can't restore an existing open index. This includes
+backing indices for a data stream.
+
+*  The restore operation automatically opens restored indices, including backing
+indices.
+
+* You can restore only a specific backing index from a data stream. However, the
+restore operation doesn't add the restored backing index to any existing data
+stream.
 
 [discrete]
 [[retrieve-snapshot]]
@@ -51,15 +73,16 @@ GET _snapshot/my_repository/*?verbose=false
 [[restore-index-data-stream]]
 === Restore an index or data stream
 
-You can restore an index or data stream from a snapshot using {kib}'s *Snapshot
-and Restore* feature or the <<restore-snapshot-api,restore snapshot API>>.
+You can restore a snapshot using {kib}'s *Snapshot and Restore* feature or the
+<<restore-snapshot-api,restore snapshot API>>.
 
-You can't restore an existing open index or an existing data stream. To avoid
-conflicts with existing indices and data streams, use one of the following
-methods:
+In most cases, you only need to restore a specific index or data stream from a
+snapshot. However, you can't restore an existing open index.
+
+To avoid conflicts with existing indices and data streams, use one of the
+following methods:
 
 * <<delete-restore>>
-* <<close-restore>>
 * <<rename-on-restore>>
 
 [discrete]
@@ -67,18 +90,20 @@ methods:
 ==== Delete and restore
 
 The simplest way to avoid conflicts is to delete an existing index or data
-stream before restoring it. To prevent the accidental recreation of the index or
-data stream, we recommend you temporarily stop all indexing until the restore
-operation is complete.
+stream before restoring it:
 
-// Only display warning in 7.x.
-// In 7.x, `action.destructive_requires_name` defaults to false.
-ifeval::[ "{major-version}" == "7.x" ]
-WARNING: Don't use the <<indices-delete-index,delete index API>> to target the
+. Delete the existing index or data stream.
++
+--
+To prevent the accidental recreation of the index or data stream, we recommend
+you temporarily stop all indexing until the restore operation is complete.
+
+WARNING: If
+<<action-destructive-requires-name,`action.destructive_requires_name`>> is
+`false`, don't use the <<indices-delete-index,delete index API>> to target the
 `*` or `.*` wildcard expression. If you use {es}'s security features, this will
 delete system indices required for authentication. To delete all regular
-indices, use `*,-.*`.
-endif::[]
+indices, use `*,-.*` instead.
 
 [source,console]
 ----
@@ -89,17 +114,18 @@ DELETE my-index
 DELETE _data_stream/logs-my_app-default
 ----
 // TEST[setup:setup-snapshots]
+--
 
+. Restore the index or data stream from a snapshot.
++
+--
+By default, a restore request attempts to restore all indices and data
+streams in the snapshot, including system indices. If your cluster already
+contains one or more of these system indices, the request will return an error.
 
-You can then restore the index or data stream from the snapshot.
-
-We recommend you only restore specific indices and data streams. If you use the
-<<restore-snapshot-api,restore snapshot API>>, specify the `indices` parameter
-with a value other than `*`. If you use `*` or the default `indices` value, the
-request attempts to restore all indices and data streams in the snapshot,
-including system indices. If your cluster already contains any of these system
-indices, the request will return an error. To restore all indices and data
-streams except system indices, use `*,-.*`.
+To avoid this error, specify the indices and data streams to restore. To
+exclude system indices, append the `-.*` wildcard pattern. To restore all
+indices and data streams except system indices, use `*,-.*`.
 
 [source,console]
 ----
@@ -110,65 +136,13 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 ----
 // TEST[continued]
 // TEST[s/_restore/_restore?wait_for_completion=true/]
-
-[discrete]
-[[close-restore]]
-==== Close and restore
-
-You can only restore an existing index if it's closed. Typically, you'd use this
-method if you've already closed an index for other reasons. Otherwise, the
-results are the same as the <<delete-restore,delete and restore>> method.
-
-You can close an index using the <<indices-close,close index API>>. You can't
-close a data stream.
-
-// Only display warning in 7.x.
-// In 7.x, `action.destructive_requires_name` defaults to false.
-ifeval::["{major-version}" == "7.x"]
-WARNING: Don't use the close index API to target the `*` or `.*` wildcard
-expression. If you use {es}'s security features, this will close system indices
-required for authentication. To close all regular indices, use `*,-.*`.
-endif::[]
-
-[source,console]
-----
-POST my-index/_close
-----
-// TEST[setup:setup-snapshots]
-
-To restore a closed index, the index in the snapshot must have the same
-number of primary shards. You can check the primary shard counts using the
-<<cat-indices,cat indices>> and <<get-snapshot-api,get snapshot>> APIs.
-
-[source,console]
-----
-# Get the primary shard count for the closed index
-GET /_cat/indices/my-index?v=true&h=index,pri,status,health
-
-# Get the primary shard count for the index in the snapshot
-GET _snapshot/my_repository/my_snapshot_2099.05.06?index_details=true&filter_path=*.index_details.my-index.shard_count
-----
-// TEST[continued]
-
-If the primary shard counts match, you can restore the closed index. Restoring a
-closed index deletes its existing data. The restore operation also automatically
-opens the index.
-
-[source,console]
-----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
-{
-  "indices": "my-index"
-}
-----
-// TEST[continued]
-// TEST[s/_restore/_restore?wait_for_completion=true/]
+--
 
 [discrete]
 [[rename-on-restore]]
 ==== Rename on restore
 
-If you want to avoid deleting or overwriting existing data, you can instead
+If you want to avoid deleting existing data, you can instead
 rename the indices and data streams you restore. You typically use this method
 to compare existing data to historical data from a snapshot. For example, you
 can use this method to review documents after an accidental update or deletion.
@@ -190,6 +164,15 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 ----
 // TEST[setup:setup-snapshots]
 // TEST[s/_restore/_restore?wait_for_completion=true/]
+
+If the rename options produce two or more indices or data streams with the same
+name, the restore operation fails.
+
+If you rename a data stream, its backing indices are also renamed. For example,
+if you rename the `logs-my_app-default` data stream to
+`restored-logs-my_app-default`, the backing index
+`.ds-logs-my_app-default-2099.03.09-000005` is renamed to
+`.ds-restored-logs-my_app-default-2099.03.09-000005`.
 
 When the restore operation is complete, you can compare the original and
 restored data. If you no longer need an original index or data stream, you can
@@ -227,6 +210,206 @@ POST _reindex
 }
 ----
 // TEST[continued]
+
+[discrete]
+[[restore-entire-cluster]]
+=== Restore an entire cluster
+
+In some cases, you need to restore an entire cluster, including the cluster
+state and all system indices. These cases should be rare, such as in the event
+of a catastrophic data center failure.
+
+Restoring an entire cluster involves deleting important system indices, including
+those used for authentication. Consider whether you can restore specific indices
+or data streams instead.
+
+If you're restoring to a different cluster, see <<restore-different-cluster>>
+before you start.
+
+. Configure the cluster's nodes.
++
+If you previously <<backup-cluster-configuration,backed up the cluster's
+configuration files>>, you can copy these files to each node's `$ES_PATH_CONF`
+directory. If you restore these files, you must repeat this step for each node
+in the cluster. In most cases, this requires a <<restart-upgrade,full cluster
+restart>>.
+
+. Temporarily stop indexing and turn off the following features:
++
+--
+* ILM
++
+[source,console]
+----
+POST _ilm/stop
+----
+
+////
+[source,console]
+----
+POST _ilm/start
+----
+// TEST[continued]
+////
+
+* Machine Learning
++
+[source,console]
+----
+POST _ml/set_upgrade_mode?enabled=true
+----
+
+////
+[source,console]
+----
+POST _ml/set_upgrade_mode?enabled=false
+----
+// TEST[continued]
+////
+
+////
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "xpack.monitoring.collection.enabled": true
+  }
+}
+----
+// TEST[continued]
+////
+
+* Watcher
++
+[source,console]
+----
+POST _watcher/_stop
+----
+
+////
+[source,console]
+----
+POST _watcher/_start
+----
+// TEST[continued]
+////
+--
+
+. If you use {es} security features, log in to a node host, navigate to {es}
+installation directory, and add a user with the `superuser` role to the file
+realm using the <<users-command,`elasticsearch-users`>> tool.
++
+For example, the following command creates a user named `restore_user`.
++
+[source,sh]
+----
+./bin/elasticsearch-users useradd restore_user -p my_password -r superuser
+----
++
+Use this file realm user to authenticate requests until the restore operation is
+complete.
+
+. Use the <<cluster-update-settings,update cluster settings API>> to set
+<<action-destructive-requires-name,`action.destructive_requires_name`>> to true.
+This lets you delete indices and data streams using wildcards.
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "action.destructive_requires_name" : false
+  }
+}
+----
+// TEST[setup:setup-snapshots]
+
+. Delete all existing indices and data streams on the cluster, including all
+system indices. If you use {es} security features, use the previously created
+file realm user to authenticate the request.
++
+[source,console]
+----
+# Delete all indices
+DELETE *
+
+# Delete all data streams
+DELETE _data_stream/*
+----
+// TEST[continued]
+
+. Restore the entire snapshot, including the cluster state. This also restores
+any system indices in the snapshot.
++
+--
+[source,console]
+----
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
+{
+  "indices": "*",
+  "include_global_state": true
+}
+----
+// TEST[continued]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
+
+If you take dedicated snapshots of the `.security` system index, restore it as well.
+
+[source,console]
+----
+POST _snapshot/my_sec_repository/my_sec_snapshot_2099.05.06/_restore 
+{
+  "indices": ".security",
+  "include_global_state": false
+}
+----
+// TEST[continued]
+// TEST[s/^/DELETE *\nDELETE _data_stream\/*\n/]
+// TEST[s/my_sec_repository/my_repository/]
+// TEST[s/my_sec_snapshot_2099.05.06/my_snapshot_2099.05.06/]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
+// TEST[s/".security"/""/]
+--
+
+. When the restore operation is complete, resume indexing and restart any
+features you stopped:
++
+--
+* ILM
++
+[source,console]
+----
+POST _ilm/start
+----
+
+* Machine Learning
++
+[source,console]
+----
+POST _ml/set_upgrade_mode?enabled=false
+----
+
+* Watcher
++
+[source,console]
+----
+POST _watcher/_start
+----
+--
+
+. If wanted, reset or reconfigure the `action.destructive_requires_name` cluster
+setting.
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "action.destructive_requires_name": null
+  }
+}
+----
 
 [discrete]
 [[monitor-restore]]
@@ -359,16 +542,14 @@ Here's how to resolve common errors returned by restore requests.
 [discrete]
 ==== Cannot restore index [<index>] because an open index with same name already exists in the cluster
 
-The request is trying to restore an open index or data stream that already
-exists in the cluster. To avoid this error, use one of the following methods:
-
-* <<delete-restore>>
-* <<close-restore>>
-* <<rename-on-restore>>
+You can't restore an open index that already exists. To resolve this error, try
+one of the methods in <<restore-index-data-stream>>.
 
 [discrete]
 ==== Cannot restore index [<index>] with [x] shards from a snapshot of index [<snapshot-index>] with [y] shards
 
-To restore an existing closed index, the index in the snapshot must have the
-same number of primary shards. Try <<delete-restore,deleting the existing
-index>> or <<rename-on-restore,renaming the restored index>>.
+You can only restore an existing index if it's closed and the index in the
+snapshot has the same number of primary shards. This error indicates the index
+in the snapshot has a different number of primary shards.
+
+To resolve this error, try one of the methods in <<restore-index-data-stream>>.

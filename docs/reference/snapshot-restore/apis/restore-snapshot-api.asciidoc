@@ -182,15 +182,6 @@ backing indices are configured using the data stream's matching index template.
 (Optional, string) Comma-separated list of indices and data streams to restore.
 Supports <<api-multi-index,multi-target syntax>>. Defaults to all indices and
 data streams in the snapshot, including system indices.
-+
-You can only restore an existing index if it's closed. You can't restore an
-existing data stream. If you restore a data stream, you also restore its
-backing indices. The restore operation automatically opens restored indices,
-including backing indices.
-+
-You can use this option to restore only a specific backing index from a data
-stream. However, the restore operation doesn't add the restored backing index to
-any existing data stream.
 
 [[restore-snapshot-api-partial]]
 `partial`::
@@ -208,15 +199,6 @@ Defines a rename pattern to apply to restored data streams and indices. Data str
 +
 The rename pattern is applied as defined by the regular expression that
 supports referencing the original text, according to the https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[`appendReplacement`] logic.
-+
-If you rename a data stream, its backing indices are also renamed. For example,
-if you rename the `logs-my_app-default` data stream to
-`restored-logs-my_app-default`, the backing index
-`.ds-logs-my_app-default-2099.03.09-000005` is renamed to
-`.ds-restored-logs-my_app-default-2099.03.09-000005`.
-+
-If this option produces two or more indices or data streams with the same name,
-the restore operation fails.
 
 [[restore-snapshot-api-rename-replacement]]
 `rename_replacement`::

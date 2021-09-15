@@ -1,0 +1,19 @@
+pr: 70635
+summary: Remove `index.max_adjacency_matrix_filters`
+area: Aggregations
+type: breaking
+issues: [46324]
+breaking:
+  title: Remove `index.max_adjacency_matrix_filters`
+  area: Settings
+  details: |
+    If you configured this it was likely to raise the original value. In 8.0
+    we use `indices.query.bool.max_clause_count` instead of the old setting. It
+    has a much higher default so we expect most folks who overrode the setting
+    will not have to do so in 8.0.
+  impact: |
+    If you raised `index.max_adjacency_matrix_filters` beyond
+    `indices.query.bool.max_clause_count` then
+    {{search-aggregations-bucket-adjacency-matrix-aggregation}} will fail for
+    very large lists of filters.
+  notable: false

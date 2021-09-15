@@ -314,7 +314,7 @@ public class HotThreadsTests extends ESTestCase {
 
         String innerResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
 
-        assertEquals(1, innerResult.lines().count());
+        assertEquals(3, innerResult.lines().count());
     }
 
     public void testReportTypeValueGetter() {

@@ -12,6 +12,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -278,6 +279,17 @@ public class HotThreads {
                 }
             }
         }
+
+        // Short-lived requests are in general not tracked accurately in HotThreads. The thread pools
+        // will reuse the thread-ids across multiple short requests, so the reported stacks and in this case
+        // tracing-ids are on best effort basis. For true performance bottlenecks the information will be accurate.
+        sb.append('\n')
+            .append("Note: Any reported tracing IDs (e.g. ")
+            .append(Task.X_OPAQUE_ID)
+            .append(',')
+            .append(Task.TRACE_ID)
+            .append(") may not be accurate for short-lived requests.");
+
         return sb.toString();
     }
 

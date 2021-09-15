@@ -29,6 +29,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -111,15 +112,8 @@ public final class ThreadContext implements Writeable {
          * Otherwise when context is stash, it should be empty.
          */
 
-        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID) || context.requestHeaders.containsKey(Task.TRACE_ID)) {
-            Map<String, String> map = new HashMap<>(2, 1);
-            if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-                map.put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID));
-            }
-            if (context.requestHeaders.containsKey(Task.TRACE_ID)) {
-                map.put(Task.TRACE_ID, context.requestHeaders.get(Task.TRACE_ID));
-            }
-            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
+        if (context.hasTracingIdInHeaders()) {
+            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(context.tracingHeaders());
             threadLocal.set(threadContextStruct);
         }
         else {
@@ -657,12 +651,60 @@ public final class ThreadContext implements Writeable {
 
             out.writeMap(responseHeaders, StreamOutput::writeString, StreamOutput::writeStringCollection);
         }
+
+        boolean hasTracingIdInHeaders() {
+            return (requestHeaders.containsKey(Task.X_OPAQUE_ID) || requestHeaders.containsKey(Task.TRACE_ID));
+        }
+
+        Map<String, String> tracingHeaders() {
+            Map<String, String> result = new HashMap<>(2, 1);
+            if (requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+                result.put(Task.X_OPAQUE_ID, requestHeaders.get(Task.X_OPAQUE_ID));
+            }
+            if (requestHeaders.containsKey(Task.TRACE_ID)) {
+                result.put(Task.TRACE_ID, requestHeaders.get(Task.TRACE_ID));
+            }
+
+            return result;
+        }
+    }
+
+    public interface WithTracingIdsInThreadName {
+        String ID_LABEL = " tracing-ids=";
+
+        private String tracingHeadersAsString(ThreadContextStruct context) {
+            Map<String, String> tracingHeaders = context.tracingHeaders();
+            StringBuilder resultBuilder = new StringBuilder();
+            tracingHeaders.forEach((key, value) -> resultBuilder.append(String.format(Locale.ROOT, "[%s:%s]", key, value)));
+
+            return resultBuilder.toString();
+        }
+
+        default boolean addLabelToThreadName(ThreadContextStruct context) {
+            String originalName = Thread.currentThread().getName();
+            // The current thread may wrap Runnables multiple times.
+            // We return true or false to establish which call sets/restores the thread name.
+            if (context.hasTracingIdInHeaders() && originalName.contains(ID_LABEL) == false) {
+                Thread.currentThread().setName(originalName + ID_LABEL + tracingHeadersAsString(context));
+                return true;
+            }
+
+            return false;
+        }
+
+        default void clearThreadNameLabel() {
+            String threadName = Thread.currentThread().getName();
+            if (threadName.contains(ID_LABEL)) {
+                String originalName = threadName.split(ID_LABEL)[0];
+                Thread.currentThread().setName(originalName);
+            }
+        }
     }
 
     /**
      * Wraps a Runnable to preserve the thread context.
      */
-    private class ContextPreservingRunnable implements WrappedRunnable {
+    private class ContextPreservingRunnable implements WrappedRunnable, WithTracingIdsInThreadName {
         private final Runnable in;
         private final ThreadContext.StoredContext ctx;
 
@@ -673,9 +715,15 @@ public final class ThreadContext implements Writeable {
 
         @Override
         public void run() {
+            boolean labelledThread = false;
             try (ThreadContext.StoredContext ignore = stashContext()){
                 ctx.restore();
+                labelledThread = addLabelToThreadName(threadLocal.get());
                 in.run();
+            } finally {
+                if (labelledThread) {
+                    clearThreadNameLabel();
+                }
             }
         }
 
@@ -693,7 +741,7 @@ public final class ThreadContext implements Writeable {
     /**
      * Wraps an AbstractRunnable to preserve the thread context.
      */
-    private class ContextPreservingAbstractRunnable extends AbstractRunnable implements WrappedRunnable {
+    private class ContextPreservingAbstractRunnable extends AbstractRunnable implements WrappedRunnable, WithTracingIdsInThreadName {
         private final AbstractRunnable in;
         private final ThreadContext.StoredContext creatorsContext;
 
@@ -734,7 +782,14 @@ public final class ThreadContext implements Writeable {
         protected void doRun() throws Exception {
             threadsOriginalContext = stashContext();
             creatorsContext.restore();
-            in.doRun();
+            boolean labelledThread = addLabelToThreadName(threadLocal.get());
+            try {
+                in.doRun();
+            } finally {
+                if (labelledThread) {
+                    clearThreadNameLabel();
+                }
+            }
         }
 
         @Override

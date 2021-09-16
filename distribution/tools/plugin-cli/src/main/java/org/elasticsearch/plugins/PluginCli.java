@@ -29,7 +29,6 @@ public class PluginCli extends LoggingAwareMultiCommand {
         subcommands.put("list", new ListPluginsCommand());
         subcommands.put("install", new InstallPluginCommand());
         subcommands.put("remove", new RemovePluginCommand());
-        subcommands.put("sync", new SyncPluginsCommand());
         commands = Collections.unmodifiableCollection(subcommands.values());
     }
 

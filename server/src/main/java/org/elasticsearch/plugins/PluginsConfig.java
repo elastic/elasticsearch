@@ -13,10 +13,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.env.Environment;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -33,6 +29,9 @@ import java.util.Set;
  * Elasticsearch plugin.
  */
 public class PluginsConfig {
+    private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
+    private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
+
     private final List<PluginDescriptor> plugins;
     private final String proxy;
 
@@ -50,26 +49,25 @@ public class PluginsConfig {
      *     <li>Unofficial plugins must have locations</li>
      * </ul>
      *
-     * @param configPath the path to the file used to create this instance. Used to construct error messages.
-     * @throws UserException if validation problems are found
+     * @param officialPlugins the plugins that can be installed by name only
+     * @throws PluginSyncException if validation problems are found
      */
-    public void validate(Path configPath) throws UserException {
+    public void validate(Set<String> officialPlugins) throws PluginSyncException {
         if (this.plugins.stream().anyMatch(each -> each == null || each.getId() == null || each.getId().isBlank())) {
-            throw new RuntimeException("Cannot have null or empty plugin IDs in: " + configPath);
+            throw new RuntimeException("Cannot have null or empty IDs in [elasticsearch-plugins.yml]");
         }
 
         final Set<String> uniquePluginIds = new HashSet<>();
         for (final PluginDescriptor plugin : plugins) {
             if (uniquePluginIds.add(plugin.getId()) == false) {
-                throw new UserException(ExitCodes.USAGE, "Duplicate plugin ID [" + plugin.getId() + "] found in: " + configPath);
+                throw new PluginSyncException("Duplicate plugin ID [" + plugin.getId() + "] found in [elasticsearch-plugins.yml]");
             }
         }
 
         for (PluginDescriptor plugin : this.plugins) {
-            if (InstallPluginAction.OFFICIAL_PLUGINS.contains(plugin.getId()) == false && plugin.getLocation() == null) {
-                throw new UserException(
-                    ExitCodes.CONFIG,
-                    "Must specify location for non-official plugin [" + plugin.getId() + "] in " + configPath
+            if (officialPlugins.contains(plugin.getId()) == false && plugin.getLocation() == null) {
+                throw new PluginSyncException(
+                    "Must specify location for non-official plugin [" + plugin.getId() + "] in [elasticsearch-plugins.yml]"
                 );
             }
         }
@@ -77,56 +75,50 @@ public class PluginsConfig {
         if (this.proxy != null) {
             final String[] parts = this.proxy.split(":");
             if (parts.length != 2) {
-                throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port] in: " + configPath);
+                throw new PluginSyncException("Malformed [proxy], expected [host:port] in [elasticsearch-plugins.yml]");
             }
 
             if (ProxyUtils.validateProxy(parts[0], parts[1]) == false) {
-                throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port] in: " + configPath);
+                throw new PluginSyncException("Malformed [proxy], expected [host:port] in [elasticsearch-plugins.yml]");
             }
         }
 
         for (PluginDescriptor p : plugins) {
             if (p.getLocation() != null) {
                 if (p.getLocation().isBlank()) {
-                    throw new UserException(ExitCodes.CONFIG, "Empty location for plugin [" + p.getId() + "]");
+                    throw new PluginSyncException("Empty location for plugin [" + p.getId() + "]");
                 }
 
                 try {
                     // This also accepts Maven coordinates
                     new URI(p.getLocation());
                 } catch (URISyntaxException e) {
-                    throw new UserException(ExitCodes.CONFIG, "Malformed location for plugin [" + p.getId() + "]");
+                    throw new PluginSyncException("Malformed location for plugin [" + p.getId() + "]");
                 }
             }
         }
     }
 
     /**
-     * Constructs a {@link PluginsConfig} instance from the specified YAML file, and validates the contents.
-     * @param env the environment to use in order to locate the config file.
+     * Constructs a {@link PluginsConfig} instance from the config YAML file
+     * @param configPath the config file to load
      * @return a validated config
-     * @throws UserException if there is a problem finding, parsing or validating the file
+     * @throws PluginSyncException if there is a problem finding or parsing the file
      */
-    public static PluginsConfig parseConfig(Environment env) throws UserException {
-        final Path configPath = env.configFile().resolve("elasticsearch-plugins.yml");
-        if (Files.exists(configPath) == false) {
-            throw new UserException(ExitCodes.CONFIG, "Plugins config file missing: " + configPath);
-        }
-
-        final YAMLFactory yamlFactory = new YAMLFactory();
-        final ObjectMapper mapper = new ObjectMapper(yamlFactory);
-
+    public static PluginsConfig parseConfig(Path configPath) throws PluginSyncException {
         PluginsConfig pluginsConfig;
         try {
             byte[] configBytes = Files.readAllBytes(configPath);
-            pluginsConfig = mapper.readValue(configBytes, PluginsConfig.class);
+            pluginsConfig = MAPPER.readValue(configBytes, PluginsConfig.class);
         } catch (IOException e) {
-            throw new UserException(ExitCodes.CONFIG, "Cannot parse plugins config file [" + configPath + "]: " + e.getMessage(), e);
+            throw new PluginSyncException("Cannot parse plugins config file [" + configPath + "]: " + e.getMessage(), e);
         }
 
-        pluginsConfig.validate(configPath);
-
         return pluginsConfig;
+    }
+
+    static void writeConfig(PluginsConfig config, Path destination) throws IOException {
+        MAPPER.writeValue(Files.newOutputStream(destination), config);
     }
 
     public List<PluginDescriptor> getPlugins() {
@@ -152,5 +144,10 @@ public class PluginsConfig {
     @Override
     public int hashCode() {
         return Objects.hash(plugins, proxy);
+    }
+
+    @Override
+    public String toString() {
+        return "PluginsConfig{plugins=" + plugins + ", proxy='" + proxy + "'}";
     }
 }

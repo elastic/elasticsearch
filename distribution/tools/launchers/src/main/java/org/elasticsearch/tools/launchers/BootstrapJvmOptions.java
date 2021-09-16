@@ -39,7 +39,9 @@ public class BootstrapJvmOptions {
     private static List<PluginInfo> getPluginInfo(Path plugins) throws IOException {
         final List<PluginInfo> pluginInfo = new ArrayList<>();
 
-        final List<Path> pluginDirs = Files.list(plugins).collect(Collectors.toList());
+        final List<Path> pluginDirs = Files.list(plugins)
+            .filter(each -> each.getFileName().toString().equals(".elasticsearch-plugins.yml.cache") == false)
+            .collect(Collectors.toList());
 
         for (Path pluginDir : pluginDirs) {
             final List<String> jarFiles = new ArrayList<>();

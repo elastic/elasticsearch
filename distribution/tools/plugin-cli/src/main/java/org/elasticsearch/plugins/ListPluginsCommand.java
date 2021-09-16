@@ -42,6 +42,9 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         final List<Path> plugins = new ArrayList<>();
         try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
             for (Path plugin : paths) {
+                if (plugin.getFileName().toString().equals(".elasticsearch-plugins.yml.cache")) {
+                    continue;
+                }
                 plugins.add(plugin);
             }
         }

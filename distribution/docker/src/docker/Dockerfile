@@ -268,6 +268,11 @@ RUN bin/elasticsearch-plugin install --batch --verbose \\
     file:/tmp/repository-s3-${version}.zip \\
     file:/tmp/repository-gcs-${version}.zip \\
     file:/tmp/repository-azure-${version}.zip
+# Generate a replacement example plugins config that reflects what is actually installed
+RUN echo "plugins:" > config/elasticsearch-plugins.example.yml && \\
+    echo "  - id: repository-azure" >> config/elasticsearch-plugins.example.yml && \\
+    echo "  - id: repository-gcs"   >> config/elasticsearch-plugins.example.yml && \\
+    echo "  - id: repository-s3"    >> config/elasticsearch-plugins.example.yml
 
 <% /*  I tried to use `ADD` here, but I couldn't force it to do what I wanted */ %>
 COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/

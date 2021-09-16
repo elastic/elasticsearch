@@ -158,6 +158,18 @@ public class Installation {
         }
 
         public Shell.Result run(String args, String input) {
+            Shell.Result result = runIgnoreExitCode(args, input);
+            if (result.isSuccess() == false) {
+                throw new Shell.ShellException("Command was not successful: [" + path + "]\n   result: " + result);
+            }
+            return result;
+        }
+
+        public Shell.Result runIgnoreExitCode(String args) {
+            return runIgnoreExitCode(args, null);
+        }
+
+        public Shell.Result runIgnoreExitCode(String args, String input) {
             String command = path.toString();
             if (Platforms.WINDOWS) {
                 command = "& '" + command + "'";

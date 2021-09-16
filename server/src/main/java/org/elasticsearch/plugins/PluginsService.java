@@ -301,11 +301,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (Files.exists(rootPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
                 for (Path plugin : stream) {
+                    final String fileName = plugin.getFileName().toString();
                     if (FileSystemUtils.isDesktopServicesStore(plugin) ||
-                        plugin.getFileName().toString().startsWith(".removing-")) {
+                        fileName.startsWith(".removing-") ||
+                        fileName.equals(".elasticsearch-plugins.yml.cache")
+                    ) {
                         continue;
                     }
-                    if (seen.add(plugin.getFileName().toString()) == false) {
+                    if (seen.add(fileName) == false) {
                         throw new IllegalStateException("duplicate plugin: " + plugin);
                     }
                     plugins.add(plugin);

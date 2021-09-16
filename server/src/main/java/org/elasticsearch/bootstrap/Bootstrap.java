@@ -21,7 +21,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
@@ -40,6 +40,7 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.PluginsManager;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -361,6 +362,13 @@ final class Bootstrap {
             // initialized as we do not want to grant the runtime permission
             // setDefaultUncaughtExceptionHandler
             Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
+
+            try {
+                PluginsManager pluginsManager = new PluginsManager(environment);
+                pluginsManager.synchronizePlugins();
+            } catch (Exception e) {
+                throw new BootstrapException(e);
+            }
 
             INSTANCE.setup(true, environment);
 

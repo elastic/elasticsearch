@@ -1163,7 +1163,11 @@
   - is_false: jobs.0.datafeed_config
 ---
 "Test put job with datafeed with indices options in params":
+  - skip:
+      features: warnings
   - do:
+      warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
       ml.put_job:
         job_id: jobs-crud-put-with-datafeed-with-indices-options
         ignore_throttled: false

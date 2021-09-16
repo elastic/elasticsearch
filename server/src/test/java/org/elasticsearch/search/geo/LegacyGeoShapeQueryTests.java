@@ -21,8 +21,12 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.TestLegacyGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -37,6 +41,11 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
         LegacyGeoShapeFieldMapper.PrefixTrees.GEOHASH,
         LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE
     };
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(TestLegacyGeoShapeFieldMapperPlugin.class);
+    }
 
     @Override
     protected void createMapping(String indexName, String type, String fieldName, Settings settings) throws Exception {

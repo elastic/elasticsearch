@@ -180,23 +180,6 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
     }
 
-    public void testGeoShapeLegacyMerge() throws Exception {
-        MapperService m = createMapperService(fieldMapping(b -> b.field("type", "geo_shape")));
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> merge(m, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive"))));
-
-        assertThat(e.getMessage(),
-            containsString("mapper [field] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
-        assertFieldWarnings("strategy");
-
-        MapperService lm = createMapperService(fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive")));
-        e = expectThrows(IllegalArgumentException.class,
-            () -> merge(lm, fieldMapping(b -> b.field("type", "geo_shape"))));
-        assertThat(e.getMessage(),
-            containsString("mapper [field] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
-        assertFieldWarnings("strategy");
-    }
-
     public void testSerializeDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertThat(

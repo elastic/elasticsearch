@@ -277,4 +277,12 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         return (GeoShapeWithDocValuesFieldType) super.fieldType();
     }
 
+    @Override
+    protected void checkIncomingMergeType(FieldMapper mergeWith) {
+        if (mergeWith instanceof LegacyGeoShapeFieldMapper) {
+            throw new IllegalArgumentException("mapper [" + name()
+                + "] of type [geo_shape] cannot change strategy from [BKD] to [recursive]");
+        }
+        super.checkIncomingMergeType(mergeWith);
+    }
 }

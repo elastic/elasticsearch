@@ -144,7 +144,7 @@ performance. The regex circuit breaker limits the use and complexity of
 `script.painless.regex.enabled`::
 (<<static-cluster-setting,Static>>) Enables regex in Painless scripts. Accepts:
 
-`limit` (Default):::
+`limited` (Default):::
 Enables regex but limits complexity using the
 <<script-painless-regex-limit-factor,`script.painless.regex.limit-factor`>>
 cluster setting.
@@ -168,4 +168,4 @@ can consider up to 54 (9 * 6) characters. If the expression exceeds this limit,
 it triggers the regex circuit breaker and returns an error.
 +
 {es} only applies this limit if
-<<script-painless-regex-enabled,`script.painless.regex.enabled`>> is `limit`.
+<<script-painless-regex-enabled,`script.painless.regex.enabled`>> is `limited`.

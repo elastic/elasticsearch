@@ -19,7 +19,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.script.field.BooleanField;
 import org.elasticsearch.script.field.BytesRefField;
-import org.elasticsearch.script.field.Converters;
 import org.elasticsearch.script.field.DateMillisField;
 import org.elasticsearch.script.field.DateNanosField;
 import org.elasticsearch.script.field.DoubleField;
@@ -249,9 +248,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         public long getLongValue() {
             throwIfEmpty();
             if (isNanos) {
-                return Converters.convertDateNanosToLong(dates[0]);
+                return DateNanosField.toLong(dates[0]);
             }
-            return Converters.convertDateMillisToLong(dates[0]);
+            return DateMillisField.toLong(dates[0]);
         }
 
         @Override
@@ -594,13 +593,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         @Override
         public long getLongValue() {
             throwIfEmpty();
-            return Converters.convertBooleanToLong(values[0]);
+            return BooleanField.toLong(values[0]);
         }
 
         @Override
         public double getDoubleValue() {
             throwIfEmpty();
-            return Converters.convertBooleanToDouble(values[0]);
+            return BooleanField.toDouble(values[0]);
         }
 
         @Override
@@ -682,12 +681,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public long getLongValue() {
-            return Converters.convertStringToLong(get(0));
+            return StringField.toLong(get(0));
         }
 
         @Override
         public double getDoubleValue() {
-            return Converters.convertStringToDouble(get(0));
+            return StringField.toDouble(get(0));
         }
 
         @Override

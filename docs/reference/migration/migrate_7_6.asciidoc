@@ -18,6 +18,125 @@ See also <<release-highlights>> and <<es-release-notes>>.
 === Security changes
 
 [discrete]
+==== TLS configuration validation
+
+.The `xpack.security.transport.ssl.enabled` setting is now required to configure `xpack.security.transport.ssl` settings.
+[%collapsible]
+====
+*Details* +
+It is now an error to configure any SSL settings for
+`xpack.security.transport.ssl` without also configuring
+`xpack.security.transport.ssl.enabled`.
+
+*Impact* +
+If using other `xpack.security.transport.ssl` settings, you must explicitly
+specify the `xpack.security.transport.ssl.enabled` setting.
+
+If you do not want to enable SSL and are currently using other
+`xpack.security.transport.ssl` settings, do one of the following:
+
+* Explicitly specify `xpack.security.transport.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.transport.ssl` settings
+
+If you want to enable SSL, follow the instructions in
+{ref}/configuring-tls.html#tls-transport[Encrypting communications between nodes
+in a cluster]. As part of this configuration, explicitly specify
+`xpack.security.transport.ssl.enabled` as `true`.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+--------------------------------------------------
+
+And must be configured as:
+[source,yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.enabled: true <1>
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+--------------------------------------------------
+<1> or `false`.
+====
+
+.The `xpack.security.http.ssl.enabled` setting is now required to configure `xpack.security.http.ssl` settings.
+[%collapsible]
+====
+*Details* +
+It is now an error to configure any SSL settings for
+`xpack.security.http.ssl` without also configuring
+`xpack.security.http.ssl.enabled`.
+
+*Impact* +
+If using other `xpack.security.http.ssl` settings, you must explicitly
+specify the `xpack.security.http.ssl.enabled` setting.
+
+If you do not want to enable SSL and are currently using other
+`xpack.security.http.ssl` settings, do one of the following:
+
+* Explicitly specify `xpack.security.http.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.http.ssl` settings
+
+If you want to enable SSL, follow the instructions in
+{ref}/configuring-tls.html#tls-http[Encrypting HTTP client communications]. As part
+of this configuration, explicitly specify `xpack.security.http.ssl.enabled`
+as `true`.
+
+For example, the following configuration is invalid:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
+--------------------------------------------------
+
+And must be configured as either:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.enabled: true <1>
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
+--------------------------------------------------
+<1> or `false`.
+====
+
+.A `xpack.security.transport.ssl` certificate and key are now required to enable SSL for the transport interface.
+[%collapsible]
+====
+*Details* +
+It is now an error to enable SSL for the transport interface without also configuring
+a certificate and key through use of the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings.
+
+*Impact* +
+If `xpack.security.transport.ssl.enabled` is set to `true`, provide a
+certificate and key using the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings. If a certificate and key is not
+provided, {es} will return in an error on startup.
+====
+
+.A `xpack.security.http.ssl` certificate and key are now required to enable SSL for the HTTP server.
+[%collapsible]
+====
+*Details* +
+It is now an error to enable SSL for the HTTP (Rest) server without also configuring
+a certificate and key through use of the `xpack.security.http.ssl.keystore.path`
+setting or the `xpack.security.http.ssl.certificate` and
+`xpack.security.http.ssl.key` settings.
+
+*Impact* +
+If `xpack.security.http.ssl.enabled` is set to `true`, provide a certificate and
+key using the `xpack.security.http.ssl.keystore.path` setting or the
+`xpack.security.http.ssl.certificate` and `xpack.security.http.ssl.key`
+settings. If certificate and key is not provided, {es} will return in an error
+on startup.
+====
+
+[discrete]
 ==== {es} API key privileges
 
 If you use an API key to create another API key (sometimes called a

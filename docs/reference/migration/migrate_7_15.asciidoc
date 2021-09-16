@@ -1,0 +1,65 @@
+[[migrating-7.15]]
+== Migrating to 7.15
+++++
+<titleabbrev>7.15</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 7.15.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+////
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+[discrete]
+[[breaking-changes-7.15]]
+=== Breaking changes
+
+The following changes in {es} 7.15 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 7.15, review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+// tag::notable-breaking-changes[]
+// end::notable-breaking-changes[]
+////
+
+[discrete]
+[[deprecated-7.15]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 7.15 and will be removed
+in 8.0. While this won't have an immediate impact on your applications, we
+strongly encourage you take the described steps to update your code after
+upgrading to 7.15.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and the
+old behavior is supported until the next major release. To find out if you are
+using any deprecated functionality, enable <<deprecation-logging, deprecation
+logging>>.
+
+// tag::notable-breaking-changes[]
+[[deprecate-simpleifs]]
+.The `simpleifs` index store type is deprecated.
+[%collapsible]
+====
+*Details* +
+The `simplefs` value for the {ref}/index-modules-store.html[`index.store.type`]
+index setting is now deprecated. Use the `niofs` value for superior or
+equivalent performance instead.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `simpleifs` store type in
+new indices or index templates. Reindex any index using `simplefs` into one with
+another store type.
+====
+// end::notable-breaking-changes[]

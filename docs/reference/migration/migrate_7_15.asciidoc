@@ -9,6 +9,9 @@ your application to {es} 7.15.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+* <<breaking_715_indices_deprecations>>
+* <<breaking_715_settings_deprecations>>
+
 ////
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -48,6 +51,10 @@ using any deprecated functionality, enable <<deprecation-logging, deprecation
 logging>>.
 
 // tag::notable-breaking-changes[]
+[discrete]
+[[breaking_715_indices_deprecations]]
+==== Indices deprecations
+
 [[deprecate-simpleifs]]
 .The `simpleifs` index store type is deprecated.
 [%collapsible]
@@ -61,5 +68,27 @@ equivalent performance instead.
 To avoid deprecation warnings, discontinue use of the `simpleifs` store type in
 new indices or index templates. Reindex any index using `simplefs` into one with
 another store type.
+====
+
+[discrete]
+[[breaking_715_settings_deprecations]]
+==== Settings deprecations
+
+[[deprecate-fractional-byte-settings]]
+.Fractional byte size values are deprecated.
+[%collapsible]
+====
+*Details* +
+In 6.2, we deprecated support for fractional byte size values, such as `23.5pb`,
+in:
+
+* Cluster settings
+* Index settings
+* Cluster state metadata, such as an {ilm-init} policy, that support byte size
+values
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of fractional byte size values in
+your configurations. Update any existing configurations to use whole values.
 ====
 // end::notable-breaking-changes[]

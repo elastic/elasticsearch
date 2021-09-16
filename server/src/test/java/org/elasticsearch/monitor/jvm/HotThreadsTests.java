@@ -55,7 +55,7 @@ public class HotThreadsTests extends ESTestCase {
 
     public void testIdleThreadsDetection() {
         for (String threadName : new String[] {
-            "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner" }) {
+            "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner", "process reaper" }) {
             ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
             when(mockedThreadInfo.getThreadName()).thenReturn(threadName);
             assertTrue(HotThreads.isKnownJvmThread(mockedThreadInfo));
@@ -94,7 +94,8 @@ public class HotThreadsTests extends ESTestCase {
                 new String[]{"sun.nio.ch.SelectorImpl", "select"},
                 new String[]{"org.elasticsearch.threadpool.ThreadPool$CachedTimeThread", "run"},
                 new String[]{"org.elasticsearch.indices.ttl.IndicesTTLService$Notifier", "await"},
-                new String[]{"java.util.concurrent.LinkedTransferQueue", "poll"}
+                new String[]{"java.util.concurrent.LinkedTransferQueue", "poll"},
+                new String[]{"com.sun.jmx.remote.internal.ServerCommunicatorAdmin$Timeout", "run"}
             ));
 
         for (StackTraceElement extraFrame : idleThreadStackElements) {

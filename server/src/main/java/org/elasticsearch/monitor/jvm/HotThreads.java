@@ -42,17 +42,18 @@ public class HotThreads {
     private ReportType type = ReportType.CPU;
     private boolean ignoreIdleThreads = true;
 
-    private static final List<String[]> knownElasticIdleFrames = Arrays.asList(
+    private static final List<String[]> knownIdleStackFrames = Arrays.asList(
         new String[] {"java.util.concurrent.ThreadPoolExecutor", "getTask"},
         new String[] {"sun.nio.ch.SelectorImpl", "select"},
         new String[] {"org.elasticsearch.threadpool.ThreadPool$CachedTimeThread", "run"},
         new String[] {"org.elasticsearch.indices.ttl.IndicesTTLService$Notifier", "await"},
-        new String[] {"java.util.concurrent.LinkedTransferQueue", "poll"}
+        new String[] {"java.util.concurrent.LinkedTransferQueue", "poll"},
+        new String[] {"com.sun.jmx.remote.internal.ServerCommunicatorAdmin$Timeout", "run"}
     );
 
     // NOTE: these are JVM dependent and JVM version dependent
-    private static final List<String> knownJvmInternalThreads = Arrays.asList(
-        "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner"
+    private static final List<String> knownJDKInternalThreads = Arrays.asList(
+        "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner", "process reaper"
     );
 
     public enum ReportType {
@@ -118,12 +119,12 @@ public class HotThreads {
     }
 
     static boolean isKnownJvmThread(ThreadInfo threadInfo) {
-        return (knownJvmInternalThreads.stream().anyMatch(jvmThread ->
+        return (knownJDKInternalThreads.stream().anyMatch(jvmThread ->
             threadInfo.getThreadName() != null && threadInfo.getThreadName().equals(jvmThread)));
     }
 
     static boolean isKnownElasticStackFrame(String className, String methodName) {
-        return (knownElasticIdleFrames.stream().anyMatch(pair ->
+        return (knownIdleStackFrames.stream().anyMatch(pair ->
             pair[0].equals(className) && pair[1].equals(methodName)));
     }
 

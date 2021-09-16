@@ -63,7 +63,8 @@ GET _snapshot
 ----
 // TEST[setup:setup-snapshots]
 
-Then use the get snapshot API to get a list of snapshots in a specific repository.
+Then use the get snapshot API to get a list of snapshots in a specific
+repository.
 
 [source,console]
 ----
@@ -350,25 +351,6 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 ----
 // TEST[continued]
 // TEST[s/_restore/_restore?wait_for_completion=true/]
-
-If you take <<backup-security-index-configuration,dedicated snapshots of the
-`.security` system index>>, restore it as well.
-
-[source,console]
-----
-POST _snapshot/my_sec_repository/my_sec_snapshot_2099.05.06/_restore 
-{
-  "indices": ".security",
-  "include_global_state": false
-}
-----
-// TEST[continued]
-// TEST[s/^/DELETE *\nDELETE _data_stream\/*\n/]
-// TEST[s/my_sec_repository/my_repository/]
-// TEST[s/my_sec_snapshot_2099.05.06/my_snapshot_2099.05.06/]
-// TEST[s/_restore/_restore?wait_for_completion=true/]
-// TEST[s/".security"/""/]
---
 
 . When the restore operation is complete, resume indexing and restart any
 features you stopped:

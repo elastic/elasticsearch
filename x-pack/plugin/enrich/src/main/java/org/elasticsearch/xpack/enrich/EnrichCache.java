@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -18,7 +19,9 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
+import java.util.function.BiConsumer;
+
+import static org.elasticsearch.action.ActionListener.wrap;
 
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
@@ -54,17 +57,6 @@ public final class EnrichCache {
         return cache.get(cacheKey);
     }
 
-    void put(SearchRequest searchRequest, SearchResponse searchResponse) {
-        put(searchRequest, CompletableFuture.completedFuture(searchResponse));
-    }
-
-    void put(SearchRequest searchRequest, CompletableFuture<SearchResponse> searchResponse) {
-        String enrichIndex = getEnrichIndexKey(searchRequest);
-        CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
-
-        cache.put(cacheKey, searchResponse);
-    }
-
     void setMetadata(Metadata metadata) {
         this.metadata = metadata;
     }
@@ -86,21 +78,48 @@ public final class EnrichCache {
         return ia.getIndices().get(0).getIndex().getName();
     }
 
-    CompletableFuture<SearchResponse> computeIfAbsent(
+    /**
+     * resolves the entry from the cache and provides reports the result to the `callBack`
+     * If the value is not in the cache the search `searchDispatcher` is called which should schedule the search / callback _asynchronously_, in
+     * other words the dispatcher function should _not_ block or the call to this method will block.
+     * @param searchRequest
+     * @param searchDispatcher
+     * @param callBack
+     */
+    void resolveOrDispatchSearch(
         SearchRequest searchRequest,
-        Function<SearchRequest, CompletableFuture<SearchResponse>> computeFunction
-    ) throws ExecutionException {
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> searchDispatcher,
+        BiConsumer<SearchResponse, Exception> callBack
+    ) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
-
-        return cache.computeIfAbsent(cacheKey, key -> computeFunction.apply(key.searchRequest));
+        try {
+            CompletableFuture<SearchResponse> cacheEntry = cache.computeIfAbsent(cacheKey, request -> {
+                CompletableFuture<SearchResponse> completableFuture = new CompletableFuture<>();
+                searchDispatcher.accept(searchRequest, wrap(completableFuture::complete, completableFuture::completeExceptionally));
+                return completableFuture;
+            });
+            cacheEntry.whenComplete((response, throwable) -> {
+                if (throwable != null) {
+                    scheduleClearFailure(cacheKey, cacheEntry);
+                    if (throwable instanceof Exception) {
+                        callBack.accept(response, (Exception) throwable);
+                    } else if (throwable instanceof Error) {
+                        callBack.accept(response, new Exception("Error occurred '" + throwable.getMessage() + "'"));
+                        throw (Error) throwable;
+                    } else {
+                        callBack.accept(response, new Exception("Unexpected subclass of Throwable", throwable));
+                    }
+                }
+            });
+        } catch (ExecutionException e) {
+            callBack.accept(null, e);
+        }
     }
 
-    public void invalidate(SearchRequest searchRequest, CompletableFuture<SearchResponse> searchResponse) {
-        String enrichIndex = getEnrichIndexKey(searchRequest);
-        CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
-
-        cache.invalidate(cacheKey, searchResponse);
+    private void scheduleClearFailure(CacheKey cacheKey, CompletableFuture<SearchResponse> cacheEntry) {
+        // For now, we schedule immediately. But perhaps we find a reason to cache failures as well.
+        cache.invalidate(cacheKey, cacheEntry);
     }
 
     private static class CacheKey {

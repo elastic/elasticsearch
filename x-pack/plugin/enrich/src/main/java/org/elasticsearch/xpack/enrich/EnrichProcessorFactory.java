@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -27,8 +26,6 @@ import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -130,32 +127,10 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         EnrichCache enrichCache
     ) {
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
-        return (req, handler) -> {
-            try {
-                CompletableFuture<SearchResponse> cacheEntry = enrichCache.computeIfAbsent(req, request -> {
-                    CompletableFuture<SearchResponse> completableFuture = new CompletableFuture<>();
-                    originClient.execute(
-                        EnrichCoordinatorProxyAction.INSTANCE,
-                        request,
-                        ActionListener.wrap(completableFuture::complete, completableFuture::completeExceptionally)
-                    );
-                    return completableFuture;
-                });
-                cacheEntry.whenComplete((response, throwable) -> {
-                    Exception exception = null;
-                    if (throwable != null) {
-                        enrichCache.invalidate(req, cacheEntry);
-                        if (throwable instanceof Exception) {
-                            exception = (Exception) throwable;
-                        } else {
-                            exception = new Exception("Unexpected error", throwable);
-                        }
-                    }
-                    handler.accept(response, exception);
-                });
-            } catch (ExecutionException e) {
-                handler.accept(null, e);
-            }
-        };
+        return (req, handler) -> enrichCache.resolveOrDispatchSearch(
+            req,
+            (searchRequest, listener) -> originClient.execute(EnrichCoordinatorProxyAction.INSTANCE, searchRequest, listener),
+            handler
+        );
     }
 }

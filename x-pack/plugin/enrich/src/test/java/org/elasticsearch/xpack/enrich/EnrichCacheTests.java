@@ -26,6 +26,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -89,13 +95,14 @@ public class EnrichCacheTests extends ESTestCase {
 
         var enrichCache = new EnrichCache(3);
         enrichCache.setMetadata(metadata);
-        enrichCache.put(searchRequest1, searchResponse);
-        enrichCache.put(searchRequest2, searchResponse);
-        enrichCache.put(searchRequest3, searchResponse);
+        // warming the cache means there's a miss
+        warmCache(enrichCache, searchRequest1, searchResponse);
+        warmCache(enrichCache, searchRequest2, searchResponse);
+        warmCache(enrichCache, searchRequest3, searchResponse);
         var cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(0L));
-        assertThat(cacheStats.getMisses(), equalTo(0L));
+        assertThat(cacheStats.getMisses(), equalTo(3L));
         assertThat(cacheStats.getEvictions(), equalTo(0L));
 
         assertThat(enrichCache.get(searchRequest1), notNullValue());
@@ -105,14 +112,14 @@ public class EnrichCacheTests extends ESTestCase {
         cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(3L));
-        assertThat(cacheStats.getMisses(), equalTo(1L));
+        assertThat(cacheStats.getMisses(), equalTo(4L));
         assertThat(cacheStats.getEvictions(), equalTo(0L));
 
-        enrichCache.put(searchRequest4, searchResponse);
+        warmCache(enrichCache, searchRequest4, searchResponse);
         cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(3L));
-        assertThat(cacheStats.getMisses(), equalTo(1L));
+        assertThat(cacheStats.getMisses(), equalTo(5L));
         assertThat(cacheStats.getEvictions(), equalTo(1L));
 
         // Simulate enrich policy execution, which should make current cache entries unused.
@@ -141,9 +148,9 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(enrichCache.get(searchRequest4), nullValue());
 
         // Add new entries using new enrich index name as key
-        enrichCache.put(searchRequest1, searchResponse);
-        enrichCache.put(searchRequest2, searchResponse);
-        enrichCache.put(searchRequest3, searchResponse);
+        warmCache(enrichCache, searchRequest1, searchResponse);
+        warmCache(enrichCache, searchRequest2, searchResponse);
+        warmCache(enrichCache, searchRequest3, searchResponse);
 
         // Entries can now be served:
         assertThat(enrichCache.get(searchRequest1), notNullValue());
@@ -153,8 +160,46 @@ public class EnrichCacheTests extends ESTestCase {
         cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(6L));
-        assertThat(cacheStats.getMisses(), equalTo(6L));
+        assertThat(cacheStats.getMisses(), equalTo(13L));
         assertThat(cacheStats.getEvictions(), equalTo(4L));
     }
 
+    private void warmCache(EnrichCache enrichCache, SearchRequest key, SearchResponse entry) {
+        enrichCache.resolveOrDispatchSearch(key, (req, handler) -> handler.onResponse(entry), (value, exception) -> {});
+    }
+
+    public void testNonblocking() throws ExecutionException {
+        var enrichCache = new EnrichCache(3);
+        var metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(EnrichPolicy.getBaseName("policy1") + "-1")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy1")).build())
+            )
+            .build();
+        enrichCache.setMetadata(metadata);
+
+        var key = new SearchRequest(EnrichPolicy.getBaseName("policy1")).source(
+            new SearchSourceBuilder().query(new MatchQueryBuilder("match_field", "1"))
+        );
+
+        CompletableFuture<Boolean> check = new CompletableFuture<>();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.submit(() -> {
+            enrichCache.resolveOrDispatchSearch(key, (req, handler) -> {/* take forever to compute */}, (value, exception) -> {});
+            check.complete(true);
+        });
+
+        try {
+            check.get(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            fail("interrupted");
+        } catch (TimeoutException e) {
+            fail("method blocked for a second");
+        }
+
+        executor.shutdownNow();
+    }
 }

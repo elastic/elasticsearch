@@ -14,6 +14,19 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 //tag::notable-breaking-changes[]
 [discrete]
+[[breaking_77_indices_deprecations]]
+=== Indices deprecations
+
+[discrete]
+==== Translog retention settings are deprecated.
+
+The `index.translog.retention.age` and `index.translog.retention.size` index
+settings are now deprecated. These settings have been ignored since 7.4 in favor
+of {ref}/index-modules-history-retention.html[soft deletes].
+
+To avoid deprecation warnings, discontinue use of the settings.
+
+[discrete]
 [[breaking_77_logging_changes]]
 === Logging changes
 

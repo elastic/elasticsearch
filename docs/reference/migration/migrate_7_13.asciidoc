@@ -16,6 +16,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_713_infra_core_deprecations>>
 * <<breaking_713_eql_deprecations>>
 * <<breaking_713_security_changes>>
+* <<breaking_713_setting_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -308,5 +309,23 @@ deprecated and will be removed in Elasticsearch 8.0.
 *Impact* +
 Discontinue use of the removed setting. Specifying this setting in Elasticsearch
 configuration will result in an error on startup.
+====
+
+[discrete]
+[[breaking_713_setting_changes]]
+==== Setting deprecations
+
+[[deprecate-shared-data-path-settings]]
+.The `path.shared_data` and `index.data_path` settings are deprecated.
+[%collapsible]
+====
+*Details* +
+The `path.shared_data` node setting and `index.data_path` index setting are
+now deprecated. {es} previously used these settings for
+{ref-bare}/5.6/indices-shadow-replicas.html[shadow replicas]. The shadow
+replicas feature was deprecated in 5.2 and removed in 6.0.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the deprecated settings.
 ====
 // end::notable-breaking-changes[]

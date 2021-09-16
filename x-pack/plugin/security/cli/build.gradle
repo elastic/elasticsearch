@@ -19,7 +19,6 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core')))) {
     // BC and BC-FIPS together causes "Jar Hell" failures in JUnit
     exclude group: 'org.bouncycastle', module: 'bc-fips'
-    exclude group: 'org.bouncycastle', module: 'bcpg-fips'
   }
 }
 

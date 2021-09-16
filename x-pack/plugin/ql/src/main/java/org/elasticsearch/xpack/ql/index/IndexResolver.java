@@ -710,7 +710,7 @@ public class IndexResolver {
         // iterate over each type
         for (Entry<String, FieldCapabilities> type : types.entrySet()) {
             String esFieldType = type.getKey();
-            if (esFieldType == UNMAPPED) {
+            if (Objects.equals(esFieldType, UNMAPPED)) {
                 continue;
             }
             String[] indices = type.getValue().indices();

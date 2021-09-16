@@ -147,8 +147,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
                 if (iterator.hasNext() == false) {
                     return false;
                 }
-                ObjectCursor<KType> cursor = iterator.next();
-                action.accept(cursor.value);
+                action.accept(iterator.next().value);
                 return true;
             }
         }, false);

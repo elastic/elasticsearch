@@ -26,12 +26,16 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FilterScorer;
+import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
@@ -136,6 +140,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -446,7 +451,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
-        Query rewritten = searcher.rewrite(query);
+        Query rewritten = searcher.rewrite(new AssertingMinCompetitiveScoreQuery(query));
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         AggregationContext context = createAggregationContext(
             searcher,
@@ -458,7 +463,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             fieldTypes
         );
         C root = createAggregator(builder, context);
-
+        final BucketCollector assertCol = new AssertingMinCompetitiveScoreCollector();
         if (splitLeavesIntoSeparateAggregators && searcher.getIndexReader().leaves().size() > 0) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
             final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
@@ -472,13 +477,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 C a = createAggregator(builder, context);
                 a.preCollection();
                 Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
-                subSearcher.search(weight, a);
+                subSearcher.search(weight, MultiBucketCollector.wrap(true, List.of(a, assertCol)));
                 a.postCollection();
                 aggs.add(a.buildTopLevel());
             }
         } else {
             root.preCollection();
-            searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+            searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root, assertCol)));
             root.postCollection();
             aggs.add(root.buildTopLevel());
         }
@@ -615,9 +620,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
             DEFAULT_MAX_BUCKETS,
             fieldTypes
         );
+        Query rewritten = searcher.rewrite(new AssertingMinCompetitiveScoreQuery(query));
         Aggregator aggregator = createAggregator(builder, context);
         aggregator.preCollection();
-        searcher.search(context.query(), aggregator);
+        searcher.search(rewritten,
+            MultiBucketCollector.wrap(true, List.of(new AssertingMinCompetitiveScoreCollector(), aggregator)));
         aggregator.postCollection();
         InternalAggregation r = aggregator.buildTopLevel();
         r = r.reduce(
@@ -1194,5 +1201,88 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return singletonList(new AggregationSpec("agg_cardinality", in -> null,
                 (ContextParser<String, AggCardinalityAggregationBuilder>) (p, c) -> null));
         }
+    }
+
+    private static class AssertingMinCompetitiveScoreQuery extends Query {
+        final Query delegate;
+
+        private AssertingMinCompetitiveScoreQuery(Query delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            final Weight w = delegate.createWeight(searcher, scoreMode, boost);
+            return new FilterWeight(w) {
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false;
+                }
+
+                @Override
+                public Scorer scorer(LeafReaderContext context) throws IOException {
+                    Scorer scorer = super.scorer(context);
+                    return new FilterScorer(scorer) {
+                        @Override
+                        public float getMaxScore(int upTo) throws IOException {
+                            return scorer.getMaxScore(upTo);
+                        }
+
+                        @Override
+                        public void setMinCompetitiveScore(float minScore) throws IOException {
+                            throw new AssertionError("setMinCompetitiveScore should not be called when running aggregations");
+                        }
+                    };
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return null;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AssertingMinCompetitiveScoreQuery that = (AssertingMinCompetitiveScoreQuery) o;
+            return Objects.equals(delegate, that.delegate);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(delegate);
+        }
+    }
+
+    private static class AssertingMinCompetitiveScoreCollector extends BucketCollector {
+        @Override
+        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+            return new LeafBucketCollector() {
+                private Scorable scorer;
+
+                @Override
+                public void setScorer(Scorable scorer) throws IOException {
+                    this.scorer = scorer;
+                }
+
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    scorer.setMinCompetitiveScore(1.0f);
+                }
+            };
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return ScoreMode.TOP_SCORES;
+        }
+
+        @Override
+        public void preCollection() throws IOException {}
+
+        @Override
+        public void postCollection() throws IOException {}
     }
 }

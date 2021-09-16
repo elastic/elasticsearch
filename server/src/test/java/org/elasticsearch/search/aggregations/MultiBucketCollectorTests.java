@@ -9,11 +9,14 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -273,5 +276,72 @@ public class MultiBucketCollectorTests extends ESTestCase {
         leafCollector.setScorer(scorer);
         assertFalse(setScorerCalled1.get());
         assertFalse(setScorerCalled2.get());
+    }
+
+    public void testDisablesSetMinScore() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        w.addDocument(new Document());
+        IndexReader reader = DirectoryReader.open(w);
+        w.close();
+
+        Scorable scorer =
+            new Scorable() {
+                @Override
+                public int docID() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public float score() {
+                    return 0;
+                }
+
+                @Override
+                public void setMinCompetitiveScore(float minScore) {
+                    throw new AssertionError();
+                }
+            };
+
+        BucketCollector collector = new BucketCollector() {
+            @Override
+            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+                return new LeafBucketCollector() {
+                    private Scorable scorer;
+
+                    @Override
+                    public void setScorer(Scorable scorer) throws IOException {
+                        this.scorer = scorer;
+                    }
+
+                    @Override
+                    public void collect(int doc, long bucket) throws IOException {
+                        minScore = Math.nextUp(minScore);
+                        scorer.setMinCompetitiveScore(minScore);
+                    }
+                };
+            }
+
+            @Override
+            public void preCollection() throws IOException {}
+
+            @Override
+            public void postCollection() throws IOException {}
+
+            float minScore = 0;
+
+            @Override
+            public ScoreMode scoreMode() {
+                return ScoreMode.TOP_SCORES;
+            }
+        };
+        BucketCollector multiCollector = MultiBucketCollector.wrap(true,
+            Arrays.asList(collector, new TotalHitCountBucketCollector()));
+        LeafCollector leafCollector = multiCollector.getLeafCollector(reader.leaves().get(0));
+        leafCollector.setScorer(scorer);
+        leafCollector.collect(0); // no exception
+
+        reader.close();
+        dir.close();
     }
 }

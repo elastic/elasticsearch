@@ -1,9 +1,20 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+/* @notice
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Modifications copyright (C) 2020 Elasticsearch B.V.
  */
 
 package org.elasticsearch.search.aggregations;
@@ -11,6 +22,7 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FilterScorable;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Scorable;
@@ -61,53 +73,6 @@ public class MultiBucketCollector extends BucketCollector {
 
         if (n == 0) {
             return NO_OP_COLLECTOR;
-        } else if (n == 1) {
-            // only 1 Collector - return it.
-            BucketCollector col = null;
-            for (BucketCollector c : collectors) {
-                if (c != null) {
-                    col = c;
-                    break;
-                }
-            }
-            final BucketCollector collector = col;
-            // Wrap the collector in one that takes terminateIfNoop into account.
-            return new BucketCollector() {
-                @Override
-                public ScoreMode scoreMode() {
-                    return collector.scoreMode();
-                }
-
-                @Override
-                public void preCollection() throws IOException {
-                    collector.preCollection();
-                }
-
-                @Override
-                public void postCollection() throws IOException {
-                    collector.postCollection();
-                }
-
-                @Override
-                public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-                    try {
-                        LeafBucketCollector leafCollector = collector.getLeafCollector(ctx);
-                        if (false == leafCollector.isNoop()) {
-                            return leafCollector;
-                        }
-                    } catch (CollectionTerminatedException e) {
-                        throw new IllegalStateException(
-                            "getLeafCollector should return a noop collector instead of throw "
-                                + CollectionTerminatedException.class.getSimpleName(),
-                            e
-                        );
-                    }
-                    if (terminateIfNoop) {
-                        throw new CollectionTerminatedException();
-                    }
-                    return LeafBucketCollector.NO_OP_COLLECTOR;
-                }
-            };
         } else {
             BucketCollector[] colls = new BucketCollector[n];
             n = 0;
@@ -191,23 +156,26 @@ public class MultiBucketCollector extends BucketCollector {
                     throw new CollectionTerminatedException();
                 }
                 return LeafBucketCollector.NO_OP_COLLECTOR;
+
             case 1:
-                return leafCollectors.get(0);
+                // we also wrap single collector in case setMinCompetitiveScore is called and
+                // the global score mode is not ScoreMode.TOP_SCORES
             default:
-                return new MultiLeafBucketCollector(leafCollectors, cacheScores);
+                return new MultiLeafBucketCollector(leafCollectors, cacheScores, scoreMode() == ScoreMode.TOP_SCORES);
         }
     }
 
     private static class MultiLeafBucketCollector extends LeafBucketCollector {
-
         private final boolean cacheScores;
         private final LeafBucketCollector[] collectors;
-        private int numCollectors;
+        private final float[] minScores;
+        private final boolean skipNonCompetitiveScores;
 
-        private MultiLeafBucketCollector(List<LeafBucketCollector> collectors, boolean cacheScores) {
+        private MultiLeafBucketCollector(List<LeafBucketCollector> collectors, boolean cacheScores, boolean skipNonCompetitive) {
             this.collectors = collectors.toArray(new LeafBucketCollector[collectors.size()]);
             this.cacheScores = cacheScores;
-            this.numCollectors = this.collectors.length;
+            this.skipNonCompetitiveScores = skipNonCompetitive;
+            this.minScores = this.skipNonCompetitiveScores ? new float[this.collectors.length] : null;
         }
 
         @Override
@@ -215,35 +183,85 @@ public class MultiBucketCollector extends BucketCollector {
             if (cacheScores) {
                 scorer = new ScoreCachingWrappingScorer(scorer);
             }
-            for (int i = 0; i < numCollectors; ++i) {
-                final LeafCollector c = collectors[i];
-                c.setScorer(scorer);
-            }
-        }
+            if (skipNonCompetitiveScores) {
+                for (int i = 0; i < collectors.length; ++i) {
+                    final LeafCollector c = collectors[i];
+                    if (c != null) {
+                        c.setScorer(new MinCompetitiveScoreAwareScorable(scorer,  i,  minScores));
+                    }
+                }
+            } else {
+                scorer = new FilterScorable(scorer) {
+                    @Override
+                    public void setMinCompetitiveScore(float minScore) throws IOException {
+                        // Ignore calls to setMinCompetitiveScore so that if we wrap two
+                        // collectors and one of them wants to skip low-scoring hits, then
+                        // the other collector still sees all hits.
+                    }
 
-        private void removeCollector(int i) {
-            System.arraycopy(collectors, i + 1, collectors, i, numCollectors - i - 1);
-            --numCollectors;
-            collectors[numCollectors] = null;
+                };
+                for (int i = 0; i < collectors.length; ++i) {
+                    final LeafCollector c = collectors[i];
+                    if (c != null) {
+                        c.setScorer(scorer);
+                    }
+                }
+            }
         }
 
         @Override
         public void collect(int doc, long bucket) throws IOException {
-            final LeafBucketCollector[] collectors = this.collectors;
-            int numCollectors = this.numCollectors;
-            for (int i = 0; i < numCollectors;) {
+            for (int i = 0; i < collectors.length; i++) {
                 final LeafBucketCollector collector = collectors[i];
-                try {
-                    collector.collect(doc, bucket);
-                    ++i;
-                } catch (CollectionTerminatedException e) {
-                    removeCollector(i);
-                    numCollectors = this.numCollectors;
-                    if (numCollectors == 0) {
-                        throw new CollectionTerminatedException();
+                if (collector != null) {
+                    try {
+                        collector.collect(doc, bucket);
+                    } catch (CollectionTerminatedException e) {
+                        collectors[i] = null;
+                        if (allCollectorsTerminated()) {
+                            throw new CollectionTerminatedException();
+                        }
                     }
                 }
             }
+        }
+
+        private boolean allCollectorsTerminated() {
+            for (int i = 0; i < collectors.length; i++) {
+                if (collectors[i] != null) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    final static class MinCompetitiveScoreAwareScorable extends FilterScorable {
+        private final int idx;
+        private final float[] minScores;
+
+        MinCompetitiveScoreAwareScorable(Scorable in, int idx, float[] minScores) {
+            super(in);
+            this.idx = idx;
+            this.minScores = minScores;
+        }
+
+        @Override
+        public void setMinCompetitiveScore(float minScore) throws IOException {
+            if (minScore > minScores[idx]) {
+                minScores[idx] = minScore;
+                in.setMinCompetitiveScore(minScore());
+            }
+        }
+
+        private float minScore() {
+            float min = Float.MAX_VALUE;
+            for (int i = 0; i < minScores.length; i++) {
+                if (minScores[i] < min) {
+                    min = minScores[i];
+                }
+            }
+            return min;
         }
     }
 }

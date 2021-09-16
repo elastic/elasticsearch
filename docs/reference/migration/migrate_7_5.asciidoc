@@ -26,13 +26,13 @@ See also <<release-highlights>> and <<es-release-notes>>.
 ==== The `cluster.routing.allocation.disk.include_relocations` setting is deprecated.
 
 The `cluster.routing.allocation.disk.include_relocations` cluster setting is now
-deprecated. You can currently set
-`cluster.routing.allocation.disk.include_relocations` to `false` to disable this
-accounting. This can result in poor allocation decisions that might overshoot
-watermarks and require significant work to correct.
+deprecated. In future versions, {es} will account for the sizes of relocating
+shards when making allocation decisions based on the disk usage of nodes in the
+cluster.
 
-In 8.0, {es} will account for the sizes of relocating shards when making
-allocation decisions based on the disk usage of nodes in the cluster.
+Currently, you can set `cluster.routing.allocation.disk.include_relocations` to
+`false` to disable this accounting. This can result in poor allocation decisions
+that might overshoot watermarks and require significant work to correct.
 
 To avoid deprecation warnings, discontinue use of the setting.
 

@@ -9,9 +9,11 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.comparators.LongComparator;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -101,7 +103,16 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
         SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX ?
             SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN;
-        SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
+        final SortField.Type sortFieldType = getNumericType().sortFieldType;
+        SortedNumericSortField sortField =
+            new SortedNumericSortField(getFieldName(), SortField.Type.INT, reverse, selectorType) {
+                @Override
+                public FieldComparator<?> getComparator(int numHits, int sortPos) {
+                    final FieldComparator<?> comparator = super.getComparator(numHits, sortPos);
+                    comparator.disableSkipping();
+                    return comparator;
+                }
+            };
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
         return sortField;
     }

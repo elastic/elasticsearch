@@ -13,6 +13,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_710_java_changes>>
 * <<breaking_710_networking_changes>>
 * <<breaking_710_search_changes>>
+* <<breaking_710_cluster_deprecations>>
 * <<breaking_710_indices_changes>>
 * <<breaking_710_ml_changes>>
 * <<breaking_710_mapping_changes>>
@@ -143,6 +144,22 @@ NOTE: Significant changes in behavior are deprecated in a minor release and
 the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
+[[breaking_710_cluster_deprecations]]
+==== Cluster deprecations
+
+[[deprecate-cluster-join-timeout]]
+.The `cluster.join.timeout` setting is deprecated.
+[%collapsible]
+====
+*Details* +
+The `cluster.join.timeout` node setting is deprecated and will be removed in
+8.0. In 7.x clusters, join attempts no longer time out.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the setting.
+====
 
 [discrete]
 [[breaking_710_indices_changes]]

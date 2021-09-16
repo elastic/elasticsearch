@@ -106,8 +106,8 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
-    private static final String IGNORE_THROTTLED_DEPRECATION_MESSAGE = "[ignore_throttled] parameter is deprecated, " +
-        "because frozen indices have been deprecated. Migrate to use frozen tier instead and stop using [ignore_throttled] parameter.";
+    private static final String IGNORE_THROTTLED_DEPRECATION_MESSAGE = "[ignore_throttled] parameter is deprecated " +
+        "because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices.";
 
     public static final IndicesOptions STRICT_EXPAND_OPEN =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES), EnumSet.of(WildcardStates.OPEN));

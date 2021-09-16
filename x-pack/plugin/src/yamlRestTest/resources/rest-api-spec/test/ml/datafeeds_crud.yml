@@ -479,7 +479,7 @@ setup:
       features: warnings
   - do:
       warnings:
-        - "[ignore_throttled] parameter is deprecated, because frozen indices have been deprecated. Migrate to use frozen tier instead and stop using [ignore_throttled] parameter."
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
       ml.put_datafeed:
         datafeed_id: test-datafeed-indices-options-params-1
         ignore_throttled: false
@@ -499,7 +499,7 @@ setup:
 
   - do:
       warnings:
-        - "[ignore_throttled] parameter is deprecated, because frozen indices have been deprecated. Migrate to use frozen tier instead and stop using [ignore_throttled] parameter."
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
       ml.update_datafeed:
         datafeed_id: test-datafeed-indices-options-params-1
         ignore_throttled: false

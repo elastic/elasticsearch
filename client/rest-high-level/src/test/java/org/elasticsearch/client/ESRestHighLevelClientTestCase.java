@@ -64,8 +64,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
-    public static final String IGNORE_THROTTLED_DEPRECATION_WARNING = "[ignore_throttled] parameter is deprecated, because frozen " +
-        "indices have been deprecated. Migrate to use frozen tier instead and stop using [ignore_throttled] parameter.";
+    public static final String IGNORE_THROTTLED_DEPRECATION_WARNING = "[ignore_throttled] parameter is deprecated because frozen " +
+        "indices have been deprecated. Consider cold or frozen tiers in place of frozen indices.";
 
     protected static final RequestOptions IGNORE_THROTTLED_WARNING = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(

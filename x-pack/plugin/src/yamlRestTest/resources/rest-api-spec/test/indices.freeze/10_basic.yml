@@ -22,7 +22,7 @@
 
 - do:
     warnings:
-      - "[ignore_throttled] parameter is deprecated, because frozen indices have been deprecated. Migrate to use frozen tier instead and stop using [ignore_throttled] parameter."
+      - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
     search:
       rest_total_hits_as_int: true
       index: test
@@ -67,7 +67,7 @@
 
 - do:
     warnings:
-      - "[ignore_throttled] parameter is deprecated, because frozen indices have been deprecated. Migrate to use frozen tier instead and stop using [ignore_throttled] parameter."
+      - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
     search:
       rest_total_hits_as_int: true
       index: _all
@@ -133,7 +133,7 @@
 
 - do:
     warnings:
-      - "[ignore_throttled] parameter is deprecated, because frozen indices have been deprecated. Migrate to use frozen tier instead and stop using [ignore_throttled] parameter."
+      - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
     search:
       rest_total_hits_as_int: true
       index: _all

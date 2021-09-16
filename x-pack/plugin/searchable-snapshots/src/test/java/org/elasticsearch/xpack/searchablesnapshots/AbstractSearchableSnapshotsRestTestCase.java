@@ -475,8 +475,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(
                     warnings -> List.of(
-                        "[ignore_throttled] parameter is deprecated, because frozen indices have been deprecated. "
-                            + "Migrate to use frozen tier instead and stop using [ignore_throttled] parameter."
+                        "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. "
+                            + "Consider cold or frozen tiers in place of frozen indices."
                     ).equals(warnings) == false
                 )
                 .build();

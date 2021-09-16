@@ -174,7 +174,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Multi-fields within multi-fields",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.3.html" +
                 "#_defining_multi_fields_within_multi_fields",
             "The names of fields that contain chained multi-fields: [[type: _doc, field: invalid-field]]", false, null);
         assertEquals(singletonList(expected), issues);
@@ -414,7 +414,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "translog retention settings are ignored",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/index-modules-translog.html#index-modules-translog-retention",
                 "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
                     "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
                 false, null)
@@ -452,7 +452,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue issue = issues.get(0);
         assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
-        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling"
+        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/7.15/mapping-field-names-field.html#disable-field-names"
                 , issue.getUrl());
         assertEquals("Index mapping contains explicit `_field_names` enabling settings.", issue.getMessage());
         assertEquals("The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.",
@@ -481,7 +481,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
         final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.13.html#slow-log-level-removal";
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/migrating-7.13.html#breaking_713_infra_core_deprecations";
         assertThat(issues, containsInAnyOrder(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "setting [index.search.slowlog.level] is deprecated and will be removed in a future version",
@@ -503,7 +503,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "[simplefs] is deprecated and will be removed in future versions",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/index-modules-store.html#file-system",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
                     "as it offers superior or equivalent performance to [simplefs].", false, null)
@@ -521,7 +521,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 INDEX_ROUTING_REQUIRE_SETTING.getKey()),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%s], remove this setting",
                 INDEX_ROUTING_REQUIRE_SETTING.getKey(),
@@ -532,7 +532,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 INDEX_ROUTING_INCLUDE_SETTING.getKey()),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%s], remove this setting",
                 INDEX_ROUTING_INCLUDE_SETTING.getKey(),
@@ -543,7 +543,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 INDEX_ROUTING_EXCLUDE_SETTING.getKey()),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%s], remove this setting",
                 INDEX_ROUTING_EXCLUDE_SETTING.getKey(),
@@ -608,7 +608,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "mappings for index test contains deprecated geo_shape properties that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
+                    "#_deprecated_literal_geo_shape_literal_parameters",
                 "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter " +
                     "[strategy] in field [location]]]", false, null)
         ));
@@ -627,7 +628,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "mappings for index test contains deprecated geo_shape properties that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
+                    "#_deprecated_literal_geo_shape_literal_parameters",
                 "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter " +
                     "[strategy] in field [location]]]", false, null)
         ));

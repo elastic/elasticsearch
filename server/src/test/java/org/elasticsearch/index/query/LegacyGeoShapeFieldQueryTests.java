@@ -16,11 +16,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.TestLegacyGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 public class LegacyGeoShapeFieldQueryTests extends GeoShapeQueryBuilderTests {
+
+    @SuppressWarnings("deprecation")
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singletonList(TestLegacyGeoShapeFieldMapperPlugin.class);
+    }
 
     @Override
     protected String fieldName() {

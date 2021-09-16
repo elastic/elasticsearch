@@ -104,6 +104,7 @@ another store type.
 In 6.0, we deprecated the `accept_default_password` cluster setting. We removed
 support for default passwords in 6.0 but did not remove the setting for
 backwards compatibility. In 8.0, we will remove the setting.
+
 *Impact* +
 To avoid deprecation warnings, discontinue use of the setting.
 ====
@@ -114,11 +115,14 @@ To avoid deprecation warnings, discontinue use of the setting.
 ====
 *Details* +
 In 5.2, we deprecated the following cluster settings:
+
 * `xpack.security.authz.store.roles.index.cache.max_size`
 * `xpack.security.authz.store.roles.index.cache.ttl`
+
 These native role cache settings have been unused since 5.2, but we did not
 remove the settings for backwards compatibility. In 8.0, we will remove the
 settings.
+
 *Impact* +
 To avoid deprecation warnings, discontinue use of the settings.
 ====

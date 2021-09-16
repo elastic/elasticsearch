@@ -61,16 +61,16 @@ setup:
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
 ---
-index with specified id:
+index with specified routing:
   - skip:
       version: " - 7.99.99"
       reason: introduced in 8.0.0 to be backported to 7.16.0
 
   - do:
-      catch: /indexing with a specified id is not supported because the destination index \[test\] is in time series mode/
+      catch: /indexing with a specified routing is not supported because the destination index \[test\] is in time series mode/
       index:
         index:   test
-        id:      foo
+        routing: foo
         body:
           doc:
             "@timestamp": "2021-04-28T18:35:24.467Z"
@@ -198,3 +198,32 @@ search with routing:
       search:
         index:   test
         routing: rrrr
+
+---
+alias with routing:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      catch: /routing is forbidden on CRUD operations that target indices in \[index.mode=time_series\]/
+      indices.put_alias:
+        index: test
+        name: alias
+        body:
+          routing: foo
+
+---
+alias with search_routing:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      catch: /routing is forbidden on CRUD operations that target indices in \[index.mode=time_series\]/
+      indices.put_alias:
+        index: test
+        name: alias
+        body:
+          search_routing: foo
+

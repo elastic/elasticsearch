@@ -11,6 +11,9 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 
 import java.util.List;
 import java.util.Map;
@@ -35,6 +38,11 @@ public enum IndexMode {
                 );
             }
         }
+
+        public void validateMapping(MappingLookup lookup) {};
+
+        @Override
+        public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {}
     },
     TIME_SERIES {
         @Override
@@ -55,7 +63,28 @@ public enum IndexMode {
         }
 
         private String error(Setting<?> unsupported) {
-            return "[" + IndexSettings.MODE.getKey() + "=time_series] is incompatible with [" + unsupported.getKey() + "]";
+            return tsdbMode() + " is incompatible with [" + unsupported.getKey() + "]";
+        }
+
+        public void validateMapping(MappingLookup lookup) {
+            if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
+                throw new IllegalArgumentException(routingRequiredBad());
+            }
+        }
+
+        @Override
+        public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {
+            if (indexRouting != null || searchRouting != null) {
+                throw new IllegalArgumentException(routingRequiredBad());
+            }
+        }
+
+        private String routingRequiredBad() {
+            return "routing is forbidden on CRUD operations that target indices in " + tsdbMode();
+        }
+
+        private String tsdbMode() {
+            return "[" + IndexSettings.MODE.getKey() + "=time_series]";
         }
     };
 
@@ -74,4 +103,14 @@ public enum IndexMode {
     );
 
     abstract void validateWithOtherSettings(Map<Setting<?>, Object> settings);
+
+    /**
+     * Validate the mapping for this index.
+     */
+    public abstract void validateMapping(MappingLookup lookup);
+
+    /**
+     * Validate aliases targeting this index.
+     */
+    public abstract void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting);
 }

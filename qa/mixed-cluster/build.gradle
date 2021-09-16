@@ -39,6 +39,9 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
+      if (BuildParams.isSnapshotBuild() == false) {
+        systemProperty 'es.index_mode_feature_flag_registered', 'true'
+      }
     }
   }
 

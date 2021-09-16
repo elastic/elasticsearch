@@ -1,0 +1,119 @@
+enable:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      indices.create:
+          index: test_index
+          body:
+            settings:
+              index:
+                mode: time_series
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+
+---
+no sort field:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      catch: /\[index.mode=time_series\] is incompatible with \[index.sort.field\]/
+      indices.create:
+          index: test_index
+          body:
+            settings:
+              index:
+                mode: time_series
+                sort.field: ['a']
+
+---
+no sort order:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      catch: /\[index.mode=time_series\] is incompatible with \[index.sort.order\]/
+      indices.create:
+          index: test_index
+          body:
+            settings:
+              index:
+                mode: time_series
+                sort.order: ['DESC']
+
+---
+no sort mode:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      catch: /\[index.mode=time_series\] is incompatible with \[index.sort.mode\]/
+      indices.create:
+          index: test_index
+          body:
+            settings:
+              index:
+                mode: time_series
+                sort.mode: ['MIN']
+
+---
+no sort missing:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      catch: /\[index.mode=time_series\] is incompatible with \[index.sort.missing\]/
+      indices.create:
+          index: test_index
+          body:
+            settings:
+              index:
+                mode: time_series
+                sort.missing: ['_last']
+
+---
+no partitioning:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      catch: /\[index.mode=time_series\] is incompatible with \[index.routing_partition_size\]/
+      indices.create:
+          index: test_index
+          body:
+            settings:
+              index:
+                mode: time_series
+                shards: 5
+                routing_partition_size: 2

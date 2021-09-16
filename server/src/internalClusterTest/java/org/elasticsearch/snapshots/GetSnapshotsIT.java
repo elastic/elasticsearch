@@ -10,7 +10,6 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
@@ -27,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
@@ -390,10 +390,6 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    private static String[] matchAllPattern() {
-        return randomBoolean() ? new String[] { "*" } : new String[] { TransportGetRepositoriesAction.ALL_PATTERN };
-    }
-
     private List<SnapshotInfo> getAllByPatterns(String[] repos, String[] snapshots) {
         return clusterAdmin().prepareGetSnapshots(repos)
             .setSnapshots(snapshots)
@@ -449,6 +445,182 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .getSnapshots();
         assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, policyName, otherPolicyName), is(allSnapshots));
         assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "*"), is(allSnapshots));
+    }
+
+    public void testSortAfter() throws Exception {
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        final Set<Long> startTimes = new HashSet<>();
+        final Set<Long> durations = new HashSet<>();
+        final SnapshotInfo snapshot1 = createFullSnapshotWithUniqueTimestamps(repoName, "snapshot-1", startTimes, durations);
+        createIndexWithContent("index-1");
+        final SnapshotInfo snapshot2 = createFullSnapshotWithUniqueTimestamps(repoName, "snapshot-2", startTimes, durations);
+        createIndexWithContent("index-2");
+        final SnapshotInfo snapshot3 = createFullSnapshotWithUniqueTimestamps(repoName, "snapshot-3", startTimes, durations);
+        createIndexWithContent("index-3");
+
+        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+            .get()
+            .getSnapshots();
+        assertThat(allSnapshotInfo, is(List.of(snapshot1, snapshot2, snapshot3)));
+
+        final long startTime1 = snapshot1.startTime();
+        final long startTime2 = snapshot2.startTime();
+        final long startTime3 = snapshot3.startTime();
+
+        assertThat(allAfterStartTimeAscending(startTime1 - 1), is(allSnapshotInfo));
+        assertThat(allAfterStartTimeAscending(startTime1), is(allSnapshotInfo));
+        assertThat(allAfterStartTimeAscending(startTime2), is(List.of(snapshot2, snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime3), is(List.of(snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime3 + 1), empty());
+
+        final String name1 = snapshot1.snapshotId().getName();
+        final String name2 = snapshot2.snapshotId().getName();
+        final String name3 = snapshot3.snapshotId().getName();
+
+        assertThat(allAfterNameAscending("a"), is(allSnapshotInfo));
+        assertThat(allAfterNameAscending(name1), is(allSnapshotInfo));
+        assertThat(allAfterNameAscending(name2), is(List.of(snapshot2, snapshot3)));
+        assertThat(allAfterNameAscending(name3), is(List.of(snapshot3)));
+        assertThat(allAfterNameAscending("z"), empty());
+
+        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+            .setOrder(SortOrder.DESC)
+            .get()
+            .getSnapshots();
+        assertThat(allSnapshotInfoDesc, is(List.of(snapshot3, snapshot2, snapshot1)));
+
+        assertThat(allBeforeStartTimeDescending(startTime3 + 1), is(allSnapshotInfoDesc));
+        assertThat(allBeforeStartTimeDescending(startTime3), is(allSnapshotInfoDesc));
+        assertThat(allBeforeStartTimeDescending(startTime2), is(List.of(snapshot2, snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime1), is(List.of(snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime1 - 1), empty());
+
+        assertThat(allSnapshotInfoDesc, is(List.of(snapshot3, snapshot2, snapshot1)));
+        assertThat(allBeforeNameDescending("z"), is(allSnapshotInfoDesc));
+        assertThat(allBeforeNameDescending(name3), is(allSnapshotInfoDesc));
+        assertThat(allBeforeNameDescending(name2), is(List.of(snapshot2, snapshot1)));
+        assertThat(allBeforeNameDescending(name1), is(List.of(snapshot1)));
+        assertThat(allBeforeNameDescending("a"), empty());
+
+        final List<SnapshotInfo> allSnapshotInfoByDuration = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.DURATION)
+            .get()
+            .getSnapshots();
+
+        final long duration1 = allSnapshotInfoByDuration.get(0).endTime() - allSnapshotInfoByDuration.get(0).startTime();
+        final long duration2 = allSnapshotInfoByDuration.get(1).endTime() - allSnapshotInfoByDuration.get(1).startTime();
+        final long duration3 = allSnapshotInfoByDuration.get(2).endTime() - allSnapshotInfoByDuration.get(2).startTime();
+
+        assertThat(allAfterDurationAscending(duration1 - 1), is(allSnapshotInfoByDuration));
+        assertThat(allAfterDurationAscending(duration1), is(allSnapshotInfoByDuration));
+        assertThat(allAfterDurationAscending(duration2), is(allSnapshotInfoByDuration.subList(1, 3)));
+        assertThat(allAfterDurationAscending(duration3), is(List.of(allSnapshotInfoByDuration.get(2))));
+        assertThat(allAfterDurationAscending(duration3 + 1), empty());
+
+        final List<SnapshotInfo> allSnapshotInfoByDurationDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(matchAllPattern())
+            .setSort(GetSnapshotsRequest.SortBy.DURATION)
+            .setOrder(SortOrder.DESC)
+            .get()
+            .getSnapshots();
+
+        assertThat(allBeforeDurationDescending(duration3 + 1), is(allSnapshotInfoByDurationDesc));
+        assertThat(allBeforeDurationDescending(duration3), is(allSnapshotInfoByDurationDesc));
+        assertThat(allBeforeDurationDescending(duration2), is(allSnapshotInfoByDurationDesc.subList(1, 3)));
+        assertThat(allBeforeDurationDescending(duration1), is(List.of(allSnapshotInfoByDurationDesc.get(2))));
+        assertThat(allBeforeDurationDescending(duration1 - 1), empty());
+
+        final SnapshotInfo otherSnapshot = createFullSnapshot(repoName, "other-snapshot");
+
+        assertThat(allSnapshots(new String[] { "snap*" }, GetSnapshotsRequest.SortBy.NAME, SortOrder.ASC, "a"), is(allSnapshotInfo));
+        assertThat(allSnapshots(new String[] { "o*" }, GetSnapshotsRequest.SortBy.NAME, SortOrder.ASC, "a"), is(List.of(otherSnapshot)));
+
+        final GetSnapshotsResponse paginatedResponse = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots("snap*")
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .setFromSortValue("a")
+            .setOffset(1)
+            .setSize(1)
+            .get();
+        assertThat(paginatedResponse.getSnapshots(), is(List.of(snapshot2)));
+        assertThat(paginatedResponse.totalCount(), is(3));
+        final GetSnapshotsResponse paginatedResponse2 = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots("snap*")
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .setFromSortValue("a")
+            .setOffset(0)
+            .setSize(2)
+            .get();
+        assertThat(paginatedResponse2.getSnapshots(), is(List.of(snapshot1, snapshot2)));
+        assertThat(paginatedResponse2.totalCount(), is(3));
+    }
+
+    // Create a snapshot that is guaranteed to have a unique start time and duration for tests around ordering by either.
+    // Don't use this with more than 3 snapshots on platforms with low-resolution clocks as the durations could always collide there
+    // causing an infinite loop
+    private SnapshotInfo createFullSnapshotWithUniqueTimestamps(
+        String repoName,
+        String snapshotName,
+        Set<Long> forbiddenStartTimes,
+        Set<Long> forbiddenDurations
+    ) throws Exception {
+        while (true) {
+            final SnapshotInfo snapshotInfo = createFullSnapshot(repoName, snapshotName);
+            final long duration = snapshotInfo.endTime() - snapshotInfo.startTime();
+            if (forbiddenStartTimes.contains(snapshotInfo.startTime()) || forbiddenDurations.contains(duration)) {
+                logger.info("--> snapshot start time or duration collided");
+                assertAcked(startDeleteSnapshot(repoName, snapshotName).get());
+            } else {
+                assertTrue(forbiddenStartTimes.add(snapshotInfo.startTime()));
+                assertTrue(forbiddenDurations.add(duration));
+                return snapshotInfo;
+            }
+        }
+    }
+
+    private List<SnapshotInfo> allAfterStartTimeAscending(long timestamp) {
+        return allSnapshots(matchAllPattern(), GetSnapshotsRequest.SortBy.START_TIME, SortOrder.ASC, timestamp);
+    }
+
+    private List<SnapshotInfo> allBeforeStartTimeDescending(long timestamp) {
+        return allSnapshots(matchAllPattern(), GetSnapshotsRequest.SortBy.START_TIME, SortOrder.DESC, timestamp);
+    }
+
+    private List<SnapshotInfo> allAfterNameAscending(String name) {
+        return allSnapshots(matchAllPattern(), GetSnapshotsRequest.SortBy.NAME, SortOrder.ASC, name);
+    }
+
+    private List<SnapshotInfo> allBeforeNameDescending(String name) {
+        return allSnapshots(matchAllPattern(), GetSnapshotsRequest.SortBy.NAME, SortOrder.DESC, name);
+    }
+
+    private List<SnapshotInfo> allAfterDurationAscending(long duration) {
+        return allSnapshots(matchAllPattern(), GetSnapshotsRequest.SortBy.DURATION, SortOrder.ASC, duration);
+    }
+
+    private List<SnapshotInfo> allBeforeDurationDescending(long duration) {
+        return allSnapshots(matchAllPattern(), GetSnapshotsRequest.SortBy.DURATION, SortOrder.DESC, duration);
+    }
+
+    private static List<SnapshotInfo> allSnapshots(
+        String[] snapshotNames,
+        GetSnapshotsRequest.SortBy sortBy,
+        SortOrder order,
+        Object fromSortValue
+    ) {
+        return clusterAdmin().prepareGetSnapshots(matchAllPattern())
+            .setSnapshots(snapshotNames)
+            .setSort(sortBy)
+            .setFromSortValue(fromSortValue.toString())
+            .setOrder(order)
+            .get()
+            .getSnapshots();
     }
 
     private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) {

@@ -57,7 +57,7 @@ if [[ $ATTEMPT_SECURITY_AUTO_CONFIG = true ]]; then
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
     "`dirname "$0"`"/elasticsearch-cli "$@" <<<"$KEYSTORE_PASSWORD"; then
-      echo ""
+      :
   else
     retval=$?
     # these exit codes cover the cases where auto-conf cannot run but the node should NOT be prevented from starting as usual

@@ -5,6 +5,7 @@ setlocal enableextensions
 
 SET params='%*'
 SET checkpassword=Y
+SET attemptautoconfig=Y
 
 :loop
 FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
@@ -21,16 +22,20 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 
 	IF "!current!" == "-h" (
 		SET checkpassword=N
+		SET attemptautoconfig=N
 	)
 	IF "!current!" == "--help" (
 		SET checkpassword=N
+		SET attemptautoconfig=N
 	)
 
 	IF "!current!" == "-V" (
 		SET checkpassword=N
+		SET attemptautoconfig=N
 	)
 	IF "!current!" == "--version" (
 		SET checkpassword=N
+		SET attemptautoconfig=N
 	)
 
 	IF "!silent!" == "Y" (
@@ -66,6 +71,25 @@ IF "%checkpassword%"=="Y" (
       EXIT /B !ERRORLEVEL!
     )
   )
+)
+
+IF "%attemptautoconfig%"=="Y" (
+    CALL "%~dp0elasticsearch-env.bat" || exit /b 1
+    CALL "%~dp0x-pack-env"
+    CALL "%~dp0x-pack-security-env"
+    ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
+      -Des.path.home="%ES_HOME%" ^
+      -Des.path.conf="%ES_PATH_CONF%" ^
+      -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
+      -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
+      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*" "org.elasticsearch.xpack.security.cli.ConfigInitialNode" !newparams!
+    SET SHOULDEXIT=Y
+    IF !ERRORLEVEL! EQU 73 SET SHOULDEXIT=N
+    IF !ERRORLEVEL! EQU 78 SET SHOULDEXIT=N
+    IF !ERRORLEVEL! EQU 80 SET SHOULDEXIT=N
+    IF "!SHOULDEXIT!"=="Y" (
+        exit /b !ERRORLEVEL!
+    )
 )
 
 if not defined ES_TMPDIR (

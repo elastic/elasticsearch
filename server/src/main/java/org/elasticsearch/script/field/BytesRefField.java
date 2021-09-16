@@ -12,6 +12,8 @@ import org.apache.lucene.util.BytesRef;
 
 public class BytesRefField extends Field<BytesRef> {
 
+    /* ---- Bytes Ref Field Members ---- */
+
     public BytesRefField(String name, FieldValues<BytesRef> values) {
         super(name, values);
     }

@@ -236,7 +236,7 @@ public class MultiBucketCollector extends BucketCollector {
         }
     }
 
-    final static class MinCompetitiveScoreAwareScorable extends FilterScorable {
+    static final class MinCompetitiveScoreAwareScorable extends FilterScorable {
         private final int idx;
         private final float[] minScores;
 

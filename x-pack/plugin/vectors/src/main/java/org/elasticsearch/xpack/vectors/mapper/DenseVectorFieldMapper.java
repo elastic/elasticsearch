@@ -131,6 +131,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexVersionCreated = indexVersionCreated;
         }
 
+        public int dims() {
+            return dims;
+        }
+
         @Override
         public String typeName() {
             return CONTENT_TYPE;

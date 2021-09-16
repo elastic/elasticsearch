@@ -11,7 +11,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -76,7 +78,7 @@ public class RuleScopeTests extends AbstractWireSerializingTestCase<RuleScope> {
         assertThat(scope.isEmpty(), is(false));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> scope.validate(Sets.newHashSet("foo", "foobar")));
+                () -> scope.validate(new LinkedHashSet<>(Arrays.asList("foo", "foobar"))));
         assertThat(e.getMessage(), equalTo("Invalid detector rule: scope field 'bar' is invalid; select from [foo, foobar]"));
     }
 

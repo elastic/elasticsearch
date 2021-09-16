@@ -10,6 +10,7 @@ your application to {es} 7.15.
 See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_715_indices_deprecations>>
+* <<breaking_715_security_deprecations>>
 * <<breaking_715_settings_deprecations>>
 
 ////
@@ -68,6 +69,37 @@ equivalent performance instead.
 To avoid deprecation warnings, discontinue use of the `simpleifs` store type in
 new indices or index templates. Reindex any index using `simplefs` into one with
 another store type.
+====
+
+[discrete]
+[[breaking_715_security_deprecations]]
+==== Security deprecations
+
+[[deprecate-accept_default_password]]
+.The `accept_default_password` setting is deprecated.
+[%collapsible]
+====
+*Details* +
+In 6.0, we deprecated the `accept_default_password` cluster setting. We removed
+support for default passwords in 6.0 but did not remove the setting for
+backwards compatibility. In 8.0, we will remove the setting.
+*Impact* +
+To avoid deprecation warnings, discontinue use of the setting.
+====
+
+[[deprecate-native-role-cache-settings]]
+.Native role cache settings are deprecated.
+[%collapsible]
+====
+*Details* +
+In 5.2, we deprecated the following cluster settings:
+* `xpack.security.authz.store.roles.index.cache.max_size`
+* `xpack.security.authz.store.roles.index.cache.ttl`
+These native role cache settings have been unused since 5.2, but we did not
+remove the settings for backwards compatibility. In 8.0, we will remove the
+settings.
+*Impact* +
+To avoid deprecation warnings, discontinue use of the settings.
 ====
 
 [discrete]

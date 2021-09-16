@@ -738,12 +738,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryRegExpQueryTooComplex() throws Exception {
-        QueryStringQueryBuilder queryBuilder = queryStringQuery("/[ac]*a[ac]{50,200}/").defaultField(TEXT_FIELD_NAME);
+        QueryStringQueryBuilder queryBuilder = queryStringQuery("/[ac]*a[ac]{200,500}/").defaultField(TEXT_FIELD_NAME);
 
         TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class,
                 () -> queryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
-        assertThat(e.getMessage(), containsString("would result in more than 10000 states"));
+        assertThat(e.getMessage(), containsString("would require more than 10000 effort."));
     }
 
     /**
@@ -765,7 +765,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class,
                 () -> queryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
-        assertThat(e.getMessage(), containsString("would result in more than 10 states"));
+        assertThat(e.getMessage(), containsString("would require more than 10 effort."));
     }
 
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {

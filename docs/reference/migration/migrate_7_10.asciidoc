@@ -154,8 +154,8 @@ enable <<deprecation-logging, deprecation logging>>.
 [%collapsible]
 ====
 *Details* +
-The `cluster.join.timeout` node setting is now deprecated. In 7.x clusters, join
-attempts no longer time out.
+The `cluster.join.timeout` node setting is now deprecated and will be removed in
+8.0. In 7.x and later clusters, join attempts no longer time out.
 
 *Impact* +
 To avoid deprecation warnings, discontinue use of the setting.

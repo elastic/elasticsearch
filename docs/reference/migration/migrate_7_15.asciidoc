@@ -79,8 +79,8 @@ another store type.
 [%collapsible]
 ====
 *Details* +
-In 6.2, we deprecated support for fractional byte size values, such as `23.5pb`.
-In 8.0, {es} will reject fractional byte size values for:
+In 6.2, we deprecated support for fractional byte size values, such as `23.5pb`,
+in:
 
 * Cluster settings
 * Index settings

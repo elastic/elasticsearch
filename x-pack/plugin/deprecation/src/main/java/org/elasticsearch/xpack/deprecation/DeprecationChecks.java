@@ -42,7 +42,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkTemplatesWithMultipleTypes,
             ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
             ClusterDeprecationChecks::checkGeoShapeTemplates,
-            ClusterDeprecationChecks::checkSparseVectorTemplates
+            ClusterDeprecationChecks::checkSparseVectorTemplates,
+            ClusterDeprecationChecks::checkILMFreezeActions
         ));
 
     static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>

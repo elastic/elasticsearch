@@ -21,17 +21,25 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.Phase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
@@ -517,6 +525,37 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                 "mappings in component template [my-template] contains deprecated sparse_vector fields: [my_sparse_vector]; " +
                     "mappings in index template single-type contains deprecated sparse_vector fields: " +
                     "[my_sparse_vector], [my_nested_sparse_vector]", false, null)
+        ));
+    }
+
+    public void testCheckILMFreezeActions() throws Exception {
+        Map<String, LifecyclePolicyMetadata> policies = new HashMap<>();
+        Map<String, Phase> phases1 = new HashMap<>();
+        Map<String, LifecycleAction> coldActions = new HashMap<>();
+        coldActions.put("freeze", null);
+        Phase coldPhase = new Phase("cold", TimeValue.ZERO, coldActions);
+        Phase somePhase = new Phase("somePhase", TimeValue.ZERO, null);
+        phases1.put("cold", coldPhase);
+        phases1.put("somePhase", somePhase);
+        LifecyclePolicy policy1 = new LifecyclePolicy("policy1", phases1, null);
+        LifecyclePolicyMetadata policy1Metadata = new LifecyclePolicyMetadata(policy1, null, 0, 0);
+        policies.put("policy1", policy1Metadata);
+        Map<String, Phase> phases2 = new HashMap<>();
+        phases2.put("cold", coldPhase);
+        LifecyclePolicy policy2 = new LifecyclePolicy("policy2", phases2, null);
+        LifecyclePolicyMetadata policy2Metadata = new LifecyclePolicyMetadata(policy2, null, 0, 0);
+        policies.put("policy2", policy2Metadata);
+        Metadata.Custom lifecycle = new IndexLifecycleMetadata(policies, OperationMode.RUNNING);
+        Metadata badMetadata = Metadata.builder()
+            .putCustom("index_lifecycle", lifecycle)
+            .build();
+        ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
+        DeprecationIssue issue = ClusterDeprecationChecks.checkILMFreezeActions(badState);
+        assertThat(issue, equalTo(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "some ilm policies contain a freeze action, which is deprecated in favor of the frozen tier",
+                "https://ela.st/es-deprecation-7-frozen-indices",
+                "remove freeze action from the following ilm policies: [policy1,policy2]", false, null)
         ));
     }
 }

@@ -54,3 +54,12 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
 
 })
 
+// remove after backporting #77479
+tasks.named("yamlRestTestV7CompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'watcher/put_watch/92_put_watch_with_indices_options/Test put watch with allow no indices',
+    'watcher/put_watch/92_put_watch_with_indices_options/Test put watch with expand wildcards',
+    'watcher/put_watch/92_put_watch_with_indices_options/Test put watch with ignore unavailable'
+  ].join(',')
+}
+

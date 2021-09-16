@@ -738,6 +738,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
             final Request request = new Request("GET", "/" + index + "/_search");
+            request.setOptions(expectWarnings("[ignore_throttled] parameter is deprecated because frozen " +
+                "indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."));
             request.addParameter("ignore_throttled", "false");
             assertThat(XContentMapValues.extractValue("hits.total.value", entityAsMap(client().performRequest(request))),
                 equalTo(totalHits));

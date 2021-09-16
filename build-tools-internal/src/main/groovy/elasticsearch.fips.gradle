@@ -16,17 +16,9 @@ if (BuildParams.inFipsJvm) {
 
   allprojects {
     File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
-    boolean java8 = BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_8
     boolean oracle = BuildParams.runtimeJavaDetails.toLowerCase().contains('oracle')
-    File fipsSecurity;
-    File fipsPolicy;
-    if (java8) {
-      fipsSecurity = new File(fipsResourcesDir, oracle? "fips_java_bcjsse_oracle_8.security" : "fips_java_bcjsse_8.security")
-      fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_8.policy")
-    } else {
-      fipsSecurity = new File(fipsResourcesDir, oracle ? 'fips_java_oracle_11.security' : 'fips_java_bcjsse_11.security')
-      fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_11.policy")
-    }
+    File fipsSecurity = new File(fipsResourcesDir, oracle ? 'fips_java_oracle_11.security' : 'fips_java_bcjsse_11.security')
+    File fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_11.policy")
     File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
     def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2')
     def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.9')

@@ -1030,10 +1030,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
             // end::flush-synced-request-indicesOptions
 
+            RequestOptions requestOptions = expectWarnings(
+                "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.",
+                IGNORE_THROTTLED_DEPRECATION_WARNING
+            );
             // tag::flush-synced-execute
-            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, expectWarnings(
-                "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead."
-            ));
+            SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, requestOptions);
             // end::flush-synced-execute
 
             // tag::flush-synced-response

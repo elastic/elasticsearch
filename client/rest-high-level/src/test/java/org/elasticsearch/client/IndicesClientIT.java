@@ -1003,7 +1003,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(index);
             SyncedFlushResponse flushResponse =
                     execute(syncedFlushRequest, highLevelClient().indices()::flushSynced, highLevelClient().indices()::flushSyncedAsync,
-                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE));
+                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE, IGNORE_THROTTLED_DEPRECATION_WARNING));
             assertThat(flushResponse.totalShards(), equalTo(1));
             assertThat(flushResponse.successfulShards(), equalTo(1));
             assertThat(flushResponse.failedShards(), equalTo(0));
@@ -1019,7 +1019,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                         syncedFlushRequest,
                         highLevelClient().indices()::flushSynced,
                         highLevelClient().indices()::flushSyncedAsync,
-                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
+                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE, IGNORE_THROTTLED_DEPRECATION_WARNING)
                     )
             );
             assertEquals(RestStatus.NOT_FOUND, exception.status());

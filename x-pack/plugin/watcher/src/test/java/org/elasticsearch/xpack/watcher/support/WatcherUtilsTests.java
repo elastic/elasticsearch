@@ -142,9 +142,6 @@ public class WatcherUtilsTests extends ESTestCase {
 
         assertNotNull(result.getTemplate());
         assertThat(result.getTemplate().getLang(), equalTo(stored ? null : "mustache"));
-        if (expectedIndicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
-            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING);
-        }
         if (expectedSource == null) {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedTemplate.getIdOrCode()));
             assertThat(result.getTemplate().getType(), equalTo(expectedTemplate.getType()));
@@ -153,11 +150,16 @@ public class WatcherUtilsTests extends ESTestCase {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedSource.utf8ToString()));
             assertThat(result.getTemplate().getType(), equalTo(ScriptType.INLINE));
         }
-        if (expectedTypes == null) {
-            assertNull(result.getTypes());
-        } else {
+        if (expectedIndicesOptions != DEFAULT_INDICES_OPTIONS && expectedTypes != null) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING, WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
             assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes));
+        } else if (expectedIndicesOptions != DEFAULT_INDICES_OPTIONS) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING);
+        } else if (expectedTypes != null) {
             assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
+            assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes));
+        } else {
+            assertNull(result.getTypes());
         }
     }
 
@@ -190,9 +192,11 @@ public class WatcherUtilsTests extends ESTestCase {
             indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), randomBoolean(), indicesOptions.allowAliasesToMultipleIndices(),
                 indicesOptions.forbidClosedIndices(), indicesOptions.ignoreAliases(), indicesOptions.ignoreThrottled());
-            builder.startObject("indices_options");
-            indicesOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
+            if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+                builder.startObject("indices_options");
+                indicesOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+            }
         }
 
         SearchType searchType = SearchType.DEFAULT;
@@ -231,9 +235,6 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE);
 
-        if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
-            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING);
-        }
         assertThat(result.getIndices(), arrayContainingInAnyOrder(indices));
         assertThat(result.getIndicesOptions(), equalTo(indicesOptions));
         assertThat(result.getSearchType(), equalTo(searchType));
@@ -250,11 +251,16 @@ public class WatcherUtilsTests extends ESTestCase {
             assertThat(result.getTemplate().getParams(), equalTo(template.getParams()));
             assertThat(result.getTemplate().getLang(), equalTo(stored ? null : "mustache"));
         }
-        if (types == Strings.EMPTY_ARRAY) {
-            assertNull(result.getTypes());
-        } else {
+        if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false && types != Strings.EMPTY_ARRAY) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING, WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
             assertThat(result.getTypes(), arrayContainingInAnyOrder(types));
+        } else if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING);
+        } else if (types != Strings.EMPTY_ARRAY) {
             assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
+            assertThat(result.getTypes(), arrayContainingInAnyOrder(types));
+        } else {
+            assertNull(result.getTypes());
         }
     }
 }

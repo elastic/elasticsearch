@@ -292,7 +292,10 @@ final class IndicesRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withIndicesOptions(getFieldMappingsRequest.indicesOptions());
+        if (org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest.DEFAULT_INDICES_OPTIONS.equals(
+            getFieldMappingsRequest.indicesOptions()) == false) {
+            parameters.withIndicesOptions(getFieldMappingsRequest.indicesOptions());
+        }
         parameters.withIncludeDefaults(getFieldMappingsRequest.includeDefaults());
         parameters.withLocal(getFieldMappingsRequest.local());
         parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
@@ -330,9 +333,7 @@ final class IndicesRequestConverters {
         String[] indices = syncedFlushRequest.indices() == null ? Strings.EMPTY_ARRAY : syncedFlushRequest.indices();
         Request request = new Request(HttpPost.METHOD_NAME, RequestConverters.endpoint(indices, "_flush/synced"));
         RequestConverters.Params parameters = new RequestConverters.Params();
-        if (BroadcastRequest.DEFAULT_INDICES_OPTIONS.equals(syncedFlushRequest.indicesOptions()) == false) {
-            parameters.withIndicesOptions(syncedFlushRequest.indicesOptions());
-        }
+        parameters.withIndicesOptions(syncedFlushRequest.indicesOptions());
         request.addParameters(parameters.asMap());
         return request;
     }

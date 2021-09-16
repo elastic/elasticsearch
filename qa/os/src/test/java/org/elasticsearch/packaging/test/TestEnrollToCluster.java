@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
@@ -212,16 +213,14 @@ public class TestEnrollToCluster extends PackagingTestCase {
         // Elasticsearch can't start successfully because we set discovery.seed_hosts as part of the enrollment process and there is no
         // node there to connect to. We just start so that we trigger auto-configuration and validate it was done correctly
         Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment-token", generateMockEnrollmentToken()), true);
-        // Elasticsearch will fail to start, give it enough time to do the enrollment before it fails to start
+        // Elasticsearch will fail to start, give it enough time for the startup script to call out to the enrolling class before the node
+        // gets stuck trying to start because the seed_hosts we configured it with will not reply.
         Thread.sleep(10000);
         verifySecurityAutoConfigured(installation);
         assertThat(esNode.requests().size(), equalTo(1));
         MockRequest request = esNode.takeRequest();
         assertThat(request.getHeader("Authorization"), equalTo("ApiKey c29tZS1hcGkta2V5")); // base64(some-api-key)
-        assertThat(
-            request.getUri().toString(),
-            equalTo("https://" + esNode.getHostName() + ":" + esNode.getPort() + "/_security/enroll/node")
-        );
+        assertThat(request.getUri().toString(), equalTo("/_security/enroll/node"));
     }
 
     public void test50EnrollmentFailsForConfiguredNode() throws Exception {
@@ -285,9 +284,9 @@ public class TestEnrollToCluster extends PackagingTestCase {
     private static void verifySecurityAutoConfigured(Installation es) throws Exception {
         Optional<String> autoConfigDirName = getAutoConfigPathDir(es);
         assertThat(autoConfigDirName.isPresent(), is(true));
-        assertThat(es.config(autoConfigDirName.get()), file(Directory, "root", "elasticsearch", p750));
+        assertThat(es.config(autoConfigDirName.get()), file(Directory, ARCHIVE_OWNER, ARCHIVE_OWNER, p750));
         Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
-            .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), file(File, "root", "elasticsearch", p660)));
+            .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660)));
         assertThat(
             PemUtils.readCertificates(List.of(es.config(autoConfigDirName.get()).resolve("http_ca.crt"))).get(0),
             equalTo(
@@ -301,9 +300,6 @@ public class TestEnrollToCluster extends PackagingTestCase {
         assertThat(configLines, hasItem("xpack.security.enabled: true"));
         assertThat(configLines, hasItem("xpack.security.http.ssl.enabled: true"));
         assertThat(configLines, hasItem("xpack.security.transport.ssl.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.enabled: false"));
-        assertThat(configLines, hasItem("xpack.security.http.ssl.enabled: false"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.enabled: false"));
 
         assertThat(configLines, hasItem("xpack.security.enrollment.enabled: true"));
         assertThat(configLines, hasItem("xpack.security.transport.ssl.verification_mode: certificate"));

@@ -49,6 +49,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         return true;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77755")
     public void testMappingUpdate() {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(randomSupportedVersion()).build())

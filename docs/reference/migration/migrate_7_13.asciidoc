@@ -257,6 +257,25 @@ settings API] to set `action.destructive_requires_name` to `false` to avoid
 errors in 8.0.0.
 ====
 
+[[slow-log-level-removal]]
+.`index.indexing.slowlog.level` and `index.search.slowlog.level` are deprecated.
+[%collapsible]
+====
+*Details* +
+The `index.indexing.slowlog.level` and `index.search.slowlog.level` index
+settings are now deprecated. You use these setting to set the logging level for
+the search and indexing slow logs. To reproduce similar results, use the
+respective `index.*.slowlog.threshold.index.debug` and
+`index.*.slowlog.threshold.index.trace` index settings instead.
+
+For example, to reproduce a `index.indexing.slowlog.level` setting of `INFO`,
+set `index.indexing.slowlog.threshold.index.debug` and
+`index.indexing.slowlog.threshold.index.trace` to `-1`.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the deprecated settings.
+====
+
 [discrete]
 [[breaking_713_eql_deprecations]]
 ==== EQL deprecations

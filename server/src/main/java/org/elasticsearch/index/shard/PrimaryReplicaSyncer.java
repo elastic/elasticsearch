@@ -271,6 +271,7 @@ public class PrimaryReplicaSyncer {
                     break;
                 }
             }
+            task.setTotalOperations(snapshot.totalOperations());
             final long trimmedAboveSeqNo = firstMessage.get() ? maxSeqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
             // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveSeqNo at least
             if (operations.isEmpty() == false || trimmedAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {

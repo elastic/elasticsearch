@@ -54,7 +54,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
     private final IndexSearcher indexSearcher;
     private int docIndex = 0;
-    private final int totalHits;
+    private final AdjustableTotalHits totalHits;
     private ScoreDoc[] scoreDocs;
     private final ParallelArray parallelArray;
     private final Closeable onClose;
@@ -100,8 +100,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
         this.indexSearcher.setQueryCache(null);
         this.parallelArray = new ParallelArray(this.searchBatchSize);
+        this.totalHits = new AdjustableTotalHits();
         final TopDocs topDocs = searchOperations(null);
-        this.totalHits = Math.toIntExact(topDocs.totalHits.value);
         this.scoreDocs = topDocs.scoreDocs;
         fillParallelArray(scoreDocs, parallelArray);
     }
@@ -112,10 +112,28 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         onClose.close();
     }
 
+    /**
+     * {@link org.apache.lucene.search.TotalHits} can be inaccurate if search collectors skip non-competitive hits.
+     * The class allows to adjust the estimated hits when the returned hits is greater than the initial estimated hits.
+     */
+    private static class AdjustableTotalHits {
+        private int estimatedHits = 0;
+        private int actualHits = 0;
+
+        void onQueryResult(TopDocs topDocs) {
+            estimatedHits = Math.max(estimatedHits, Math.toIntExact(topDocs.totalHits.value));
+            actualHits += topDocs.scoreDocs.length;
+        }
+
+        int totalHits() {
+            return Math.max(estimatedHits, actualHits);
+        }
+    }
+
     @Override
     public int totalOperations() {
         assert assertAccessingThread();
-        return totalHits;
+        return totalHits.totalHits();
     }
 
     @Override
@@ -243,7 +261,9 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             .build();
         final SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
         sortBySeqNo.setCanUsePoints();
-        return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, new Sort(sortBySeqNo));
+        final TopDocs topDocs = indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, new Sort(sortBySeqNo));
+        totalHits.onQueryResult(topDocs);
+        return topDocs;
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {

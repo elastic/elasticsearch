@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class LuceneChangesSnapshotTests extends EngineTestCase {
 
@@ -160,12 +161,15 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         engine.refresh("test");
         Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
         try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, between(1, 100), 0, maxSeqNo, false, randomBoolean())) {
-            assertThat(snapshot.totalOperations(), equalTo(seqNoToTerm.size()));
             Translog.Operation op;
+            int foundOps = 0;
             while ((op = snapshot.next()) != null) {
                 assertThat(op.toString(), op.primaryTerm(), equalTo(seqNoToTerm.get(op.seqNo())));
+                foundOps++;
+                assertThat(foundOps + snapshot.skippedOperations(), lessThanOrEqualTo(snapshot.totalOperations()));
             }
             assertThat(snapshot.skippedOperations(), equalTo(0));
+            assertThat(snapshot.totalOperations(), equalTo(seqNoToTerm.size()));
         }
     }
 
@@ -321,12 +325,16 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     private List<Translog.Operation> drainAll(Translog.Snapshot snapshot) throws IOException {
         List<Translog.Operation> operations = new ArrayList<>();
         Translog.Operation op;
+        final int totalBefore = snapshot.totalOperations();
         while ((op = snapshot.next()) != null) {
             final Translog.Operation newOp = op;
             logger.error("Reading [{}]", op);
             assert operations.stream().allMatch(o -> o.seqNo() < newOp.seqNo()) : "Operations [" + operations + "], op [" + op + "]";
             operations.add(newOp);
         }
+        final int totalAfter = snapshot.totalOperations();
+        assertThat(totalBefore, lessThanOrEqualTo(totalAfter));
+        assertThat(operations.size() + snapshot.skippedOperations(), equalTo(totalAfter));
         return operations;
     }
 

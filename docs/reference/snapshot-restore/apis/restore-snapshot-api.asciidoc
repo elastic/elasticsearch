@@ -120,9 +120,7 @@ operation initializes. Defaults to `false`.
 error for any missing index or data stream. Defaults to `false`.
 
 `ignore_index_settings`::
-(Optional, array of string) Index settings to not restore from the snapshot. You
-can't use this option to ignore
-<<index-number-of-shards,`index.number_of_shards`>>.
+(Optional, string or array of strings) Index settings to not restore from the snapshot. You can't use this option to ignore <<index-number-of-shards,`index.number_of_shards`>>.
 +
 For data streams, this option only applies to restored backing indices. New
 backing indices are configured using the data stream's matching index template.
@@ -179,9 +177,7 @@ For data streams, this option only applies to restored backing indices. New
 backing indices are configured using the data stream's matching index template.
 
 `indices`::
-(Optional, string) Comma-separated list of indices and data streams to restore.
-Supports <<api-multi-index,multi-target syntax>>. Defaults to all indices and
-data streams in the snapshot, including system indices.
+(Optional, string or array of strings) Comma-separated list of indices and data streams to restore. Supports <<api-multi-index,multi-target syntax>>. Defaults to all indices and data streams in the snapshot, including system indices.
 
 [[restore-snapshot-api-partial]]
 `partial`::

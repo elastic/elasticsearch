@@ -114,7 +114,7 @@ result in an error on startup.
 
 [discrete]
 [[saml-realm-nameid-changes]]
-.The `nameid_format` SAML realm setting has no default value.
+.The `nameid_format` SAML realm setting no longer has a default value.
 [%collapsible]
 ====
 *Details* +
@@ -136,7 +136,8 @@ IdP. If you want to retain the previous behavior, set `nameid_format` to
 
 *Impact* +
 If you currently don't configure `nameid_format` explicitly, it's possible
-that your configuration won't match the `NameID` format that your IdP expects.
+that your IdP will reject authentication request from {es} because the requests 
+do not specify a `NameID` format (and your IdP is configured to expect one).
 This mismatch can result in a broken SAML configuration. If you're unsure which 
 name format your IdP uses to generate a value for `NameID`, try setting
 `nameid_format` to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` 

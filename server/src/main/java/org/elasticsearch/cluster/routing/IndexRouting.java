@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,6 +20,9 @@ import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
@@ -243,22 +244,27 @@ public abstract class IndexRouting {
                 // Use ^ like Map.Entry's hashcode
                 return Murmur3HashFunction.hash(firstFieldName) ^ firstHash;
             }
-            String[] fields = new String[] { firstFieldName, null };
-            int[] hashes = new int[] { firstHash, 0 };
-            int length = 1;
+            List<NameAndHash> hashes = new ArrayList<>();
+            hashes.add(new NameAndHash(firstFieldName, firstHash));
             do {
                 ensureExpectedToken(Token.FIELD_NAME, source.currentToken(), source);
                 String fieldName = source.currentName();
                 source.nextToken();
-                if (length >= fields.length) {
-                    fields = ArrayUtil.grow(fields, length + 1);
-                    hashes = ArrayUtil.grow(hashes, fields.length);
-                }
-                fields[length] = fieldName;
-                hashes[length] = extractItem(source);
-                length++;
+                hashes.add(new NameAndHash(fieldName, extractItem(source)));
             } while (source.currentToken() != Token.END_OBJECT);
-            return convertManyHashesToOne(length, fields, hashes);
+            Collections.sort(hashes, Comparator.comparing(nameAndHash -> nameAndHash.name));
+            /*
+             * This is the same as Arrays.hash(Map.Entry<fieldName, hash>) but we're
+             * writing it out so for extra paranoia. Changing this will change how
+             * documents are routed and we don't want a jdk update that modifies Arrays
+             * or Map.Entry to sneak up on us.
+             */
+            int hash = 0;
+            for (NameAndHash nameAndHash : hashes) {
+                int thisHash = Murmur3HashFunction.hash(nameAndHash.name) ^ nameAndHash.hash;
+                hash = 31 * hash + thisHash;
+            }
+            return hash;
         }
 
         private static int extractItem(XContentParser source) throws IOException {
@@ -273,45 +279,6 @@ public abstract class IndexRouting {
                 return hash;
             }
             throw new ParsingException(source.getTokenLocation(), "Routing values must be strings but found [{}]", source.currentToken());
-        }
-
-        private static int convertManyHashesToOne(int length, String[] fields, int[] hashes) {
-            new IntroSorter() {
-                String pivot;
-
-                @Override
-                protected void swap(int i, int j) {
-                    String field = fields[i];
-                    fields[i] = fields[j];
-                    fields[j] = field;
-                    int hash = hashes[i];
-                    hashes[i] = hashes[j];
-                    hashes[j] = hash;
-                }
-
-                @Override
-                protected void setPivot(int i) {
-                    pivot = fields[i];
-                }
-
-                @Override
-                protected int comparePivot(int j) {
-                    return pivot.compareTo(fields[j]);
-                }
-            }.sort(0, length);
-            /*
-             * This is the same as Arrays.hash(Map.Entry<fieldName, hash>) but we're
-             * writing it out so we don't have to allocate the entries and for extra
-             * paranoia. Changing this will change how documents are routed and we
-             * don't want a jdk update that modifies Arrays or Map.Entry to sneak up
-             * on us.
-             */
-            int hash = 0;
-            for (int i = 0; i < length; i++) {
-                int thisHash = Murmur3HashFunction.hash(fields[i]) ^ hashes[i];
-                hash = 31 * hash + thisHash;
-            }
-            return hash;
         }
 
         @Override
@@ -336,6 +303,16 @@ public abstract class IndexRouting {
 
         private String error(String operation) {
             return operation + " is not supported because the destination index [" + indexName + "] is in time series mode";
+        }
+    }
+
+    private static class NameAndHash {
+        private final String name;
+        private final int hash;
+
+        NameAndHash(String name, int hash) {
+            this.name = name;
+            this.hash = hash;
         }
     }
 }

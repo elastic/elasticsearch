@@ -9,10 +9,10 @@ SET enrolltocluster=N
 
 :loop
 FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
+    SET previous=!current!
     SET current=%%A
     SET params='%%B'
 	SET silent=N
-
 	IF "!current!" == "-s" (
 		SET silent=Y
 	)
@@ -34,26 +34,32 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 		SET checkpassword=N
 	)
 
-	IF "!current!" == "--enrollment-token" (
-        SHIFT
-        SET enrolltocluster=Y
-        SET enrollmenttoken=%~1
+	IF "!previous!" == "--enrollment-token" (
+	    SET enrollmenttoken=!current!
+		SET enrolltocluster=Y
 	)
 
 	IF "!silent!" == "Y" (
 		SET nopauseonerror=Y
 	) ELSE (
-	    IF "x!newparams!" NEQ "x" (
-	        SET newparams=!newparams! !current!
-        ) ELSE (
-            SET newparams=!current!
-        )
+	    SET SHOULD_SKIP=false
+		IF "!previous!" == "--enrollment-token" SET SHOULD_SKIP=true
+		IF "!current!" == "--enrollment-token" SET SHOULD_SKIP=true
+		IF "!SHOULD_SKIP!" == "false" (
+			IF "x!newparams!" NEQ "x" (
+				SET newparams=!newparams! !current!
+			) ELSE (
+				SET newparams=!current!
+			)
+		)
+
 	)
 
     IF "x!params!" NEQ "x" (
 		GOTO loop
 	)
 )
+echo new parameters: !newparams!
 
 CALL "%~dp0elasticsearch-env.bat" || exit /b 1
 IF ERRORLEVEL 1 (
@@ -75,21 +81,13 @@ IF "%checkpassword%"=="Y" (
   )
 )
 
-rem windows batch pipe will choke on special characters in strings
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^^=^^^^!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^&=^^^&!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^|=^^^|!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^<=^^^<!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
-
-IF "%enrolltocluster%"=="Y" ()
+IF "!enrolltocluster!"=="Y" (
   SET ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.EnrollNodeToCluster
   SET ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
   SET ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli
-  ECHO.!KEYSTORE_PASSWORD!|CALL "%~dp0elasticsearch-cli.bat" --enrollment-token %enrollmenttoken%
-  || GOTO EXIT
+  CALL "%~dp0elasticsearch-cli.bat" --enrollment-token %enrollmenttoken%
 )
+
 
 if not defined ES_TMPDIR (
   for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a
@@ -111,6 +109,14 @@ for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elastic
 if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
   exit /b 1
 )
+
+rem windows batch pipe will choke on special characters in strings
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^^=^^^^!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^&=^^^&!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^|=^^^|!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^<=^^^<!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
 
 ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
   -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" ^

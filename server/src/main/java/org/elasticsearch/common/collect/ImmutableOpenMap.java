@@ -137,6 +137,24 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     /**
+     * Returns a direct stream over the keys.
+     */
+    public Stream<KType> keysStream() {
+        final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
+        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(), Spliterator.SIZED | Spliterator.DISTINCT) {
+            @Override
+            public boolean tryAdvance(Consumer<? super KType> action) {
+                if (iterator.hasNext() == false) {
+                    return false;
+                }
+                ObjectCursor<KType> cursor = iterator.next();
+                action.accept(cursor.value);
+                return true;
+            }
+        }, false);
+    }
+
+    /**
      * @return Returns a container with all values stored in this map.
      */
     public ObjectContainer<VType> values() {

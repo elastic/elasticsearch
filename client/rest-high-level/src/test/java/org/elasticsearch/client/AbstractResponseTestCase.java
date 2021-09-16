@@ -19,10 +19,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Base class for HLRC response parsing tests.
@@ -80,12 +79,7 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
     }
 
     protected static <T> void assertMapEquals(ImmutableOpenMap<String, T> expected, Map<String, T> actual) {
-        Set<String> expectedKeys = new HashSet<>();
-        Iterator<String> keysIt = expected.keysIt();
-        while (keysIt.hasNext()) {
-            expectedKeys.add(keysIt.next());
-        }
-
+        Set<String> expectedKeys = expected.keysStream().collect(Collectors.toSet());
         assertEquals(expectedKeys, actual.keySet());
         for (String key : expectedKeys) {
             assertEquals(expected.get(key), actual.get(key));

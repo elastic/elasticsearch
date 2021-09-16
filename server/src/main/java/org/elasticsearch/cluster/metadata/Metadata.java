@@ -1448,7 +1448,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         visibleClosedIndices.add(name);
                     }
                 }
-                indexMetadata.getAliases().keysIt().forEachRemaining(allAliases::add);
+                indexMetadata.getAliases().keysStream().forEach(allAliases::add);
             }
 
             final Set<String> allDataStreams = new HashSet<>();

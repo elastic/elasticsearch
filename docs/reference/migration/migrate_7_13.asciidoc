@@ -252,14 +252,22 @@ errors in 8.0.0.
 ====
 
 [[slow-log-level-removal]]
-.`index.indexing.slowlog.level` and `index.search.slowlog.level` are removed.
+.`index.indexing.slowlog.level` and `index.search.slowlog.level` are deprecated.
 [%collapsible]
 ====
 *Details* +
-`index.indexing.slowlog.level` and `index.search.slowlog.level` are removed. These settings can be worked around
-by using appropriate thresholds. If for instance we want to simulate `index.indexing.slowlog.level` = `INFO` then
-all we need to do is to set `index.indexing.slowlog.threshold.index.debug` and
-`index.indexing.slowlog.threshold.index.trace` to `-1` {es-pull}57591[#57591]
+The `index.indexing.slowlog.level` and `index.search.slowlog.level` index
+settings are now deprecated. You use these setting to set the logging level for
+the search and indexing slow logs. To reproduce similar results, use the
+respective `index.*.slowlog.threshold.index.debug` and
+`index.*.slowlog.threshold.index.trace` index settings instead.
+
+For example, to reproduce a `index.indexing.slowlog.level` setting of `INFO`,
+set `index.indexing.slowlog.threshold.index.debug` and
+`index.indexing.slowlog.threshold.index.trace` to `-1`.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the deprecated settings.
 ====
 
 [discrete]

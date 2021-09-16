@@ -348,10 +348,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         final TrainedModelAllocationMetadata previousState = TrainedModelAllocationMetadata.fromState(currentState);
         final TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
         Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
-        Map<String, DiscoveryNode> currentNotShuttingDownNodes = currentState.getNodes()
+        Map<String, DiscoveryNode> currentEligibleNodes = currentState.getNodes()
             .getAllNodes()
             .stream()
-            .filter(node -> shuttingDownNodes.contains(node.getId()) == false)
+            // TODO: Change when we update `mayAllocateToNode`
+            .filter(node -> shuttingDownNodes.contains(node.getId()) == false
+                && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node))
             .collect(Collectors.toMap(DiscoveryNode::getId, Function.identity()));
         // TODO: make more efficient, we iterate every entry, sorting by nodes routed (fewest to most)
         previousState.modelAllocations()
@@ -362,15 +364,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             .forEach(modelAllocationEntry -> {
                 final String modelId = modelAllocationEntry.getKey();
                 Map<String, String> nodeToReason = new TreeMap<>();
-                for (DiscoveryNode node : currentNotShuttingDownNodes.values()) {
-                    if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)
-                        && modelAllocationEntry.getValue().isRoutedToNode(node.getId()) == false) {
-                        Optional<String> failure = nodeHasCapacity(
-                            currentState,
-                            builder,
-                            modelAllocationEntry.getValue().getTaskParams(),
-                            node
-                        );
+                for (DiscoveryNode node : currentEligibleNodes.values()) {
+                    if (modelAllocationEntry.getValue().isRoutedToNode(node.getId()) == false) {
+                        Optional<String> failure = builder.isChanged() ?
+                            // We use the builder only if we have changed, there is no point in creating a new object if we haven't changed
+                            nodeHasCapacity(currentState, builder, modelAllocationEntry.getValue().getTaskParams(), node) :
+                            nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node);
                         if (failure.isPresent()) {
                             nodeToReason.put(node.getName(), failure.get());
                         } else {
@@ -397,7 +396,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                     builder.getAllocation(modelId).clearReason();
                 }
                 for (String nodeId : modelAllocationEntry.getValue().getNodeRoutingTable().keySet()) {
-                    if (currentNotShuttingDownNodes.containsKey(nodeId) == false) {
+                    if (currentEligibleNodes.containsKey(nodeId) == false) {
                         builder.getAllocation(modelId).removeRoutingEntry(nodeId);
                     }
                 }
@@ -442,15 +441,24 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         return handleNodeLoad(load, node.getId(), params);
     }
 
+    /**
+     *  Gather current node capacity taking the passed allocation metadata into account instead of the one stored in cluster state.
+     */
     Optional<String> nodeHasCapacity(
         ClusterState state,
         TrainedModelAllocationMetadata.Builder builder,
         StartTrainedModelDeploymentAction.TaskParams params,
         DiscoveryNode node
     ) {
-        NodeLoad load = builder.isChanged()
-            ? nodeLoadDetector.detectNodeLoad(state, builder.build(), true, node, Integer.MAX_VALUE, maxMemoryPercentage, useAuto)
-            : nodeLoadDetector.detectNodeLoad(state, true, node, Integer.MAX_VALUE, maxMemoryPercentage, useAuto);
+        NodeLoad load = nodeLoadDetector.detectNodeLoad(
+            state,
+            builder.build(),
+            true,
+            node,
+            Integer.MAX_VALUE,
+            maxMemoryPercentage,
+            useAuto
+        );
         return handleNodeLoad(load, node.getId(), params);
     }
 

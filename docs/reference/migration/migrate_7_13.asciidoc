@@ -11,12 +11,12 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_713_mapping_changes>>
 * <<breaking_713_ssl_changes>>
-* <<breaking_713_frozen_multiple_data_paths_changes>>
+* <<breaking_713_settings_changes>>
 * <<breaking_713_agg_deprecations>>
 * <<breaking_713_infra_core_deprecations>>
 * <<breaking_713_eql_deprecations>>
-* <<breaking_713_security_changes>>
-* <<breaking_713_setting_changes>>
+* <<breaking_713_security_deprecations>>
+* <<breaking_713_settings_deprecations>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -291,7 +291,7 @@ instead.
 ====
 
 [discrete]
-[[breaking_713_security_changes]]
+[[breaking_713_security_deprecations]]
 ==== Security deprecations
 
 [[implicitly-disabled-basic-realms]]
@@ -331,8 +331,8 @@ configuration will result in an error on startup.
 ====
 
 [discrete]
-[[breaking_713_setting_changes]]
-==== Setting deprecations
+[[breaking_713_settings_deprecations]]
+==== Settings deprecations
 
 [[deprecate-shared-data-path-settings]]
 .The `path.shared_data` and `index.data_path` settings are deprecated.

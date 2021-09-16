@@ -24,7 +24,7 @@ Packaging::
 * Remove no-jdk distributions {es-pull}76896[#76896] (issue: {es-issue}65109[#65109])
 
 Security::
-* Remove dashboard only reserved role {es-pull}76507[#76507]
+* Remove `kibana_dashboard_only_user` reserved role {es-pull}76507[#76507]
 
 
 [[enhancement-8.0.0-alpha2]]
@@ -32,12 +32,12 @@ Security::
 === Enhancements
 
 Authentication::
-* Autogenerate and print elastic pwd on startup {es-pull}77291[#77291]
+* Autogenerate and print elastic password on startup {es-pull}77291[#77291]
 * Enroll Kibana API uses Service Accounts {es-pull}76370[#76370]
-* Introduces reset-kibana-system-user tool {es-pull}77322[#77322]
+* Add `reset-kibana-system-user` tool {es-pull}77322[#77322]
 
 ILM+SLM::
-* Allow for setting the total shards per node in the Allocate ILM action #76775 {es-pull}76794[#76794] (issue: {es-issue}76775[#76775])
+* Allow for setting the total shards per node in the Allocate ILM action {es-pull}76794[#76794] (issue: {es-issue}76775[#76775])
 
 Infra/Core::
 * Retain reference to stdout for exceptional cases {es-pull}77460[#77460]
@@ -53,17 +53,17 @@ Network::
 * Enable LZ4 transport compression by default {es-pull}76326[#76326] (issue: {es-issue}73497[#73497])
 
 Search::
-* [Rest Api Compatibility] Nested path and filter sort options {es-pull}76022[#76022] (issues: {es-issue}42809[#42809], {es-issue}51816[#51816])
-* [Rest Api Compatibility] `CommonTermsQuery` and `cutoff_frequency` param {es-pull}75896[#75896] (issues: {es-issue}42654[#42654], {es-issue}51816[#51816])
-* [Rest Api Compatibility] Allow first empty line for msearch {es-pull}75886[#75886] (issues: {es-issue}41011[#41011], {es-issue}51816[#51816])
+* [REST API Compatibility] Nested path and filter sort options {es-pull}76022[#76022] (issues: {es-issue}42809[#42809], {es-issue}51816[#51816])
+* [REST API Compatibility] `CommonTermsQuery` and `cutoff_frequency` parameter {es-pull}75896[#75896] (issues: {es-issue}42654[#42654], {es-issue}51816[#51816])
+* [REST API Compatibility] Allow first empty line for `_msearch` {es-pull}75886[#75886] (issues: {es-issue}41011[#41011], {es-issue}51816[#51816])
 
 
 Security::
 * Adding base `RestHandler` class for Enrollment APIs {es-pull}76564[#76564] (issue: {es-issue}76097[#76097])
 * Generate and store password hash for elastic user {es-pull}76276[#76276] (issue: {es-issue}75310[#75310])
 * Set elastic password and generate enrollment token {es-pull}75816[#75816] (issue: {es-issue}75310[#75310])
-* Enroll additional nodes to cluster {es-pull}77292[#77292]
-* Default hasher to PBKDF2_STRETCH on FIPS mode {es-pull}76274[#76274]
+* Add `elasticsearch-enroll-node` tool {es-pull}77292[#77292]
+* Default hasher to `PBKDF2_STRETCH` on FIPS mode {es-pull}76274[#76274]
 
 
 [[bug-8.0.0-alpha2]]

@@ -30,14 +30,14 @@
   - do:
       index:
         index: my_ds
-        body: { "foo": "bar1", "@timestamp": "2021-08-01" }
+        body: { "foo": "bar1", "@timestamp": "2021-08-21" }
         refresh: true
 
   # 2nd segment
   - do:
       index:
         index: my_ds
-        body: { "foo": "bar2", "@timestamp": "2021-08-02" }
+        body: { "foo": "bar2", "@timestamp": "2021-08-22" }
         refresh: true
 
   # test that segments are sorted as indexed by @timestamp ASC
@@ -47,8 +47,8 @@
         body:
           fields: [{ "field":"@timestamp", "format":"yyyy-MM-dd" }]
   - match: { hits.total.value: 2 }
-  - match: { hits.hits.0.fields.@timestamp: ["2021-08-01"] }
-  - match: { hits.hits.1.fields.@timestamp: ["2021-08-02"] }
+  - match: { hits.hits.0.fields.@timestamp: ["2021-08-21"] }
+  - match: { hits.hits.1.fields.@timestamp: ["2021-08-22"] }
 
   # migrate to data-stream
   - do:
@@ -64,8 +64,8 @@
         body:
           fields: [{ "field":"@timestamp", "format":"yyyy-MM-dd" }]
   - match: { hits.total.value: 2 }
-  - match: { hits.hits.0.fields.@timestamp: ["2021-08-01"] }
-  - match: { hits.hits.1.fields.@timestamp: ["2021-08-02"] }
+  - match: { hits.hits.0.fields.@timestamp: ["2021-08-21"] }
+  - match: { hits.hits.1.fields.@timestamp: ["2021-08-22"] }
 
   # rollover data stream to create new backing index
   - do:
@@ -79,14 +79,14 @@
   - do:
       index:
         index: my_ds
-        body: { "foo": "bar3", "@timestamp": "2021-08-03" }
+        body: { "foo": "bar3", "@timestamp": "2021-08-23" }
         refresh: true
 
   # 2nd segment in the new backing index
   - do:
       index:
         index: my_ds
-        body: { "foo": "bar4", "@timestamp": "2021-08-04" }
+        body: { "foo": "bar4", "@timestamp": "2021-08-24" }
         refresh: true
 
 
@@ -98,8 +98,8 @@
         body:
           fields: [{ "field":"@timestamp", "format":"yyyy-MM-dd" }]
   - match: { hits.total.value: 2 }
-  - match: { hits.hits.0.fields.@timestamp: ["2021-08-04"] }
-  - match: { hits.hits.1.fields.@timestamp: ["2021-08-03"] }
+  - match: { hits.hits.0.fields.@timestamp: ["2021-08-24"] }
+  - match: { hits.hits.1.fields.@timestamp: ["2021-08-23"] }
 
 
   - do:

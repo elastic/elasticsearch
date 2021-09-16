@@ -94,11 +94,11 @@ SSL/TLS versions on your JDK].
 [[deprecated-7.12]]
 === Deprecations
 
-The following functionality has been deprecated in {es} 7.10
+The following functionality has been deprecated in {es} 7.12
 and will be removed in 8.0
 While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code
-after upgrading to 7.10.
+after upgrading to 7.12.
 
 NOTE: Significant changes in behavior are deprecated in a minor release and
 the old behavior is supported until the next major release.

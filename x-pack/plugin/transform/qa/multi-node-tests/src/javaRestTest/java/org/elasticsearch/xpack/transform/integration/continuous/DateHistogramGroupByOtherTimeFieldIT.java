@@ -91,8 +91,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
 
     @Override
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false);
         SearchSourceBuilder sourceBuilderSource = new SearchSourceBuilder().size(0);
         DateHistogramAggregationBuilder bySecond = new DateHistogramAggregationBuilder("second").field(metricTimestampField)
             .fixedInterval(DateHistogramInterval.SECOND)
@@ -106,8 +105,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         searchRequestSource.source(sourceBuilderSource);
         SearchResponse responseSource = search(searchRequestSource);
 
-        SearchRequest searchRequestDest = new SearchRequest(NAME).allowPartialSearchResults(false)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        SearchRequest searchRequestDest = new SearchRequest(NAME).allowPartialSearchResults(false);
         SearchSourceBuilder sourceBuilderDest = new SearchSourceBuilder().size(10000).sort("second");
         if (addGroupByTerms) {
             sourceBuilderDest.sort("event");

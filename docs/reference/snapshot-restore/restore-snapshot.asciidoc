@@ -340,7 +340,6 @@ DELETE _data_stream/*
 . Restore the entire snapshot, including the cluster state. This also restores
 any system indices in the snapshot.
 +
---
 [source,console]
 ----
 POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 

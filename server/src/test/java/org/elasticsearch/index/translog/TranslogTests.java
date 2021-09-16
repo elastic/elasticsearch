@@ -3474,6 +3474,9 @@ public class TranslogTests extends ESTestCase {
                         }
                     }
                 });
+                if (randomBoolean()) {
+                    threads[t].setName("[" + ThreadPool.Names.WRITE + "]" + threads[t].getName());
+                }
                 threads[t].start();
             }
             for (Thread thread : threads) {

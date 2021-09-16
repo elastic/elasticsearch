@@ -334,6 +334,32 @@ configuration will result in an error on startup.
 [[breaking_713_settings_deprecations]]
 ==== Settings deprecations
 
+[[deprecate-tier-filter-setting]]
+.Several tier filtering settings are deprecated.
+[%collapsible]
+====
+*Details* +
+The following cluster settings are now deprecated:
+
+- `cluster.routing.allocation.include._tier`
+- `cluster.routing.allocation.exclude._tier`
+- `cluster.routing.allocation.require._tier`
+
+The following index settings are also now deprecated:
+
+- `index.routing.allocation.include._tier`
+- `index.routing.allocation.exclude._tier`
+- `index.routing.allocation.require._tier`
+
+These settings are used to filter the allocation of a shard to a specific set of
+nodes. Instead, use the
+{ref}/data-tier-shard-filtering.html#tier-preference-allocation-filter[`index.routing.allocation.include._tier_preference`]
+index setting.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the deprecated settings.
+====
+
 [[deprecate-shared-data-path-settings]]
 .The `path.shared_data` and `index.data_path` settings are deprecated.
 [%collapsible]

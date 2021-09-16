@@ -451,8 +451,8 @@ GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node
 === Cancel a restore
 
 You can delete an index or data stream to cancel its ongoing restore. This also
-deletes any existing data in the cluster for the index or data stream. The
-operations don't affect the snapshot or its data.
+deletes any existing data in the cluster for the index or data stream. Deleting
+an index or data stream doesn't affect the snapshot or its data.
 
 [source,console]
 ----

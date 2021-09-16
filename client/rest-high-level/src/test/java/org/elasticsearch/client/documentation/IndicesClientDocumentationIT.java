@@ -111,6 +111,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.IndicesClientIT.FROZEN_INDICES_DEPRECATION_WARNING;
+import static org.elasticsearch.client.IndicesClientIT.IGNORE_THROTTLED_DEPRECATION_WARNING;
 import static org.elasticsearch.client.IndicesClientIT.LEGACY_TEMPLATE_OPTIONS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -161,8 +162,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.indicesOptions(indicesOptions); // <4>
             // end::indices-exists-request-optionals
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::indices-exists-execute
-            boolean exists = client.indices().exists(request, RequestOptions.DEFAULT);
+            boolean exists = client.indices().exists(request, requestOptions);
             // end::indices-exists-execute
             assertTrue(exists);
         }
@@ -229,8 +231,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
             // end::delete-index-request-indicesOptions
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::delete-index-execute
-            AcknowledgedResponse deleteIndexResponse = client.indices().delete(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse deleteIndexResponse = client.indices().delete(request, requestOptions);
             // end::delete-index-execute
 
             // tag::delete-index-response
@@ -593,8 +596,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
             // end::get-mappings-request-indicesOptions
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::get-mappings-execute
-            GetMappingsResponse getMappingResponse = client.indices().getMapping(request, RequestOptions.DEFAULT);
+            GetMappingsResponse getMappingResponse = client.indices().getMapping(request, requestOptions);
             // end::get-mappings-execute
 
             // tag::get-mappings-response
@@ -713,10 +717,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.local(true); // <1>
         // end::get-field-mappings-request-local
 
+        RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
         {
             // tag::get-field-mappings-execute
             GetFieldMappingsResponse response =
-                client.indices().getFieldMapping(request, RequestOptions.DEFAULT);
+                client.indices().getFieldMapping(request, requestOptions);
             // end::get-field-mappings-execute
 
             // tag::get-field-mappings-response
@@ -767,7 +772,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             });
 
             // tag::get-field-mappings-execute-async
-            client.indices().getFieldMappingAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().getFieldMappingAsync(request, requestOptions, listener); // <1>
             // end::get-field-mappings-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -807,8 +812,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.indicesOptions(IndicesOptions.strictExpandOpen()); // <1>
             // end::open-index-request-indicesOptions
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::open-index-execute
-            OpenIndexResponse openIndexResponse = client.indices().open(request, RequestOptions.DEFAULT);
+            OpenIndexResponse openIndexResponse = client.indices().open(request, requestOptions);
             // end::open-index-execute
 
             // tag::open-index-response
@@ -838,7 +844,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::open-index-execute-async
-            client.indices().openAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().openAsync(request, requestOptions, listener); // <1>
             // end::open-index-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -874,7 +880,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::refresh-request
 
             // tag::refresh-request-indicesOptions
-            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            request.indicesOptions(IndicesOptions.strictExpandOpenAndForbidClosed()); // <1>
             // end::refresh-request-indicesOptions
 
             // tag::refresh-execute
@@ -954,8 +960,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.force(true); // <1>
             // end::flush-request-force
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::flush-execute
-            FlushResponse flushResponse = client.indices().flush(request, RequestOptions.DEFAULT);
+            FlushResponse flushResponse = client.indices().flush(request, requestOptions);
             // end::flush-execute
 
             // tag::flush-response
@@ -984,7 +991,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::flush-execute-async
-            client.indices().flushAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().flushAsync(request, requestOptions, listener); // <1>
             // end::flush-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1114,8 +1121,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
         // end::get-settings-request-indicesOptions
 
+        RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
         // tag::get-settings-execute
-        GetSettingsResponse getSettingsResponse = client.indices().getSettings(request, RequestOptions.DEFAULT);
+        GetSettingsResponse getSettingsResponse = client.indices().getSettings(request, requestOptions);
         // end::get-settings-execute
 
         // tag::get-settings-response
@@ -1150,7 +1158,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::get-settings-execute-async
-        client.indices().getSettingsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        client.indices().getSettingsAsync(request, requestOptions, listener); // <1>
         // end::get-settings-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1167,7 +1175,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
 
         GetSettingsRequest request = new GetSettingsRequest().indices("index");
-        request.indicesOptions(IndicesOptions.lenientExpandOpen());
 
         // tag::get-settings-request-include-defaults
         request.includeDefaults(true); // <1>
@@ -1233,8 +1240,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.includeDefaults(true); // <1>
         // end::get-index-request-includeDefaults
 
+        RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
         // tag::get-index-execute
-        GetIndexResponse getIndexResponse = client.indices().get(request, RequestOptions.DEFAULT);
+        GetIndexResponse getIndexResponse = client.indices().get(request, requestOptions);
         // end::get-index-execute
 
         // tag::get-index-response
@@ -1278,7 +1286,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::get-index-execute-async
-        client.indices().getAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        client.indices().getAsync(request, requestOptions, listener); // <1>
         // end::get-index-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1319,8 +1327,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.flush(true); // <1>
             // end::force-merge-request-flush
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::force-merge-execute
-            ForceMergeResponse forceMergeResponse = client.indices().forcemerge(request, RequestOptions.DEFAULT);
+            ForceMergeResponse forceMergeResponse = client.indices().forcemerge(request, requestOptions);
             // end::force-merge-execute
 
             // tag::force-merge-response
@@ -1345,7 +1354,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::force-merge-execute-listener
 
             // tag::force-merge-execute-async
-            client.indices().forcemergeAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().forcemergeAsync(request, requestOptions, listener); // <1>
             // end::force-merge-execute-async
         }
         {
@@ -1397,8 +1406,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.fields("field1", "field2", "field3"); // <1>
             // end::clear-cache-request-fields
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::clear-cache-execute
-            ClearIndicesCacheResponse clearCacheResponse = client.indices().clearCache(request, RequestOptions.DEFAULT);
+            ClearIndicesCacheResponse clearCacheResponse = client.indices().clearCache(request, requestOptions);
             // end::clear-cache-execute
 
             // tag::clear-cache-response
@@ -1473,8 +1483,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
             // end::close-index-request-indicesOptions
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::close-index-execute
-            AcknowledgedResponse closeIndexResponse = client.indices().close(request, RequestOptions.DEFAULT);
+            AcknowledgedResponse closeIndexResponse = client.indices().close(request, requestOptions);
             // end::close-index-execute
 
             // tag::close-index-response
@@ -1541,8 +1552,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.local(true); // <1>
             // end::exists-alias-request-local
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::exists-alias-execute
-            boolean exists = client.indices().existsAlias(request, RequestOptions.DEFAULT);
+            boolean exists = client.indices().existsAlias(request, requestOptions);
             // end::exists-alias-execute
             assertTrue(exists);
 
@@ -2008,8 +2020,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.local(true); // <1>
             // end::get-alias-request-local
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::get-alias-execute
-            GetAliasesResponse response = client.indices().getAlias(request, RequestOptions.DEFAULT);
+            GetAliasesResponse response = client.indices().getAlias(request, requestOptions);
             // end::get-alias-execute
 
             // tag::get-alias-response
@@ -2048,7 +2061,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::get-alias-execute-async
-            client.indices().getAliasAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().getAliasAsync(request, requestOptions, listener); // <1>
             // end::get-alias-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -2121,9 +2134,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
         // end::indices-put-settings-request-indicesOptions
 
+        RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
         // tag::indices-put-settings-execute
         AcknowledgedResponse updateSettingsResponse =
-                client.indices().putSettings(request, RequestOptions.DEFAULT);
+                client.indices().putSettings(request, requestOptions);
         // end::indices-put-settings-execute
 
         // tag::indices-put-settings-response
@@ -2987,7 +3001,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             final RequestOptions freezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(
-                    warnings -> org.elasticsearch.core.List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false
+                    warnings -> org.elasticsearch.core.List.of(FROZEN_INDICES_DEPRECATION_WARNING, IGNORE_THROTTLED_DEPRECATION_WARNING).equals(warnings) == false
                 )
                 .build();
 
@@ -3072,7 +3086,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::unfreeze-index-execute
             final RequestOptions unfreezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(
-                    warnings -> org.elasticsearch.core.List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false
+                    warnings -> org.elasticsearch.core.List.of(FROZEN_INDICES_DEPRECATION_WARNING, IGNORE_THROTTLED_DEPRECATION_WARNING).equals(warnings) == false
                 )
                 .build();
             ShardsAcknowledgedResponse openIndexResponse = client.indices().unfreeze(request, unfreezeIndexOptions);

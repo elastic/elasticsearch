@@ -599,19 +599,29 @@ GET /_search
   "aggs": {
     "my_buckets": {
       "composite": {
-        "sources": [
-          { "product_name": { "terms": { "field": "product", "missing_bucket": true } } }
-        ]
+        "sources": [{
+          "product_name": {
+            "terms": {
+              "field": "product",
+              "missing_bucket": true,
+              "missing_order": "last"
+            }
+          }
+        }]
       }
     }
   }
 }
 --------------------------------------------------
 
-In the example above the source `product_name` will emit an explicit `null` value
-for documents without a value for the field `product`.
-The `order` specified in the source dictates whether the `null` values should rank
-first (ascending order, `asc`) or last (descending order, `desc`).
+In the example above the source `product_name` will emit an explicit `null` bucket for
+documents without a value for the field `product` and the bucket will be placed last.
+
+The position of the `null` bucket can be controlled with the optional `missing_order`
+parameter. If `missing_order` is `first` or last `last`, the `null` bucket will be placed
+at first or last position respectively. If `missing_order` is omitted or `default` the
+`order` specified in the source dictates whether the `null` bucket should rank first
+(ascending order, `asc`) or last (descending order, `desc`).
 
 ==== Size
 

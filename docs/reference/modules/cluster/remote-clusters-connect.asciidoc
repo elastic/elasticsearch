@@ -18,15 +18,14 @@ cluster followed by the transport port (defaults to `9300`). For example,
 Alternatively, use the <<cluster-update-settings,cluster update settings API>>
 to add a remote cluster. You can also use this API to
 <<configure-remote-clusters-dynamic,apply and update>> settings across the
-entire remote cluster. To limit which nodes can connect to a remote cluster
-and serve remote cluster requests, define
+entire remote cluster. To configure settings on individual nodes in a remote
+cluster, define
 <<configure-remote-clusters-static,static settings>> in `elasticsearch.yml`.
 
 The following request adds a remote cluster with an alias of `cluster_one`. This
-_cluster alias_ represents the connection to the remote cluster and is used 
-subsequently to distinguish between local and remote indices. When adding a
-remote cluster in {kib}, the cluster alias serves as a unique identifier for the
-remote cluster.
+_cluster alias_ is a unique identifier that represents the connection to the 
+remote cluster and is used subsequently to distinguish between local and remote 
+indices.
 
 [source,console]
 ----
@@ -35,9 +34,9 @@ PUT /_cluster/settings
   "persistent" : {
     "cluster" : {
       "remote" : {
-        "cluster_one" : {
+        "cluster_one" : {    <1>
           "seeds" : [
-            "127.0.0.1:9300" <1>
+            "127.0.0.1:9300" <2>
           ]
         }
       }
@@ -47,7 +46,8 @@ PUT /_cluster/settings
 ----
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
-<1> Specifies the hostname and transport port of a seed node in the remote
+<1> The cluster alias of this remote cluster is `cluster_one`.
+<2> Specifies the hostname and transport port of a seed node in the remote
     cluster.
 
 You can use the <<cluster-remote-info,remote cluster info API>> to verify that

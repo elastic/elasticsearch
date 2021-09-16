@@ -105,9 +105,9 @@ POST /_security/role/remote-replication
 
 After creating the `remote-replication` role on each cluster, use the 
 <<security-api-put-user,create or update users API>> to create a user on
-each cluster and assign the `remote-replication` role. For example, the
-following request assigns the `remote-replication` role to a user named
-`cross-cluster-user`:
+the local cluster cluster and assign the `remote-replication` role. For
+example, the following request assigns the `remote-replication` role to a user
+named `cross-cluster-user`:
 
 [source,console]
 ----
@@ -118,6 +118,8 @@ POST /_security/user/cross-cluster-user
 }
 ----
 // TEST[continued]
+
+NOTE: You only need to create this user on the *local* cluster.
 
 //end::configure-ccr-privileges[]
 
@@ -182,13 +184,10 @@ POST /_security/role/remote-search
 {}
 ----
 
-After creating the `remote-replication` role on each cluster, create a user on
-each cluster and assign the `remote-replication` role. 
-
 After creating the `remote-search` role on each cluster, use the 
-<<security-api-put-user,create or update users API>> to create a user on each 
-cluster and assign the `remote-search` role. For example, the following request 
-assigns the `remote-search` role to a user named `cross-search-user`:
+<<security-api-put-user,create or update users API>> to create a user on the
+local cluster and assign the `remote-search` role. For example, the following
+request assigns the `remote-search` role to a user named `cross-search-user`:
 
 [source,console]
 ----
@@ -199,6 +198,8 @@ POST /_security/user/cross-search-user
 }
 ----
 // TEST[continued]
+
+NOTE: You only need to create this user on the *local* cluster.
 
 Users with the `remote-search` role can then
 <<modules-cross-cluster-search,search across clusters>>.

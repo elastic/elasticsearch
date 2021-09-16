@@ -9,12 +9,9 @@ your application to {es} 7.15.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-<<<<<<< HEAD
-=======
 * <<breaking_715_indices_deprecations>>
 * <<breaking_715_settings_deprecations>>
 
->>>>>>> upstream/7.x
 ////
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

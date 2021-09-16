@@ -43,6 +43,8 @@ public class LifecycleExecutionState {
     private static final String SHRINK_INDEX_NAME ="shrink_index_name";
     private static final String ROLLUP_INDEX_NAME = "rollup_index_name";
 
+    public static final LifecycleExecutionState EMPTY_STATE = LifecycleExecutionState.builder().build();
+
     private final String phase;
     private final String action;
     private final String step;
@@ -96,7 +98,7 @@ public class LifecycleExecutionState {
         if (customData != null && customData.isEmpty() == false) {
             return fromCustomMetadata(customData);
         } else {
-            return LifecycleExecutionState.builder().build();
+            return EMPTY_STATE;
         }
     }
 
@@ -162,7 +164,6 @@ public class LifecycleExecutionState {
     }
 
     static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
-        assert customData.isEmpty() == false;
         Builder builder = builder();
         String phase = customData.get(PHASE);
         if (phase != null) {

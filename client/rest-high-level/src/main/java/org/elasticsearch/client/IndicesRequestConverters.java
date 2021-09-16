@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateDataStreamRequest;
@@ -248,7 +249,9 @@ final class IndicesRequestConverters {
 
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());
-        parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
+        if (ClusterInfoRequest.DEFAULT_INDICES_OPTIONS.equals(getMappingsRequest.indicesOptions()) == false) {
+            parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
+        }
         parameters.withLocal(getMappingsRequest.local());
         parameters.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
         request.addParameters(parameters.asMap());
@@ -327,7 +330,9 @@ final class IndicesRequestConverters {
         String[] indices = syncedFlushRequest.indices() == null ? Strings.EMPTY_ARRAY : syncedFlushRequest.indices();
         Request request = new Request(HttpPost.METHOD_NAME, RequestConverters.endpoint(indices, "_flush/synced"));
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withIndicesOptions(syncedFlushRequest.indicesOptions());
+        if (BroadcastRequest.DEFAULT_INDICES_OPTIONS.equals(syncedFlushRequest.indicesOptions()) == false) {
+            parameters.withIndicesOptions(syncedFlushRequest.indicesOptions());
+        }
         request.addParameters(parameters.asMap());
         return request;
     }
@@ -518,7 +523,9 @@ final class IndicesRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params();
-        params.withIndicesOptions(getIndexRequest.indicesOptions());
+        if (ClusterInfoRequest.DEFAULT_INDICES_OPTIONS.equals(getIndexRequest.indicesOptions()) == false) {
+            params.withIndicesOptions(getIndexRequest.indicesOptions());
+        }
         params.withLocal(getIndexRequest.local());
         params.withIncludeDefaults(getIndexRequest.includeDefaults());
         params.withHuman(getIndexRequest.humanReadable());
@@ -562,7 +569,9 @@ final class IndicesRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params();
         params.withLocal(getIndexRequest.local());
         params.withHuman(getIndexRequest.humanReadable());
-        params.withIndicesOptions(getIndexRequest.indicesOptions());
+        if (ClusterInfoRequest.DEFAULT_INDICES_OPTIONS.equals(getIndexRequest.indicesOptions()) == false) {
+            params.withIndicesOptions(getIndexRequest.indicesOptions());
+        }
         params.withIncludeDefaults(getIndexRequest.includeDefaults());
         params.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
         request.addParameters(params.asMap());

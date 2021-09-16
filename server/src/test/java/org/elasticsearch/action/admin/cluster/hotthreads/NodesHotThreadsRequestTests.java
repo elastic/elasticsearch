@@ -8,77 +8,61 @@
 
 package org.elasticsearch.action.admin.cluster.hotthreads;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 public class NodesHotThreadsRequestTests extends ESTestCase {
 
-    /** Simple override of BaseNodesRequest to ensure we read the
-     * common fields of the nodes request.
-     */
-    static class NodesHotThreadsRequestHelper extends BaseNodesRequest<NodesHotThreadsRequestHelper> {
-        NodesHotThreadsRequestHelper(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        NodesHotThreadsRequestHelper(String... nodesIds) {
-            super(nodesIds);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
-    }
-
     public void testBWCSerialization() throws IOException {
-        BytesStreamOutput out = new BytesStreamOutput();
-
         TimeValue sampleInterval = new TimeValue(50, TimeUnit.MINUTES);
 
-        NodesHotThreadsRequestHelper outHelper = new NodesHotThreadsRequestHelper("123");
+        NodesHotThreadsRequest request = new NodesHotThreadsRequest("123");
+        request.threads(4);
+        request.ignoreIdleThreads(false);
+        request.type(HotThreads.ReportType.BLOCK);
+        request.interval(sampleInterval);
+        request.snapshots(3);
 
-        outHelper.writeTo(out);
-        // Write manually some values that differ from the defaults
-        // in NodesHotThreadsRequest
-        out.writeInt(4); // threads
-        out.writeBoolean(false); // ignoreIdleThreads
-        out.writeString("block"); // type
-        out.writeTimeValue(sampleInterval); // interval
-        out.writeInt(3); // snapshots
+        Version latest = Version.CURRENT;
+        Version previous = VersionUtils.randomVersionBetween(random(),
+            VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.CURRENT));
 
-        NodesHotThreadsRequest inRequest = new NodesHotThreadsRequest(out.bytes().streamInput());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(latest);
+            request.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(previous);
+                NodesHotThreadsRequest deserialized = new NodesHotThreadsRequest(in);
+                assertEquals(request.threads(), deserialized.threads());
+                assertEquals(request.ignoreIdleThreads(), deserialized.ignoreIdleThreads());
+                assertEquals(request.type(), deserialized.type());
+                assertEquals(request.interval(), deserialized.interval());
+                assertEquals(request.snapshots(), deserialized.snapshots());
 
-        assertEquals(4, inRequest.threads());
-        assertFalse(inRequest.ignoreIdleThreads());
-        assertEquals(HotThreads.ReportType.BLOCK, inRequest.type());
-        assertEquals(sampleInterval, inRequest.interval());
-        assertEquals(3, inRequest.snapshots());
+            }
+        }
 
-        // Change the report type enum
-        inRequest.type(HotThreads.ReportType.WAIT);
-
-        BytesStreamOutput writeOut = new BytesStreamOutput();
-        inRequest.writeTo(writeOut);
-
-        StreamInput whatWeWrote = writeOut.bytes().streamInput();
-
-        // We construct the helper to read the common serialized fields from the in.
-        new NodesHotThreadsRequestHelper(whatWeWrote);
-        // Make sure we serialized in the following format
-        assertEquals(4, whatWeWrote.readInt());
-        assertFalse(whatWeWrote.readBoolean());
-        assertEquals("wait", whatWeWrote.readString()); // lowercase enum value, not label
-        assertEquals(sampleInterval, whatWeWrote.readTimeValue());
-        assertEquals(3, whatWeWrote.readInt());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(previous);
+            request.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(latest);
+                NodesHotThreadsRequest deserialized = new NodesHotThreadsRequest(in);
+                assertEquals(request.threads(), deserialized.threads());
+                assertEquals(request.ignoreIdleThreads(), deserialized.ignoreIdleThreads());
+                assertEquals(request.type(), deserialized.type());
+                assertEquals(request.interval(), deserialized.interval());
+                assertEquals(request.snapshots(), deserialized.snapshots());
+            }
+        }
     }
 }

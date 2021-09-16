@@ -11,8 +11,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
-import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -303,7 +301,6 @@ public class SearchModule {
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
-        registerShapes();
         registerIntervalsSourceProviders();
         requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
@@ -602,12 +599,6 @@ public class SearchModule {
         }
     }
 
-    private void registerShapes() {
-        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            namedWriteables.addAll(GeoShapeType.getShapeWriteables());
-        }
-    }
-
     private void registerRescorers(List<SearchPlugin> plugins) {
         registerRescorer(new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
         registerFromPlugin(plugins, SearchPlugin::getRescorers, this::registerRescorer);
@@ -842,10 +833,7 @@ public class SearchModule {
             DistanceFeatureQueryBuilder::fromXContent));
         registerQuery(
             new QuerySpec<>(MatchBoolPrefixQueryBuilder.NAME, MatchBoolPrefixQueryBuilder::new, MatchBoolPrefixQueryBuilder::fromXContent));
-
-        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
-        }
+        registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
 

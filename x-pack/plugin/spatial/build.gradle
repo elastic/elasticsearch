@@ -11,6 +11,7 @@ esplugin {
 }
 
 dependencies {
+  api project(path: ':modules:legacy-geo')
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('vector-tile'))

@@ -392,7 +392,7 @@ public class IndexRoutingTests extends ESTestCase{
     private int shardIdFromSimple(IndexRouting indexRouting, String key, @Nullable String routing) {
         switch (between(0, 3)) {
             case 0:
-                return indexRouting.indexShard(randomBoolean(), key, routing, null, null);
+                return indexRouting.indexShard(key, routing, null, null);
             case 1:
                 return indexRouting.updateShard(key, routing);
             case 2:
@@ -404,23 +404,11 @@ public class IndexRoutingTests extends ESTestCase{
         }
     }
 
-    public void testRoutingPathSpecifiedId() throws IOException {
-        IndexRouting routing = indexRoutingForPath(between(1, 5), randomAlphaOfLength(5));
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> routing.indexShard(false, randomAlphaOfLength(5), null, XContentType.JSON, source(Map.of()))
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo("indexing with a specified id is not supported because the destination index [test] is in time series mode")
-        );
-    }
-
     public void testRoutingPathSpecifiedRouting() throws IOException {
         IndexRouting routing = indexRoutingForPath(between(1, 5), randomAlphaOfLength(5));
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> routing.indexShard(true, null, randomAlphaOfLength(5), XContentType.JSON, source(Map.of()))
+            () -> routing.indexShard(null, randomAlphaOfLength(5), XContentType.JSON, source(Map.of()))
         );
         assertThat(
             e.getMessage(),
@@ -432,7 +420,7 @@ public class IndexRoutingTests extends ESTestCase{
         IndexRouting routing = indexRoutingForPath(between(1, 5), randomAlphaOfLength(5));
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> routing.indexShard(true, randomAlphaOfLength(5), null, XContentType.JSON, source(Map.of()))
+            () -> routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(Map.of()))
         );
         assertThat(e.getMessage(), equalTo("Error extracting routing: source didn't contain any routing fields"));
     }
@@ -441,7 +429,7 @@ public class IndexRoutingTests extends ESTestCase{
         IndexRouting routing = indexRoutingForPath(between(1, 5), "foo");
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> routing.indexShard(true, randomAlphaOfLength(5), null, XContentType.JSON, source(Map.of("bar", "dog")))
+            () -> routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(Map.of("bar", "dog")))
         );
         assertThat(e.getMessage(), equalTo("Error extracting routing: source didn't contain any routing fields"));
     }
@@ -552,7 +540,7 @@ public class IndexRoutingTests extends ESTestCase{
     }
 
     private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int id) throws IOException {
-        assertThat(routing.indexShard(true, randomAlphaOfLength(5), null, XContentType.JSON, source(source)), equalTo(id));
+        assertThat(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(source)), equalTo(id));
     }
 
     private BytesReference source(Map<String, Object> doc) throws IOException {

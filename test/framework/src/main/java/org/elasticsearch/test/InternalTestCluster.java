@@ -2177,7 +2177,7 @@ public final class InternalTestCluster extends TestCluster {
                 IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
-                    if (shard == indexRouting.indexShard(false, null, routing, null, null)) {
+                    if (shard == indexRouting.indexShard(null, routing, null, null)) {
                         return routing;
                     }
                 }

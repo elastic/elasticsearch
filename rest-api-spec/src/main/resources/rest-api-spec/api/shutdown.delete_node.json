@@ -5,7 +5,7 @@
       "description":"Removes a node from the shutdown list. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
     },
     "stability":"stable",
-    "visibility":"public",
+    "visibility":"private",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

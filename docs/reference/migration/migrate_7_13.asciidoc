@@ -11,11 +11,12 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_713_mapping_changes>>
 * <<breaking_713_ssl_changes>>
-* <<breaking_713_frozen_multiple_data_paths_changes>>
+* <<breaking_713_settings_changes>>
 * <<breaking_713_agg_deprecations>>
 * <<breaking_713_infra_core_deprecations>>
 * <<breaking_713_eql_deprecations>>
-* <<breaking_713_security_changes>>
+* <<breaking_713_security_deprecations>>
+* <<breaking_713_settings_deprecations>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -87,9 +88,14 @@ SSL/TLS versions on your JDK].
 ====
 
 [discrete]
-[[breaking_713_frozen_multiple_data_paths_changes]]
-==== Frozen tier and multiple data paths changes
+[[breaking_713_settings_changes]]
+==== Settings changes
 
+[[breaking_713_frozen_multiple_data_paths_changes]]
+.Changes to the frozen tier and multiple data paths
+[%collapsible]
+====
+*Details* +
 {es} 7.12 included a technical preview of the frozen tier, being able to use
 partially mounted indices (searchable snapshots mounted with the shared cache
 option). Trying out this feature required configuring a shared cache using the
@@ -102,6 +108,7 @@ you do not utilize multiple data paths this will not affect you. Likewise, if
 you have not set `xpack.searchable.snapshot.shared_cache.size` and have not
 configured dedicated frozen nodes (nodes with the `data_frozen` role and no
 other data roles) this will not affect you.
+====
 // end::notable-breaking-changes[]
 
 [discrete]
@@ -251,14 +258,22 @@ errors in 8.0.0.
 ====
 
 [[slow-log-level-removal]]
-.`index.indexing.slowlog.level` and `index.search.slowlog.level` are removed.
+.`index.indexing.slowlog.level` and `index.search.slowlog.level` are deprecated.
 [%collapsible]
 ====
 *Details* +
-`index.indexing.slowlog.level` and `index.search.slowlog.level` are removed. These settings can be worked around
-by using appropriate thresholds. If for instance we want to simulate `index.indexing.slowlog.level` = `INFO` then
-all we need to do is to set `index.indexing.slowlog.threshold.index.debug` and
-`index.indexing.slowlog.threshold.index.trace` to `-1` {es-pull}57591[#57591]
+The `index.indexing.slowlog.level` and `index.search.slowlog.level` index
+settings are now deprecated. You use these setting to set the logging level for
+the search and indexing slow logs. To reproduce similar results, use the
+respective `index.*.slowlog.threshold.index.debug` and
+`index.*.slowlog.threshold.index.trace` index settings instead.
+
+For example, to reproduce a `index.indexing.slowlog.level` setting of `INFO`,
+set `index.indexing.slowlog.threshold.index.debug` and
+`index.indexing.slowlog.threshold.index.trace` to `-1`.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the deprecated settings.
 ====
 
 [discrete]
@@ -276,7 +291,7 @@ instead.
 ====
 
 [discrete]
-[[breaking_713_security_changes]]
+[[breaking_713_security_deprecations]]
 ==== Security deprecations
 
 [[implicitly-disabled-basic-realms]]
@@ -313,5 +328,23 @@ deprecated and will be removed in Elasticsearch 8.0.
 *Impact* +
 Discontinue use of the removed setting. Specifying this setting in Elasticsearch
 configuration will result in an error on startup.
+====
+
+[discrete]
+[[breaking_713_settings_deprecations]]
+==== Settings deprecations
+
+[[deprecate-shared-data-path-settings]]
+.The `path.shared_data` and `index.data_path` settings are deprecated.
+[%collapsible]
+====
+*Details* +
+The `path.shared_data` node setting and `index.data_path` index setting are
+now deprecated. {es} previously used these settings for
+{ref-bare}/5.6/indices-shadow-replicas.html[shadow replicas]. The shadow
+replicas feature was deprecated in 5.2 and removed in 6.0.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the deprecated settings.
 ====
 // end::notable-breaking-changes[]

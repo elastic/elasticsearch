@@ -9,6 +9,12 @@ your application to {es} 7.15.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+<<<<<<< HEAD
+=======
+* <<breaking_715_indices_deprecations>>
+* <<breaking_715_settings_deprecations>>
+
+>>>>>>> upstream/7.x
 ////
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -48,6 +54,10 @@ using any deprecated functionality, enable <<deprecation-logging, deprecation
 logging>>.
 
 // tag::notable-breaking-changes[]
+[discrete]
+[[breaking_715_indices_deprecations]]
+==== Indices deprecations
+
 [[deprecate-6x-indices]]
 .Indices created in Elasticsearch 6.x and earlier versions are deprecated.
 [%collapsible]
@@ -56,17 +66,51 @@ logging>>.
 In 8.x, {es} will only read indices created in version 7.0 or above. An 8.x node
 will not start in the presence of indices created in 6.x or earlier versions of
 {es}.
-
 *Impact* +
 Before upgrading to an 8.x version, reindex any index created in 6.x or earlier
 versions with {es} 7.x. If you no longer need the index, delete it instead.
-
 You can use the get index API to check the {es} version in which an index
 was created.
-
 [source,console]
 ----
 GET *,-.*?human=true&filter_path=**.settings.index.version.created_string
 ----
+====
+
+[[deprecate-simpleifs]]
+.The `simpleifs` index store type is deprecated.
+[%collapsible]
+====
+*Details* +
+The `simplefs` value for the {ref}/index-modules-store.html[`index.store.type`]
+index setting is now deprecated. Use the `niofs` value for superior or
+equivalent performance instead.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `simpleifs` store type in
+new indices or index templates. Reindex any index using `simplefs` into one with
+another store type.
+====
+
+[discrete]
+[[breaking_715_settings_deprecations]]
+==== Settings deprecations
+
+[[deprecate-fractional-byte-settings]]
+.Fractional byte size values are deprecated.
+[%collapsible]
+====
+*Details* +
+In 6.2, we deprecated support for fractional byte size values, such as `23.5pb`,
+in:
+
+* Cluster settings
+* Index settings
+* Cluster state metadata, such as an {ilm-init} policy, that support byte size
+values
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of fractional byte size values in
+your configurations. Update any existing configurations to use whole values.
 ====
 // end::notable-breaking-changes[]

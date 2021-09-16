@@ -153,7 +153,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.privilege(), notNullValue());
         assertTrue(Operations.sameLanguage(group.privilege().getAutomaton(),
                 MinimizationOperations.minimize(Operations.union(IndexPrivilege.READ.getAutomaton(), IndexPrivilege.WRITE.getAutomaton()),
-                        Operations.DEFAULT_MAX_DETERMINIZED_STATES)));
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)));
 
         descriptor = roles.get("role4");
         assertNull(descriptor);

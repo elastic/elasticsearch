@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.test.TestLegacyGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -95,7 +95,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new TestGeoShapeFieldMapperPlugin());
+        return List.of(new TestLegacyGeoShapeFieldMapperPlugin());
     }
 
     @Override
@@ -595,10 +595,10 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> geoShapeFieldMapper.fieldType().geoShapeQuery(
-                        new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, searchExecutionContext));
+            () -> geoShapeFieldMapper.fieldType().geoShapeQuery(
+                new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, searchExecutionContext));
         assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +
-                        "'search.allow_expensive_queries' is set to false.", e.getMessage());
+            "'search.allow_expensive_queries' is set to false.", e.getMessage());
         assertFieldWarnings("tree", "strategy");
     }
 

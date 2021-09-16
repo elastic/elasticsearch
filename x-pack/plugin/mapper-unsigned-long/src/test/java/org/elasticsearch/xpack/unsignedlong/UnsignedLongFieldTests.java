@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
+import org.elasticsearch.script.field.BigIntegerField;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.script.field.FieldValues;
 import org.elasticsearch.script.field.LongField;
@@ -62,11 +63,11 @@ public class UnsignedLongFieldTests extends ESTestCase {
     }
 
     public void testLongValues() {
-        assertEquals(LONG_VALUES, makeField(VALUES).convert(Field.Long).getValues());
+        assertEquals(LONG_VALUES, makeField(VALUES).convert(LongField.Long).getValues());
     }
 
     public void testUnsignedConverter() {
-        Field<Long> thereAndBackAgain = makeField(VALUES).as(Field.BigInteger).as(UnsignedLongField.UnsignedLong);
+        Field<Long> thereAndBackAgain = makeField(VALUES).as(BigIntegerField.BigInteger).as(UnsignedLongField.UnsignedLong);
         assertEquals(LONG_VALUES, thereAndBackAgain.getValues());
     }
 

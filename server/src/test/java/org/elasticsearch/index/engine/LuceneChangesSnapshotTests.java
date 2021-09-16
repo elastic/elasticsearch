@@ -9,6 +9,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -178,9 +179,10 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
         boolean onPrimary = randomBoolean();
         List<Engine.Operation> operations = new ArrayList<>();
-        int numOps = scaledRandomIntBetween(1, 1000);
+        int numOps = frequently() ? scaledRandomIntBetween(1, 1000) : scaledRandomIntBetween(5000, 20_000);
+        boolean updateFrequently = rarely();
         for (int i = 0; i < numOps; i++) {
-            String id = Integer.toString(randomIntBetween(1, 10));
+            String id = Integer.toString(randomIntBetween(0, updateFrequently ? 10 : numOps * 2));
             ParsedDocument doc = createParsedDoc(id, randomAlphaOfLengthBetween(1, 5), randomBoolean());
             final Engine.Operation op;
             if (onPrimary) {
@@ -200,6 +202,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
         readyLatch.countDown();
         readyLatch.await();
+        Randomness.shuffle(operations);
         concurrentlyApplyOps(operations, engine);
         assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), equalTo(operations.size() - 1L));
         isDone.set(true);

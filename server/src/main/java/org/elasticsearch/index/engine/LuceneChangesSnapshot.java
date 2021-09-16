@@ -241,8 +241,9 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo), BooleanClause.Occur.MUST)
             .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested documents
             .build();
-        final Sort sortedBySeqNo = new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG));
-        return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, sortedBySeqNo);
+        final SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
+        sortBySeqNo.setCanUsePoints();
+        return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, new Sort(sortBySeqNo));
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {

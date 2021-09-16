@@ -77,4 +77,21 @@ that the total number of hits is not tracked.
 
 Aliases are now replicated to a follower from its leader, so directly modifying
 aliases on follower indices is no longer allowed.
+
+[discrete]
+[[breaking_73_security_deprecations]]
+=== Security deprecations
+
+[discrete]
+[[deprecate-transport-profile-sec-type]]
+==== The `transport.profiles.*.xpack.security.type` setting is deprecated.
+
+The `transport.profiles.*.xpack.security.type` setting is now deprecated. In
+8.0, the Java transport client will be removed. All client traffic will use the
+HTTP interface instead.
+
+To avoid deprecation warnings,
+{java-rest}/java-rest-high-level-migration.html[migrate any code for the Java
+transport client]. Then remove any transport profiles using the deprecated
+setting.
 // end::notable-breaking-changes[]

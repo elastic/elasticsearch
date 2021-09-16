@@ -82,12 +82,19 @@ IF "%checkpassword%"=="Y" (
 )
 
 IF "!enrolltocluster!"=="Y" (
-  SET ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.EnrollNodeToCluster
-  SET ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
-  SET ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli
-  CALL "%~dp0elasticsearch-cli.bat" --enrollment-token %enrollmenttoken%
-)
+    CALL "%~dp0elasticsearch-env.bat" || exit /b 1
+    CALL "%~dp0x-pack-env"
+    CALL "%~dp0x-pack-security-env"
+    ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
+      -Des.path.home="%ES_HOME%" ^
+      -Des.path.conf="%ES_PATH_CONF%" ^
+      -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
+      -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
+      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*" ^
+      "org.elasticsearch.xpack.security.cli.EnrollNodeToCluster" --enrollment-token "%enrollmenttoken%"
 
+      exit /b !ERRORLEVEL!
+)
 
 if not defined ES_TMPDIR (
   for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a

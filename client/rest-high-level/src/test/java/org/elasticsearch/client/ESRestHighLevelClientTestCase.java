@@ -68,7 +68,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     protected static final RequestOptions IGNORE_THROTTLED_WARNING = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(
-            warnings -> List.of(IGNORE_THROTTLED_DEPRECATION_WARNING).equals(warnings) == false
+            warnings -> Collections.singletonList(IGNORE_THROTTLED_DEPRECATION_WARNING).equals(warnings) == false
         ).build();
     protected static final String CONFLICT_PIPELINE_ID = "conflict_pipeline";
 

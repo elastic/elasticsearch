@@ -101,7 +101,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -110,6 +109,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Arrays.asList;
 import static org.elasticsearch.client.IndicesClientIT.FROZEN_INDICES_DEPRECATION_WARNING;
 import static org.elasticsearch.client.IndicesClientIT.IGNORE_THROTTLED_DEPRECATION_WARNING;
 import static org.elasticsearch.client.IndicesClientIT.LEGACY_TEMPLATE_OPTIONS;
@@ -2177,7 +2177,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // tag::put-template-request
         PutIndexTemplateRequest request = new PutIndexTemplateRequest("my-template"); // <1>
-        request.patterns(Arrays.asList("pattern-1", "log-*")); // <2>
+        request.patterns(asList("pattern-1", "log-*")); // <2>
         // end::put-template-request
 
         // tag::put-template-request-settings
@@ -2325,7 +2325,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
         {
             PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
-            putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
+            putRequest.patterns(asList("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1));
             putRequest.mapping("{ \"properties\": { \"message\": { \"type\": \"text\" } } }",
                 XContentType.JSON
@@ -2390,7 +2390,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutComposableIndexTemplateRequest putRequest = new PutComposableIndexTemplateRequest()
                 .name("my-template")
                 .indexTemplate(
-                    new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"), template, null, null, null, null)
+                    new ComposableIndexTemplate(asList("pattern-1", "log-*"), template, null, null, null, null)
                 );
             assertTrue(client.indices().putIndexTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2450,7 +2450,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template"); // <1>
             ComposableIndexTemplate composableIndexTemplate =
-                new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"), null, null, null, null, null); // <2>
+                new ComposableIndexTemplate(asList("pattern-1", "log-*"), null, null, null, null, null); // <2>
             request.indexTemplate(composableIndexTemplate);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
             // end::put-index-template-v2-request
@@ -2465,7 +2465,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 .put("index.number_of_replicas", 1)
                 .build();
             Template template = new Template(settings, null, null); // <2>
-            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(asList("pattern-1", "log-*"),
                 template, null, null, null, null); // <3>
             request.indexTemplate(composableIndexTemplate);
 
@@ -2485,7 +2485,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
             Template template = new Template(null, new CompressedXContent(mappingJson), null); // <2>
-            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(asList("pattern-1", "log-*"),
                 template, null, null, null, null); // <3>
             request.indexTemplate(composableIndexTemplate);
 
@@ -2503,7 +2503,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             aliases.put("twitter_alias", twitterAlias);
             aliases.put("{index}_alias", placeholderAlias);
             Template template = new Template(null, null, aliases); // <3>
-            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(asList("pattern-1", "log-*"),
                 template, null, null, null, null); // <4>
             request.indexTemplate(composableIndexTemplate);
 
@@ -2521,7 +2521,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
             ComposableIndexTemplate composableIndexTemplate =
-                    new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"), null,
+                    new ComposableIndexTemplate(asList("pattern-1", "log-*"), null,
                             Collections.singletonList("ct1"), null, null, null); // <1>
             request.indexTemplate(composableIndexTemplate);
 
@@ -2533,7 +2533,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::put-index-template-v2-request-priority
             PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
-            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(asList("pattern-1", "log-*"),
                 null, null, 20L, null, null); // <1>
             request.indexTemplate(composableIndexTemplate);
 
@@ -2545,7 +2545,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::put-index-template-v2-request-version
             PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
-            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(asList("pattern-1", "log-*"),
                 null, null, null, 3L, null); // <1>
             request.indexTemplate(composableIndexTemplate);
 
@@ -2602,7 +2602,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
-            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(asList("pattern-1", "log-*"),
                 null, null, null, null, null); // <2>
             request.indexTemplate(composableIndexTemplate);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2628,7 +2628,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
-            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(asList("pattern-1", "log-*"),
                 null, null, null, null, null); // <2>
             request.indexTemplate(composableIndexTemplate);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2666,7 +2666,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template"); // <1>
             Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
-            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(asList("pattern-1", "log-*"),
                 template, null, null, null, null);
             request.indexTemplate(composableIndexTemplate);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2678,7 +2678,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             .name("used-for-simulation");
         Settings settings = Settings.builder().put("index.number_of_shards", 6).build();
         Template template = new Template(settings, null, null); // <2>
-        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("log-*"),
+        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(asList("log-*"),
             template, null, 90L, null, null);
         newIndexTemplateRequest.indexTemplate(composableIndexTemplate);
 
@@ -3001,7 +3001,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             final RequestOptions freezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(
-                    warnings -> org.elasticsearch.core.List.of(FROZEN_INDICES_DEPRECATION_WARNING, IGNORE_THROTTLED_DEPRECATION_WARNING).equals(warnings) == false
+                    warnings -> asList(FROZEN_INDICES_DEPRECATION_WARNING, IGNORE_THROTTLED_DEPRECATION_WARNING).equals(warnings) == false
                 )
                 .build();
 
@@ -3086,7 +3086,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::unfreeze-index-execute
             final RequestOptions unfreezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(
-                    warnings -> org.elasticsearch.core.List.of(FROZEN_INDICES_DEPRECATION_WARNING, IGNORE_THROTTLED_DEPRECATION_WARNING).equals(warnings) == false
+                    warnings -> asList(FROZEN_INDICES_DEPRECATION_WARNING, IGNORE_THROTTLED_DEPRECATION_WARNING).equals(warnings) == false
                 )
                 .build();
             ShardsAcknowledgedResponse openIndexResponse = client.indices().unfreeze(request, unfreezeIndexOptions);
@@ -3143,7 +3143,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
         {
             PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
-            putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
+            putRequest.patterns(asList("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3));
             assertTrue(client.indices().putTemplate(putRequest, LEGACY_TEMPLATE_OPTIONS).isAcknowledged());
         }
@@ -3169,7 +3169,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
-            putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
+            putRequest.patterns(asList("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3));
             assertTrue(client.indices().putTemplate(putRequest, LEGACY_TEMPLATE_OPTIONS).isAcknowledged());
         }

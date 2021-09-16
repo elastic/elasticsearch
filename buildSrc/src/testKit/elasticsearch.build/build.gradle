@@ -13,7 +13,7 @@ dependencies {
 }
 
 repositories {
-    jcenter()
+    mavenCentral()
     repositories {
         maven {
             name "local-repo"

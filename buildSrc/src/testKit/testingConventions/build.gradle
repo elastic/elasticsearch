@@ -7,7 +7,7 @@ allprojects {
     apply plugin: 'elasticsearch.build'
 
     repositories {
-        jcenter()
+        mavenCentral()
     }
     dependencies {
         testCompile "junit:junit:4.12"

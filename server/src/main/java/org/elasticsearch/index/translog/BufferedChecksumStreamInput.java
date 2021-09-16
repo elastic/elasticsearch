@@ -94,6 +94,11 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     }
 
     @Override
+    protected String readString(int charCount) throws IOException {
+        return readStringSlow(charCount);
+    }
+
+    @Override
     public void reset() throws IOException {
         delegate.reset();
         digest.reset();

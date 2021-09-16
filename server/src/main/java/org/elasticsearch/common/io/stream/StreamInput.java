@@ -422,20 +422,15 @@ public abstract class StreamInput extends InputStream {
     private CharsRef largeSpare;
 
     public String readString() throws IOException {
-        final int charCount = readArraySize();
-        final CharsRef charsRef;
-        if (charCount > SMALL_STRING_LIMIT) {
-            if (largeSpare == null) {
-                largeSpare = new CharsRef(ArrayUtil.oversize(charCount, Character.BYTES));
-            } else if (largeSpare.chars.length < charCount) {
-                // we don't use ArrayUtils.grow since there is no need to copy the array
-                largeSpare.chars = new char[ArrayUtil.oversize(charCount, Character.BYTES)];
-            }
-            charsRef = largeSpare;
-        } else {
-            charsRef = smallSpare.get();
-        }
-        charsRef.length = charCount;
+        return readString(readArraySize());
+    }
+
+    protected String readString(int charCount) throws IOException {
+        return readStringSlow(charCount);
+    }
+
+    protected String readStringSlow(int charCount) throws IOException {
+        final CharsRef charsRef = getCharsRef(charCount);
         int charsOffset = 0;
         int offsetByteArray = 0;
         int sizeByteArray = 0;
@@ -546,7 +541,24 @@ public abstract class StreamInput extends InputStream {
         return charsRef.toString();
     }
 
-    private static void throwOnBrokenChar(int c) throws IOException {
+    protected final CharsRef getCharsRef(int charCount) {
+        final CharsRef charsRef;
+        if (charCount > SMALL_STRING_LIMIT) {
+            if (largeSpare == null) {
+                largeSpare = new CharsRef(ArrayUtil.oversize(charCount, Character.BYTES));
+            } else if (largeSpare.chars.length < charCount) {
+                // we don't use ArrayUtils.grow since there is no need to copy the array
+                largeSpare.chars = new char[ArrayUtil.oversize(charCount, Character.BYTES)];
+            }
+            charsRef = largeSpare;
+        } else {
+            charsRef = smallSpare.get();
+        }
+        charsRef.length = charCount;
+        return charsRef;
+    }
+
+    protected static void throwOnBrokenChar(int c) throws IOException {
         throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
     }
 
@@ -1326,13 +1338,13 @@ public abstract class StreamInput extends InputStream {
      * Reads a vint via {@link #readVInt()} and applies basic checks to ensure the read array size is sane.
      * This method uses {@link #ensureCanReadBytes(int)} to ensure this stream has enough bytes to read for the read array size.
      */
-    protected int readArraySize() throws IOException {
+    protected final int readArraySize() throws IOException {
         final int arraySize = readVInt();
         if (arraySize > ArrayUtil.MAX_ARRAY_LENGTH) {
-            throw new IllegalStateException("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH  + " but was: " + arraySize);
+            throwExceedsMaxArraySize(arraySize);
         }
         if (arraySize < 0) {
-            throw new NegativeArraySizeException("array size must be positive but was: " + arraySize);
+            throwNegative(arraySize);
         }
         // lets do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
         // throw an exception instead of allocating the array based on the size. A simple corrutpted byte can make a node go OOM
@@ -1341,11 +1353,23 @@ public abstract class StreamInput extends InputStream {
         return arraySize;
     }
 
+    private static void throwNegative(int arraySize) {
+        throw new NegativeArraySizeException("array size must be positive but was: " + arraySize);
+    }
+
+    private static void throwExceedsMaxArraySize(int arraySize) {
+        throw new IllegalStateException("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH  + " but was: " + arraySize);
+    }
+
     /**
      * This method throws an {@link EOFException} if the given number of bytes can not be read from the this stream. This method might
      * be a no-op depending on the underlying implementation if the information of the remaining bytes is not present.
      */
     protected abstract void ensureCanReadBytes(int length) throws EOFException;
+
+    protected static void throwEOF(int bytesToRead, int bytesAvailable) throws EOFException {
+        throw new EOFException("tried to read: " + bytesToRead + " bytes but only " + bytesAvailable + " remaining");
+    }
 
     private static final TimeUnit[] TIME_UNITS = TimeUnit.values();
 

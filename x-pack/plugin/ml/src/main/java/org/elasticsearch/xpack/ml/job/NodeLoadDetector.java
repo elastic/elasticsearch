@@ -48,6 +48,24 @@ public class NodeLoadDetector {
                                    int dynamicMaxOpenJobs,
                                    int maxMachineMemoryPercent,
                                    boolean useAutoMachineMemoryCalculation) {
+        return detectNodeLoad(
+            clusterState,
+            TrainedModelAllocationMetadata.fromState(clusterState),
+            allNodesHaveDynamicMaxWorkers,
+            node,
+            dynamicMaxOpenJobs,
+            maxMachineMemoryPercent,
+            useAutoMachineMemoryCalculation
+        );
+    }
+
+    public NodeLoad detectNodeLoad(ClusterState clusterState,
+                                   TrainedModelAllocationMetadata allocationMetadata,
+                                   boolean allNodesHaveDynamicMaxWorkers,
+                                   DiscoveryNode node,
+                                   int dynamicMaxOpenJobs,
+                                   int maxMachineMemoryPercent,
+                                   boolean useAutoMachineMemoryCalculation) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         Map<String, String> nodeAttributes = node.getAttributes();
         List<String> errors = new ArrayList<>();
@@ -80,7 +98,7 @@ public class NodeLoadDetector {
             return nodeLoad.setError(Strings.collectionToCommaDelimitedString(errors)).build();
         }
         updateLoadGivenTasks(nodeLoad, persistentTasks);
-        updateLoadGivenModelAllocations(nodeLoad, TrainedModelAllocationMetadata.fromState(clusterState));
+        updateLoadGivenModelAllocations(nodeLoad, allocationMetadata);
         return nodeLoad.build();
     }
 

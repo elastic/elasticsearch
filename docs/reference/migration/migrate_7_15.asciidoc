@@ -58,9 +58,8 @@ will not start in the presence of indices created in 6.x or earlier versions of
 {es}.
 
 *Impact* +
-Before upgrading to an 8.x version, reindex any index or data stream created in
-6.x or earlier versions with {es} 7.x. If you no longer need the index or data
-stream, delete it instead.
+Before upgrading to an 8.x version, reindex any index created in 6.x or earlier
+versions with {es} 7.x. If you no longer need the index, delete it instead.
 
 You can use the get index API to check the {es} version in which an index
 was created.

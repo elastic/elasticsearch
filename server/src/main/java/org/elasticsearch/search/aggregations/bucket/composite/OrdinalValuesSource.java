@@ -183,7 +183,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             if (ord1 == ord2) {
                 // we need to compare actual terms to properly order
                 assert bytesRef1 != null && bytesRef2 != null;
-                return bytesRef1.compareTo(bytesRef2);
+                return bytesRef1.compareTo(bytesRef2) * reverseMul;
             }
             return Long.compare(-ord1 - 1, -ord2 - 1) * reverseMul;
         } else {

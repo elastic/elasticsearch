@@ -310,7 +310,7 @@ complete.
 
 . Use the <<cluster-update-settings,update cluster settings API>> to set
 <<action-destructive-requires-name,`action.destructive_requires_name`>> to
-`true`. This lets you delete indices and data streams using wildcards.
+`false`. This lets you delete indices and data streams using wildcards.
 +
 [source,console]
 ----
@@ -324,8 +324,7 @@ PUT _cluster/settings
 // TEST[setup:setup-snapshots]
 
 . Delete all existing indices and data streams on the cluster, including all
-system indices. If you use {es} security features, use the previously created
-file realm user to authenticate the request.
+system indices.
 +
 [source,console]
 ----

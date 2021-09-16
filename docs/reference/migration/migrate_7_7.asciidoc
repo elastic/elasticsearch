@@ -98,6 +98,25 @@ The `auth.password` setting for the monitoring HTTP exporter has been deprecated
 removed in version 8.0.0. Please use the `auth.secure_password` setting instead.
 
 [discrete]
+[[deprecate-defer-cluster-recovery-settings]]
+==== Settings used to defer cluster recovery pending a certain number of master nodes are deprecated.
+
+The following cluster settings are now deprecated:
+
+* `gateway.expected_nodes`
+* `gateway.expected_master_nodes`
+* `gateway.recover_after_nodes`
+* `gateway.recover_after_master_nodes`
+
+It is safe to recover the cluster as soon as a majority of master-eligible nodes
+have joined. There is no benefit in waiting for any additional master-eligible
+nodes to start.
+
+To avoid deprecation warnings, discontinue use of the deprecated settings. If
+needed, use `gateway.expected_data_nodes` or `gateway.recover_after_data_nodes`
+to defer cluster recovery pending a certain number of data nodes.
+
+[discrete]
 [[breaking_77_search_changes]]
 === Search changes
 

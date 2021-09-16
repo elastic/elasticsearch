@@ -13,6 +13,7 @@ import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
+import org.elasticsearch.script.LongSortScript;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
@@ -37,6 +38,7 @@ public class VersionFieldDocValuesExtension implements PainlessExtension {
         whitelist.put(FilterScript.CONTEXT, list);
         whitelist.put(FieldScript.CONTEXT, list);
         whitelist.put(NumberSortScript.CONTEXT, list);
+        whitelist.put(LongSortScript.CONTEXT, list);
         whitelist.put(StringSortScript.CONTEXT, list);
         return whitelist;
     }

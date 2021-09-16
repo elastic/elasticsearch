@@ -13,6 +13,7 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
+import org.elasticsearch.script.LongSortScript;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringSortScript;
@@ -35,6 +36,7 @@ public class EqlPainlessExtension implements PainlessExtension {
         whitelist.put(AggregationScript.CONTEXT, list);
         whitelist.put(FieldScript.CONTEXT, list);
         whitelist.put(NumberSortScript.CONTEXT, list);
+        whitelist.put(LongSortScript.CONTEXT, list);
         whitelist.put(StringSortScript.CONTEXT, list);
         whitelist.put(BucketAggregationSelectorScript.CONTEXT, list);
         return whitelist;

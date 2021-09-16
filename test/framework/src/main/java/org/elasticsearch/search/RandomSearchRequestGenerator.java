@@ -263,7 +263,7 @@ public class RandomSearchRequestGenerator {
                         builder.sort(SortBuilders
                                 .scriptSort(
                                         new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "foo", emptyMap()),
-                                        ScriptSortBuilder.ScriptSortType.DOUBLE)
+                                        ScriptSortBuilder.ScriptSortType.NUMBER)
                                 .order(randomFrom(SortOrder.values())));
                         break;
                     case 4:

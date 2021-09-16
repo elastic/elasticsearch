@@ -333,7 +333,7 @@ class VectorTileRequest {
             return List.of(
                 new ScriptSortBuilder(
                     new Script(Script.DEFAULT_SCRIPT_TYPE, Script.DEFAULT_SCRIPT_LANG, SCRIPT, Map.of(FIELD_PARAM, getField())),
-                    ScriptSortBuilder.ScriptSortType.DOUBLE
+                    ScriptSortBuilder.ScriptSortType.NUMBER
                 ).order(SortOrder.DESC)
             );
         } else {

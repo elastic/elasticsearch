@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.DocValuesDocReader;
+import org.elasticsearch.script.LongSortScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.StringSortScript;
@@ -83,7 +84,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      *            The script to use.
      * @param type
      *            The type of the script, can be either {@link ScriptSortType#STRING} or
-     *            {@link ScriptSortType#DOUBLE}, {@link ScriptSortType#LONG}
+     *            {@link ScriptSortType#NUMBER}, {@link ScriptSortType#LONG}
      */
     public ScriptSortBuilder(Script script, ScriptSortType type) {
         Objects.requireNonNull(script, "script cannot be null");
@@ -306,7 +307,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                                 + "script sorting only supported on [numeric] scripts but was [" + type + "]");
                     }
                 };
-            case DOUBLE:
+            case NUMBER:
                 final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
                 // searchLookup is unnecessary here, as it's just used for expressions
                 final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), searchLookup);
@@ -323,7 +324,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             }
                             @Override
                             public double doubleValue() {
-                                return leafScript.execute().doubleValue();
+                                return leafScript.execute();
                             }
                         };
                         return FieldData.singleton(values);
@@ -334,18 +335,18 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
                 };
             case LONG:
-                final NumberSortScript.Factory numberSortFactory2 = context.compile(script, NumberSortScript.CONTEXT);
+                final LongSortScript.Factory longSortFactory = context.compile(script, LongSortScript.CONTEXT);
                 // searchLookup is unnecessary here, as it's just used for expressions
-                final NumberSortScript.LeafFactory numberSortScript2 = numberSortFactory2.newFactory(script.getParams(), searchLookup);
+                final LongSortScript.LeafFactory longSortScript = longSortFactory.newFactory(script.getParams(), searchLookup);
                 return new LongValuesComparatorSource(null, Long.MAX_VALUE, valueMode, nested, IndexNumericFieldData.NumericType.LONG) {
-                    NumberSortScript leafScript;
+                    LongSortScript leafScript;
                     @Override
                     protected SortedNumericDocValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = numberSortScript2.newInstance(new DocValuesDocReader(searchLookup, context));
+                        leafScript = longSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
                         final SortedNumericDocValues values = new AbstractSortedNumericDocValues() {
                             @Override
                             public long nextValue() throws IOException {
-                                return leafScript.execute().longValue();
+                                return leafScript.execute();
                             }
 
                             @Override
@@ -400,8 +401,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public enum ScriptSortType implements Writeable {
         /** script sort for a string value **/
         STRING,
-        /** script sort for a double value **/
-        DOUBLE,
+        /** script sort for a double value, which is for  backwards compatibility **/
+        NUMBER,
         /** script sort for a long value **/
         LONG;
 
@@ -422,8 +423,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             switch (str.toLowerCase(Locale.ROOT)) {
                 case ("string"):
                     return ScriptSortType.STRING;
-                case ("double"):
-                    return ScriptSortType.DOUBLE;
+                case ("number"):
+                    return ScriptSortType.NUMBER;
                 case ("long"):
                     return ScriptSortType.LONG;
                 default:

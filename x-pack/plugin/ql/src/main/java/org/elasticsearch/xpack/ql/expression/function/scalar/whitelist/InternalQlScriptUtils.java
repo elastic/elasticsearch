@@ -46,8 +46,12 @@ public class InternalQlScriptUtils {
         return filter == null ? false : filter.booleanValue();
     }
 
-    public static Number nullSafeSortNumeric(Number sort) {
-        return sort == null ? 0.0d : sort;
+    public static double nullSafeSortNumeric(Number sort) {
+        return sort == null ? 0.0d : sort.doubleValue();
+    }
+
+    public static long nullSafeSortLong(Number sort) {
+        return sort == null ? 0L : sort.longValue();
     }
 
     public static String nullSafeSortString(Object sort) {

@@ -148,7 +148,7 @@ public abstract class SourceGenerator {
                 ScriptSort ss = (ScriptSort) sortable;
                 sortBuilder = scriptSort(ss.script().toPainless(),
                         ss.script().outputType().isNumeric()
-                            ? (ss.script().outputType().isRational() ? ScriptSortType.DOUBLE : ScriptSortType.LONG)
+                            ? (ss.script().outputType().isRational() ? ScriptSortType.NUMBER : ScriptSortType.LONG)
                             : ScriptSortType.STRING);
             } else if (sortable instanceof ScoreSort) {
                 sortBuilder = scoreSort();

@@ -14,6 +14,7 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
+import org.elasticsearch.script.LongSortScript;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
@@ -44,6 +45,8 @@ public class DocValuesWhitelistExtension implements PainlessExtension {
             AggregationScript.CONTEXT,
             whitelist,
             NumberSortScript.CONTEXT,
+            whitelist,
+            LongSortScript.CONTEXT,
             whitelist,
             StringSortScript.CONTEXT,
             whitelist,

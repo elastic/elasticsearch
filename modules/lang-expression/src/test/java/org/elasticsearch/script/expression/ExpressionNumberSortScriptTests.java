@@ -77,7 +77,7 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         NumberSortScript script = compile("doc['field'].value").newInstance(mock(DocValuesDocReader.class));
         script.setDocument(1);
 
-        double result = script.execute().doubleValue();
+        double result = script.execute();
         assertEquals(2.718, result, 0.0);
     }
 }

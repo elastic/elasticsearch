@@ -1756,7 +1756,7 @@ public class FieldSortIT extends ESIntegTestCase {
             SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(randomIntBetween(1, numDocs + 5))
-                .addSort(SortBuilders.scriptSort(script, ScriptSortBuilder.ScriptSortType.DOUBLE))
+                .addSort(SortBuilders.scriptSort(script, ScriptSortBuilder.ScriptSortType.NUMBER))
                 .addSort(SortBuilders.scoreSort())
                 .get();
 

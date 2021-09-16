@@ -16,7 +16,8 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
 #
   def docValue(java.util.Map, String)
   boolean nullSafeFilter(Boolean)
-  Number nullSafeSortNumeric(Number)
+  double nullSafeSortNumeric(Number)
+  long nullSafeSortLong(Number)
   String nullSafeSortString(Object)
   Number nullSafeCastNumeric(Number, String)
 

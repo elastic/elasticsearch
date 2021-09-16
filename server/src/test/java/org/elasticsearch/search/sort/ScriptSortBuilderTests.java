@@ -51,14 +51,14 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public static ScriptSortBuilder randomScriptSortBuilder() {
-        ScriptSortType type = randomBoolean() ? ScriptSortType.DOUBLE : ScriptSortType.STRING;
+        ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
         ScriptSortBuilder builder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME),
                 type);
         if (randomBoolean()) {
                 builder.order(randomFrom(SortOrder.values()));
         }
         if (randomBoolean()) {
-            if (type == ScriptSortType.DOUBLE) {
+            if (type == ScriptSortType.NUMBER) {
                 builder.sortMode(randomValueOtherThan(builder.sortMode(), () -> randomFrom(SortMode.values())));
             } else {
                 Set<SortMode> exceptThis = new HashSet<>();
@@ -84,10 +84,10 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             if (randomBoolean()) {
                 result = new ScriptSortBuilder(mockScript(script.getIdOrCode() + "_suffix"), type);
             } else {
-                result = new ScriptSortBuilder(script, type.equals(ScriptSortType.DOUBLE) ? ScriptSortType.STRING : ScriptSortType.DOUBLE);
+                result = new ScriptSortBuilder(script, type.equals(ScriptSortType.NUMBER) ? ScriptSortType.STRING : ScriptSortType.NUMBER);
             }
             result.order(original.order());
-            if (original.sortMode() != null && result.type() == ScriptSortType.DOUBLE) {
+            if (original.sortMode() != null && result.type() == ScriptSortType.NUMBER) {
                 result.sortMode(original.sortMode());
             }
             result.setNestedSort(original.getNestedSort());
@@ -103,7 +103,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 }
                 break;
             case 1:
-                if (original.type() == ScriptSortType.DOUBLE) {
+                if (original.type() == ScriptSortType.NUMBER) {
                     result.sortMode(randomValueOtherThan(result.sortMode(), () -> randomFrom(SortMode.values())));
                 } else {
                     // script sort type String only allows MIN and MAX, so we only switch
@@ -131,19 +131,19 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     public void testScriptSortType() {
         // we rely on these ordinals in serialization, so changing them breaks bwc.
         assertEquals(0, ScriptSortType.STRING.ordinal());
-        assertEquals(1, ScriptSortType.DOUBLE.ordinal());
+        assertEquals(1, ScriptSortType.NUMBER.ordinal());
         assertEquals(2, ScriptSortType.LONG.ordinal());
 
         assertEquals("string", ScriptSortType.STRING.toString());
-        assertEquals("double", ScriptSortType.DOUBLE.toString());
+        assertEquals("number", ScriptSortType.NUMBER.toString());
         assertEquals("long", ScriptSortType.LONG.toString());
 
         assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("string"));
         assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("String"));
         assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("STRING"));
-        assertEquals(ScriptSortType.DOUBLE, ScriptSortType.fromString("double"));
-        assertEquals(ScriptSortType.DOUBLE, ScriptSortType.fromString("Double"));
-        assertEquals(ScriptSortType.DOUBLE, ScriptSortType.fromString("DOUBLE"));
+        assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("number"));
+        assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("Number"));
+        assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("NUMBER"));
         assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("long"));
         assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("Long"));
         assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("LONG"));
@@ -162,7 +162,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     public void testParseJson() throws IOException {
         String scriptSort = "{"
             + "  \"_script\": {"
-            + "    \"type\": \"double\","
+            + "    \"type\": \"number\","
             + "    \"script\": {"
             + "      \"source\": \"doc['field_name'].value * factor\","
             + "      \"params\": {"
@@ -183,17 +183,49 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
             assertEquals(1.1, builder.script().getParams().get("factor"));
             assertEquals(ScriptType.INLINE, builder.script().getType());
-            assertEquals(ScriptSortType.DOUBLE, builder.type());
+            assertEquals(ScriptSortType.NUMBER, builder.type());
             assertEquals(SortOrder.ASC, builder.order());
             assertEquals(SortMode.MAX, builder.sortMode());
             assertNull(builder.getNestedSort());
         }
     }
 
-    public void testParseJson_simpleDouble() throws IOException {
+    public void testParseJsonForLongSort() throws IOException {
+        String scriptSort = "{"
+            + "  \"_script\": {"
+            + "    \"type\": \"long\","
+            + "    \"script\": {"
+            + "      \"source\": \"doc['field_name'].value + 1 -1\","
+            + "      \"params\": {"
+            + "        \"factor\": 1.1"
+            + "      }"
+            + "    },"
+            + "    \"mode\": \"max\","
+            + "    \"order\": \"asc\""
+            + "  }"
+            + "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
+
+            ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(parser, null);
+            assertEquals("doc['field_name'].value + 1 -1", builder.script().getIdOrCode());
+            assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
+            assertEquals(1.1, builder.script().getParams().get("factor"));
+            assertEquals(ScriptType.INLINE, builder.script().getType());
+            assertEquals(ScriptSortType.LONG, builder.type());
+            assertEquals(SortOrder.ASC, builder.order());
+            assertEquals(SortMode.MAX, builder.sortMode());
+            assertNull(builder.getNestedSort());
+        }
+    }
+
+
+    public void testParseJson_simple() throws IOException {
         String scriptSort = "{\n" +
                 "\"_script\" : {\n" +
-                "\"type\" : \"double\",\n" +
+                "\"type\" : \"number\",\n" +
                 "\"script\" : \"doc['field_name'].value\",\n" +
                 "\"mode\" : \"max\",\n" +
                 "\"order\" : \"asc\"\n" +
@@ -208,32 +240,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
             assertEquals(builder.script().getParams(), Collections.emptyMap());
             assertEquals(ScriptType.INLINE, builder.script().getType());
-            assertEquals(ScriptSortType.DOUBLE, builder.type());
-            assertEquals(SortOrder.ASC, builder.order());
-            assertEquals(SortMode.MAX, builder.sortMode());
-            assertNull(builder.getNestedSort());
-        }
-    }
-
-    public void testParseJson_simpleLong() throws IOException {
-        String scriptSort = "{\n" +
-            "\"_script\" : {\n" +
-            "\"type\" : \"long\",\n" +
-            "\"script\" : \"doc['field_name'].value\",\n" +
-            "\"mode\" : \"max\",\n" +
-            "\"order\" : \"asc\"\n" +
-            "} }\n";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
-            parser.nextToken();
-            parser.nextToken();
-            parser.nextToken();
-
-            ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(parser, null);
-            assertEquals("doc['field_name'].value", builder.script().getIdOrCode());
-            assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
-            assertEquals(builder.script().getParams(), Collections.emptyMap());
-            assertEquals(ScriptType.INLINE, builder.script().getType());
-            assertEquals(ScriptSortType.LONG, builder.type());
+            assertEquals(ScriptSortType.NUMBER, builder.type());
             assertEquals(SortOrder.ASC, builder.order());
             assertEquals(SortMode.MAX, builder.sortMode());
             assertNull(builder.getNestedSort());
@@ -293,7 +300,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     public void testMultiValueMode() throws IOException {
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
         for (SortMode mode : SortMode.values()) {
-            ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.DOUBLE);
+            ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
             sortBuilder.sortMode(mode);
             SortField sortField = sortBuilder.build(searchExecutionContext).field;
             assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
@@ -302,14 +309,14 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         }
 
         // check that without mode set, order ASC sets mode to MIN, DESC to MAX
-        ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.DOUBLE);
+        ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
         sortBuilder.order(SortOrder.ASC);
         SortField sortField = sortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MIN, comparatorSource.sortMode());
 
-        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.DOUBLE);
+        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
         sortBuilder.order(SortOrder.DESC);
         sortField = sortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
@@ -325,7 +332,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         SortField sortField = sortBuilder.build(createMockSearchExecutionContext()).field;
         assertThat(sortField.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
 
-        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.DOUBLE);
+        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
         sortField = sortBuilder.build(createMockSearchExecutionContext()).field;
         assertThat(sortField.getComparatorSource(), instanceOf(DoubleValuesComparatorSource.class));
 
@@ -340,7 +347,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     public void testBuildNested() throws IOException {
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
 
-        ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.DOUBLE)
+        ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER)
                 .setNestedSort(new NestedSortBuilder("path").setFilter(QueryBuilders.matchAllQuery()));
         SortField sortField = sortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
@@ -349,7 +356,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertNotNull(nested);
         assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
 
-        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.DOUBLE)
+        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER)
             .setNestedSort(new NestedSortBuilder("path"));
         sortField = sortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
@@ -358,7 +365,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertNotNull(nested);
         assertEquals(new TermQuery(new Term(NestedPathFieldMapper.NAME, "path")), nested.getInnerQuery());
 
-        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.DOUBLE)
+        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER)
             .setNestedSort(new NestedSortBuilder("path")
                 .setFilter(QueryBuilders.matchAllQuery()));
         sortField = sortBuilder.build(searchExecutionContext).field;

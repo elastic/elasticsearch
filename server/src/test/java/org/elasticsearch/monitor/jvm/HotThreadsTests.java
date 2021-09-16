@@ -58,7 +58,7 @@ public class HotThreadsTests extends ESTestCase {
             "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner", "process reaper" }) {
             ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
             when(mockedThreadInfo.getThreadName()).thenReturn(threadName);
-            assertTrue(HotThreads.isKnownJvmThread(mockedThreadInfo));
+            assertTrue(HotThreads.isKnownJDKThread(mockedThreadInfo));
             assertTrue(HotThreads.isIdleThread(mockedThreadInfo));
         }
 
@@ -66,7 +66,7 @@ public class HotThreadsTests extends ESTestCase {
             ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
             when(mockedThreadInfo.getThreadName()).thenReturn(threadName);
             when(mockedThreadInfo.getStackTrace()).thenReturn(new StackTraceElement[0]);
-            assertFalse(HotThreads.isKnownJvmThread(mockedThreadInfo));
+            assertFalse(HotThreads.isKnownJDKThread(mockedThreadInfo));
             assertFalse(HotThreads.isIdleThread(mockedThreadInfo));
         }
 
@@ -79,7 +79,7 @@ public class HotThreadsTests extends ESTestCase {
             ));
 
         for (StackTraceElement stackFrame : testJvmStack) {
-            assertFalse(HotThreads.isKnownElasticStackFrame(stackFrame.getClassName(), stackFrame.getMethodName()));
+            assertFalse(HotThreads.isKnownIdleStackFrame(stackFrame.getClassName(), stackFrame.getMethodName()));
         }
 
         ThreadInfo notIdleThread = mock(ThreadInfo.class);
@@ -102,7 +102,7 @@ public class HotThreadsTests extends ESTestCase {
             ThreadInfo idleThread = mock(ThreadInfo.class);
             when(idleThread.getThreadName()).thenReturn("Idle Thread");
             when(idleThread.getStackTrace()).thenReturn(new StackTraceElement[] {extraFrame});
-            assertTrue(HotThreads.isKnownElasticStackFrame(extraFrame.getClassName(), extraFrame.getMethodName()));
+            assertTrue(HotThreads.isKnownIdleStackFrame(extraFrame.getClassName(), extraFrame.getMethodName()));
             assertTrue(HotThreads.isIdleThread(idleThread));
 
             List<StackTraceElement> topOfStack = new ArrayList<>(testJvmStack);

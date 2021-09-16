@@ -118,23 +118,23 @@ public class HotThreads {
         }
     }
 
-    static boolean isKnownJvmThread(ThreadInfo threadInfo) {
+    static boolean isKnownJDKThread(ThreadInfo threadInfo) {
         return (knownJDKInternalThreads.stream().anyMatch(jvmThread ->
             threadInfo.getThreadName() != null && threadInfo.getThreadName().equals(jvmThread)));
     }
 
-    static boolean isKnownElasticStackFrame(String className, String methodName) {
+    static boolean isKnownIdleStackFrame(String className, String methodName) {
         return (knownIdleStackFrames.stream().anyMatch(pair ->
             pair[0].equals(className) && pair[1].equals(methodName)));
     }
 
     static boolean isIdleThread(ThreadInfo threadInfo) {
-        if (isKnownJvmThread(threadInfo)) {
+        if (isKnownJDKThread(threadInfo)) {
             return true;
         }
 
         for (StackTraceElement frame : threadInfo.getStackTrace()) {
-            if (isKnownElasticStackFrame(frame.getClassName(), frame.getMethodName())) {
+            if (isKnownIdleStackFrame(frame.getClassName(), frame.getMethodName())) {
                 return true;
             }
         }

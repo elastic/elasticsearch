@@ -25,7 +25,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesModule;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,7 +33,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.hamcrest.MatcherAssert.assertThat;
 
 public class TranslogHandler implements Engine.TranslogRecoveryRunner {
 
@@ -76,15 +74,11 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
     public int run(Engine engine, Translog.Snapshot snapshot) throws IOException {
         int opsRecovered = 0;
         Translog.Operation operation;
-        final int totalOpsBefore = snapshot.totalOperations();
         while ((operation = snapshot.next()) != null) {
             applyOperation(engine, convertToEngineOp(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY));
             opsRecovered++;
             appliedOperations.incrementAndGet();
         }
-        final int totalOpsAfter = snapshot.totalOperations();
-        assertThat(totalOpsBefore, Matchers.lessThanOrEqualTo(totalOpsAfter));
-        assertThat(snapshot.skippedOperations() + opsRecovered, Matchers.equalTo(totalOpsAfter));
         engine.syncTranslog();
         return opsRecovered;
     }

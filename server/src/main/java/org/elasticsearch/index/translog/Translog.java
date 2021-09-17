@@ -915,13 +915,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         /**
          * The total estimated number of operations in the snapshot.
-         * The value can be adjusted (only increased) while the snapshot is being read.
          */
         int totalOperations();
 
         /**
          * The number of operations have been skipped (overridden or trimmed) in the snapshot so far.
-         * Like {@link #totalOperations()}, this value can be adjusted (only increased) after {@link #next()}) is called.
+         * Unlike {@link #totalOperations()}, this value is updated each time after {@link #next()}) is called.
          */
         default int skippedOperations() {
             return 0;

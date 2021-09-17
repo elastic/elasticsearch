@@ -186,12 +186,19 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         int backingIndexPosition = indices.indexOf(index);
 
         if (backingIndexPosition == -1) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]",
-                index.getName(), name));
+            throw new IllegalArgumentException(String.format(
+                Locale.ROOT,
+                "index [%s] is not part of data stream [%s]",
+                index.getName(), name
+            ));
         }
         if (generation == (backingIndexPosition + 1)) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "cannot remove backing index [%s] of data stream [%s] because " +
-                "it is the write index", index.getName(), name));
+            throw new IllegalArgumentException(String.format(
+                Locale.ROOT,
+                "cannot remove backing index [%s] of data stream [%s] because it is the write index",
+                index.getName(),
+                name
+            ));
         }
 
         List<Index> backingIndices = new ArrayList<>(indices);

@@ -1,3 +1,34 @@
+[[release-notes-7.14.2]]
+== {es} version 7.14.2
+
+Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
+
+[[enhancement-7.14.2]]
+[float]
+=== Enhancements
+
+Mapping::
+* Restore public visibility of methods on `RootObjectMapper` {es-pull}77274[#77274]
+
+[[bug-7.14.2]]
+[float]
+=== Bug fixes
+
+EQL::
+* Use the document fields only excluding the metadata fields {es-pull}77203[#77203] (issue: {es-issue}77152[#77152])
+
+Machine Learning::
+* Fix failure on datafeed preview with `date_nanos` time field {es-pull}77109[#77109]
+* Relocating job should not fail if blocked on revert {es-pull}77207[#77207] (issue: {es-issue}75377[#75377])
+* Retain job task upon fail during opening {es-pull}77206[#77206]
+* Retry reset if existing task was terminated abruptly {es-pull}77328[#77328] (issue: {es-issue}77207[#77207])
+
+SQL::
+* Fix disjunctions (and `IN`) with multiple date math expressions {es-pull}76424[#76424] (issue: {es-issue}76336[#76336])
+
+Snapshot/Restore::
+* Fix Queued Snapshot Clone not Starting after Data Node Drops Out {es-pull}77111[#77111] (issue: {es-issue}77101[#77101])
+
 [[release-notes-7.14.1]]
 == {es} version 7.14.1
 

@@ -21,7 +21,8 @@ public class RemoveIndexLifecyclePolicyRequest extends TimedRequest {
     private final IndicesOptions indicesOptions;
 
     public RemoveIndexLifecyclePolicyRequest(List<String> indices) {
-        this(indices, IndicesOptions.strictExpandOpen());
+       this.indices = Objects.requireNonNull(indices);
+       this.indicesOptions = null;
     }
 
     public RemoveIndexLifecyclePolicyRequest(List<String> indices, IndicesOptions indicesOptions) {

@@ -23,13 +23,15 @@ public class GetIndexRequest extends TimedRequest {
         SETTINGS;
     }
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, true);
+
     static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
     private Feature[] features = DEFAULT_FEATURES;
     private boolean humanReadable = false;
     private transient boolean includeDefaults = false;
 
     private final String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private boolean local = false;
 
     public GetIndexRequest(String... indices) {

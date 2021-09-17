@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -906,21 +907,17 @@ public class FieldFetcherTests extends MapperServiceTestCase {
      * Field patterns retrieved with "include_unmapped" use an automaton with a maximal allowed size internally.
      * This test checks we have a bound in place to avoid misuse of this with exceptionally large field patterns
      */
-    // TODO LUCENE-9981 seems to make this essentially impossible to hit, so remove the test?
-    /*
     public void testTooManyUnmappedFieldWildcardPattern() throws IOException {
         MapperService mapperService = createMapperService();
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("a", "foo").endObject();
 
-        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
-        boolean includeUnmapped = true;
-        for (int i = 0; i < 4000; i++) {
-            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, includeUnmapped));
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>(8_000);
+        for (int i = 0; i < 8000; i++) {
+            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, true));
         }
         expectThrows(TooComplexToDeterminizeException.class, () -> fetchFields(mapperService, source, fieldAndFormatList));
     }
-     */
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
         return Collections.singletonList(new FieldAndFormat(name, format, includeUnmapped));

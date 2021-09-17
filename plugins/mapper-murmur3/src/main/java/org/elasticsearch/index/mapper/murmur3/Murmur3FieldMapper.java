@@ -18,10 +18,10 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -64,11 +64,11 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public Murmur3FieldMapper build(ContentPath contentPath) {
+        public Murmur3FieldMapper build(MapperBuilderContext context) {
             return new Murmur3FieldMapper(
                 name,
-                new Murmur3FieldType(buildFullName(contentPath), stored.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, contentPath),
+                new Murmur3FieldType(context.buildFullName(name), stored.getValue(), meta.getValue()),
+                multiFieldsBuilder.build(this, context),
                 copyTo.build());
         }
     }

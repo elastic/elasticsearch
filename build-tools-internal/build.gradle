@@ -102,9 +102,9 @@ gradlePlugin {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
     }
-    javaRestTest {
-      id = 'elasticsearch.java-rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.JavaRestTestPlugin'
+    internalJavaRestTest {
+      id = 'elasticsearch.internal-java-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin'
     }
     jdkDownload {
       id = 'elasticsearch.jdk-download'

@@ -7,14 +7,20 @@
 
 package org.elasticsearch.xpack.core.ml.inference.allocation;
 
+import java.util.Arrays;
 import java.util.Locale;
 
 public enum AllocationState {
+    STARTING,
     STARTED,
     STOPPING;
 
     public static AllocationState fromString(String value) {
         return valueOf(value.toUpperCase(Locale.ROOT));
+    }
+
+    public boolean isAnyOf(AllocationState... candidates) {
+        return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
     }
 
     @Override

@@ -80,6 +80,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner = createSearchRunner(client, enrichCache);
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
+            case EnrichPolicy.RANGE_TYPE:
                 return new MatchProcessor(
                     tag,
                     description,

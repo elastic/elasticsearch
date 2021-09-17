@@ -242,7 +242,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      */
     public DataStream addBackingIndex(Metadata clusterMetadata, Index index) {
         // validate that index is not part of another data stream
-        final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
+        final IndexAbstraction.DataStream parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
             if (parentDataStream.getDataStream().equals(this)) {
                 return this;

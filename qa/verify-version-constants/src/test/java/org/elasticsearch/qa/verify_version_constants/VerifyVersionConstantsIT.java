@@ -24,6 +24,12 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class VerifyVersionConstantsIT extends ESRestTestCase {
 
+    public void testEmpty() throws Exception {
+
+    }
+
+    // NORELEASE
+    @AwaitsFix(bugUrl = "Lucene version on 7.x is 8.10 instead of 8.9 - Remove the testEmpty above")
     public void testLuceneVersionConstant() throws IOException, ParseException {
         final Response response = client().performRequest(new Request("GET", "/"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

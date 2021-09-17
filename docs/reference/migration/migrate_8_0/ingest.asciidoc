@@ -16,6 +16,6 @@ Common Schema (ECS)] fields.
 
 *Impact* +
 To avoid deprecation warnings, remove the parameter from your ingest pipelines.
-If a pipeline specifies a `ecs` value, the value is ignored.
+If a pipeline specifies an `ecs` value, the value is ignored.
 ====
 //end::notable-breaking-changes[]

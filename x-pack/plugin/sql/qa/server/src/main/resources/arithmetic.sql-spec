@@ -88,7 +88,7 @@ SELECT emp_no FROM test_emp ORDER BY emp_no % 10000 LIMIT 10;
 orderByMul
 SELECT emp_no FROM test_emp ORDER BY emp_no * 2 LIMIT 10;
 orderByBigNumber
-SELECT 9223372036854775807 - emp_no FROM test_emp ORDER BY 1 LIMIT 10;
+SELECT 9223372036854775807 - emp_no as l FROM test_emp ORDER BY l desc LIMIT 10;
 
 // arithmetic optimiser
 plusMulIntFieldPlus

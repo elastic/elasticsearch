@@ -381,7 +381,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             entry.startTime(),
             0L,
             entry.shards().size(),
-            Math.toIntExact(entry.shards().stream().filter(c -> c.getValue().state() != SnapshotsInProgress.ShardState.FAILED).count()),
+            Math.toIntExact(entry.shards().stream().filter(c -> c.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS).count()),
             entry.shards()
                 .stream()
                 .filter(c -> c.getValue().state() == SnapshotsInProgress.ShardState.FAILED)

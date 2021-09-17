@@ -40,8 +40,6 @@ import java.util.ServiceConfigurationError;
  * This is a light impl of {@link java.util.ServiceLoader} but is guaranteed to
  * be bug-free regarding classpath order and does not instantiate or initialize
  * the classes found.
- *
- * @lucene.internal
  */
 @SuppressForbidden(reason="Copied from Lucene")
 public final class SPIClassIterator<S> implements Iterator<Class<? extends S>> {

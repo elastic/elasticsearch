@@ -47,6 +47,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class WatcherUtilsTests extends ESTestCase {
+
+    private static final String IGNORE_THROTTLED_FIELD_WARNING = "Deprecated field [ignore_throttled] used, this field is unused and " +
+        "will be removed entirely";
+
     public void testFlattenModel() throws Exception {
         ZonedDateTime now = ZonedDateTime.now(Clock.systemUTC());
         Map<String, Object> map = new HashMap<>();
@@ -137,6 +141,9 @@ public class WatcherUtilsTests extends ESTestCase {
 
         assertNotNull(result.getTemplate());
         assertThat(result.getTemplate().getLang(), equalTo(stored ? null : "mustache"));
+        if (expectedIndicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING);
+        }
         if (expectedSource == null) {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedTemplate.getIdOrCode()));
             assertThat(result.getTemplate().getType(), equalTo(expectedTemplate.getType()));
@@ -207,6 +214,9 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE);
 
+        if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING);
+        }
         assertThat(result.getIndices(), arrayContainingInAnyOrder(indices));
         assertThat(result.getIndicesOptions(), equalTo(indicesOptions));
         assertThat(result.getSearchType(), equalTo(searchType));

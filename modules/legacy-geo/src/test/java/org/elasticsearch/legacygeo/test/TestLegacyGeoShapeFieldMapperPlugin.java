@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.legacygeo.test;
 
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.legacygeo.LegacyGeoPlugin;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
@@ -18,10 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Some tests depend on the {@link GeoShapeFieldMapper}.
- * This mapper is registered in the spatial-extras module, but used in many integration
- * tests in server code. The goal is to migrate all of the spatial/geo pieces to the spatial-extras
- * module such that no tests in server depend on this test plugin
+ * Test plugin to test functionality of this mapper.
  */
 @Deprecated
 public class TestLegacyGeoShapeFieldMapperPlugin extends LegacyGeoPlugin implements MapperPlugin {
@@ -29,7 +25,7 @@ public class TestLegacyGeoShapeFieldMapperPlugin extends LegacyGeoPlugin impleme
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
-        mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, LegacyGeoShapeFieldMapper.PARSER);
+        mappers.put(LegacyGeoShapeFieldMapper.CONTENT_TYPE, LegacyGeoShapeFieldMapper.PARSER);
         return Collections.unmodifiableMap(mappers);
     }
 }

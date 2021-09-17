@@ -20,7 +20,6 @@ import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.legacygeo.builders.CoordinatesBuilder;
@@ -293,12 +292,13 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
-        final GeoShapeFieldMapper mapperBuilder = new GeoShapeFieldMapper.Builder("test", false, true).ignoreZValue(false)
-            .build(MapperBuilderContext.ROOT);
+        final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true).build(
+            MapperBuilderContext.ROOT
+        );
 
         // test store z disabled
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> ShapeParser.parse(parser, mapperBuilder));
-        assertThat(e, hasToString(containsString("but [ignore_z_value] parameter is [false]")));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> ShapeParser.parse(parser, mapperBuilder));
+        assertThat(e, hasToString(containsString("coordinate dimensions do not match")));
     }
 
     public void testParseMixedDimensionPolyWithHoleStoredZ() throws IOException {

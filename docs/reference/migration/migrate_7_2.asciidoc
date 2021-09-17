@@ -27,4 +27,18 @@ unexpectedly ignored the rest.  For instance if you set `discovery.seed_hosts:
 "10.11.12.13:9300-9310"` then {es} would only use `10.11.12.13:9300` for
 discovery. Seed host addresses containing port ranges are now rejected.
 
+[discrete]
+[[breaking_72_ingest_changes]]
+=== Ingest pipeline changes
+
+[discrete]
+[[deprecate-ecs-parameter]]
+==== The `user_agent` ingest processor's `ecs` parameter is deprecated.
+
+The `ecs` parameter for the `user_agent` ingest processor is deprecated and will
+be removed in 8.0. In 8.x, the `user_agent` ingest processor will only return
+{ecs-ref}[Elastic Common Schema (ECS)] fields.
+
+To avoid deprecation warnings, remove the parameter from your ingest pipelines.
+
 // end::notable-breaking-changes[]

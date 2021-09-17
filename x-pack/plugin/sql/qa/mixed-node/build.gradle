@@ -12,6 +12,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
   testImplementation(project(xpackModule('ql:test-fixtures')))
   testImplementation project(xpackModule('sql'))
+  testImplementation project(xpackModule('sql:qa:server'))
 }
 
 testClusters.all {

@@ -72,7 +72,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                     operations,
                 numOps - 1, followerPrimary, logger);
 
-        try (Translog.Snapshot snapshot = followerPrimary.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
+        try (Translog.Snapshot snapshot =
+                 followerPrimary.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), true, randomBoolean())) {
             assertThat(snapshot.totalOperations(), equalTo(operations.size()));
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {

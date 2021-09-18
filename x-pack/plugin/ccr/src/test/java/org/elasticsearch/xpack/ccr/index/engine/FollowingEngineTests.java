@@ -612,8 +612,8 @@ public class FollowingEngineTests extends ESTestCase {
                     // extends the fetch range so we may deliver some overlapping operations more than once.
                     final long fromSeqNo = randomLongBetween(Math.max(lastSeqNo - 5, 0), lastSeqNo + 1);
                     final long toSeqNo = randomLongBetween(nextSeqNo, Math.min(nextSeqNo + 5, checkpoint));
-                    try (Translog.Snapshot snapshot =
-                             shuffleSnapshot(leader.newChangesSnapshot("test", fromSeqNo, toSeqNo, true, randomBoolean()))) {
+                    try (Translog.Snapshot snapshot = shuffleSnapshot(
+                        leader.newChangesSnapshot("test", fromSeqNo, toSeqNo, true, randomBoolean(), true, randomBoolean()))) {
                         follower.advanceMaxSeqNoOfUpdatesOrDeletes(leader.getMaxSeqNoOfUpdatesOrDeletes());
                         Translog.Operation op;
                         while ((op = snapshot.next()) != null) {

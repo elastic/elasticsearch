@@ -15,12 +15,15 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -54,6 +57,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
     private final IndexSearcher indexSearcher;
     private int docIndex = 0;
+    private final boolean accessOperations;
+    private final boolean accessStats;
     private final int totalHits;
     private ScoreDoc[] scoreDocs;
     private final ParallelArray parallelArray;
@@ -73,15 +78,17 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
      * @param toSeqNo           the maximum requesting seq# - inclusive
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      * @param singleConsumer    true if the snapshot is accessed by a single thread that creates the snapshot
+     * @param accessOperation   true if the operations of the snapshot can be accessed via {@link #next()}
+     * @param accessStats       true if the stats of the snapshot can be accessed via {@link #totalOperations()}
      */
     LuceneChangesSnapshot(Engine.Searcher engineSearcher, int searchBatchSize,
                           long fromSeqNo, long toSeqNo, boolean requiredFullRange,
-                          boolean singleConsumer) throws IOException {
+                          boolean singleConsumer, boolean accessOperation, boolean accessStats) throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
         if (searchBatchSize <= 0) {
-            throw new IllegalArgumentException("Search_batch_size must be positive [" + searchBatchSize + "]");
+            throw new IllegalArgumentException("Search_batch_size must be non-negative [" + searchBatchSize + "]");
         }
         final AtomicBoolean closed = new AtomicBoolean();
         this.onClose = () -> {
@@ -99,8 +106,10 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.singleConsumer = singleConsumer;
         this.indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
         this.indexSearcher.setQueryCache(null);
+        this.accessOperations = accessOperation;
+        this.accessStats = accessStats;
         this.parallelArray = new ParallelArray(this.searchBatchSize);
-        final TopDocs topDocs = searchOperations(null);
+        final TopDocs topDocs = searchOperations(null, accessStats);
         this.totalHits = Math.toIntExact(topDocs.totalHits.value);
         this.scoreDocs = topDocs.scoreDocs;
         fillParallelArray(scoreDocs, parallelArray);
@@ -115,6 +124,9 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     @Override
     public int totalOperations() {
         assert assertAccessingThread();
+        if (accessStats == false) {
+            throw new IllegalStateException("Access stats of a snapshot created with [access_stats] is false");
+        }
         return totalHits;
     }
 
@@ -127,6 +139,9 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     @Override
     public Translog.Operation next() throws IOException {
         assert assertAccessingThread();
+        if (accessOperations == false) {
+            throw new IllegalStateException("Access operations of a snapshot created with [access_operations] is false");
+        }
         Translog.Operation op = null;
         for (int idx = nextDocIndex(); idx != -1; idx = nextDocIndex()) {
             op = readDocAsOp(idx);
@@ -169,7 +184,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         // we have processed all docs in the current search - fetch the next batch
         if (docIndex == scoreDocs.length && docIndex > 0) {
             final ScoreDoc prev = scoreDocs[scoreDocs.length - 1];
-            scoreDocs = searchOperations(prev).scoreDocs;
+            scoreDocs = searchOperations((FieldDoc) prev, false).scoreDocs;
             fillParallelArray(scoreDocs, parallelArray);
             docIndex = 0;
         }
@@ -236,14 +251,24 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         return true;
     }
 
-    private TopDocs searchOperations(ScoreDoc after) throws IOException {
+    private TopDocs searchOperations(FieldDoc after, boolean accurateTotalHits) throws IOException {
         final Query rangeQuery = new BooleanQuery.Builder()
             .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo), BooleanClause.Occur.MUST)
             .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested documents
             .build();
-        final SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
-        sortBySeqNo.setCanUsePoints();
-        return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, new Sort(sortBySeqNo));
+        if (accessOperations == false) {
+            assert after == null : "searchOperations() must be called once when [access_operations] is false";
+            final int totalHits = indexSearcher.count(rangeQuery);
+            return new TopDocs(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
+        } else {
+            assert accurateTotalHits == false || after == null : "accurate total hits is required by the first batch only";
+            final SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
+            sortBySeqNo.setCanUsePoints();
+            final TopFieldCollector collector =
+                TopFieldCollector.create(new Sort(sortBySeqNo), searchBatchSize, after, accurateTotalHits ? Integer.MAX_VALUE : 0);
+            indexSearcher.search(rangeQuery, collector);
+            return collector.topDocs();
+        }
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {

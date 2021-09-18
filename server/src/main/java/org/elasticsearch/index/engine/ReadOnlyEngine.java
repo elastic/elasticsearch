@@ -321,7 +321,8 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo,
-                                                boolean requiredFullRange, boolean singleConsumer)  {
+                                                boolean requiredFullRange, boolean singleConsumer,
+                                                boolean requireAccurateStats, boolean accessStatsOnly)  {
         return newEmptySnapshot();
     }
 

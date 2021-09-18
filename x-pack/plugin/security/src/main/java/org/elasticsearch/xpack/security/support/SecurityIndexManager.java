@@ -155,6 +155,14 @@ public class SecurityIndexManager implements ClusterStateListener {
         stateChangeListeners.add(listener);
     }
 
+    /**
+     * Remove a listener from notifications on state changes to the configured index.
+     *
+     */
+    public void removeStateListener(BiConsumer<State, State> listener) {
+        stateChangeListeners.remove(listener);
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {

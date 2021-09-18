@@ -65,7 +65,7 @@ public class NerProcessorTests extends ESTestCase {
         };
 
         List<String> classLabels = Arrays.stream(tags).map(NerProcessor.IobTag::toString).collect(Collectors.toList());
-        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index", "vocab"), null, classLabels);
+        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index"), null, classLabels);
 
         ValidationException ve = expectThrows(ValidationException.class, () -> new NerProcessor(mock(BertTokenizer.class), nerConfig));
         assertThat(ve.getMessage(),
@@ -74,7 +74,7 @@ public class NerProcessorTests extends ESTestCase {
 
     public void testValidate_NotAEntityLabel() {
         List<String> classLabels = List.of("foo", NerProcessor.IobTag.B_MISC.toString());
-        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index", "vocab"), null, classLabels);
+        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index"), null, classLabels);
 
         ValidationException ve = expectThrows(ValidationException.class, () -> new NerProcessor(mock(BertTokenizer.class), nerConfig));
         assertThat(ve.getMessage(), containsString("classification label [foo] is not an entity I-O-B tag"));

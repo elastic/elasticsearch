@@ -352,7 +352,7 @@ public class IndexNameExpressionResolver {
 
         if (resolvedSystemIndices.isEmpty() == false) {
             Collections.sort(resolvedSystemIndices);
-            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access",
+            deprecationLogger.critical(DeprecationCategory.API, "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system " +
                     "indices will be prevented by default", resolvedSystemIndices);
         }

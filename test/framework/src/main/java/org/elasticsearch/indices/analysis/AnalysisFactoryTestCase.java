@@ -187,7 +187,10 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // LUCENE-9574
         entry("dropifflagged", Void.class),
         // LUCENE-9575
-        entry("patterntyping", Void.class));
+        entry("patterntyping", Void.class),
+        entry("telugustem", Void.class),
+        entry("telugunormalization", Void.class));
+
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = Map.of(
             "htmlstrip", MovedToAnalysisCommon.class,

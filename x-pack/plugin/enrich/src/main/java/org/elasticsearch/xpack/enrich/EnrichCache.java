@@ -112,6 +112,7 @@ public final class EnrichCache {
                     scheduleClearFailure(cacheKey, cacheEntry);
                     if (throwable instanceof Exception) {
                         callBack.accept(response, (Exception) throwable);
+                        return;
                     } else {
                         // Let ElasticsearchUncaughtExceptionHandler handle this, should it deem it non-fatal let's still trigger the
                         // callback to ensure proper clean up.
@@ -119,6 +120,7 @@ public final class EnrichCache {
                         throw (Error) throwable;
                     }
                 }
+                callBack.accept(response, null);
             });
         } catch (ExecutionException e) {
             callBack.accept(null, e);

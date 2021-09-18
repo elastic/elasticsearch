@@ -78,12 +78,6 @@ public final class EnrichCache {
         );
     }
 
-    private String getEnrichIndexKey(SearchRequest searchRequest) {
-        String alias = searchRequest.indices()[0];
-        IndexAbstraction ia = metadata.getIndicesLookup().get(alias);
-        return ia.getIndices().get(0).getIndex().getName();
-    }
-
     /**
      * resolves the entry from the cache and provides reports the result to the `callBack` This method does not dispatch any logic
      * to another thread. Under contention the searchDispatcher is only called once when the value is not in the cache. The
@@ -125,6 +119,12 @@ public final class EnrichCache {
         } catch (ExecutionException e) {
             callBack.accept(null, e);
         }
+    }
+
+    private String getEnrichIndexKey(SearchRequest searchRequest) {
+        String alias = searchRequest.indices()[0];
+        IndexAbstraction ia = metadata.getIndicesLookup().get(alias);
+        return ia.getIndices().get(0).getIndex().getName();
     }
 
     private void scheduleClearFailure(CacheKey cacheKey, CompletableFuture<SearchResponse> cacheEntry) {

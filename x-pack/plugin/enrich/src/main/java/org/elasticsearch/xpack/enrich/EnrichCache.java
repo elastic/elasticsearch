@@ -50,6 +50,12 @@ public final class EnrichCache {
         this.cache = CacheBuilder.<CacheKey, CompletableFuture<SearchResponse>>builder().setMaximumWeight(maxSize).build();
     }
 
+    /**
+     * Get the value from the cache if present. Returns immediately.
+     * See {@link #resolveOrDispatchSearch(SearchRequest, BiConsumer, BiConsumer)} to implement a read-through, possibly async interaction.
+     * @param searchRequest the key
+     * @return the cached value or null
+     */
     CompletableFuture<SearchResponse> get(SearchRequest searchRequest) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
@@ -79,14 +85,16 @@ public final class EnrichCache {
     }
 
     /**
-     * resolves the entry from the cache and provides reports the result to the `callBack`
-     * If the value is not in the cache the search `searchDispatcher` is called which should schedule the search / callback _asynchronously_, in
-     * other words the dispatcher function should _not_ block or the call to this method will block.
-     * @param searchRequest
-     * @param searchDispatcher
-     * @param callBack
+     * resolves the entry from the cache and provides reports the result to the `callBack` This method does not dispatch any logic
+     * to another thread. Under contention the searchDispatcher is only called once when the value is not in the cache. The
+     * searchDispatcher should schedule the search / callback _asynchronously_ because if the searchDispatcher blocks, then this
+     * method will block. The callback is call on the thread calling this method or under cache miss and contention, the thread running
+     * the part of the searchDispatcher that calls the callback.
+     * @param searchRequest the cache key and input for the search dispatcher
+     * @param searchDispatcher the logical block to be called on cache miss
+     * @param callBack the callback which gets the value asynchronously, which could be a searchResponse or exception (negative lookup)
      */
-    void resolveOrDispatchSearch(
+    public void resolveOrDispatchSearch(
         SearchRequest searchRequest,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> searchDispatcher,
         BiConsumer<SearchResponse, Exception> callBack
@@ -104,11 +112,11 @@ public final class EnrichCache {
                     scheduleClearFailure(cacheKey, cacheEntry);
                     if (throwable instanceof Exception) {
                         callBack.accept(response, (Exception) throwable);
-                    } else if (throwable instanceof Error) {
-                        callBack.accept(response, new Exception("Error occurred '" + throwable.getMessage() + "'"));
-                        throw (Error) throwable;
                     } else {
-                        callBack.accept(response, new Exception("Unexpected subclass of Throwable", throwable));
+                        // Let ElasticsearchUncaughtExceptionHandler handle this, should it deem it non-fatal let's still trigger the
+                        // callback to ensure proper clean up.
+                        callBack.accept(response, new Exception("Throwable was raised '" + throwable.getMessage() + "'"));
+                        throw (Error) throwable;
                     }
                 }
             });

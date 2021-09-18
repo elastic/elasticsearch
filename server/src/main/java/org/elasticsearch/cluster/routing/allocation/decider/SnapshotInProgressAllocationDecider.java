@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
+import java.util.Iterator;
+
 /**
  * This {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider} prevents shards that
  * are currently been snapshotted to be moved to other nodes.
@@ -49,12 +51,14 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
             // Only primary shards are snapshotted
 
             SnapshotsInProgress snapshotsInProgress = allocation.custom(SnapshotsInProgress.TYPE);
-            if (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) {
+            if (snapshotsInProgress == null || snapshotsInProgress.isEmpty()) {
                 // Snapshots are not running
                 return allocation.decision(Decision.YES, NAME, "no snapshots are currently running");
             }
 
-            for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
+            final Iterator<SnapshotsInProgress.Entry> entryIterator = snapshotsInProgress.asStream().iterator();
+            while (entryIterator.hasNext()) {
+                final SnapshotsInProgress.Entry snapshot = entryIterator.next();
                 if (snapshot.isClone()) {
                     continue;
                 }
@@ -66,8 +70,8 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                                 shardRouting.shardId(), shardSnapshotStatus.nodeId());
                     }
                     return allocation.decision(Decision.THROTTLE, NAME,
-                        "waiting for snapshotting of shard [%s] to complete on this node [%s]",
-                        shardRouting.shardId(), shardSnapshotStatus.nodeId());
+                            "waiting for snapshotting of shard [%s] to complete on this node [%s]",
+                            shardRouting.shardId(), shardSnapshotStatus.nodeId());
                 }
             }
         }

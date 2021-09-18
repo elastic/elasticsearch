@@ -773,9 +773,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                     return snapshotInfos.get(0);
                 } else {
                     boolean found = false;
-                    for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                    for (SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(repository)) {
                         final Snapshot curr = entry.snapshot();
-                        if (curr.getRepository().equals(repository) && curr.getSnapshotId().getName().equals(snapshotName)) {
+                        if (curr.getSnapshotId().getName().equals(snapshotName)) {
                             found = true;
                             break;
                         }

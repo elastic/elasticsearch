@@ -51,9 +51,10 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
     @Override
     protected Custom createTestInstance() {
         int numberOfSnapshots = randomInt(10);
-        List<Entry> entries = new ArrayList<>();
+        Map<String, List<Entry>> entries = new HashMap<>();
         for (int i = 0; i < numberOfSnapshots; i++) {
-            entries.add(randomSnapshot());
+            final SnapshotsInProgress.Entry randomEntry = randomSnapshot();
+            entries.computeIfAbsent(randomEntry.repository(), r -> new ArrayList<>()).add(randomEntry);
         }
         return SnapshotsInProgress.of(entries);
     }
@@ -121,30 +122,43 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
 
     @Override
     protected Custom makeTestChanges(Custom testInstance) {
-        SnapshotsInProgress snapshots = (SnapshotsInProgress) testInstance;
-        List<Entry> entries = new ArrayList<>(snapshots.entries());
-        if (randomBoolean() && entries.size() > 1) {
+        final SnapshotsInProgress snapshots = (SnapshotsInProgress) testInstance;
+        SnapshotsInProgress updatedInstance = SnapshotsInProgress.EMPTY;
+        if (randomBoolean() && snapshots.count() > 1) {
             // remove some elements
-            int leaveElements = randomIntBetween(0, entries.size() - 1);
-            entries = randomSubsetOf(leaveElements, entries.toArray(new Entry[leaveElements]));
+            int leaveElements = randomIntBetween(0, snapshots.count() - 1);
+            for (List<Entry> entriesForRepo : snapshots.entriesByRepo().values()) {
+                for (Entry entry : entriesForRepo) {
+                    if (updatedInstance.count() == leaveElements) {
+                        break;
+                    }
+                    if (randomBoolean()) {
+                        updatedInstance = updatedInstance.withAddedEntry(entry);
+                    }
+                }
+            }
         }
         if (randomBoolean()) {
             // add some elements
             int addElements = randomInt(10);
             for (int i = 0; i < addElements; i++) {
-                entries.add(randomSnapshot());
+                updatedInstance = updatedInstance.withAddedEntry(randomSnapshot());
             }
         }
         if (randomBoolean()) {
             // modify some elements
-            for (int i = 0; i < entries.size(); i++) {
-                if (randomBoolean()) {
-                    final Entry entry = entries.get(i);
-                    entries.set(i, mutateEntry(entry));
+            for (Map.Entry<String, List<Entry>> perRepoEntry : updatedInstance.entriesByRepo().entrySet()) {
+                final List<Entry> entries = new ArrayList<>(perRepoEntry.getValue());
+                for (int i = 0; i < entries.size(); i++) {
+                    if (randomBoolean()) {
+                        final Entry entry = entries.get(i);
+                        entries.set(i, mutateEntry(entry));
+                    }
                 }
+                updatedInstance = updatedInstance.withUpdatedEntriesForRepo(perRepoEntry.getKey(), entries);
             }
         }
-        return SnapshotsInProgress.of(entries);
+        return updatedInstance;
     }
 
     @Override
@@ -159,22 +173,20 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
 
     @Override
     protected Custom mutateInstance(Custom instance) {
-        List<Entry> entries = new ArrayList<>(((SnapshotsInProgress) instance).entries());
-        if (false || entries.isEmpty()) {
+        final SnapshotsInProgress snapshotsInProgress = (SnapshotsInProgress) instance;
+        if (snapshotsInProgress.isEmpty()) {
             // add or remove an entry
-            boolean addEntry = entries.isEmpty() ? true : randomBoolean();
-            if (addEntry) {
-                entries.add(randomSnapshot());
-            } else {
-                entries.remove(randomIntBetween(0, entries.size() - 1));
-            }
+            return snapshotsInProgress.withAddedEntry(randomSnapshot());
         } else {
             // mutate an entry
-            int index = randomIntBetween(0, entries.size() - 1);
-            Entry entry = entries.get(index);
-            entries.set(index, mutateEntry(entry));
+            final String repo = randomFrom(snapshotsInProgress.entriesByRepo().keySet());
+            final List<Entry> forRepo = snapshotsInProgress.forRepo(repo);
+            int index = randomIntBetween(0, forRepo.size() - 1);
+            Entry entry = forRepo.get(index);
+            final List<Entry> updatedEntries = new ArrayList<>(forRepo);
+            updatedEntries.set(index, mutateEntry(entry));
+            return snapshotsInProgress.withUpdatedEntriesForRepo(repo, updatedEntries);
         }
-        return SnapshotsInProgress.of(entries);
     }
 
     private Entry mutateEntry(Entry entry) {
@@ -360,40 +372,38 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
 
     public void testXContent() throws IOException {
         final IndexId indexId = new IndexId("index", "uuid");
-        SnapshotsInProgress sip = SnapshotsInProgress.of(
-            Collections.singletonList(
-                new Entry(
-                    new Snapshot("repo", new SnapshotId("name", "uuid")),
-                    true,
-                    true,
-                    State.SUCCESS,
-                    Collections.singletonMap(indexId.getName(), indexId),
-                    Collections.emptyList(),
-                    Collections.emptyList(),
-                    1234567,
-                    0,
-                    ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder()
-                        .fPut(
-                            new ShardId("index", "uuid", 0),
-                            SnapshotsInProgress.ShardSnapshotStatus.success(
-                                "nodeId",
-                                new ShardSnapshotResult(new ShardGeneration("shardgen"), new ByteSizeValue(1L), 1)
-                            )
+        SnapshotsInProgress sip = SnapshotsInProgress.EMPTY.withAddedEntry(
+            new Entry(
+                new Snapshot("repo", new SnapshotId("name", "uuid")),
+                true,
+                true,
+                State.SUCCESS,
+                Collections.singletonMap(indexId.getName(), indexId),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                1234567,
+                0,
+                ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder()
+                    .fPut(
+                        new ShardId("index", "uuid", 0),
+                        SnapshotsInProgress.ShardSnapshotStatus.success(
+                            "nodeId",
+                            new ShardSnapshotResult(new ShardGeneration("shardgen"), new ByteSizeValue(1L), 1)
                         )
-                        .fPut(
-                            new ShardId("index", "uuid", 1),
-                            new SnapshotsInProgress.ShardSnapshotStatus(
-                                "nodeId",
-                                ShardState.FAILED,
-                                "failure-reason",
-                                new ShardGeneration("fail-gen")
-                            )
+                    )
+                    .fPut(
+                        new ShardId("index", "uuid", 1),
+                        new SnapshotsInProgress.ShardSnapshotStatus(
+                            "nodeId",
+                            ShardState.FAILED,
+                            "failure-reason",
+                            new ShardGeneration("fail-gen")
                         )
-                        .build(),
-                    null,
-                    null,
-                    Version.CURRENT
-                )
+                    )
+                    .build(),
+                null,
+                null,
+                Version.CURRENT
             )
         );
 

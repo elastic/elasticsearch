@@ -22,6 +22,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 
+import java.util.List;
+
 /**
  * This is an abstract AsyncActionStep that wraps the performed action listener, checking to see
  * if the action fails due to a snapshot being in progress. If a snapshot is in progress, it
@@ -124,11 +126,13 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
                                     // The index has since been deleted, mission accomplished!
                                     return true;
                                 }
-                                for (SnapshotsInProgress.Entry snapshot :
-                                        state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
-                                    if (snapshot.indices().containsKey(indexName)) {
-                                        // There is a snapshot running with this index name
-                                        return false;
+                                for (List<SnapshotsInProgress.Entry> snapshots :
+                                        state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entriesByRepo().values()) {
+                                    for (SnapshotsInProgress.Entry snapshot : snapshots) {
+                                        if (snapshot.indices().containsKey(indexName)) {
+                                            // There is a snapshot running with this index name
+                                            return false;
+                                        }
                                     }
                                 }
                                 // There are no snapshots for this index, so it's okay to proceed with this state

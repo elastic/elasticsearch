@@ -682,10 +682,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         final SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-        for (SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
-            if (repository.equals(snapshot.snapshot().getRepository())) {
-                throw newRepositoryInUseException(repository, "snapshot is in progress");
-            }
+        if (snapshots.forRepo(repository).isEmpty() == false) {
+            throw newRepositoryInUseException(repository, "snapshot is in progress");
         }
         for (SnapshotDeletionsInProgress.Entry entry : clusterState.custom(
             SnapshotDeletionsInProgress.TYPE,

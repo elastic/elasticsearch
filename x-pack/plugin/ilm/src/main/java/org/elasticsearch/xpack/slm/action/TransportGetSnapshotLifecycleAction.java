@@ -67,16 +67,18 @@ public class TransportGetSnapshotLifecycleAction extends
                 inProgress = Collections.emptyMap();
             } else {
                 inProgress = new HashMap<>();
-                for (SnapshotsInProgress.Entry entry : sip.entries()) {
-                    Map<String, Object> meta = entry.userMetadata();
-                    if (meta == null ||
-                        meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) == null ||
-                        (meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String == false)) {
-                        continue;
-                    }
+                for (List<SnapshotsInProgress.Entry> entriesForRepo : sip.entriesByRepo().values()) {
+                    for (SnapshotsInProgress.Entry entry : entriesForRepo) {
+                        Map<String, Object> meta = entry.userMetadata();
+                        if (meta == null ||
+                                meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) == null ||
+                                (meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String == false)) {
+                            continue;
+                        }
 
-                    String policyId = (String) meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-                    inProgress.put(policyId, SnapshotLifecyclePolicyItem.SnapshotInProgress.fromEntry(entry));
+                        String policyId = (String) meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
+                        inProgress.put(policyId, SnapshotLifecyclePolicyItem.SnapshotInProgress.fromEntry(entry));
+                    }
                 }
             }
 

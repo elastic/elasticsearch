@@ -25,6 +25,7 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 
 import java.io.FileNotFoundException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -155,7 +156,7 @@ public class Docker {
 
         do {
             try {
-                // Give the container enough time for security auto-configuration or a chance to crash out or
+                // Give the container enough time for security auto-configuration or a chance to crash out
                 Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
 
                 // Set COLUMNS so that `ps` doesn't truncate its output
@@ -271,12 +272,25 @@ public class Docker {
         return result.isSuccess();
     }
 
-    public static Path findInContainer(Path base, String type, String pattern) {
+    /**
+     * Finds a file or dir in the container and returns its path ( in the container ). If there are multiple matches for the given
+     * pattern, only the first is returned.
+     *
+     * @param base The base path in the container to start the search from
+     * @param type The type we're looking for , d for directories or f for files.
+     * @param pattern the pattern (case insensitive) that matches the file/dir name
+     * @return a Path pointing to the file/directory in the container
+     */
+    public static Path findInContainer(Path base, String type, String pattern) throws InvalidPathException {
         logger.debug("Trying to look for " + pattern + " ( " + type + ") in " + base + " in the container");
         final String script = "docker exec " + containerId + " find " + base + " -type " + type + " -iname " + pattern;
         final Shell.Result result = sh.run(script);
         if (result.isSuccess() && Strings.isNullOrEmpty(result.stdout) == false) {
-            return Path.of(result.stdout);
+            String path = result.stdout;
+            if (path.split(System.lineSeparator()).length > 1) {
+                path = path.split(System.lineSeparator())[1];
+            }
+            return Path.of(path);
         }
         return null;
     }
@@ -422,8 +436,8 @@ public class Docker {
 
         Stream.of("jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
             .forEach(configFile -> assertThat(es.config(configFile), file("root", "root", p664)));
-        // We write to the elasticsearch.yml file by ConfigInitialNode so it gets owned by elasticsearch. Is that OK?
-        // assertThat(es.config("elasticsearch.yml"), file("elasticsearch", "root", p664));
+        // We write to the elasticsearch.yml file in ConfigInitialNode so it gets owned by elasticsearch.
+        assertThat(es.config("elasticsearch.yml"), file("elasticsearch", "root", p664));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc")
             .forEach(doc -> assertThat(es.home.resolve(doc), file("root", "root", p444)));

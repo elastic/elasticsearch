@@ -255,7 +255,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         );
         runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation, USERNAME, PASSWORD);
-        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD);
+        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
     }
 
     /**
@@ -290,7 +290,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 
             waitForElasticsearch(installation, USERNAME, PASSWORD);
-            ServerUtils.runElasticsearchTests(USERNAME, PASSWORD);
+            ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
         } finally {
             if (tempDir != null) {
                 rm(tempDir);

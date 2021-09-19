@@ -92,7 +92,7 @@ public class ServerUtils {
             waitForXpack(installation);
         } else {
             logger.info("Waiting for elasticsearch WITHOUT Security enabled");
-            waitForElasticsearch("green", null, installation, null, null);
+            waitForElasticsearch("green", null, installation, null, null, null);
         }
     }
 
@@ -177,7 +177,7 @@ public class ServerUtils {
         Path caCert = configPath.resolve("certs/ca/ca.crt");
         Path configFilePath = configPath.resolve("elasticsearch.yml");
         if (Files.exists(configFilePath)) {
-            // In docker we might not even have a file, and if we do it's not readable in the host's FS
+            // In docker we might not even have a file, and if we do it's not in the host's FS
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
             enrollmentEnabled = configFile.contains("xpack.security.enrollment.enabled: true");
             httpSslEnabled = configFile.contains("xpack.security.http.ssl.enabled: true");
@@ -281,18 +281,10 @@ public class ServerUtils {
         assertThat("cluster health response must contain desired status", body, containsString(status));
     }
 
-    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
-        throws Exception {
-        waitForElasticsearch(status, index, installation, username, password, null);
-    }
-
     public static void runElasticsearchTests() throws Exception {
         runElasticsearchTests(null, null, null);
     }
 
-    public static void runElasticsearchTests(String username, String password) throws Exception {
-        runElasticsearchTests(username, password, null);
-    }
 
     public static void runElasticsearchTests(String username, String password, Path caCert) throws Exception {
 

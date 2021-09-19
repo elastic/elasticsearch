@@ -199,6 +199,7 @@ public class TransportNodesListGatewayStartedShards extends
 
         public NodesGatewayStartedShards(StreamInput in) throws IOException {
             super(in);
+            assert false : "only ever executed locally";
         }
 
         public NodesGatewayStartedShards(ClusterName clusterName, List<NodeGatewayStartedShards> nodes,

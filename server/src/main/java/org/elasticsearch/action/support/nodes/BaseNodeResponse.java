@@ -20,11 +20,11 @@ import java.io.IOException;
  */
 public abstract class BaseNodeResponse extends TransportResponse {
 
-    private DiscoveryNode node;
+    private final DiscoveryNode node;
 
     protected BaseNodeResponse(StreamInput in) throws IOException {
         super(in);
-        node = new DiscoveryNode(in);
+        node = DiscoveryNode.readFrom(in);
     }
 
     protected BaseNodeResponse(DiscoveryNode node) {

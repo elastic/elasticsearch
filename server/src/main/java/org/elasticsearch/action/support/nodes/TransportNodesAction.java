@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.ClusterStateReusingStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.CancellableTask;
@@ -185,13 +186,15 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         private final AtomicReferenceArray<Object> responses;
         private final AtomicInteger counter = new AtomicInteger();
         private final Task task;
+        private final ClusterState clusterState;
 
         AsyncAction(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
             this.task = task;
             this.request = request;
             this.listener = listener;
+            this.clusterState = clusterService.state();
             if (request.concreteNodes() == null) {
-                resolveRequest(request, clusterService.state());
+                resolveRequest(request, clusterState);
                 assert request.concreteNodes() != null;
             }
             this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
@@ -218,7 +221,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                             new TransportResponseHandler<NodeResponse>() {
                                 @Override
                                 public NodeResponse read(StreamInput in) throws IOException {
-                                    return newNodeResponse(in);
+                                    return newNodeResponse(new ClusterStateReusingStreamInput(in, clusterState));
                                 }
 
                                 @Override

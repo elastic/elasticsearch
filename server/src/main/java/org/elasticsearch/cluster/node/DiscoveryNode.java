@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.ClusterStateReusingStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -216,6 +217,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /** extract node roles from the given settings */
     public static Set<DiscoveryNodeRole> getRolesFromSettings(final Settings settings) {
         return Set.copyOf(NODE_ROLES_SETTING.get(settings));
+    }
+
+    public static DiscoveryNode readFrom(StreamInput in) throws IOException {
+        if (in instanceof ClusterStateReusingStreamInput) {
+            return ((ClusterStateReusingStreamInput)in).readDiscoveryNode();
+        } else {
+            return new DiscoveryNode(in);
+        }
     }
 
     /**

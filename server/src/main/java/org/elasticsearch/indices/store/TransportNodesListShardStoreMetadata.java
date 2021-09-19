@@ -285,6 +285,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
 
         public NodesStoreFilesMetadata(StreamInput in) throws IOException {
             super(in);
+            assert false : "only ever executed locally";
         }
 
         public NodesStoreFilesMetadata(ClusterName clusterName, List<NodeStoreFilesMetadata> nodes, List<FailedNodeException> failures) {

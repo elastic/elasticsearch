@@ -285,7 +285,6 @@ public class ServerUtils {
         runElasticsearchTests(null, null, null);
     }
 
-
     public static void runElasticsearchTests(String username, String password, Path caCert) throws Exception {
 
         makeRequest(

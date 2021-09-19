@@ -188,7 +188,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
         boolean onPrimary = randomBoolean();
         List<Engine.Operation> operations = new ArrayList<>();
-        int numOps = frequently() ? scaledRandomIntBetween(1, 1000) : scaledRandomIntBetween(5000, 20_000);
+        int numOps = frequently() ? scaledRandomIntBetween(1, 1500) : scaledRandomIntBetween(5000, 20_000);
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(0, randomBoolean() ? 10 : numOps * 2));
             ParsedDocument doc = createParsedDoc(id, randomAlphaOfLengthBetween(1, 5), randomBoolean());

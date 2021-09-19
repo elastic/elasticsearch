@@ -88,7 +88,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
         if (searchBatchSize <= 0) {
-            throw new IllegalArgumentException("Search_batch_size must be non-negative [" + searchBatchSize + "]");
+            throw new IllegalArgumentException("Search_batch_size must be positive [" + searchBatchSize + "]");
         }
         final AtomicBoolean closed = new AtomicBoolean();
         this.onClose = () -> {

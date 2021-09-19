@@ -16,6 +16,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Distribution.Packaging;
 import org.elasticsearch.packaging.util.FileUtils;
@@ -270,12 +271,12 @@ public class Docker {
         return result.isSuccess();
     }
 
-    public static String findInContainer(Path base, String type, String pattern) {
+    public static Path findInContainer(Path base, String type, String pattern) {
         logger.debug("Trying to look for " + pattern + " ( " + type + ") in " + base + " in the container");
-        final String script = "docker exec " + containerId + " find " + base + " -type " + type + " " + pattern;
+        final String script = "docker exec " + containerId + " find " + base + " -type " + type + " -iname " + pattern;
         final Shell.Result result = sh.run(script);
         if (result.isSuccess() && Strings.isNullOrEmpty(result.stdout) == false) {
-            return result.stdout;
+            return Path.of(result.stdout);
         }
         return null;
     }
@@ -529,7 +530,7 @@ public class Docker {
         return mapper.readTree(pluginsResponse);
     }
 
-    public static JsonNode getJson(String path, String user, String password) throws Exception {
+    public static JsonNode getJson(String path, String user, String password, @Nullable Path caCert) throws Exception {
         path = Objects.requireNonNull(path, "path can not be null").trim();
         if (path.isEmpty()) {
             throw new IllegalArgumentException("path must be supplied");
@@ -537,7 +538,13 @@ public class Docker {
         if (path.startsWith("/") == false) {
             throw new IllegalArgumentException("path must start with /");
         }
-        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path), user, password, null);
+
+        final String pluginsResponse;
+        if (caCert == null) {
+            pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path), user, password, null);
+        } else {
+            pluginsResponse = makeRequest(Request.Get("https://localhost:9200" + path), user, password, caCert);
+        }
 
         ObjectMapper mapper = new ObjectMapper();
 

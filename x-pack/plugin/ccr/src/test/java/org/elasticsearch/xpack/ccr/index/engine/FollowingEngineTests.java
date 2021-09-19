@@ -628,7 +628,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private Translog.Snapshot shuffleSnapshot(Translog.Snapshot snapshot) throws IOException {
-        final List<Translog.Operation> operations = new ArrayList<>(snapshot.totalOperations());
+        final List<Translog.Operation> operations = new ArrayList<>();
         Translog.Operation op;
         while ((op = snapshot.next()) != null) {
             operations.add(op);

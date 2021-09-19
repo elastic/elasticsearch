@@ -61,10 +61,7 @@ then
 fi
 
 if [[ $ENROLL_TO_CLUSTER = true ]]; then
-  ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.EnrollNodeToCluster \
-    ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
-    ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-    "`dirname "$0"`"/elasticsearch-cli \
+  bin/elasticsearch-enroll-node \
     --enrollment-token "$ENROLLMENT_TOKEN" <<<"$KEYSTORE_PASSWORD"
 fi
 

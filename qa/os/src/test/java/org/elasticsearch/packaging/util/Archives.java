@@ -262,15 +262,6 @@ public class Archives {
         Installation installation,
         Shell sh,
         String keystorePassword,
-        boolean daemonize
-    ) {
-        return runElasticsearchStartCommand(installation, sh, keystorePassword, List.of(), daemonize);
-    }
-
-    public static Shell.Result runElasticsearchStartCommand(
-        Installation installation,
-        Shell sh,
-        String keystorePassword,
         List<String> parameters,
         boolean daemonize
     ) {

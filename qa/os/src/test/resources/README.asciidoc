@@ -1,0 +1,40 @@
+== Instructions for generating keys and certificates
+
+The keys and certificates used in these tests mimic the TLS behavior that an auto-configured
+node would have. Note that an auto-configured node would have the keys and certificates in
+PKCS#12 keystores but we want to use the PEM files in the mock responses here so we
+configure everything with PEM files. The behavior is the same, as far as the client is
+concerned.
+
+=== Generate CA certificate
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+$ES_HOME/bin/elasticsearch-certutil ca --out ca.zip --pass "password" --pem
+
+unzip ca.zip
+
+cp ca/ca.crt http_ca.crt
+-----------------------------------------------------------------------------------------------------------
+
+
+=== Generate the HTTP layer key and certificate
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+$ES_HOME/bin/elasticsearch-certutil cert --out http.zip --ca-cert ca/ca.crt --ca-key ca/ca.key --ca-pass password --pem \
+  --dns=localhost --dns=localhost.localdomain --dns=localhost4 --dns=localhost4.localdomain4 \
+  --dns=localhost6 --dns=localhost6.localdomain6 \
+  --ip=127.0.0.1 --ip=0:0:0:0:0:0:0:1
+
+unzip http.zip
+
+cp instance/instance.crt http.crt
+
+cp instance/instance.key http.key
+-----------------------------------------------------------------------------------------------------------
+
+
+=== Add the CA cert to the chain
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+cat http_ca.crt >> http.crt
+-----------------------------------------------------------------------------------------------------------

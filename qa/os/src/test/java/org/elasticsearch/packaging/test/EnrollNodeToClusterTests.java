@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeTrue;
 
-public class TestEnrollToCluster extends PackagingTestCase {
+public class EnrollNodeToClusterTests extends PackagingTestCase {
 
     private static MockWebServer esNode;
 
@@ -156,19 +156,19 @@ public class TestEnrollToCluster extends PackagingTestCase {
             + "5e/uHZGA4XY7Pe+tK1Kx/HBayR3DwQ3yy1qo/BtOl/Gdhp46+CIWASjD3XSkv7xnAtCnILJ1/p3y2SYXT7t6Ro3LxUKNnW+CwPbEhPhA0gtXeEAJeRwLgn"
             + "EkfMpth4EFR8QZcmXaPMkW5ujyL6/RmHwKmwRm/esc1/9cYzVaOu9bBO00c55m9Yvhm28tnDF+c7fs=\"}";
         final Settings settings = Settings.builder()
-            .put("path.home", createTempDir(TestEnrollToCluster.class.getSimpleName()))
+            .put("path.home", createTempDir(EnrollNodeToClusterTests.class.getSimpleName()))
             .put("xpack.security.http.ssl.enabled", true)
             .put(
                 "xpack.security.http.ssl.key",
-                PathUtils.get(TestEnrollToCluster.class.getResource("/http.key").toURI()).toAbsolutePath().normalize()
+                PathUtils.get(EnrollNodeToClusterTests.class.getResource("/http.key").toURI()).toAbsolutePath().normalize()
             )
             .put(
                 "xpack.security.http.ssl.certificate",
-                PathUtils.get(TestEnrollToCluster.class.getResource("/http.crt").toURI()).toAbsolutePath().normalize()
+                PathUtils.get(EnrollNodeToClusterTests.class.getResource("/http.crt").toURI()).toAbsolutePath().normalize()
             )
             .put(
                 "xpack.security.http.ssl.certificate_authorities",
-                PathUtils.get(TestEnrollToCluster.class.getResource("/http_ca.crt").toURI()).toAbsolutePath().normalize()
+                PathUtils.get(EnrollNodeToClusterTests.class.getResource("/http_ca.crt").toURI()).toAbsolutePath().normalize()
             )
             .build();
         final TestsSSLService sslService = new TestsSSLService(TestEnvironment.newEnvironment(settings));
@@ -291,7 +291,7 @@ public class TestEnrollToCluster extends PackagingTestCase {
             PemUtils.readCertificates(List.of(es.config(autoConfigDirName.get()).resolve("http_ca.crt"))).get(0),
             equalTo(
                 PemUtils.readCertificates(
-                    List.of(PathUtils.get(TestEnrollToCluster.class.getResource("/http_ca.crt").toURI()).toAbsolutePath().normalize())
+                    List.of(PathUtils.get(EnrollNodeToClusterTests.class.getResource("/http_ca.crt").toURI()).toAbsolutePath().normalize())
                 ).get(0)
             )
         );

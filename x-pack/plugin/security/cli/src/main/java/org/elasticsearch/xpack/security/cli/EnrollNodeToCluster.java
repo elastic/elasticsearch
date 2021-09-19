@@ -120,7 +120,7 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final boolean shouldForce = options.has(force);
 
-        if (shouldForce == false && Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
+        if (false == shouldForce && Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
             throw new UserException(
                 ExitCodes.CONFIG,
                 "Aborting enrolling to cluster. It appears that this is not the first time this node starts."
@@ -177,7 +177,7 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
         }
 
         final UserPrincipal newFileOwner = Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS);
-        if (shouldForce == false && (false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS)))) {
+        if (false == shouldForce && (false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS)))) {
             Files.deleteIfExists(instantAutoConfigDir);
             throw new UserException(ExitCodes.CONFIG, "Aborting enrolling to cluster. config dir ownership mismatch");
         }
@@ -334,7 +334,7 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
         })) {
             // do not overwrite keystore entries unless explicitly instructed to do so,
             // instead expect the user to manually remove them themselves
-            if (shouldForce == false &&
+            if (false == shouldForce &&
                 (nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.keystore.secure_password")
                 || nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.truststore.secure_password")
                 || nodeKeystore.getSettingNames().contains("xpack.security.http.ssl.keystore.secure_password"))) {
@@ -665,7 +665,7 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
         if (XPackSettings.ENROLLMENT_ENABLED.exists(settings) && false == XPackSettings.ENROLLMENT_ENABLED.get(settings)) {
             throw new UserException(ExitCodes.CONFIG, "Aborting enrolling to cluster. Enrollment is explicitly disabled.");
         }
-        if (shouldForce == false) {
+        if (false == shouldForce) {
             if (XPackSettings.SECURITY_ENABLED.exists(settings)) {
                 throw new UserException(ExitCodes.CONFIG, "Aborting enrolling to cluster. It appears that security is already configured.");
             }

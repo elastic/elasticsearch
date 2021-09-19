@@ -298,7 +298,7 @@ public abstract class PackagingTestCase extends Assert {
                 if (useTty) {
                     return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
                 } else {
-                    return Archives.runElasticsearchStartCommand(installation, sh, password, daemonize);
+                    return Archives.runElasticsearchStartCommand(installation, sh, password, List.of(), daemonize);
                 }
             case DEB:
             case RPM:

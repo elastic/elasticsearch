@@ -101,7 +101,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.lastSeenSeqNo = fromSeqNo - 1;
         this.requiredFullRange = requiredFullRange;
         this.singleConsumer = singleConsumer;
-        this.indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
+        this.indexSearcher = newIndexSearcher(engineSearcher);
         this.indexSearcher.setQueryCache(null);
         this.accessStats = accessStats;
         this.parallelArray = new ParallelArray(this.searchBatchSize);
@@ -244,6 +244,10 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         return true;
     }
 
+    private static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher) throws IOException {
+        return new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
+    }
+
     private static Query rangeQuery(long fromSeqNo, long toSeqNo) {
         return new BooleanQuery.Builder()
             .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo), BooleanClause.Occur.MUST)
@@ -255,8 +259,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
-        final IndexSearcher searcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
-        return searcher.count(rangeQuery(fromSeqNo, toSeqNo));
+        return newIndexSearcher(engineSearcher).count(rangeQuery(fromSeqNo, toSeqNo));
     }
 
     private TopDocs searchOperations(FieldDoc after, boolean accurateTotalHits) throws IOException {

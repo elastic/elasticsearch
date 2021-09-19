@@ -2536,7 +2536,7 @@ public class InternalEngine extends Engine {
             return LuceneChangesSnapshot.countOperations(searcher, fromSeqNo, toSeqNo);
         } catch (Exception e) {
             try {
-                maybeFailEngine("acquire changes snapshot", e);
+                maybeFailEngine("count changes", e);
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }

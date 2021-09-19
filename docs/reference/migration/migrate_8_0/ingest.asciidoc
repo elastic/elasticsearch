@@ -12,7 +12,7 @@
 *Details* +
 In 7.2, we deprecated the `ecs` parameter for the `user_agent` ingest processor.
 In 8.x, the `user_agent` ingest processor will only return {ecs-ref}[Elastic
-Common Schema (ECS)] fields, even if `ecs` is `false`.
+Common Schema (ECS)] fields, regardless of the `ecs` value.
 
 *Impact* +
 To avoid deprecation warnings, remove the parameter from your ingest pipelines.

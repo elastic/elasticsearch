@@ -2529,15 +2529,31 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
+        ensureOpen();
+        refreshIfNeeded(source, toSeqNo);
+        try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL)) {
+            return LuceneChangesSnapshot.countOperations(searcher, fromSeqNo, toSeqNo);
+        } catch (Exception e) {
+            try {
+                maybeFailEngine("acquire changes snapshot", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        }
+    }
+
+    @Override
     public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo,
                                                 boolean requiredFullRange, boolean singleConsumer,
-                                                boolean accessOperations, boolean accessStats) throws IOException {
+                                                boolean accessStats) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
-            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(searcher, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
-                fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessOperations, accessStats);
+            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
+                searcher, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
             searcher = null;
             return snapshot;
         } catch (Exception e) {

@@ -62,7 +62,10 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 100))
+            .setTransientSettings(Settings.builder()
+                .put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 100)
+                .put("logger.org.elasticsearch.xpack.ml", "TRACE")
+            )
             .get();
     }
 
@@ -71,8 +74,12 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull(MachineLearning.MAX_LAZY_ML_NODES.getKey()))
+            .setTransientSettings(Settings.builder()
+                .putNull(MachineLearning.MAX_LAZY_ML_NODES.getKey())
+                .putNull("logger.org.elasticsearch.xpack.ml")
+            )
             .get();
+        cleanUp();
     }
 
     // This test assumes that xpack.ml.max_machine_memory_percent is 30
@@ -203,14 +210,24 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             expectedNodeBytes
         );
 
-        long modelSize = ByteSizeValue.ofGb(12).getBytes();
+        long modelSize = ByteSizeValue.ofMb(50_000).getBytes();
         putAndStartModelDeployment(modelId, modelSize, AllocationStatus.State.STARTING);
 
-        expectedTierBytes = (long) Math.ceil(
-            modelSize + ByteSizeValue.ofMb(200).getBytes() + BASIC_REQUIREMENT_MB + BASELINE_OVERHEAD_MB * 100 / 30.0
+        List<DiscoveryNode> mlNodes = admin()
+            .cluster()
+            .prepareNodesInfo()
+            .all()
+            .get()
+            .getNodes()
+            .stream()
+            .map(NodeInfo::getNode)
+            .filter(MachineLearning::isMlNode)
+            .collect(Collectors.toList());
+        NativeMemoryCapacity currentScale = MlAutoscalingDeciderService.currentScale(mlNodes, 30, false);
+        expectedTierBytes = (long)Math.ceil(
+            (ByteSizeValue.ofMb(50_000 + BASIC_REQUIREMENT_MB).getBytes() + currentScale.getTier()) * 100 / 30.0
         );
-        expectedNodeBytes = (long) (modelSize + ByteSizeValue.ofMb(200).getBytes() + BASIC_REQUIREMENT_MB + BASELINE_OVERHEAD_MB * 100
-            / 30.0);
+        expectedNodeBytes = (long) (ByteSizeValue.ofMb(50_000 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
 
         assertMlCapacity(
             client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),

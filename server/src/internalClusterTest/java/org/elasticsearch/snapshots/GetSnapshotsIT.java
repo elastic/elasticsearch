@@ -178,10 +178,6 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNumberOfSnapshotsInProgress(inProgressCount);
 
         final String[] repos = { repoName };
-        assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
-        assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
-        assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
-
         assertThat(
             clusterAdmin().prepareGetSnapshots(matchAllPattern())
                 .setSnapshots(GetSnapshotsRequest.CURRENT_SNAPSHOT, "-snap*")

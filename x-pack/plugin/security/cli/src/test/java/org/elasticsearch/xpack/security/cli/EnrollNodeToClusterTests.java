@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -289,9 +288,44 @@ public class EnrollNodeToClusterTests extends CommandTestCase {
     }
 
     public void testEnrollmentOverwritesPreviousAutoconfigurationWhenForced() throws Exception {
-        final List<String> vanillaFileLines = Files.readAllLines(getResourcePath("elasticsearch.yml"), StandardCharsets.UTF_8);
-        assertEquals(vanillaFileLines, removePreviousAutoconfiguration(getResourcePath("elasticsearch.yml")));
-        assertEquals(vanillaFileLines, removePreviousAutoconfiguration(getResourcePath("elasticsearch_with_autoconfig.yml")));
+        final List<String> file1 = List.of(
+            "# commented out line",
+            "# commented out line",
+            "# commented out line",
+            "# commented out line",
+            "# commented out line",
+            "# commented out line",
+            "some.setting1: some.value",
+            "some.setting2: some.value",
+            "some.setting3: some.value",
+            "some.setting4: some.value",
+            "# commented out line",
+            "# commented out line",
+            "# commented out line"
+        );
+        final List<String> file2 = List.of(
+            "# commented out line",
+            "# commented out line",
+            "# commented out line",
+            "# commented out line",
+            "# commented out line",
+            "# commented out line",
+            "some.setting1: some.value",
+            "some.setting2: some.value",
+            "some.setting3: some.value",
+            "some.setting4: some.value",
+            "# commented out line",
+            "# commented out line",
+            "# commented out line",
+            ConfigInitialNode.AUTO_CONFIGURATION_START_MARKER,
+            "some.setting1: some.value",
+            "some.setting2: some.value",
+            "some.setting3: some.value",
+            "some.setting4: some.value",
+            ConfigInitialNode.AUTO_CONFIGURATION_END_MARKER
+        );
+        assertEquals(file1, removePreviousAutoconfiguration(file1));
+        assertEquals(file1, removePreviousAutoconfiguration(file2));
     }
 
     private Path assertAutoConfigurationFilesCreated() throws Exception {

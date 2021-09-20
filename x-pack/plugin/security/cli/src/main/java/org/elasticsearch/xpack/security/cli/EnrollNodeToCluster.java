@@ -429,7 +429,8 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
 
             fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
                 try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
-                    List<String> existingConfigWithoutAutoconfiguration = removePreviousAutoconfiguration(ymlPath);
+                    final List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
+                    List<String> existingConfigWithoutAutoconfiguration = removePreviousAutoconfiguration(existingConfigLines);
                     // start with the existing config lines
                     for (String line : existingConfigWithoutAutoconfiguration) {
                         bw.write(line);
@@ -647,8 +648,7 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
         }
     }
 
-    static List<String> removePreviousAutoconfiguration(Path ymlPath) throws IOException {
-        final List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
+    static List<String> removePreviousAutoconfiguration(List<String> existingConfigLines) throws IOException {
         // Remove previous auto-configuration
         return Arrays.stream(
             existingConfigLines.stream()

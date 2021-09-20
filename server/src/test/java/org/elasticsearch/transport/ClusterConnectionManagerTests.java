@@ -42,6 +42,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -334,11 +336,13 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final Semaphore pendingConnections = new Semaphore(1000);
         final int threadCount = between(1, 10);
         final CountDownLatch countDownLatch = new CountDownLatch(threadCount);
+        final ReadWriteLock connectCompletionLock = new ReentrantReadWriteLock();
 
         final Runnable action = new Runnable() {
             @Override
             public void run() {
                 if (pendingConnections.tryAcquire()) {
+                    assertTrue(connectCompletionLock.readLock().tryLock());
                     connectionManager.connectToNode(node, null, validator, new ActionListener<Releasable>() {
                         @Override
                         public void onResponse(Releasable releasable) {
@@ -361,6 +365,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                             }
                         }
                     });
+                    connectCompletionLock.readLock().unlock();
                 } else {
                     countDownLatch.countDown();
                 }
@@ -372,6 +377,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         }
 
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        assertTrue(connectCompletionLock.writeLock().tryLock(10, TimeUnit.SECONDS));
         assertFalse(connectionManager.nodeConnected(node));
         connectionManager.close();
     }

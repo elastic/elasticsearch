@@ -164,7 +164,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 null,
                 Collections.emptyMap(),
                 null,
-                false
+                false,
+                null
             )
         );
     }
@@ -285,7 +286,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             null,
             Collections.emptyMap(),
             null,
-            false
+            false,
+            null
         );
 
         long start = 2L << 54; // Double stores 53 bits of mantissa, so we aggregate a bunch of bigger values
@@ -565,7 +567,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             null,
             Collections.emptyMap(),
             null,
-            false
+            false,
+            null
         );
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test_range_agg");
         aggregationBuilder.field(NUMBER_FIELD_NAME);

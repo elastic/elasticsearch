@@ -83,7 +83,7 @@ public class ScriptScoreBenchmark {
     private final Map<String, MappedFieldType> fieldTypes = org.elasticsearch.core.Map.ofEntries(
         org.elasticsearch.core.Map.entry(
             "n",
-            new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, org.elasticsearch.core.Map.of(), null, false)
+            new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, org.elasticsearch.core.Map.of(), null, false, null)
         )
     );
     private final IndexFieldDataCache fieldDataCache = new IndexFieldDataCache.None();

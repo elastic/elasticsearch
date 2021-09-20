@@ -1065,7 +1065,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             null,
             org.elasticsearch.core.Map.of(),
             null,
-            false
+            false,
+            null
         );
         docValuesFieldExistsTestCase(
             new ExistsQueryBuilder("f"),
@@ -1087,7 +1088,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 null,
                 org.elasticsearch.core.Map.of(),
                 null,
-                false
+                false,
+                null
             )
         );
     }

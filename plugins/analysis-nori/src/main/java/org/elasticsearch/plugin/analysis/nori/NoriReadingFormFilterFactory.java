@@ -6,22 +6,22 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.nori;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.ko.KoreanNumberFilter;
+import org.apache.lucene.analysis.ko.KoreanReadingFormFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
-public class NoriNumberFilterFactory extends AbstractTokenFilterFactory {
-
-    public NoriNumberFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+public class NoriReadingFormFilterFactory extends AbstractTokenFilterFactory {
+    public NoriReadingFormFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new KoreanNumberFilter(tokenStream);
+        return new KoreanReadingFormFilter(tokenStream);
     }
 }

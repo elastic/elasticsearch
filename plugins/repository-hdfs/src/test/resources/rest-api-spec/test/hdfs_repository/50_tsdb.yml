@@ -31,14 +31,14 @@
                   type: date
                 metricset:
                   type: keyword
-                  dimension: true
+                  time_series_dimension: true
                 k8s:
                   properties:
                     pod:
                       properties:
                         uid:
                           type: keyword
-                          dimension: true
+                          time_series_dimension: true
                         name:
                           type: keyword
                         ip:

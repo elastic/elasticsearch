@@ -6,8 +6,10 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+
 [[remove-moving-avg-agg]]
 .The `moving_avg` aggregation has been removed.
+[%collapsible]
 ====
 *Details* +
 The `moving_avg` aggregation was deprecated in 6.4 and has been removed. To

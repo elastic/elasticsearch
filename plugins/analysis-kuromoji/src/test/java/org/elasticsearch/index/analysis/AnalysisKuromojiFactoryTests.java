@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.ja.JapaneseCompletionFilterFactory;
 import org.apache.lucene.analysis.ja.JapaneseTokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
@@ -32,7 +31,6 @@ public class AnalysisKuromojiFactoryTests extends AnalysisFactoryTestCase {
     protected Map<String, Class<?>> getTokenFilters() {
         Map<String, Class<?>> filters = new HashMap<>(super.getTokenFilters());
         filters.put("japanesebaseform", KuromojiBaseFormFilterFactory.class);
-        filters.put("japanesecompletion", JapaneseCompletionFilterFactory.class);
         filters.put("japanesepartofspeechstop", KuromojiPartOfSpeechFilterFactory.class);
         filters.put("japanesereadingform", KuromojiReadingFormFilterFactory.class);
         filters.put("japanesekatakanastem", KuromojiKatakanaStemmerFactory.class);

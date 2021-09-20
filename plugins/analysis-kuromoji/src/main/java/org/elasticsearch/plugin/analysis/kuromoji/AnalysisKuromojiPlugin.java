@@ -11,7 +11,6 @@ package org.elasticsearch.plugin.analysis.kuromoji;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.JapaneseCompletionFilterFactory;
 import org.elasticsearch.index.analysis.JapaneseStopTokenFilterFactory;
 import org.elasticsearch.index.analysis.KuromojiAnalyzerProvider;
 import org.elasticsearch.index.analysis.KuromojiBaseFormFilterFactory;
@@ -47,7 +46,6 @@ public class AnalysisKuromojiPlugin extends Plugin implements AnalysisPlugin {
         extra.put("kuromoji_stemmer", KuromojiKatakanaStemmerFactory::new);
         extra.put("ja_stop", JapaneseStopTokenFilterFactory::new);
         extra.put("kuromoji_number", KuromojiNumberFilterFactory::new);
-        extra.put("japanese_completion", JapaneseCompletionFilterFactory::new);
         return extra;
     }
 

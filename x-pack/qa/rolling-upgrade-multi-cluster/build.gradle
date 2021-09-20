@@ -44,7 +44,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       }
       nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.allHttpSocketURI.join(",")}")
       nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}-${kindExt}".getName()}")
-      nonInputProperties.systemProperty('tests.leader_host', "${-> baseLeaderCluster.allHttpSocketURI.last()}")
+      nonInputProperties.systemProperty('tests.leader_host', "${-> baseLeaderCluster.get().allHttpSocketURI.last()}")
       nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', "${-> baseLeaderCluster.get().allTransportPortURI.last()}")
       nonInputProperties.systemProperty('tests.follower_host', "${-> baseFollowerCluster.get().allHttpSocketURI.last()}")
       nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', "${-> baseFollowerCluster.get().allTransportPortURI.last()}")

@@ -23,7 +23,6 @@ tasks.withType(StandaloneRestIntegTestTask).configureEach {
 }
 
 testClusters.all {
-    testDistribution = 'DEFAULT'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     user clusterCredentials

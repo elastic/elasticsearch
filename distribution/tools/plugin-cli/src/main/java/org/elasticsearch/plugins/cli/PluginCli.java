@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;

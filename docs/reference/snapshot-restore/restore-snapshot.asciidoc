@@ -1,6 +1,9 @@
 [[snapshots-restore-snapshot]]
 == Restore a snapshot
 
+// TODO: Remove anchor after https://github.com/elastic/kibana/pull/112597 is
+// merged. This mutes a broken docs CI.
+[[change-index-settings-during-restore]]
 This guide shows you how to restore a snapshot. Snapshots are a convenient way
 to store a copy of your data outside of a cluster. You can restore a snapshot
 to recover indices and data streams after deletion or a hardware failure. You

@@ -111,8 +111,6 @@ the data as both a `keyword` _and_ a numeric data type.
 
 The following parameters are accepted by numeric types:
 
-[horizontal]
-
 <<coerce,`coerce`>>::
 
     Try to convert strings to numbers and truncate fractions for integers.
@@ -139,6 +137,10 @@ support this parameter.
 <<mapping-index,`index`>>::
 
     Should the field be searchable? Accepts `true` (default) and `false`.
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.
 
 <<null-value,`null_value`>>::
 
@@ -173,9 +175,16 @@ support this parameter.
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
 
-<<mapping-field-meta,`meta`>>::
-
-    Metadata about the field.
+// tag::time_series_metric[]
+`time_series_metric`::
+For internal use by Elastic only. Marks the field as a time series metric. The
+value is the metric type. Defaults to `null` (not a time series metric).
+// end::time_series_metric[]
++
+For numeric fields, this parameter accepts `gauge` and `counter`. You can't
+update this parameter for existing fields.
++
+`scaled_float` and `unsigned_long` fields don't support this parameter.
 
 [[scaled-float-params]]
 ==== Parameters for `scaled_float`

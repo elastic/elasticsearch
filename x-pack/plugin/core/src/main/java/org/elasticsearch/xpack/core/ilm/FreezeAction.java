@@ -13,8 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,7 +27,6 @@ import java.util.List;
  */
 public class FreezeAction implements LifecycleAction {
     private static final Logger logger = LogManager.getLogger(FreezeAction.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     public static final String NAME = "freeze";
     public static final String CONDITIONAL_SKIP_FREEZE_STEP = BranchingStep.NAME + "-freeze-check-prerequisites";
@@ -69,8 +66,6 @@ public class FreezeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
-        deprecationLogger.deprecate(DeprecationCategory.OTHER, "ilm_freee_action", "the freeze action has been deprecated in favor of the" +
-            " frozen tier, and will be removed in a future release");
         StepKey preFreezeMergeBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_FREEZE_STEP);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey freezeStepKey = new StepKey(phase, NAME, FreezeStep.NAME);

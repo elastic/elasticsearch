@@ -214,13 +214,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 case "warm":
                     return new HashSet<>(TimeseriesLifecycleType.VALID_WARM_ACTIONS);
                 case "cold":
-                    Set<String> coldActions = new HashSet<>(TimeseriesLifecycleType.VALID_COLD_ACTIONS);
-                    /* The freeze action has been deprecated, meaning that any test that gets the freeze action will sometimes fail
-                     * because of the unexpected deprecation warning. So while this is still a valid action, we're removing it to avoid
-                     * having to put conditional deprecation warning checks into every test that uses this.
-                     */
-                    coldActions.remove(FreezeAction.NAME);
-                    return coldActions;
+                    return new HashSet<>(TimeseriesLifecycleType.VALID_COLD_ACTIONS);
                 case "frozen":
                     return new HashSet<>(TimeseriesLifecycleType.VALID_FROZEN_ACTIONS);
                 case "delete":

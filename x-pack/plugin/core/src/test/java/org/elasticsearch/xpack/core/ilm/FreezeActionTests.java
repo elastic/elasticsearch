@@ -54,6 +54,5 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
         assertEquals(expectedThirdStepKey, secondStep.getNextStepKey());
         assertEquals(expectedThirdStepKey, thirdStep.getKey());
         assertEquals(nextStepKey, thirdStep.getNextStepKey());
-        assertWarnings("the freeze action has been deprecated in favor of the frozen tier, and will be removed in a future release");
     }
 }

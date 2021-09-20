@@ -33,8 +33,10 @@ clusters. Refer to
 steps to configure security.
 +
 NOTE: This procedure uses the same CA to generate certificates for all nodes.
-Alternatively, you can add the CA certificates from the local cluster as a
-trusted CA in each remote cluster. The opposite is also true.
+Alternatively, you can add the certificates from the local cluster as a
+trusted CA in each remote cluster. You must also add the certificates from
+remote clusters as a trusted CA on the local cluster. Using the same CA to
+generate certificates for all nodes simplifies this task.
 
 After enabling and configuring security, you can 
 <<remote-clusters-connect,connect remote clusters>> from a local cluster.

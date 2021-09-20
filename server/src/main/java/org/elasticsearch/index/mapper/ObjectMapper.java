@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -84,6 +85,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public Builder add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
             return this;
+        }
+
+        public Optional<Mapper.Builder> getBuilder(String name) {
+            return mappersBuilders.stream().filter(b -> b.name().equals(name)).findFirst();
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {

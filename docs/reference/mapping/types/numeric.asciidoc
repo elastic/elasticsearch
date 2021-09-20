@@ -178,7 +178,7 @@ support this parameter.
 // tag::time_series_metric[]
 `time_series_metric`::
 For internal use by Elastic only. Marks the field as a time series metric. The
-value is the metric type. Defaults to `null` (not a time series metric).
+value is the metric type. Defaults to `null` (Not a time series metric).
 // end::time_series_metric[]
 +
 For numeric fields, this parameter accepts `gauge` and `counter`. You can't

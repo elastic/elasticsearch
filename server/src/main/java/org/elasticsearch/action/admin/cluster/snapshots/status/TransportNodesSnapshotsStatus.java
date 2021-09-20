@@ -78,7 +78,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
     }
 
     @Override
-    protected NodeSnapshotStatus newNodeResponse(StreamInput in) throws IOException {
+    protected NodeSnapshotStatus newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeSnapshotStatus(in);
     }
 

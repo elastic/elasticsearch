@@ -71,6 +71,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -543,8 +544,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                         @Override
                         public void onFailure(Exception e2) {
-                            e.addSuppressed(e2);
-                            validateListener.onFailure(e);
+                            e2.addSuppressed(e);
+                            validateListener.onFailure(e2);
                         }
                     });
             }
@@ -595,6 +596,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void processJoinRequest(JoinRequest joinRequest, ActionListener<Void> joinListener) {
+        assert Transports.assertNotTransportThread("blocking on coordinator mutex and maybe doing IO to increase term");
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
         try {
             synchronized (mutex) {

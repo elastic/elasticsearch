@@ -21,8 +21,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,9 +33,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
@@ -674,10 +675,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new, handler);
             serviceC.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new, handler);
 
+            final Compression.Scheme scheme;
+            if (serviceA.getLocalDiscoNode().getVersion().onOrAfter(Compression.Scheme.LZ4_VERSION) &&
+                serviceC.getLocalDiscoNode().getVersion().onOrAfter(Compression.Scheme.LZ4_VERSION)) {
+                scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
+            } else {
+                scheme = Compression.Scheme.DEFLATE;
+            }
+
             Settings settingsWithCompress = Settings.builder()
                 .put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.INDEXING_DATA)
-                .put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(),
-                    randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4))
+                .put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), scheme)
                 .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             serviceC.connectToNode(serviceA.getLocalDiscoNode(), connectionProfile);
@@ -2418,7 +2426,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 transportResponseHandler);
             receivedLatch.await();
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
-                TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
+                TransportStats transportStats = serviceC.transport.getStats(); // request has been send
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
@@ -2824,9 +2832,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceC.connectToNode(
                 serviceA.getLocalDiscoNode(),
                 ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY),
-                new ActionListener<Void>() {
+                new ActionListener<Releasable>() {
                     @Override
-                    public void onResponse(final Void v) {
+                    public void onResponse(final Releasable ignored) {
                         latch.countDown();
                     }
 

@@ -36,7 +36,7 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
             "11.0.2+33",
             "linux",
             "x64",
-            "unknown vendor [unknown] for jdk [testjdk], must be one of [adoptopenjdk, openjdk, azul]"
+            "unknown vendor [unknown] for jdk [testjdk], must be one of [adoptium, openjdk, azul]"
         );
     }
 

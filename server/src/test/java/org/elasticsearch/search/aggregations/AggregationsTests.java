@@ -46,30 +46,30 @@ import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTermsTe
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringRareTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
-import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
-import org.elasticsearch.search.aggregations.metrics.InternalMaxTests;
-import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviationTests;
-import org.elasticsearch.search.aggregations.metrics.InternalMinTests;
-import org.elasticsearch.search.aggregations.metrics.InternalStatsBucketTests;
-import org.elasticsearch.search.aggregations.metrics.InternalStatsTests;
-import org.elasticsearch.search.aggregations.metrics.InternalSumTests;
 import org.elasticsearch.search.aggregations.metrics.InternalAvgTests;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinalityTests;
+import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBoundsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroidTests;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentilesRanksTests;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentilesTests;
+import org.elasticsearch.search.aggregations.metrics.InternalMaxTests;
+import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviationTests;
+import org.elasticsearch.search.aggregations.metrics.InternalMinTests;
+import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetricTests;
+import org.elasticsearch.search.aggregations.metrics.InternalStatsBucketTests;
+import org.elasticsearch.search.aggregations.metrics.InternalStatsTests;
+import org.elasticsearch.search.aggregations.metrics.InternalSumTests;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentilesRanksTests;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentilesTests;
-import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetricTests;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHitsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCountTests;
 import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvgTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValueTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalDerivativeTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
@@ -228,13 +228,15 @@ public class AggregationsTests extends ESTestCase {
              *
              * - exclude "key", it can be an array of objects and we need strict values
              */
-            Predicate<String> excludes = path -> (path.isEmpty() || path.endsWith("aggregations")
-                    || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
-                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
-                    || path.endsWith(CommonFields.VALUES.getPreferredName()) || path.endsWith("covariance") || path.endsWith("correlation")
-                    || path.contains(CommonFields.VALUE.getPreferredName())
-                    || path.endsWith(CommonFields.KEY.getPreferredName()))
-                    || path.contains("top_hits");
+            Predicate<String> excludes = path -> (path.isEmpty()
+                || path.endsWith("aggregations")
+                || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
+                || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
+                || path.endsWith(CommonFields.VALUES.getPreferredName())
+                || path.endsWith("covariance")
+                || path.endsWith("correlation")
+                || path.contains(CommonFields.VALUE.getPreferredName())
+                || path.endsWith(CommonFields.KEY.getPreferredName())) || path.contains("top_hits");
             mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
         } else {
             mutated = originalBytes;
@@ -278,13 +280,9 @@ public class AggregationsTests extends ESTestCase {
             if (testCase instanceof InternalMultiBucketAggregationTestCase) {
                 InternalMultiBucketAggregationTestCase<?> multiBucketAggTestCase = (InternalMultiBucketAggregationTestCase<?>) testCase;
                 if (currentDepth < maxDepth) {
-                    multiBucketAggTestCase.setSubAggregationsSupplier(
-                        () -> createTestInstance(0, currentDepth + 1, maxDepth)
-                    );
+                    multiBucketAggTestCase.setSubAggregationsSupplier(() -> createTestInstance(0, currentDepth + 1, maxDepth));
                 } else {
-                    multiBucketAggTestCase.setSubAggregationsSupplier(
-                        () -> InternalAggregations.EMPTY
-                    );
+                    multiBucketAggTestCase.setSubAggregationsSupplier(() -> InternalAggregations.EMPTY);
                 }
             } else if (testCase instanceof InternalSingleBucketAggregationTestCase) {
                 InternalSingleBucketAggregationTestCase<?> singleBucketAggTestCase = (InternalSingleBucketAggregationTestCase<?>) testCase;

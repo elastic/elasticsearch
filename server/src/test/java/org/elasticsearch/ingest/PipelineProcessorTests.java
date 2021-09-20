@@ -36,7 +36,7 @@ public class PipelineProcessorTests extends ESTestCase {
         CompletableFuture<IngestDocument> invoked = new CompletableFuture<>();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Pipeline pipeline = new Pipeline(
-            pipelineId, null, null,
+            pipelineId, null, null, null,
             new CompoundProcessor(new Processor() {
                 @Override
                 public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
@@ -91,13 +91,13 @@ public class PipelineProcessorTests extends ESTestCase {
         outerConfig.put("name", innerPipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Pipeline outer = new Pipeline(
-            outerPipelineId, null, null,
+            outerPipelineId, null, null, null,
             new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, outerConfig))
         );
         Map<String, Object> innerConfig = new HashMap<>();
         innerConfig.put("name", outerPipelineId);
         Pipeline inner = new Pipeline(
-            innerPipelineId, null, null,
+            innerPipelineId, null, null, null,
             new CompoundProcessor(factory.create(Collections.emptyMap(), null, null, innerConfig))
         );
         when(ingestService.getPipeline(outerPipelineId)).thenReturn(outer);
@@ -119,7 +119,7 @@ public class PipelineProcessorTests extends ESTestCase {
         outerConfig.put("name", innerPipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Pipeline inner = new Pipeline(
-            innerPipelineId, null, null, new CompoundProcessor()
+            innerPipelineId, null, null, null, new CompoundProcessor()
         );
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
         Processor outerProc = factory.create(Collections.emptyMap(), null, null, outerConfig);
@@ -145,14 +145,14 @@ public class PipelineProcessorTests extends ESTestCase {
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);
         Pipeline pipeline1 = new Pipeline(
-            pipeline1Id, null, null, new CompoundProcessor(pipeline1Processor), relativeTimeProvider
+            pipeline1Id, null, null, null, new CompoundProcessor(pipeline1Processor), relativeTimeProvider
         );
 
         String key1 = randomAlphaOfLength(10);
         relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(3));
         Pipeline pipeline2 = new Pipeline(
-            pipeline2Id, null, null, new CompoundProcessor(true,
+            pipeline2Id, null, null, null, new CompoundProcessor(true,
             Arrays.asList(
                 new TestProcessor(ingestDocument -> {
                     ingestDocument.setFieldValue(key1, randomInt());
@@ -164,7 +164,7 @@ public class PipelineProcessorTests extends ESTestCase {
         relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(2));
         Pipeline pipeline3 = new Pipeline(
-            pipeline3Id, null, null, new CompoundProcessor(
+            pipeline3Id, null, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {
                 throw new RuntimeException("error");
             })), relativeTimeProvider
@@ -231,7 +231,8 @@ public class PipelineProcessorTests extends ESTestCase {
             }
 
 
-            Pipeline pipeline = new Pipeline(pipelineId, null, null, new CompoundProcessor(false, processors, Collections.emptyList()));
+            Pipeline pipeline = new Pipeline(pipelineId, null, null, null, new CompoundProcessor(false, processors,
+                Collections.emptyList()));
             when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
             if (firstPipeline == null) {
                 firstPipeline = pipeline;

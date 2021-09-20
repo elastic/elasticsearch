@@ -451,7 +451,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         List<Index> regularIndices =
             randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
 
-        long indexMinTimestamp = randomLongBetween(0, 5000);
+        long indexMinTimestamp = randomLongBetween(1000, 5000);
         long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
         String timestampFieldName = dataStream.getTimeStampField().getName();
@@ -463,7 +463,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         // We query a range outside of the timestamp range covered by both datastream indices
         rangeQueryBuilder
             .from(indexMaxTimestamp + 1)
-            .to(indexMaxTimestamp + 2);
+            .to(indexMaxTimestamp + 2)
+            .format("epoch_millis");
 
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
             .filter(rangeQueryBuilder);
@@ -519,7 +520,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         List<Index> regularIndices =
             randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
 
-        long indexMinTimestamp = randomLongBetween(0, 5000);
+        long indexMinTimestamp = randomLongBetween(1000, 5000);
         long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
         String timestampFieldName = dataStream.getTimeStampField().getName();
@@ -577,7 +578,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             // We query a range within the timestamp range covered by both datastream indices
             rangeQueryBuilder
                 .from(indexMinTimestamp)
-                .to(indexMaxTimestamp);
+                .to(indexMaxTimestamp)
+                .format("epoch_millis");
 
             queryBuilder.filter(rangeQueryBuilder);
 
@@ -590,7 +592,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             // We query a range outside of the timestamp range covered by both datastream indices
             RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timestampFieldName)
                 .from(indexMaxTimestamp + 1)
-                .to(indexMaxTimestamp + 2);
+                .to(indexMaxTimestamp + 2)
+                .format("epoch_millis");
 
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder("fake", "value");
 

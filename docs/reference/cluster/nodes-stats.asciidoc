@@ -1276,7 +1276,8 @@ Last time JVM statistics were refreshed.
 
 `uptime`::
 (<<time-units,time value>>)
-JVM uptime.
+Human-readable JVM uptime. Only returned if the
+<<_human_readable_output,`human`>> query parameter is `true`.
 
 `uptime_in_millis`::
 (integer)
@@ -1903,6 +1904,65 @@ Current number of open HTTP connections for the node.
 `total_opened`::
 (integer)
 Total number of HTTP connections opened for the node.
+
+`clients`::
+(array of objects)
+Information on current and recently-closed HTTP client connections.
++
+.Properties of `clients`
+[%collapsible%open]
+=======
+`id`::
+(integer)
+Unique ID for the HTTP client.
+
+`agent`::
+(string)
+Reported agent for the HTTP client. If unavailable, this property is not
+included in the response.
+
+`local_address`::
+(string)
+Local address for the HTTP client.
+
+`remote_address`::
+(string)
+Remote address for the HTTP client.
+
+`last_uri`::
+(string)
+The URI of the client's most recent request.
+
+`x_forwarded_for`::
+(string)
+Value from the client's `x-forwarded-for` HTTP header. If unavailable, this
+property is not included in the response.
+
+`x_opaque_id`::
+(string)
+Value from the client's `x-opaque-id` HTTP header. If unavailable, this property
+is not included in the response.
+
+`opened_time_millis`::
+(integer)
+Time at which the client opened the connection.
+
+`closed_time_millis`::
+(integer)
+Time at which the client closed the connection if the connection is closed.
+
+`last_request_time_millis`::
+(integer)
+Time of the most recent request from this client.
+
+`request_count`::
+(integer)
+Number of requests from this client.
+
+`request_size_bytes`::
+(integer)
+Cumulative size in bytes of all requests from this client.
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-breakers]]
@@ -2016,6 +2076,167 @@ Number of incompatible differences between published cluster states.
 `compatible_diffs`::
 (integer)
 Number of compatible differences between published cluster states.
+=======
+
+`cluster_state_update`::
+(object)
+Contains low-level statistics about how long various activities took during
+cluster state updates while the node was the elected master. Omitted if the
+node is not master-eligible. Every field whose name ends in `_time` within this
+object is also represented as a raw number of milliseconds in a field whose
+name ends in `_time_millis`. The human-readable fields with a `_time` suffix
+are only returned if requested with the `?human=true` query parameter.
++
+.Properties of `cluster_state_update`
+[%collapsible]
+=======
+`unchanged`::
+(object)
+Contains statistics about cluster state update attempts that did not change the
+cluster state.
++
+.Properties of `unchanged`
+[%collapsible]
+========
+`count`::
+(long)
+The number of cluster state update attempts that did not change the cluster
+state since the node started.
+
+`computation_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent computing no-op cluster state updates since
+the node started.
+
+`notification_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent notifying listeners of a no-op cluster
+state update since the node started.
+
+========
+
+`success`::
+(object)
+Contains statistics about cluster state update attempts that successfully
+changed the cluster state.
++
+.Properties of `success`
+[%collapsible]
+========
+`count`::
+(long)
+The number of cluster state update attempts that successfully changed the
+cluster state since the node started.
+
+`computation_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent computing cluster state updates that were
+ultimately successful since the node started.
+
+`publication_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent publishing cluster state updates which
+ultimately succeeded, which includes everything from the start of the
+publication (i.e. just after the computation of the new cluster state) until
+the publication has finished and the master node is ready to start processing
+the next state update. This includes the time measured by
+`context_construction_time`, `commit_time`, `completion_time` and
+`master_apply_time`.
+
+`context_construction_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent constructing a _publication context_ since
+the node started for publications that ultimately succeeded. This statistic
+includes the time spent computing the difference between the current and new
+cluster state preparing a serialized representation of this difference.
+
+`commit_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent waiting for a successful cluster state
+update to _commit_, which measures the time from the start of each publication
+until a majority of the master-eligible nodes have written the state to disk
+and confirmed the write to the elected master.
+
+`completion_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent waiting for a successful cluster state
+update to _complete_, which measures the time from the start of each
+publication until all the other nodes have notified the elected master that
+they have applied the cluster state.
+
+`master_apply_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent successfully applying cluster state updates
+on the elected master since the node started.
+
+`notification_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent notifying listeners of a successful cluster
+state update since the node started.
+
+========
+
+`failure`::
+(object)
+Contains statistics about cluster state update attempts that did not
+successfully change the cluster state, typically because a new master node was
+elected before completion.
++
+.Properties of `failure`
+[%collapsible]
+========
+`count`::
+(long)
+The number of cluster state update attempts that failed to change the cluster
+state since the node started.
+
+`computation_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent computing cluster state updates that were
+ultimately unsuccessful since the node started.
+
+`publication_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent publishing cluster state updates which
+ultimately failed, which includes everything from the start of the
+publication (i.e. just after the computation of the new cluster state) until
+the publication has finished and the master node is ready to start processing
+the next state update. This includes the time measured by
+`context_construction_time`, `commit_time`, `completion_time` and
+`master_apply_time`.
+
+`context_construction_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent constructing a _publication context_ since
+the node started for publications that ultimately failed. This statistic
+includes the time spent computing the difference between the current and new
+cluster state preparing a serialized representation of this difference.
+
+`commit_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent waiting for an unsuccessful cluster state
+update to _commit_, which measures the time from the start of each publication
+until a majority of the master-eligible nodes have written the state to disk
+and confirmed the write to the elected master.
+
+`completion_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent waiting for an unsuccessful cluster state
+update to _complete_, which measures the time from the start of each
+publication until all the other nodes have notified the elected master that
+they have applied the cluster state.
+
+`master_apply_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent unsuccessfully applying cluster state
+updates on the elected master since the node started.
+
+`notification_time`::
+(<<time-units,time value>>)
+The cumulative amount of time spent notifying listeners of a failed cluster
+state update since the node started.
+
+========
 =======
 ======
 

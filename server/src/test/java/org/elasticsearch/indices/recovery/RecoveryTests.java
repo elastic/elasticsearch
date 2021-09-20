@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.recovery;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
@@ -328,7 +329,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
         IndexShard replicaShard = newShard(primaryShard.shardId(), false);
         updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetadata());
-        recoverReplica(replicaShard, primaryShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener) {
+        recoverReplica(replicaShard, primaryShard,
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, recoveryListener) {
             @Override
             public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                 super.prepareForTranslogOperations(totalTranslogOps, listener);
@@ -439,17 +441,19 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             allowShardFailures();
             IndexShard replica = group.addReplica();
             expectThrows(Exception.class, () -> group.recoverReplica(replica,
-                (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new PeerRecoveryTargetService.RecoveryListener() {
-                    @Override
-                    public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
-                        throw new AssertionError("recovery must fail");
-                    }
+                (shard, sourceNode) -> {
+                    return new RecoveryTarget(shard, sourceNode, null, new PeerRecoveryTargetService.RecoveryListener() {
+                        @Override
+                        public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+                            throw new AssertionError("recovery must fail");
+                        }
 
-                    @Override
-                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-                        assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
-                    }
-                })));
+                        @Override
+                        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+                            assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
+                        }
+                    });
+                }));
             expectThrows(AlreadyClosedException.class, () -> replica.refresh("test"));
             group.removeReplica(replica);
             replica.store().close();

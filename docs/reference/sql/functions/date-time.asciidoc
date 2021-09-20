@@ -53,6 +53,20 @@ s|Description
 | `INTERVAL '45:01.23' MINUTES TO SECONDS`      | 45 minutes, 1 second and 230000000 nanoseconds
 |===
 
+==== Comparison
+
+Date/time fields can be compared to <<date-math, date math>> expressions with the equality (`=`) and `IN` operators:
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dtDateMathEquals]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dtDateMathIn]
+--------------------------------------------------
+
 ==== Operators
 
 Basic arithmetic operators (`+`, `-`, `*`) support date/time parameters as indicated below:

@@ -9,23 +9,24 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Objects;
 
 public class Ordinal implements Comparable<Ordinal>, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Ordinal.class);
 
-    private final long timestamp;
+    private final Timestamp timestamp;
     private final Comparable<Object> tiebreaker;
     private final long implicitTiebreaker; // _shard_doc tiebreaker automatically added by ES PIT
 
-    public Ordinal(long timestamp, Comparable<Object> tiebreaker, long implicitTiebreaker) {
+    public Ordinal(Timestamp timestamp, Comparable<Object> tiebreaker, long implicitTiebreaker) {
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
         this.implicitTiebreaker = implicitTiebreaker;
     }
 
-    public long timestamp() {
+    public Timestamp timestamp() {
         return timestamp;
     }
 
@@ -70,16 +71,15 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
 
     @Override
     public int compareTo(Ordinal o) {
-        if (timestamp < o.timestamp) {
+        int timestampCompare = timestamp.compareTo(o.timestamp);
+        if (timestampCompare < 0) {
             return -1;
         }
-        if (timestamp == o.timestamp) {
+        if (timestampCompare == 0) {
             if (tiebreaker != null) {
                 if (o.tiebreaker != null) {
-                    if (tiebreaker.compareTo(o.tiebreaker) == 0) {
-                        return Long.compare(implicitTiebreaker, o.implicitTiebreaker);
-                    }
-                    return tiebreaker.compareTo(o.tiebreaker);
+                    int tiebreakerCompare = tiebreaker.compareTo(o.tiebreaker);
+                    return tiebreakerCompare == 0 ? Long.compare(implicitTiebreaker, o.implicitTiebreaker) : tiebreakerCompare;
                 } else {
                     return -1;
                 }
@@ -120,7 +120,7 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
 
     public Object[] toArray() {
         return tiebreaker != null ?
-            new Object[] { timestamp, tiebreaker, implicitTiebreaker } 
-            : new Object[] { timestamp, implicitTiebreaker };
+            new Object[] { timestamp.toString(), tiebreaker, implicitTiebreaker }
+            : new Object[] { timestamp.toString(), implicitTiebreaker };
     }
 }

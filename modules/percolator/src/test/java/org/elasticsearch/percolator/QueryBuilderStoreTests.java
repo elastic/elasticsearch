@@ -18,15 +18,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -60,7 +60,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             TermQueryBuilder[] queryBuilders = new TermQueryBuilder[randomIntBetween(1, 16)];
             IndexWriterConfig config = new IndexWriterConfig(new WhitespaceAnalyzer());
             config.setMergePolicy(NoMergePolicy.INSTANCE);
-            BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(new ContentPath(0));
+            BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(MapperBuilderContext.ROOT);
 
             Version version = Version.V_6_0_0_beta2;
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {

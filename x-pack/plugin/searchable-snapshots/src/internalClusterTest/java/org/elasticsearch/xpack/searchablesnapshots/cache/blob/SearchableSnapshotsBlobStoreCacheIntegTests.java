@@ -121,16 +121,17 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
         final NumShards numberOfShards = getNumShards(indexName);
 
-        final int numberOfDocs = scaledRandomIntBetween(0, 20_000);
-        if (numberOfDocs > 0) {
-            final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-            for (int i = numberOfDocs; i > 0; i--) {
-                XContentBuilder builder = XContentFactory.smileBuilder();
-                builder.startObject().field("text", randomRealisticUnicodeOfCodepointLengthBetween(5, 50)).field("num", i).endObject();
-                indexRequestBuilders.add(client().prepareIndex(indexName, SINGLE_MAPPING_NAME).setSource(builder));
-            }
-            indexRandom(true, true, true, indexRequestBuilders);
+        final int numberOfDocs = scaledRandomIntBetween(10, 20_000);
+        logger.info("--> indexing [{}] documents in [{}]", numberOfDocs, indexName);
+
+        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = numberOfDocs; i > 0; i--) {
+            XContentBuilder builder = XContentFactory.smileBuilder();
+            builder.startObject().field("text", randomRealisticUnicodeOfCodepointLengthBetween(5, 50)).field("num", i).endObject();
+            indexRequestBuilders.add(client().prepareIndex(indexName, SINGLE_MAPPING_NAME).setSource(builder));
         }
+        indexRandom(true, true, true, indexRequestBuilders);
+
         if (randomBoolean()) {
             logger.info("--> force-merging index before snapshotting");
             final ForceMergeResponse forceMergeResponse = client().admin()
@@ -199,20 +200,18 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         }
 
         logger.info("--> verifying cached documents in system index [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
-        if (numberOfDocs > 0) {
-            ensureYellow(SNAPSHOT_BLOB_CACHE_INDEX);
-            refreshSystemIndex();
+        ensureYellow(SNAPSHOT_BLOB_CACHE_INDEX);
+        refreshSystemIndex();
 
-            logger.info("--> verifying system index [{}] data tiers preference", SNAPSHOT_BLOB_CACHE_INDEX);
-            assertThat(
-                systemClient().admin()
-                    .indices()
-                    .prepareGetSettings(SNAPSHOT_BLOB_CACHE_INDEX)
-                    .get()
-                    .getSetting(SNAPSHOT_BLOB_CACHE_INDEX, DataTierAllocationDecider.INDEX_ROUTING_PREFER),
-                equalTo("data_content,data_hot")
-            );
-        }
+        logger.info("--> verifying system index [{}] data tiers preference", SNAPSHOT_BLOB_CACHE_INDEX);
+        assertThat(
+            systemClient().admin()
+                .indices()
+                .prepareGetSettings(SNAPSHOT_BLOB_CACHE_INDEX)
+                .get()
+                .getSetting(SNAPSHOT_BLOB_CACHE_INDEX, DataTierAllocationDecider.INDEX_ROUTING_PREFER),
+            equalTo("data_content,data_hot")
+        );
 
         final long numberOfCachedBlobs = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
@@ -266,9 +265,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
 
         logger.info("--> verifying that no extra cached blobs were indexed [{}]", SNAPSHOT_BLOB_CACHE_INDEX);
-        if (numberOfDocs > 0) {
-            refreshSystemIndex();
-        }
+        refreshSystemIndex();
         assertHitCount(
             systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN).setSize(0).get(),
             numberOfCachedBlobs

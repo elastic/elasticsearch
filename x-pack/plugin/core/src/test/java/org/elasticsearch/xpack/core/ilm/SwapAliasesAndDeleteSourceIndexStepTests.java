@@ -107,9 +107,9 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
                         .build()
                 ).build();
 
-            step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<Boolean>() {
+            step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<Void>() {
                 @Override
-                public void onResponse(Boolean complete) {
+                public void onResponse(Void complete) {
                 }
 
                 @Override

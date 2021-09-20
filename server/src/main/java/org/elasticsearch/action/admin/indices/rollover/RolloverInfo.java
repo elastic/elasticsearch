@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Types.forciblyCast;
+
 /**
  * Class for holding Rollover related information within an index
  */
@@ -54,7 +56,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     public RolloverInfo(StreamInput in) throws IOException {
         this.alias = in.readString();
         this.time = in.readVLong();
-        this.metConditions = (List) in.readNamedWriteableList(Condition.class);
+        this.metConditions = forciblyCast(in.readNamedWriteableList(Condition.class));
     }
 
     public static RolloverInfo parse(XContentParser parser, String alias) {

@@ -278,7 +278,7 @@ public class EsExecutorsTests extends ESTestCase {
                  * test with something like 10000 iterations. I suspect you could see "active threads = <any natural number <= to pool>". So
                  * that is what we assert.
                  */
-                @SuppressWarnings("unchecked")
+                @SuppressWarnings({"rawtypes", "unchecked"})
                 Matcher<String>[] activeThreads = new Matcher[pool + 1];
                 for (int p = 0; p <= pool; p++) {
                     activeThreads[p] = containsString("active threads = " + p);

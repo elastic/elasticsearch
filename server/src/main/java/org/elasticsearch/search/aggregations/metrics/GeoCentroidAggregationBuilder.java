@@ -26,16 +26,19 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 
-public class GeoCentroidAggregationBuilder
-        extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregationBuilder> {
+public class GeoCentroidAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
+    ValuesSource.GeoPoint,
+    GeoCentroidAggregationBuilder> {
     public static final String NAME = "geo_centroid";
     public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
         MetricAggregatorSupplier.class
     );
 
-    public static final ObjectParser<GeoCentroidAggregationBuilder, String> PARSER =
-        ObjectParser.fromBuilder(NAME, GeoCentroidAggregationBuilder::new);
+    public static final ObjectParser<GeoCentroidAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        GeoCentroidAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
     }
@@ -48,9 +51,11 @@ public class GeoCentroidAggregationBuilder
         super(name);
     }
 
-    protected GeoCentroidAggregationBuilder(GeoCentroidAggregationBuilder clone,
-                                            AggregatorFactories.Builder factoriesBuilder,
-                                            Map<String, Object> metadata) {
+    protected GeoCentroidAggregationBuilder(
+        GeoCentroidAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -77,13 +82,14 @@ public class GeoCentroidAggregationBuilder
     }
 
     @Override
-    protected GeoCentroidAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
-                                                      AggregatorFactory parent,
-                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        MetricAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
-        return new GeoCentroidAggregatorFactory(name, config, context, parent,
-                                                subFactoriesBuilder, metadata, aggregatorSupplier);
+    protected GeoCentroidAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        MetricAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new GeoCentroidAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

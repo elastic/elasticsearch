@@ -43,6 +43,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
+            MissingOrder missingOrder,
             SortOrder order
         );
     }
@@ -59,6 +60,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
         PARSER.declareDouble(HistogramValuesSourceBuilder::interval, Histogram.INTERVAL_FIELD);
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER);
     }
+
     static HistogramValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new HistogramValuesSourceBuilder(name), null);
     }
@@ -67,7 +69,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
         builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
-            (valuesSourceConfig, interval, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, interval, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
@@ -78,6 +80,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
                     valuesSourceConfig.format(),
                     order,
                     missingBucket,
+                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -92,12 +95,15 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
                             numericValuesSource::doubleValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
                     }
                 );
-            }, false);
+            },
+            false
+        );
     }
 
     private double interval = 0;
@@ -166,6 +172,6 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     @Override
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
         return registry.getAggregator(REGISTRY_KEY, config)
-            .apply(config, interval, name, script() != null, format(), missingBucket(), order());
+            .apply(config, interval, name, script() != null, format(), missingBucket(), missingOrder(), order());
     }
 }

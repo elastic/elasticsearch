@@ -380,8 +380,9 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
         IndexResponse indexResponse = new IndexResponse(new ShardId("ml", "uid", 0), "_doc", "1", 0L, 0L, 0L, true);
 
-        when(persister.persistModelSnapshot(any(), any(), any()))
-            .thenReturn(new BulkResponse(new BulkItemResponse[]{new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, indexResponse)}, 0));
+        when(persister.persistModelSnapshot(any(), any(), any())).thenReturn(
+            new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, indexResponse) }, 0)
+        );
 
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);

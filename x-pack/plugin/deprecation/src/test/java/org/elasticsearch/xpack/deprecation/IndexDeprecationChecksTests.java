@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
@@ -23,17 +24,28 @@ import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.DataTier;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
@@ -162,7 +174,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Multi-fields within multi-fields",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.3.html" +
                 "#_defining_multi_fields_within_multi_fields",
             "The names of fields that contain chained multi-fields: [[type: _doc, field: invalid-field]]", false, null);
         assertEquals(singletonList(expected), issues);
@@ -402,7 +414,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "translog retention settings are ignored",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/index-modules-translog.html#index-modules-translog-retention",
                 "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
                     "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
                 false, null)
@@ -440,7 +452,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue issue = issues.get(0);
         assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
-        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling"
+        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/7.15/mapping-field-names-field.html#disable-field-names"
                 , issue.getUrl());
         assertEquals("Index mapping contains explicit `_field_names` enabling settings.", issue.getMessage());
         assertEquals("The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.",
@@ -469,7 +481,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
         final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.13.html#slow-log-level-removal";
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/migrating-7.13.html#breaking_713_infra_core_deprecations";
         assertThat(issues, containsInAnyOrder(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "setting [index.search.slowlog.level] is deprecated and will be removed in a future version",
@@ -491,10 +503,135 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "[simplefs] is deprecated and will be removed in future versions",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/index-modules-store.html#file-system",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
                     "as it offers superior or equivalent performance to [simplefs].", false, null)
+        ));
+    }
+
+    public void testTierAllocationSettings() {
+        String settingValue = DataTier.DATA_HOT;
+        final Settings settings = settings(Version.CURRENT)
+            .put(INDEX_ROUTING_REQUIRE_SETTING.getKey(), DataTier.DATA_HOT)
+            .put(INDEX_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
+            .put(INDEX_ROUTING_EXCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
+            .build();
+        final DeprecationIssue expectedRequireIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                INDEX_ROUTING_REQUIRE_SETTING.getKey()),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                INDEX_ROUTING_REQUIRE_SETTING.getKey(),
+                settingValue),
+            false, null
+        );
+        final DeprecationIssue expectedIncludeIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                INDEX_ROUTING_INCLUDE_SETTING.getKey()),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                INDEX_ROUTING_INCLUDE_SETTING.getKey(),
+                settingValue),
+            false, null
+        );
+        final DeprecationIssue expectedExcludeIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                INDEX_ROUTING_EXCLUDE_SETTING.getKey()),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%s], remove this setting",
+                INDEX_ROUTING_EXCLUDE_SETTING.getKey(),
+                settingValue),
+            false, null
+        );
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        assertThat(
+            IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata),
+            equalTo(expectedRequireIssue)
+        );
+        assertThat(
+            IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata),
+            equalTo(expectedIncludeIssue)
+        );
+        assertThat(
+            IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata),
+            equalTo(expectedExcludeIssue)
+        );
+
+        final String warningTemplate = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "See the breaking changes documentation for the next major version.";
+        final String[] expectedWarnings = {
+            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_REQUIRE_SETTING.getKey()),
+            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_INCLUDE_SETTING.getKey()),
+            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_EXCLUDE_SETTING.getKey()),
+        };
+
+        assertWarnings(expectedWarnings);
+    }
+
+    public void testCheckGeoShapeMappings() throws Exception {
+        Map<String, Object> emptyMappingMap = Collections.emptyMap();
+        MappingMetadata mappingMetadata = new MappingMetadata("", emptyMappingMap);
+        Settings.Builder settings = settings(Version.CURRENT);
+        IndexMetadata indexMetadata =
+            IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        assertTrue(issues.isEmpty());
+
+        Map<String, Object> okGeoMappingMap = Collections.singletonMap("properties", Collections.singletonMap("location",
+            Collections.singletonMap("type", "geo_shape")));
+        mappingMetadata = new MappingMetadata("", okGeoMappingMap);
+        IndexMetadata indexMetadata2 =
+            IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
+        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata2));
+        assertTrue(issues.isEmpty());
+
+        Map<String, String> deprecatedPropertiesMap = Stream.of(new String[][] {
+            { "type", "geo_shape" },
+            { "strategy", "recursive" },
+            { "points_only", "true" }
+        }).collect(Collectors.toMap(data -> data[0], data -> data[1]));
+        Map<String, Object> deprecatedGeoMappingMap = Collections.singletonMap("properties", Collections.singletonMap("location",
+            deprecatedPropertiesMap));
+        mappingMetadata = new MappingMetadata("", deprecatedGeoMappingMap);
+        IndexMetadata indexMetadata3 =
+            IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
+        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata3));
+        assertEquals(1, issues.size());
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "mappings for index test contains deprecated geo_shape properties that must be removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
+                    "#_deprecated_literal_geo_shape_literal_parameters",
+                "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter " +
+                    "[strategy] in field [location]]]", false, null)
+        ));
+
+        Map<String, Object> nestedProperties = Stream.of(new Object[][] {
+            { "type", "nested" },
+            { "properties", Collections.singletonMap("location", deprecatedPropertiesMap) },
+        }).collect(Collectors.toMap(data -> (String) data[0], data -> data[1]));
+        Map<String, Object> nestedDeprecatedGeoMappingMap = Collections.singletonMap("properties",
+            Collections.singletonMap("nested_field", nestedProperties));
+        mappingMetadata = new MappingMetadata("", nestedDeprecatedGeoMappingMap);
+        IndexMetadata indexMetadata4 =
+            IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
+        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata4));
+        assertEquals(1, issues.size());
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "mappings for index test contains deprecated geo_shape properties that must be removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
+                    "#_deprecated_literal_geo_shape_literal_parameters",
+                "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter " +
+                    "[strategy] in field [location]]]", false, null)
         ));
     }
 }

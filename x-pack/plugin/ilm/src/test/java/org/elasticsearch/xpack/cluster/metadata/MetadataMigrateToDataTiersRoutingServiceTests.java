@@ -90,9 +90,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
     public void testMigrateIlmPolicyForIndexWithoutILMMetadata() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
-        AllocateAction warmAllocateAction = new AllocateAction(null, org.elasticsearch.core.Map.of("data", "warm"), null,
+        AllocateAction warmAllocateAction = new AllocateAction(null, null, org.elasticsearch.core.Map.of("data", "warm"), null,
             org.elasticsearch.core.Map.of("rack", "rack1"));
-        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, org.elasticsearch.core.Map.of("data", "cold"));
+        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, null, org.elasticsearch.core.Map.of("data", "cold"));
         SetPriorityAction warmSetPriority = new SetPriorityAction(100);
         LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(warmSetPriority, shrinkAction, warmAllocateAction,
             coldAllocateAction);
@@ -126,7 +126,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
     public void testMigrateIlmPolicyFOrPhaseWithDeactivatedMigrateAction() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
-        AllocateAction warmAllocateAction = new AllocateAction(null, org.elasticsearch.core.Map.of("data", "warm"), null,
+        AllocateAction warmAllocateAction = new AllocateAction(null, null, org.elasticsearch.core.Map.of("data", "warm"), null,
             org.elasticsearch.core.Map.of("rack", "rack1"));
         MigrateAction deactivatedMigrateAction = new MigrateAction(false);
 
@@ -162,9 +162,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testMigrateIlmPolicyRefreshesCachedPhase() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
-        AllocateAction warmAllocateAction = new AllocateAction(null, org.elasticsearch.core.Map.of("data", "warm"), null,
+        AllocateAction warmAllocateAction = new AllocateAction(null, null, org.elasticsearch.core.Map.of("data", "warm"), null,
             org.elasticsearch.core.Map.of("rack", "rack1"));
-        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, org.elasticsearch.core.Map.of("data", "cold"));
+        AllocateAction coldAllocateAction = new AllocateAction(0, null, null, null, org.elasticsearch.core.Map.of("data", "cold"));
         SetPriorityAction warmSetPriority = new SetPriorityAction(100);
         LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(warmSetPriority, shrinkAction, warmAllocateAction,
             coldAllocateAction);
@@ -340,15 +340,17 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testAllocateActionDefinesRoutingRules() {
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, org.elasticsearch.core.Map.of("data", "cold"), null,
-            null)), is(true));
         assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, org.elasticsearch.core.Map.of("data", "cold"),
+            null,
+            null)), is(true));
+        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null, org.elasticsearch.core.Map.of("data",
+            "cold"),
             null)), is(true));
         assertThat(allocateActionDefinesRoutingRules("data",
-            new AllocateAction(null, org.elasticsearch.core.Map.of("another_attribute", "rack1"), null,
+            new AllocateAction(null, null, org.elasticsearch.core.Map.of("another_attribute", "rack1"), null,
                 org.elasticsearch.core.Map.of("data", "cold"))),
             is(true));
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null,
+        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null, null,
                 org.elasticsearch.core.Map.of("another_attribute", "cold"))),
             is(false));
         assertThat(allocateActionDefinesRoutingRules("data", null), is(false));
@@ -555,9 +557,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testMigrateToDataTiersRouting() {
-        AllocateAction allocateActionWithDataAttribute = new AllocateAction(null, org.elasticsearch.core.Map.of("data", "warm"), null,
+        AllocateAction allocateActionWithDataAttribute = new AllocateAction(null, null, org.elasticsearch.core.Map.of("data", "warm"), null,
             org.elasticsearch.core.Map.of("rack", "rack1"));
-        AllocateAction allocateActionWithOtherAttribute = new AllocateAction(0, null, null, org.elasticsearch.core.Map.of("other", "cold"));
+        AllocateAction allocateActionWithOtherAttribute = new AllocateAction(0, null, null, null, org.elasticsearch.core.Map.of("other",
+            "cold"));
 
         LifecyclePolicy policyToMigrate = new LifecyclePolicy(lifecycleName,
             org.elasticsearch.core.Map.of("warm",

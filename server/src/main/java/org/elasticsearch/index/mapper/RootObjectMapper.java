@@ -95,8 +95,8 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
-        public RootObjectMapper build(ContentPath contentPath) {
-            return new RootObjectMapper(name, enabled, dynamic, buildMappers(contentPath),
+        public RootObjectMapper build(MapperBuilderContext context) {
+            return new RootObjectMapper(name, enabled, dynamic, buildMappers(true, context),
                 runtimeFields == null ? Collections.emptyMap() : runtimeFields,
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -268,19 +268,31 @@ public class RootObjectMapper extends ObjectMapper {
         return copy;
     }
 
-    boolean dateDetection() {
+    /**
+     * Public API
+     */
+    public boolean dateDetection() {
         return this.dateDetection.value();
     }
 
-    boolean numericDetection() {
+    /**
+     * Public API
+     */
+    public boolean numericDetection() {
         return this.numericDetection.value();
     }
 
-    DateFormatter[] dynamicDateTimeFormatters() {
+    /**
+     * Public API
+     */
+    public DateFormatter[] dynamicDateTimeFormatters() {
         return dynamicDateTimeFormatters.value();
     }
 
-    DynamicTemplate[] dynamicTemplates() {
+    /**
+     * Public API
+     */
+    public DynamicTemplate[] dynamicTemplates() {
         return dynamicTemplates.value();
     }
 
@@ -412,8 +424,8 @@ public class RootObjectMapper extends ObjectMapper {
                     if (typeParser == null) {
                         throw new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
                     }
-                    validate(template, dynamicType,
-                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(new ContentPath(1)));
+                    validate(template, dynamicType, (name, mapping) ->
+                        typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.ROOT));
                 }
                 lastError = null; // ok, the template is valid for at least one type
                 break;

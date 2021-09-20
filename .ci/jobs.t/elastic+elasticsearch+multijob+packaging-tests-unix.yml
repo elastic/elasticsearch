@@ -19,6 +19,7 @@
             - debian-8-packaging
             - debian-9-packaging
             - debian-10-packaging
+            - debian-11-packaging
             - opensuse-15-1-packaging
             - oraclelinux-6-packaging
             - oraclelinux-7-packaging
@@ -28,6 +29,7 @@
             - ubuntu-16.04-packaging
             - ubuntu-18.04-packaging
             - ubuntu-20.04-packaging
+            - rocky-linux-8-packaging
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

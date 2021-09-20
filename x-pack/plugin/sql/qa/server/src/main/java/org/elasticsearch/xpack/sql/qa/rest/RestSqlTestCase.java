@@ -453,7 +453,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         index("{\"foo\":1}");
         expectBadRequest(
             () -> runSql(randomMode(), "SELECT SCORE().bar FROM test"),
-            containsString("line 1:15: extraneous input '.' expecting {<EOF>, ','")
+            containsString("line 1:15: mismatched input '.' expecting {<EOF>, ")
         );
     }
 

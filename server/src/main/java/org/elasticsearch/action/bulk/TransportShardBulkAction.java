@@ -367,7 +367,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                                   final UpdateHelper.Result translate) {
         final BulkItemResponse response;
         if (operationResponse.isFailed()) {
-            response = new BulkItemResponse(operationResponse.getItemId(), DocWriteRequest.OpType.UPDATE, operationResponse.getFailure());
+            response = BulkItemResponse.failure(
+                operationResponse.getItemId(),
+                DocWriteRequest.OpType.UPDATE,
+                operationResponse.getFailure()
+            );
         } else {
             final DocWriteResponse.Result translatedResult = translate.getResponseResult();
             final UpdateResponse updateResponse;
@@ -400,7 +404,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             } else {
                 throw new IllegalArgumentException("unknown operation type: " + translatedResult);
             }
-            response = new BulkItemResponse(operationResponse.getItemId(), DocWriteRequest.OpType.UPDATE, updateResponse);
+            response = BulkItemResponse.success(operationResponse.getItemId(), DocWriteRequest.OpType.UPDATE, updateResponse);
         }
         return response;
     }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -37,10 +38,10 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -288,6 +289,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return allowExpensiveQueries.getAsBoolean();
     }
 
+    @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
         return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(),
             () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()));
@@ -382,6 +384,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
     }
 
+    /**
+     *
+     * @param name name of the object
+     * @return can be null e.g. if field is root of a composite runtime field
+     */
+    @Nullable
     public ObjectMapper getObjectMapper(String name) {
         return mappingLookup.objectMappers().get(name);
     }
@@ -414,7 +422,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
         Mapper.Builder builder = typeParser.parse("__anonymous_", Collections.emptyMap(), parserContext);
-        Mapper mapper = builder.build(new ContentPath(0));
+        Mapper mapper = builder.build(MapperBuilderContext.ROOT);
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper)mapper).fieldType();
         }
@@ -459,7 +467,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
-            return builder.build(new ContentPath(1)).fieldType();
+            return builder.build(MapperBuilderContext.ROOT).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
@@ -589,7 +597,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     @Override
-    public void executeAsyncActions(ActionListener listener) {
+    public void executeAsyncActions(ActionListener<Object> listener) {
         failIfFrozen();
         super.executeAsyncActions(listener);
     }

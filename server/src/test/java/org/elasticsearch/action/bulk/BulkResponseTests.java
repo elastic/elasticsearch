@@ -58,8 +58,8 @@ public class BulkResponseTests extends ESTestCase {
                     fail("Test does not support opType [" + opType + "]");
                 }
 
-                bulkItems[i] = new BulkItemResponse(i, opType, randomDocWriteResponses.v1());
-                expectedBulkItems[i] = new BulkItemResponse(i, opType, randomDocWriteResponses.v2());
+                bulkItems[i] = BulkItemResponse.success(i, opType, randomDocWriteResponses.v1());
+                expectedBulkItems[i] = BulkItemResponse.success(i, opType, randomDocWriteResponses.v2());
             } else {
                 String index = randomAlphaOfLength(5);
                 String type = randomAlphaOfLength(5);
@@ -68,9 +68,9 @@ public class BulkResponseTests extends ESTestCase {
                 Tuple<Throwable, ElasticsearchException> failures = randomExceptions();
 
                 Exception bulkItemCause = (Exception) failures.v1();
-                bulkItems[i] = new BulkItemResponse(i, opType,
+                bulkItems[i] = BulkItemResponse.failure(i, opType,
                         new BulkItemResponse.Failure(index, type, id, bulkItemCause));
-                expectedBulkItems[i] = new BulkItemResponse(i, opType,
+                expectedBulkItems[i] = BulkItemResponse.failure(i, opType,
                         new BulkItemResponse.Failure(index, type, id, failures.v2(), ExceptionsHelper.status(bulkItemCause)));
             }
         }

@@ -20,8 +20,14 @@ import com.carrotsearch.hppc.predicates.ObjectObjectPredicate;
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
+import java.util.AbstractMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -36,7 +42,6 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     private ImmutableOpenMap(ObjectObjectHashMap<KType, VType> map) {
         this.map = map;
     }
-
     /**
      * @return Returns the value associated with the given key or the default value
      * for the key type, if the key is not associated with any value.
@@ -163,6 +168,27 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         };
     }
 
+    /**
+     * Returns a sequential unordered stream of the map entries.
+     *
+     * @return a {@link Stream} of the map entries as {@link Map.Entry}
+     */
+    public Stream<Map.Entry<KType, VType>> stream() {
+        final Iterator<ObjectObjectCursor<KType, VType>> mapIterator = map.iterator();
+        return StreamSupport.stream(new Spliterators.AbstractSpliterator<Map.Entry<KType, VType>>(map.size(),
+            Spliterator.SIZED | Spliterator.DISTINCT) {
+            @Override
+            public boolean tryAdvance(Consumer<? super Map.Entry<KType, VType>> action) {
+                if (mapIterator.hasNext() == false) {
+                    return false;
+                }
+                ObjectObjectCursor<KType, VType> cursor = mapIterator.next();
+                action.accept(new AbstractMap.SimpleImmutableEntry<>(cursor.key, cursor.value));
+                return true;
+            }
+        }, false);
+    }
+
     @Override
     public String toString() {
         return map.toString();
@@ -173,6 +199,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
+        @SuppressWarnings("rawtypes")
         ImmutableOpenMap that = (ImmutableOpenMap) o;
 
         if (map.equals(that.map) == false) return false;
@@ -185,7 +212,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         return map.hashCode();
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private static final ImmutableOpenMap EMPTY = new ImmutableOpenMap(new ObjectObjectHashMap());
 
     @SuppressWarnings("unchecked")
@@ -217,8 +244,8 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     public static class Builder<KType, VType> implements ObjectObjectMap<KType, VType> {
         private ObjectObjectHashMap<KType, VType> map;
 
+        @SuppressWarnings("unchecked")
         public Builder() {
-            //noinspection unchecked
             this(EMPTY);
         }
 

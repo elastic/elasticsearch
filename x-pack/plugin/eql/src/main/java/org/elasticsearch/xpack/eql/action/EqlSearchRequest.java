@@ -46,9 +46,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(true, true, true, false);
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, true, false);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     private QueryBuilder filter = null;
     private String timestampField = FIELD_TIMESTAMP;
@@ -57,6 +58,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private int size = RequestDefaults.SIZE;
     private int fetchSize = RequestDefaults.FETCH_SIZE;
     private String query;
+    private boolean ccsMinimizeRoundtrips = RequestDefaults.CCS_MINIMIZE_ROUNDTRIPS;
     private String resultPosition = "tail";
     private List<FieldAndFormat> fetchFields;
     private Map<String, Object> runtimeMappings = emptyMap();
@@ -110,6 +112,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         size = in.readVInt();
         fetchSize = in.readVInt();
         query = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+            this.ccsMinimizeRoundtrips = in.readBoolean();
+        }
         if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
             this.waitForCompletionTimeout = in.readOptionalTimeValue();
             this.keepAlive = in.readOptionalTimeValue();
@@ -348,6 +353,15 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public EqlSearchRequest ccsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
+        this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
+        return this;
+    }
+
+    public boolean ccsMinimizeRoundtrips() {
+        return ccsMinimizeRoundtrips;
+    }
+
     public String resultPosition() {
         return resultPosition;
     }
@@ -394,6 +408,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeVInt(size);
         out.writeVInt(fetchSize);
         out.writeString(query);
+        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+            out.writeBoolean(ccsMinimizeRoundtrips);
+        }
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalTimeValue(waitForCompletionTimeout);
             out.writeOptionalTimeValue(keepAlive);
@@ -429,6 +446,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(tiebreakerField, that.tiebreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(query, that.query) &&
+                Objects.equals(ccsMinimizeRoundtrips, that.ccsMinimizeRoundtrips) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
                 Objects.equals(keepAlive, that.keepAlive) &&
                 Objects.equals(resultPosition, that.resultPosition) &&
@@ -449,6 +467,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             tiebreakerField,
             eventCategoryField,
             query,
+            ccsMinimizeRoundtrips,
             waitForCompletionTimeout,
             keepAlive,
             resultPosition,

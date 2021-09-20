@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -644,7 +646,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
         logger.info("--> publishing states");
         for (ClusterState state : states) {
             node.action.handleIncomingClusterStateRequest(
-                new BytesTransportRequest(PublishClusterStateAction.serializeFullClusterState(state, Version.CURRENT), Version.CURRENT),
+                new BytesTransportRequest(
+                    ReleasableBytesReference.wrap(PublishClusterStateAction.serializeFullClusterState(state, Version.CURRENT)),
+                    Version.CURRENT),
                 channel);
             assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
             assertThat(channel.error.get(), nullValue());
@@ -817,8 +821,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
     public AssertingAckListener publishState(PublishClusterStateAction action, ClusterState state,
                                              ClusterState previousState, int minMasterNodes) throws InterruptedException {
         AssertingAckListener assertingAckListener = new AssertingAckListener(state.nodes().getSize() - 1);
-        ClusterChangedEvent changedEvent = new ClusterChangedEvent("test update", state, previousState);
-        action.publish(changedEvent, minMasterNodes, assertingAckListener);
+        ClusterStatePublicationEvent clusterStatePublicationEvent
+            = new ClusterStatePublicationEvent("test update", previousState, state, 0L, 0L);
+        action.publish(clusterStatePublicationEvent, minMasterNodes, assertingAckListener);
         return assertingAckListener;
     }
 

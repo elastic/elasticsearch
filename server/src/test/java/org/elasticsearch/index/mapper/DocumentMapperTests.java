@@ -23,13 +23,18 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -288,7 +293,35 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertNotNull(documentMapper.idFieldMapper());
         assertNotNull(documentMapper.sourceMapper());
         assertNotNull(documentMapper.IndexFieldMapper());
-        assertEquals(10, documentMapper.mappers().getMapping().getMetadataMappersMap().size());
-        assertEquals(10, documentMapper.mappers().getMatchingFieldNames("*").size());
+        List<Class<?>> metadataMappers = new ArrayList<>(documentMapper.mappers().getMapping().getMetadataMappersMap().keySet());
+        Collections.sort(metadataMappers, Comparator.comparing(c -> c.getSimpleName()));
+        assertMap(
+            metadataMappers,
+            matchesList().item(DocCountFieldMapper.class)
+                .item(FieldNamesFieldMapper.class)
+                .item(IdFieldMapper.class)
+                .item(IgnoredFieldMapper.class)
+                .item(IndexFieldMapper.class)
+                .item(RoutingFieldMapper.class)
+                .item(SeqNoFieldMapper.class)
+                .item(SourceFieldMapper.class)
+                .item(TypeFieldMapper.class)
+                .item(VersionFieldMapper.class)
+        );
+        List<String> matching = new ArrayList<>(documentMapper.mappers().getMatchingFieldNames("*"));
+        Collections.sort(matching);
+        assertMap(
+            matching,
+            matchesList().item(DocCountFieldMapper.CONTENT_TYPE)
+                .item(FieldNamesFieldMapper.CONTENT_TYPE)
+                .item(IdFieldMapper.CONTENT_TYPE)
+                .item(IgnoredFieldMapper.CONTENT_TYPE)
+                .item(IndexFieldMapper.CONTENT_TYPE)
+                .item(RoutingFieldMapper.CONTENT_TYPE)
+                .item(SeqNoFieldMapper.CONTENT_TYPE)
+                .item(SourceFieldMapper.CONTENT_TYPE)
+                .item(TypeFieldMapper.NAME)
+                .item(VersionFieldMapper.CONTENT_TYPE)
+        );
     }
 }

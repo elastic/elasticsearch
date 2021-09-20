@@ -158,7 +158,7 @@ public class SuggestStatsIT extends ESIntegTestCase {
 
     protected int numAssignedShards(String... indices) {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        GroupShardsIterator<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
     }
 }

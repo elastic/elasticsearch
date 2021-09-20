@@ -116,7 +116,10 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
+import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
+import org.elasticsearch.indices.recovery.plan.SnapshotsRecoveryPlannerService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
@@ -676,11 +679,23 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(), client, threadPool::relativeTimeInMillis, rerouteService);
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-            final DiscoveryModule discoveryModule = new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry,
-                networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
-                clusterService.getClusterSettings(), pluginsService.filterPlugins(DiscoveryPlugin.class),
-                clusterModule.getAllocationService(), environment.configFile(), gatewayMetaState, rerouteService,
-                fsHealthService);
+            final DiscoveryModule discoveryModule = new DiscoveryModule(
+                settings,
+                threadPool,
+                bigArrays,
+                transportService,
+                namedWriteableRegistry,
+                networkService,
+                clusterService.getMasterService(),
+                clusterService.getClusterApplierService(),
+                clusterService.getClusterSettings(),
+                pluginsService.filterPlugins(DiscoveryPlugin.class),
+                clusterModule.getAllocationService(),
+                environment.configFile(),
+                gatewayMetaState,
+                rerouteService,
+                fsHealthService
+            );
             this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptService,
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,
@@ -737,8 +752,7 @@ public class Node implements Closeable {
                     b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
-                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(
-                        namedWriteableRegistry, searchService::aggReduceContextBuilder));
+                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
                     b.bind(Transport.class).toInstance(transport);
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);
@@ -750,10 +764,18 @@ public class Node implements Closeable {
                     b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                     {
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
+                        final ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client,
+                            repositoryService,
+                            threadPool,
+                            clusterService
+                        );
+                        final RecoveryPlannerService recoveryPlannerService = new SnapshotsRecoveryPlannerService(shardSnapshotsService);
+                        final SnapshotFilesProvider snapshotFilesProvider =
+                            new SnapshotFilesProvider(repositoryService);
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(transportService,
-                            indicesService, recoverySettings, SourceOnlyRecoveryPlannerService.INSTANCE));
+                            indicesService, recoverySettings, recoveryPlannerService));
                         b.bind(PeerRecoveryTargetService.class).toInstance(new PeerRecoveryTargetService(threadPool,
-                                transportService, recoverySettings, clusterService));
+                            transportService, recoverySettings, clusterService, snapshotFilesProvider));
                     }
                     b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                     pluginComponents.forEach(p -> {

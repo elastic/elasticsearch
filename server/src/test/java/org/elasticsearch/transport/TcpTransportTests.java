@@ -167,6 +167,10 @@ public class TcpTransportTests extends ESTestCase {
             final TcpTransport tcpTransport = new TcpTransport(settings, Version.CURRENT, testThreadPool,
                 new MockPageCacheRecycler(settings),
                 new NoneCircuitBreakerService(), writableRegistry(), new NetworkService(Collections.emptyList())) {
+                @Override
+                protected void doStart() {
+                    throw new UnsupportedOperationException();
+                }
 
                 @Override
                 protected TcpServerChannel bind(String name, InetSocketAddress address) {
@@ -403,7 +407,7 @@ public class TcpTransportTests extends ESTestCase {
 
             TcpTransport.handleException(channel, exception, lifecycle,
                 new OutboundHandler(randomAlphaOfLength(10), Version.CURRENT, new String[0], new StatsTracker(), testThreadPool,
-                    BigArrays.NON_RECYCLING_INSTANCE, randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4)));
+                    BigArrays.NON_RECYCLING_INSTANCE));
 
             if (expectClosed) {
                 assertTrue(listener.isDone());

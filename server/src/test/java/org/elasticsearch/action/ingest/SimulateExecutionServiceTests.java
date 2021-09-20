@@ -66,7 +66,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testExecuteVerboseItem() throws Exception {
         TestProcessor processor = new TestProcessor("test-id", "mock", null, ingestDocument -> {});
-        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor, processor));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor, processor));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
@@ -93,7 +93,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     }
     public void testExecuteItem() throws Exception {
         TestProcessor processor = new TestProcessor("processor_0", "mock", null, ingestDocument -> {});
-        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor, processor));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor, processor));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
         executionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
@@ -113,7 +113,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         TestProcessor processor1 = new TestProcessor("processor_0", "mock", null, ingestDocument -> {});
         TestProcessor processor2 = new TestProcessor("processor_1", "mock", null, new RuntimeException("processor failed"));
         TestProcessor processor3 = new TestProcessor("processor_2", "mock", null, ingestDocument -> {});
-        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, processor2, processor3));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2, processor3));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
         executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
@@ -142,8 +142,8 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         TestProcessor processor1 = new TestProcessor("processor_0", "mock", null, new RuntimeException("processor failed"));
         TestProcessor processor2 = new TestProcessor("processor_1", "mock", null, ingestDocument -> {});
         TestProcessor processor3 = new TestProcessor("processor_2", "mock", null, ingestDocument -> {});
-        Pipeline pipeline = new Pipeline("_id", "_description", version,
-                new CompoundProcessor(new CompoundProcessor(false, Collections.singletonList(processor1),
+        Pipeline pipeline = new Pipeline("_id", "_description", version, null,
+            new CompoundProcessor(new CompoundProcessor(false, Collections.singletonList(processor1),
                                 Collections.singletonList(processor2)), processor3));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
@@ -184,7 +184,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         RuntimeException exception = new RuntimeException("processor failed");
         TestProcessor testProcessor = new TestProcessor("processor_0", "mock", null, exception);
         CompoundProcessor processor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
-        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
         executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
@@ -205,7 +205,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     public void testExecuteVerboseItemWithoutExceptionAndWithIgnoreFailure() throws Exception {
         TestProcessor testProcessor = new TestProcessor("processor_0", "mock", null, ingestDocument -> { });
         CompoundProcessor processor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
-        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
         executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
@@ -225,7 +225,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testExecuteItemWithFailure() throws Exception {
         TestProcessor processor = new TestProcessor(ingestDocument -> { throw new RuntimeException("processor failed"); });
-        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor, processor));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor, processor));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
         executionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
@@ -247,7 +247,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     public void testDropDocument() throws Exception {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field", "value"));
         Processor processor2 = new DropProcessor.Factory().create(Collections.emptyMap(), null, null, Collections.emptyMap());
-        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, processor2));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
@@ -267,7 +267,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     public void testDropDocumentVerbose() throws Exception {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field", "value"));
         Processor processor2 = new DropProcessor.Factory().create(Collections.emptyMap(), null, null, Collections.emptyMap());
-        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, processor2));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
@@ -291,7 +291,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field1", "value"));
         Processor processor2 = new DropProcessor.Factory().create(Collections.emptyMap(), null, null, Collections.emptyMap());
         TestProcessor processor3 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field2", "value"));
-        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, processor2, processor3));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2, processor3));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
@@ -338,7 +338,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
                 return "none-of-your-business";
             }
         };
-        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1));
         SimulatePipelineRequest.Parsed request = new SimulatePipelineRequest.Parsed(pipeline, documents, false);
 
         AtomicReference<SimulatePipelineResponse> responseHolder = new AtomicReference<>();

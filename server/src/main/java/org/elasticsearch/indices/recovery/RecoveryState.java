@@ -346,6 +346,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         static final String VERIFY_INDEX = "verify_index";
         static final String RECOVERED = "recovered";
         static final String RECOVERED_IN_BYTES = "recovered_in_bytes";
+        static final String RECOVERED_FROM_SNAPSHOT = "recovered_from_snapshot";
+        static final String RECOVERED_FROM_SNAPSHOT_IN_BYTES = "recovered_from_snapshot_in_bytes";
         static final String CHECK_INDEX_TIME = "check_index_time";
         static final String CHECK_INDEX_TIME_IN_MILLIS = "check_index_time_in_millis";
         static final String LENGTH = "length";
@@ -611,6 +613,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         private long length;
         private long recovered;
         private boolean reused;
+        private long recoveredFromSnapshot;
 
         public FileDetail(String name, long length, boolean reused) {
             assert name != null;
@@ -624,6 +627,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             length = in.readVLong();
             recovered = in.readVLong();
             reused = in.readBoolean();
+            if (in.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)) {
+                recoveredFromSnapshot = in.readLong();
+            }
         }
 
         @Override
@@ -632,11 +638,26 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVLong(length);
             out.writeVLong(recovered);
             out.writeBoolean(reused);
+            if (out.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)) {
+                out.writeLong(recoveredFromSnapshot);
+            }
         }
 
         void addRecoveredBytes(long bytes) {
             assert reused == false : "file is marked as reused, can't update recovered bytes";
             assert bytes >= 0 : "can't recovered negative bytes. got [" + bytes + "]";
+            recovered += bytes;
+        }
+
+        void resetRecoveredBytes() {
+            assert reused == false : "file is marked as reused, can't update recovered bytes";
+            recovered = 0;
+        }
+
+        void addRecoveredFromSnapshotBytes(long bytes) {
+            assert reused == false : "file is marked as reused, can't update recovered bytes";
+            assert bytes >= 0 : "can't recovered negative bytes. got [" + bytes + "]";
+            recoveredFromSnapshot += bytes;
             recovered += bytes;
         }
 
@@ -662,6 +683,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         /**
+         * number of bytes recovered from this file (so far) from a snapshot.
+         */
+        public long recoveredFromSnapshot() {
+            return recoveredFromSnapshot;
+        }
+
+        /**
          * returns true if the file is reused from a local copy
          */
         public boolean reused() {
@@ -679,6 +707,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             builder.humanReadableField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, new ByteSizeValue(length));
             builder.field(Fields.REUSED, reused);
             builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recovered));
+            builder.humanReadableField(
+                Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES, Fields.RECOVERED_FROM_SNAPSHOT, new ByteSizeValue(recoveredFromSnapshot)
+            );
             builder.endObject();
             return builder;
         }
@@ -687,7 +718,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public boolean equals(Object obj) {
             if (obj instanceof FileDetail) {
                 FileDetail other = (FileDetail) obj;
-                return name.equals(other.name) && length == other.length() && reused == other.reused() && recovered == other.recovered();
+                return name.equals(other.name) &&
+                    length == other.length() &&
+                    reused == other.reused() &&
+                    recovered == other.recovered &&
+                    recoveredFromSnapshot == other.recoveredFromSnapshot;
             }
             return false;
         }
@@ -697,13 +732,15 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             int result = name.hashCode();
             result = 31 * result + Long.hashCode(length);
             result = 31 * result + Long.hashCode(recovered);
+            result = 31 * result + Long.hashCode(recoveredFromSnapshot);
             result = 31 * result + (reused ? 1 : 0);
             return result;
         }
 
         @Override
         public String toString() {
-            return "file (name [" + name + "], reused [" + reused + "], length [" + length + "], recovered [" + recovered + "])";
+            return "file (name [" + name + "], reused [" + reused + "], length [" + length + "], " +
+                "recovered [" + recovered + "], recovered from snapshot [" + recoveredFromSnapshot + "]) ";
         }
     }
 
@@ -766,6 +803,18 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             FileDetail file = fileDetails.get(name);
             assert file != null : "file [" + name + "] hasn't been reported";
             file.addRecoveredBytes(bytes);
+        }
+
+        public void resetRecoveredBytesOfFile(String name) {
+            FileDetail file = fileDetails.get(name);
+            assert file != null : "file [" + name + "] hasn't been reported";
+            file.resetRecoveredBytes();
+        }
+
+        public void addRecoveredFromSnapshotBytesToFile(String name, long bytes) {
+            FileDetail file = fileDetails.get(name);
+            assert file != null : "file [" + name + "] hasn't been reported";
+            file.addRecoveredFromSnapshotBytes(bytes);
         }
 
         public FileDetail get(String name) {
@@ -850,6 +899,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public synchronized void addRecoveredBytesToFile(String name, long bytes) {
             fileDetails.addRecoveredBytesToFile(name, bytes);
+        }
+
+        public synchronized void resetRecoveredBytesOfFile(String name) {
+            fileDetails.resetRecoveredBytesOfFile(name);
+        }
+
+        public synchronized void addRecoveredFromSnapshotBytesToFile(String name, long bytes) {
+            fileDetails.addRecoveredFromSnapshotBytesToFile(name, bytes);
         }
 
         public synchronized void addSourceThrottling(long timeInNanos) {
@@ -956,6 +1013,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             return recovered;
         }
 
+        public synchronized long recoveredFromSnapshotBytes() {
+            long recoveredFromSnapshot = 0;
+            for (FileDetail fileDetail : fileDetails.values()) {
+                recoveredFromSnapshot += fileDetail.recoveredFromSnapshot();
+            }
+            return recoveredFromSnapshot;
+        }
+
         /**
          * total bytes of files to be recovered (potentially not yet done)
          */
@@ -1036,6 +1101,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(totalBytes()));
             builder.humanReadableField(Fields.REUSED_IN_BYTES, Fields.REUSED, new ByteSizeValue(reusedBytes()));
             builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recoveredBytes()));
+            builder.humanReadableField(
+                Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES, Fields.RECOVERED_FROM_SNAPSHOT, new ByteSizeValue(recoveredFromSnapshotBytes())
+            );
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredBytesPercent()));
             builder.endObject();
 

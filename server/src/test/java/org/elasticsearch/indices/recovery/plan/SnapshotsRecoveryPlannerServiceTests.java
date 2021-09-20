@@ -258,7 +258,11 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 new ShardSnapshotsService(null, null, null, null) {
                     @Override
                     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
-                        listener.onResponse(Optional.of(availableSnapshots.get(availableSnapshots.size() - 1)));
+                        if (availableSnapshots.isEmpty()) {
+                            listener.onResponse(Optional.empty());
+                        } else {
+                            listener.onResponse(Optional.of(availableSnapshots.get(availableSnapshots.size() - 1)));
+                        }
                     }
                 },
                 true

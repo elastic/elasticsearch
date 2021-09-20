@@ -306,7 +306,7 @@ public abstract class AbstractScopedSettings {
      * </p>
      */
     public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
-        List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
+        List<SettingUpdater<?>> affixUpdaters = new ArrayList<>(settings.size());
         for (Setting.AffixSetting<?> setting : settings) {
             ensureSettingIsRegistered(setting);
             affixUpdaters.add(setting.newAffixUpdater((a,b)-> {}, logger, (a,b)-> {}));
@@ -323,7 +323,7 @@ public abstract class AbstractScopedSettings {
             public Map<String, Settings> getValue(Settings current, Settings previous) {
                 Set<String> namespaces = new HashSet<>();
                 for (Setting.AffixSetting<?> setting : settings) {
-                    SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) ->{});
+                    SettingUpdater<?> affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) ->{});
                     affixUpdaterA.apply(current, previous);
                 }
                 Map<String, Settings> namespaceToSettings = new HashMap<>(namespaces.size());
@@ -506,7 +506,7 @@ public abstract class AbstractScopedSettings {
      */
     void validate(
             final String key, final Settings settings, final boolean validateValue, final boolean validateInternalOrPrivateIndex) {
-        Setting setting = getRaw(key);
+        Setting<?> setting = getRaw(key);
         if (setting == null) {
             LevenshteinDistance ld = new LevenshteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();

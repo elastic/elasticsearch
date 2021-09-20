@@ -37,7 +37,7 @@ public class RollupFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        // TODO expose the currently running rollup tasks on this node?  Unclear the best way to do that
+        // TODO expose the currently running rollup tasks on this node? Unclear the best way to do that
         listener.onResponse(new RollupFeatureSetUsage());
     }
 }

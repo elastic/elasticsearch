@@ -21,8 +21,10 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,6 +60,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * It provides all the methods that the {@link SearchContext} needs.
  * Provides a cache key based on its content that can be used to cache shard level response.
  */
+@SuppressWarnings("rawtypes")
 public class ShardSearchRequest extends TransportRequest implements IndicesRequest {
     private final String clusterAlias;
     private final ShardId shardId;
@@ -424,8 +427,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             if (differentiator != null) {
                 differentiator.accept(this, out);
             }
-            // copy it over since we don't want to share the thread-local bytes in #scratch
-            return out.copyBytes();
+            return new BytesArray(MessageDigests.digest(out.bytes(), MessageDigests.sha256()));
         } finally {
             out.reset();
         }

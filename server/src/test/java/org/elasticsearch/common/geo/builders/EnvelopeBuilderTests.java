@@ -36,7 +36,7 @@ public class EnvelopeBuilderTests extends AbstractShapeBuilderTestCase<EnvelopeB
     }
 
     static EnvelopeBuilder mutate(EnvelopeBuilder original) throws IOException {
-        EnvelopeBuilder mutation = (EnvelopeBuilder) copyShape(original);
+        EnvelopeBuilder mutation = copyShape(original);
         // move one corner to the middle of original
         switch (randomIntBetween(0, 3)) {
         case 0:

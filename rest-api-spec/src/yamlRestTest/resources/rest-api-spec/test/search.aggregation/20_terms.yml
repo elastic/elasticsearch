@@ -719,7 +719,7 @@ setup:
         refresh: true
         index: test_1
         id: 1
-        routing: 1
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
@@ -727,7 +727,7 @@ setup:
         refresh: true
         index: test_1
         id: 2
-        routing: 1
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
@@ -735,7 +735,7 @@ setup:
         refresh: true
         index: test_1
         id: 3
-        routing: 1
+        routing: "1"
         body: { "str": "bcd" }
 
   - do:
@@ -769,7 +769,7 @@ setup:
         refresh: true
         index: test_1
         id: 1
-        routing: 1
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
@@ -777,7 +777,7 @@ setup:
         refresh: true
         index: test_1
         id: 2
-        routing: 1
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
@@ -785,7 +785,7 @@ setup:
         refresh: true
         index: test_1
         id: 3
-        routing: 1
+        routing: "1"
         body: { "str": "bcd" }
 
   - do:
@@ -1381,3 +1381,47 @@ precise size:
   - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
   - match: { aggregations.str_terms.buckets.1.key: c }
   - match: { aggregations.str_terms.buckets.1.doc_count: 3 }
+
+---
+huge size:
+  - skip:
+        version: " - 7.14.0"
+        reason: "Fixed in 7.14.1"
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "a" }
+          { "index": {} }
+          { "str": "b" }
+          { "index": {} }
+          { "str": "c" }
+          { "index": {} }
+          { "str": "b" }
+          { "index": {} }
+          { "str": "c" }
+          { "index": {} }
+          { "str": "c" }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                size: 2147483647
+                field: str
+                order:
+                  - _key : asc
+  - length: { aggregations.str_terms.buckets: 3 }
+  - match: { aggregations.str_terms.buckets.0.key: a }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.key: b }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.2.key: c }
+  - match: { aggregations.str_terms.buckets.2.doc_count: 3 }

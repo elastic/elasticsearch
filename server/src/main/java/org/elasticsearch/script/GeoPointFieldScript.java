@@ -100,7 +100,7 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
 
     @Override
     protected List<Object> extractFromSource(String path) {
-        Object value = XContentMapValues.extractValue(path, leafSearchLookup.source().source());
+        Object value = XContentMapValues.extractValue(path, sourceLookup.source());
         if (value instanceof List<?>) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) value;

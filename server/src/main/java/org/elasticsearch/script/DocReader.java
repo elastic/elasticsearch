@@ -9,6 +9,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.script.field.Field;
 
 import java.util.Map;
 import java.util.stream.Stream;
@@ -35,8 +36,4 @@ public interface DocReader {
 
     /** Old-style doc['field'] access */
     Map<String, ScriptDocValues<?>> doc();
-
-    /** Base document-id of the current reader, used as seed for RandomScore */
-    // should be replaced
-    int getDocBase();
 }

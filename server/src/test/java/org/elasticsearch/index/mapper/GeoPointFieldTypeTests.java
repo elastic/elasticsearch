@@ -26,7 +26,9 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper
-            = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false).build(new ContentPath()).fieldType();
+            = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false)
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
 
         Map<String, Object> jsonPoint = new HashMap<>();
         jsonPoint.put("type", "Point");
@@ -69,7 +71,9 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchVectorTile() throws IOException {
         MappedFieldType mapper
-            = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false).build(new ContentPath()).fieldType();
+            = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false)
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);

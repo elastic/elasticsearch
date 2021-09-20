@@ -72,7 +72,7 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
                 )
             );
         }
-        return new GetSnapshotsResponse(snapshots, Collections.emptyMap(), null);
+        return new GetSnapshotsResponse(snapshots, Collections.emptyMap(), null, snapshots.size() + randomInt(), randomInt());
     }
 
     @Override

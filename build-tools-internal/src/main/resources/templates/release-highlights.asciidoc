@@ -8,7 +8,7 @@ ifeval::[\\{release-state}\\"!=\\"unreleased\\"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
 endif::[]
-<% if (priorVersions.size > 0) { %>
+<% if (priorVersions.size() > 0) { %>
 // Add previous release to the list
 Other versions:
 

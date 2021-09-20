@@ -28,7 +28,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         /** Returns a newly built mapper. */
-        public abstract Mapper build(ContentPath contentPath);
+        public abstract Mapper build(MapperBuilderContext context);
     }
 
     public interface TypeParser {

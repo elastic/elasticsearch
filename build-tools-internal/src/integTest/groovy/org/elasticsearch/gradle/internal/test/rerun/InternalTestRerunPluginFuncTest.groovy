@@ -23,11 +23,11 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         repositories {
             mavenCentral()
         }
-        
+
         dependencies {
             testImplementation 'junit:junit:4.13.1'
         }
-        
+
         tasks.named("test").configure {
             maxParallelForks = 4
             testLogging {
@@ -35,7 +35,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
                 exceptionFormat "short"
             }
         }
-        
+
         """
         createTest("SimpleTest")
         createTest("SimpleTest2")
@@ -55,7 +55,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("test").buildAndFail()
         result.output.contains("total executions: 2") == false
         and: "no jvm system exit tracing provided"
-        normalized(result.output).contains("""Test jvm exited unexpectedly.
+        result.output.contains("""Test jvm exited unexpectedly.
 Test jvm system exit trace:""") == false
     }
 
@@ -79,11 +79,11 @@ Test jvm system exit trace:""") == false
         repositories {
             mavenCentral()
         }
-        
+
         dependencies {
             testImplementation 'junit:junit:4.13.1'
         }
-        
+
         tasks.named("test").configure {
             maxParallelForks = 4
             testLogging {
@@ -92,7 +92,7 @@ Test jvm system exit trace:""") == false
                 exceptionFormat "short"
             }
         }
-        
+
         """
         createTest("AnotherTest")
         createTest("AnotherTest2")
@@ -117,7 +117,7 @@ Test jvm system exit trace:""") == false
         result.output.contains("AnotherTest6 total executions: 2")
         // triggered only in the second overall run
         and: 'Tracing is provided'
-        normalized(result.output).contains("""================
+        result.output.contains("""================
 Test jvm exited unexpectedly.
 Test jvm system exit trace (run: 1)
 Gradle Test Executor 1 > AnotherTest6 > someTest
@@ -135,11 +135,11 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
         repositories {
             mavenCentral()
         }
-        
+
         dependencies {
             testImplementation 'junit:junit:4.13.1'
         }
-        
+
         tasks.named("test").configure {
             maxParallelForks = 5
             testLogging {
@@ -147,7 +147,7 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
                 exceptionFormat "short"
             }
         }
-        
+
         """
         createSystemExitTest("AnotherTest6")
         createFailedTest("SimpleTest1")
@@ -176,11 +176,11 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
         repositories {
             mavenCentral()
         }
-        
+
         dependencies {
             testImplementation 'junit:junit:4.13.1'
         }
-        
+
         tasks.named("test").configure {
             rerun {
                 maxReruns = 4
@@ -198,10 +198,10 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
         result.output.contains("JdkKillingTest total executions: 4")
         result.output.contains("Max retries(4) hit")
         and: 'Tracing is provided'
-        normalized(result.output).contains("Test jvm system exit trace (run: 1)")
-        normalized(result.output).contains("Test jvm system exit trace (run: 2)")
-        normalized(result.output).contains("Test jvm system exit trace (run: 3)")
-        normalized(result.output).contains("Test jvm system exit trace (run: 4)")
+        result.output.contains("Test jvm system exit trace (run: 1)")
+        result.output.contains("Test jvm system exit trace (run: 2)")
+        result.output.contains("Test jvm system exit trace (run: 3)")
+        result.output.contains("Test jvm system exit trace (run: 4)")
     }
 
     private String testMethodContent(boolean withSystemExit, boolean fail, int timesFailing = 1) {
@@ -244,24 +244,24 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
             import java.nio.*;
             import java.nio.file.*;
             import java.io.IOException;
-            
+
             public class $clazzName {
                 Path executionLogPath = Paths.get("test-executions" + getClass().getSimpleName() +".log");
-                
-                @Before 
+
+                @Before
                 public void beforeTest() {
                     logExecution();
                 }
-                
-                @After 
+
+                @After
                 public void afterTest() {
                 }
-                
-                @Test 
+
+                @Test
                 public void someTest() {
                     ${content}
                 }
-                
+
                 int countExecutions() {
                     try {
                         return Files.readAllLines(executionLogPath).size();
@@ -270,7 +270,7 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
                         return 0;
                     }
                 }
-               
+
                 void logExecution() {
                     try {
                         Files.write(executionLogPath, "Test executed\\n".getBytes(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);

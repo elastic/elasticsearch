@@ -9,16 +9,28 @@
 package org.elasticsearch.common.xcontent.cbor;
 
 import com.fasterxml.jackson.core.JsonParser;
+
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
+import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
 
 public class CborXContentParser extends JsonXContentParser {
 
     public CborXContentParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, JsonParser parser) {
         super(xContentRegistry, deprecationHandler, parser);
+    }
+
+    public CborXContentParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        JsonParser parser,
+        FilterPath[] includes,
+        FilterPath[] excludes
+    ) {
+        super(xContentRegistry, deprecationHandler, parser, includes, excludes);
     }
 
     @Override

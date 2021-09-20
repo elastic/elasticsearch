@@ -83,6 +83,8 @@ import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
+import org.elasticsearch.client.security.QueryApiKeyRequest;
+import org.elasticsearch.client.security.QueryApiKeyResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.TemplateRoleName;
 import org.elasticsearch.client.security.support.ApiKey;
@@ -107,6 +109,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.hamcrest.Matchers;
 
 import javax.crypto.SecretKeyFactory;
@@ -129,7 +135,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -2034,11 +2042,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::create-api-key-execute
 
             // tag::create-api-key-response
-            SecureString apiKey = createApiKeyResponse.getKey(); // <1>
+            SecureString encoded = createApiKeyResponse.getEncoded(); // <1>
             Instant apiKeyExpiration = createApiKeyResponse.getExpiration(); // <2>
             // end::create-api-key-response
             assertThat(createApiKeyResponse.getName(), equalTo(name));
-            assertNotNull(apiKey);
+            assertNotNull(encoded);
             assertNotNull(apiKeyExpiration);
         }
 
@@ -2075,6 +2083,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(future.get(30, TimeUnit.SECONDS));
             assertThat(future.get().getName(), equalTo(name));
             assertNotNull(future.get().getKey());
+            assertNotNull(future.get().getEncoded());
             assertNotNull(future.get().getExpiration());
         }
     }
@@ -2128,11 +2137,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::grant-api-key-execute
 
             // tag::grant-api-key-response
-            SecureString apiKey = apiKeyResponse.getKey(); // <1>
+            SecureString encoded = apiKeyResponse.getEncoded(); // <1>
             Instant apiKeyExpiration = apiKeyResponse.getExpiration(); // <2>
             // end::grant-api-key-response
             assertThat(apiKeyResponse.getName(), equalTo(name));
-            assertNotNull(apiKey);
+            assertNotNull(encoded);
             assertNotNull(apiKeyExpiration);
 
             apiKeyVerifier.accept(apiKeyResponse);
@@ -2176,6 +2185,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(future.get(30, TimeUnit.SECONDS));
             assertThat(future.get().getName(), equalTo(name));
             assertNotNull(future.get().getKey());
+            assertNotNull(future.get().getEncoded());
             assertNotNull(future.get().getExpiration());
 
             apiKeyVerifier.accept(future.get());
@@ -2195,6 +2205,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
         assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
         assertNotNull(createApiKeyResponse1.getKey());
+        assertNotNull(createApiKeyResponse1.getEncoded());
 
         final ApiKey expectedApiKeyInfo = new ApiKey(createApiKeyResponse1.getName(), createApiKeyResponse1.getId(), Instant.now(),
             Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file", metadata);
@@ -2351,6 +2362,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
         assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
         assertNotNull(createApiKeyResponse1.getKey());
+        assertNotNull(createApiKeyResponse1.getEncoded());
 
         {
             // tag::invalidate-api-key-id-request
@@ -2395,6 +2407,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse2.getName(), equalTo("k2"));
             assertNotNull(createApiKeyResponse2.getKey());
+            assertNotNull(createApiKeyResponse2.getEncoded());
 
             // tag::invalidate-api-key-name-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyName(createApiKeyResponse2.getName(),
@@ -2419,6 +2432,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse3 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse3.getName(), equalTo("k3"));
             assertNotNull(createApiKeyResponse3.getKey());
+            assertNotNull(createApiKeyResponse3.getEncoded());
 
             // tag::invalidate-realm-api-keys-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmName("default_file");
@@ -2442,6 +2456,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse4 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse4.getName(), equalTo("k4"));
             assertNotNull(createApiKeyResponse4.getKey());
+            assertNotNull(createApiKeyResponse4.getEncoded());
 
             // tag::invalidate-user-api-keys-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingUserName("test_user");
@@ -2465,6 +2480,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse5 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse5.getName(), equalTo("k5"));
             assertNotNull(createApiKeyResponse5.getKey());
+            assertNotNull(createApiKeyResponse5.getEncoded());
 
             // tag::invalidate-user-realm-api-keys-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName("default_file", "test_user");
@@ -2490,6 +2506,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse6 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse6.getName(), equalTo("k6"));
             assertNotNull(createApiKeyResponse6.getKey());
+            assertNotNull(createApiKeyResponse6.getEncoded());
 
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse6.getId(), false);
 
@@ -2533,6 +2550,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse7 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse7.getName(), equalTo("k7"));
             assertNotNull(createApiKeyResponse7.getKey());
+            assertNotNull(createApiKeyResponse7.getEncoded());
 
             // tag::invalidate-api-keys-owned-by-authenticated-user-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.forOwnedApiKeys();
@@ -2551,6 +2569,131 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
         }
 
+    }
+
+    public void testQueryApiKey() throws IOException, ExecutionException, InterruptedException, TimeoutException {
+        RestHighLevelClient client = highLevelClient();
+        final CreateApiKeyRequest createApiKeyRequest1 = new CreateApiKeyRequest("key-10000", org.elasticsearch.core.List.of(),
+            randomBoolean() ? TimeValue.timeValueHours(24) : null,
+            RefreshPolicy.WAIT_UNTIL, org.elasticsearch.core.Map.of("environment", "east-production"));
+        final CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest1, RequestOptions.DEFAULT);
+        final CreateApiKeyRequest createApiKeyRequest2 = new CreateApiKeyRequest("key-20000", org.elasticsearch.core.List.of(),
+            randomBoolean() ? TimeValue.timeValueHours(24) : null,
+            RefreshPolicy.WAIT_UNTIL, org.elasticsearch.core.Map.of("environment", "east-staging"));
+        final CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest2, RequestOptions.DEFAULT);
+
+        {
+            // tag::query-api-key-default-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
+            // end::query-api-key-default-request
+
+            // tag::query-api-key-execute
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+            // end::query-api-key-execute
+
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(2));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toSet()),
+                equalTo(org.elasticsearch.core.Set.of("key-10000", "key-20000")));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toSet()),
+                equalTo(org.elasticsearch.core.Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
+        }
+
+        {
+            // tag::query-api-key-query-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest().queryBuilder(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.prefixQuery("metadata.environment", "east-"))
+                    .mustNot(QueryBuilders.termQuery("name", "key-20000")));
+            // end::query-api-key-query-request
+
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(1L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(1));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getName(), equalTo(createApiKeyResponse1.getName()));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getId(), equalTo(createApiKeyResponse1.getId()));
+        }
+
+        {
+            // tag::query-api-key-from-size-sort-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest()
+                .from(1)
+                .size(100)
+                .fieldSortBuilders(org.elasticsearch.core.List.of(new FieldSortBuilder("name").order(SortOrder.DESC)));
+            // end::query-api-key-from-size-sort-request
+
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+
+            // tag::query-api-key-from-size-sort-response
+            final long total = queryApiKeyResponse.getTotal();  // <1>
+            final int count = queryApiKeyResponse.getCount();  // <2>
+            final List<ApiKey> apiKeys = queryApiKeyResponse.getApiKeys();  // <3>
+            final Object[] sortValues = apiKeys.get(apiKeys.size()-1).getSortValues();  // <4>
+            // end::query-api-key-from-size-sort-response
+
+            assertThat(total, equalTo(2L));
+            assertThat(count, equalTo(1));
+            assertThat(apiKeys.get(0).getName(), equalTo(createApiKeyResponse1.getName()));
+            assertThat(apiKeys.get(0).getId(), equalTo(createApiKeyResponse1.getId()));
+            assertThat(sortValues.length, equalTo(1));
+            assertThat(sortValues[0], equalTo(createApiKeyResponse1.getName()));
+        }
+
+        {
+            // tag::query-api-key-search-after-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest()
+                .fieldSortBuilders(org.elasticsearch.core.List.of(new FieldSortBuilder("name")))
+                .searchAfterBuilder(new SearchAfterBuilder().setSortValues(new String[] {"key-10000"}));
+            // end::query-api-key-search-after-request
+
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(1));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getName(), equalTo(createApiKeyResponse2.getName()));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getId(), equalTo(createApiKeyResponse2.getId()));
+        }
+
+        {
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
+
+            ActionListener<QueryApiKeyResponse> listener;
+            // tag::query-api-key-execute-listener
+            listener = new ActionListener<QueryApiKeyResponse>() {
+                @Override
+                public void onResponse(QueryApiKeyResponse queryApiKeyResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::query-api-key-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::query-api-key-execute-async
+            client.security().queryApiKeyAsync(queryApiKeyRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::query-api-key-execute-async
+
+            final QueryApiKeyResponse queryApiKeyResponse = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(queryApiKeyResponse);
+
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(2));
+            assertThat(queryApiKeyResponse.getApiKeys(), is(notNullValue()));
+            assertThat(queryApiKeyResponse.getApiKeys().size(), is(2));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toSet()),
+                equalTo(org.elasticsearch.core.Set.of("key-10000", "key-20000")));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toSet()),
+                equalTo(org.elasticsearch.core.Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
+        }
     }
 
     public void testGetServiceAccounts() throws IOException {

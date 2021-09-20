@@ -44,7 +44,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -217,10 +216,13 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
     public void testRetryPointInTime() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(1);
-        final List<String> dataNodes = StreamSupport.stream(
-            internalCluster().clusterService().state().nodes().getDataNodes().spliterator(),
-            false
-        ).map(e -> e.value.getName()).collect(Collectors.toList());
+        final List<String> dataNodes = internalCluster().clusterService()
+            .state()
+            .nodes()
+            .getDataNodes()
+            .stream()
+            .map(e -> e.getValue().getName())
+            .collect(Collectors.toList());
         final String assignedNode = randomFrom(dataNodes);
         final String indexName = "test";
         assertAcked(

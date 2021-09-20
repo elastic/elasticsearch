@@ -15,9 +15,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -29,16 +29,17 @@ import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -86,6 +87,11 @@ public class MasterServiceTests extends ESTestCase {
             public long relativeTimeInMillis() {
                 return relativeTimeInMillis;
             }
+
+            @Override
+            public long rawRelativeTimeInMillis() {
+                return relativeTimeInMillis();
+            }
         };
     }
 
@@ -116,8 +122,9 @@ public class MasterServiceTests extends ESTestCase {
                 .masterNodeId(makeMaster ? localNode.getId() : null))
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
         final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
-            clusterStateRef.set(event.state());
+        masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            clusterStateRef.set(clusterStatePublicationEvent.getNewState());
+            ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
             publishListener.onResponse(null);
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
@@ -264,7 +271,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+                    public void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
                         published.set(true);
                         latch.countDown();
                     }
@@ -507,7 +514,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            public void clusterStatePublished(ClusterStatePublicationEvent clusterPublicationEvent) {
                 published.incrementAndGet();
                 semaphore.release();
             }
@@ -686,19 +693,19 @@ public class MasterServiceTests extends ESTestCase {
                 "test2",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*took [*], which is over [10s], to compute cluster state update for [test2]"));
+                "*took [*] to compute cluster state update for [test2], which exceeds the warn threshold of [10s]"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*took [*], which is over [10s], to compute cluster state update for [test3]"));
+                "*took [*] to compute cluster state update for [test3], which exceeds the warn threshold of [10s]"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test4",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*took [*], which is over [10s], to compute cluster state update for [test4]"));
+                "*took [*] to compute cluster state update for [test4], which exceeds the warn threshold of [10s]"));
         mockAppender.addExpectation(
             new MockLogAppender.UnseenEventExpectation(
                 "test5 should not log despite publishing slowly",
@@ -725,17 +732,18 @@ public class MasterServiceTests extends ESTestCase {
                 .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
             final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
-            masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
-                if (event.source().contains("test5")) {
+            masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+                ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
+                if (clusterStatePublicationEvent.getSummary().contains("test5")) {
                     relativeTimeInMillis += MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
                         + randomLongBetween(1, 1000000);
                 }
-                if (event.source().contains("test6")) {
+                if (clusterStatePublicationEvent.getSummary().contains("test6")) {
                     relativeTimeInMillis += MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis()
                         + randomLongBetween(1, 1000000);
                     throw new ElasticsearchException("simulated error during slow publication which should trigger logging");
                 }
-                clusterStateRef.set(event.state());
+                clusterStateRef.set(clusterStatePublicationEvent.getNewState());
                 publishListener.onResponse(null);
             });
             masterService.setClusterStateSupplier(clusterStateRef::get);
@@ -894,7 +902,10 @@ public class MasterServiceTests extends ESTestCase {
                     .masterNodeId(node1.getId()))
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
             final AtomicReference<ClusterStatePublisher> publisherRef = new AtomicReference<>();
-            masterService.setClusterStatePublisher((e, pl, al) -> publisherRef.get().publish(e, pl, al));
+            masterService.setClusterStatePublisher((e, pl, al) -> {
+                ClusterServiceUtils.setAllElapsedMillis(e);
+                publisherRef.get().publish(e, pl, al);
+            });
             masterService.setClusterStateSupplier(() -> initialClusterState);
             masterService.start();
 

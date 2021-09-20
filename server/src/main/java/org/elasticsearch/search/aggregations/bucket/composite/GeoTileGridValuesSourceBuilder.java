@@ -10,13 +10,13 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -47,6 +47,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
+            MissingOrder missingOrder,
             SortOrder order
         );
     }
@@ -61,8 +62,11 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     static {
         PARSER = new ObjectParser<>(GeoTileGridValuesSourceBuilder.TYPE);
         PARSER.declareInt(GeoTileGridValuesSourceBuilder::precision, new ParseField("precision"));
-        PARSER.declareField(((p, builder, context) -> builder.geoBoundingBox(GeoBoundingBox.parseBoundingBox(p))),
-            GeoBoundingBox.BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            ((p, builder, context) -> builder.geoBoundingBox(GeoBoundingBox.parseBoundingBox(p))),
+            GeoBoundingBox.BOUNDS_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER);
     }
 
@@ -75,15 +79,11 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         builder.register(
             REGISTRY_KEY,
             CoreValuesSourceType.GEOPOINT,
-            (valuesSourceConfig, precision, boundingBox, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, precision, boundingBox, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
                 // is specified in the builder.
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
-                GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource(
-                    geoPoint,
-                    precision,
-                    boundingBox
-                );
+                GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource(geoPoint, precision, boundingBox);
                 return new CompositeValuesSourceConfig(
                     name,
                     fieldType,
@@ -91,6 +91,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                     DocValueFormat.GEOTILE,
                     order,
                     missingBucket,
+                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -108,13 +109,15 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                             LongUnaryOperator.identity(),
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
                     }
                 );
             },
-            false);
+            false
+        );
     }
 
     private int precision = GeoTileGridAggregationBuilder.DEFAULT_PRECISION;
@@ -185,8 +188,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         GeoTileGridValuesSourceBuilder other = (GeoTileGridValuesSourceBuilder) obj;
-        return Objects.equals(precision,other.precision)
-            && Objects.equals(geoBoundingBox, other.geoBoundingBox);
+        return Objects.equals(precision, other.precision) && Objects.equals(geoBoundingBox, other.geoBoundingBox);
     }
 
     @Override
@@ -197,7 +199,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     @Override
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
         return registry.getAggregator(REGISTRY_KEY, config)
-            .apply(config, precision, geoBoundingBox(), name, script() != null, format(), missingBucket(), order());
+            .apply(config, precision, geoBoundingBox(), name, script() != null, format(), missingBucket(), missingOrder(), order());
     }
 
 }

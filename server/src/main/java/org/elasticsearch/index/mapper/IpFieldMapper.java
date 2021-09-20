@@ -18,11 +18,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.IpField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -124,11 +126,11 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IpFieldMapper build(ContentPath contentPath) {
+        public IpFieldMapper build(MapperBuilderContext context) {
             return new IpFieldMapper(name,
-                new IpFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
+                new IpFieldType(context.buildFullName(name), indexed.getValue(), stored.getValue(),
                     hasDocValues.getValue(), parseNullValue(), scriptValues(), meta.getValue()),
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
     }
@@ -333,6 +335,11 @@ public class IpFieldMapper extends FieldMapper {
             public int size() {
                 return count;
             }
+
+            @Override
+            public org.elasticsearch.script.field.Field<String> toField(String fieldName) {
+                return new IpField(fieldName, this);
+            }
         }
 
         @Override
@@ -351,13 +358,8 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
-            }
-            if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+            checkNoFormat(format);
+            checkNoTimeZone(timeZone);
             return DocValueFormat.IP;
         }
     }
@@ -413,34 +415,28 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        Object addressAsObject = context.parser().textOrNull();
-
-        if (addressAsObject == null) {
-            addressAsObject = nullValue;
-        }
-
-        if (addressAsObject == null) {
-            return;
-        }
-
-        String addressAsString = addressAsObject.toString();
         InetAddress address;
-        if (addressAsObject instanceof InetAddress) {
-            address = (InetAddress) addressAsObject;
-        } else {
-            try {
-                address = InetAddresses.forString(addressAsString);
-            } catch (IllegalArgumentException e) {
-                if (ignoreMalformed) {
-                    context.addIgnoredField(fieldType().name());
-                    return;
-                } else {
-                    throw e;
-                }
+        try {
+            address = value(context.parser(), nullValue);
+        } catch (IllegalArgumentException e) {
+            if (ignoreMalformed) {
+                context.addIgnoredField(fieldType().name());
+                return;
+            } else {
+                throw e;
             }
         }
+        if (address != null) {
+            indexValue(context, address);
+        }
+    }
 
-        indexValue(context, address);
+    private static InetAddress value(XContentParser parser, InetAddress nullValue) throws IOException {
+        String value = parser.textOrNull();
+        if (value == null) {
+            return nullValue;
+        }
+        return InetAddresses.forString(value);
     }
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
@@ -467,5 +463,4 @@ public class IpFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
-
 }

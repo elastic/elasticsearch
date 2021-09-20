@@ -597,7 +597,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             }
         };
         sortBuilder.setNestedPath("path").setNestedFilter(rangeQuery);
-        GeoDistanceSortBuilder rewritten = (GeoDistanceSortBuilder) sortBuilder
+        GeoDistanceSortBuilder rewritten = sortBuilder
                 .rewrite(createMockSearchExecutionContext());
         assertNotSame(rangeQuery, rewritten.getNestedFilter());
     }

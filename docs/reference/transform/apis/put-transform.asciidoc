@@ -23,7 +23,7 @@ Requires the following privileges:
 * cluster: `manage_transform` (the `transform_admin` built-in role grants this 
   privilege)
 * source indices: `read`, `view_index_metadata`
-* destination index: `read`, `create_index`, index`.
+* destination index: `read`, `create_index`, `index`.
 
 [[put-transform-desc]]
 == {api-description-title}
@@ -186,6 +186,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dat
 `docs_per_second`:::
 (Optional, float)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+`align_checkpoints`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
 `max_page_search_size`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]

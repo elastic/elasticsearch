@@ -93,6 +93,10 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
         return remoteClient == null ? client() : remoteClient;
     }
 
+    protected Boolean ccsMinimizeRoundtrips() {
+        return remoteClient == null ? null : randomBoolean();
+    }
+
     protected static RestClient provisioningAdminClient() {
         return remoteClient == null ? adminClient() : remoteClient;
     }

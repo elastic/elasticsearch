@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,7 +39,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     public static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField PREDICT = new ParseField("predict");
     private static final ParseField MINIMIZE = new ParseField("minimize");
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(MovAvgPipelineAggregationBuilder.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(MovAvgPipelineAggregationBuilder.class);
 
     private String format;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
@@ -275,8 +275,10 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     }
 
     public static MovAvgPipelineAggregationBuilder parse(
-            ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageMdelParserRegistry,
-            String pipelineAggregatorName, XContentParser parser) throws IOException {
+        ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageMdelParserRegistry,
+        String pipelineAggregatorName,
+        XContentParser parser
+    ) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
@@ -289,8 +291,11 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
         Integer predict = null;
         Boolean minimize = null;
 
-        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "moving_avg_aggregation",
-            "The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.");
+        DEPRECATION_LOGGER.deprecate(
+            DeprecationCategory.AGGREGATIONS,
+            "moving_avg_aggregation",
+            "The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation."
+        );
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -299,18 +304,38 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
                 if (WINDOW.match(currentFieldName, parser.getDeprecationHandler())) {
                     window = parser.intValue();
                     if (window <= 0) {
-                        throw new ParsingException(parser.getTokenLocation(), "[" + currentFieldName + "] value must be a positive, "
-                                + "non-zero integer.  Value supplied was [" + predict + "] in [" + pipelineAggregatorName + "].");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "["
+                                + currentFieldName
+                                + "] value must be a positive, "
+                                + "non-zero integer.  Value supplied was ["
+                                + predict
+                                + "] in ["
+                                + pipelineAggregatorName
+                                + "]."
+                        );
                     }
                 } else if (PREDICT.match(currentFieldName, parser.getDeprecationHandler())) {
                     predict = parser.intValue();
                     if (predict <= 0) {
-                        throw new ParsingException(parser.getTokenLocation(), "[" + currentFieldName + "] value must be a positive integer."
-                                + "  Value supplied was [" + predict + "] in [" + pipelineAggregatorName + "].");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "["
+                                + currentFieldName
+                                + "] value must be a positive integer."
+                                + "  Value supplied was ["
+                                + predict
+                                + "] in ["
+                                + pipelineAggregatorName
+                                + "]."
+                        );
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (FORMAT.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -322,8 +347,10 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
                 } else if (MODEL.match(currentFieldName, parser.getDeprecationHandler())) {
                     model = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -334,36 +361,49 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
                     }
                     bucketsPaths = paths.toArray(new String[paths.size()]);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (SETTINGS.match(currentFieldName, parser.getDeprecationHandler())) {
                     settings = parser.map();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (MINIMIZE.match(currentFieldName, parser.getDeprecationHandler())) {
                     minimize = parser.booleanValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " in [" + pipelineAggregatorName + "].");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unexpected token " + token + " in [" + pipelineAggregatorName + "]."
+                );
             }
         }
 
         if (bucketsPaths == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for movingAvg aggregation [" + pipelineAggregatorName + "]");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Missing required field ["
+                    + BUCKETS_PATH.getPreferredName()
+                    + "] for movingAvg aggregation ["
+                    + pipelineAggregatorName
+                    + "]"
+            );
         }
 
-        MovAvgPipelineAggregationBuilder factory =
-                new MovAvgPipelineAggregationBuilder(pipelineAggregatorName, bucketsPaths[0]);
+        MovAvgPipelineAggregationBuilder factory = new MovAvgPipelineAggregationBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -377,8 +417,11 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
             factory.predict(predict);
         }
         if (model != null) {
-            MovAvgModel.AbstractModelParser modelParser = movingAverageMdelParserRegistry.lookup(model,
-                parser.getTokenLocation(), parser.getDeprecationHandler());
+            MovAvgModel.AbstractModelParser modelParser = movingAverageMdelParserRegistry.lookup(
+                model,
+                parser.getTokenLocation(),
+                parser.getDeprecationHandler()
+            );
             MovAvgModel movAvgModel;
             try {
                 movAvgModel = modelParser.parse(settings, pipelineAggregatorName, factory.window());
@@ -405,11 +448,11 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
         if (super.equals(obj) == false) return false;
         MovAvgPipelineAggregationBuilder other = (MovAvgPipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format)
-                && Objects.equals(gapPolicy, other.gapPolicy)
-                && Objects.equals(window, other.window)
-                && Objects.equals(model, other.model)
-                && Objects.equals(predict, other.predict)
-                && Objects.equals(minimize, other.minimize);
+            && Objects.equals(gapPolicy, other.gapPolicy)
+            && Objects.equals(window, other.window)
+            && Objects.equals(model, other.model)
+            && Objects.equals(predict, other.predict)
+            && Objects.equals(minimize, other.minimize);
     }
 
     @Override

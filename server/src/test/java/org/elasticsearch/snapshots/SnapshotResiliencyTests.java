@@ -156,6 +156,7 @@ import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -1645,7 +1646,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
                         @Override
                         protected void connectToNodesAndWait(ClusterState newClusterState) {
-                            // don't do anything, and don't block
+                            connectToNodesAsync(newClusterState, () -> {
+                                // no need to block waiting for handshakes etc. to complete, it's enough to let the NodeConnectionsService
+                                // take charge of these connections
+                            });
                         }
                     }
                 );
@@ -1806,12 +1810,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     SourceOnlyRecoveryPlannerService.INSTANCE
                 );
 
+                final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
                     clusterService,
                     threadPool,
-                    new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService),
+                    new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService, snapshotFilesProvider),
                     shardStateAction,
                     repositoriesService,
                     mock(SearchService.class),
@@ -1962,10 +1967,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector()
                 );
-                SearchPhaseController searchPhaseController = new SearchPhaseController(
-                    writableRegistry(),
-                    searchService::aggReduceContextBuilder
-                );
+                SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
                 actions.put(
                     SearchAction.INSTANCE,
                     new TransportSearchAction(
@@ -2144,6 +2146,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     node.getName(),
                     clusterService.getSettings(),
                     clusterService.getClusterSettings(),
+                    bigArrays,
                     transportService,
                     namedWriteableRegistry,
                     allocationService,

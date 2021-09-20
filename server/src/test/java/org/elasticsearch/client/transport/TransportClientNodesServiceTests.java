@@ -138,6 +138,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 @Override
                 public AsyncSender interceptSender(AsyncSender sender) {
                     return new AsyncSender() {
+                        @SuppressWarnings("unchecked")
                         @Override
                         public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
                                                                               TransportRequest request,
@@ -170,7 +171,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             transportClientNodesService.addTransportAddresses(listNodeAddresses.toArray(new TransportAddress[0]));
         }
 
-        private <T extends TransportResponse> TransportResponseHandler wrapLivenessResponseHandler(TransportResponseHandler<T> handler,
+        private <T extends TransportResponse> TransportResponseHandler<T> wrapLivenessResponseHandler(TransportResponseHandler<T> handler,
                                                                                                    DiscoveryNode node,
                                                                                                    ClusterName clusterName) {
             return new TransportResponseHandler<T>() {

@@ -24,6 +24,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -304,15 +305,16 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
-    protected static void verifyDataStream(final RestClient client,
-                                 final String name,
-                                 final String... expectedBackingIndices) throws IOException {
+    protected static List<String> verifyDataStream(final RestClient client,
+                                                   final String name,
+                                                   final String... expectedBackingIndices) throws IOException {
         Request request = new Request("GET", "/_data_stream/" + name);
         Map<String, ?> response = toMap(client.performRequest(request));
         List<?> retrievedDataStreams = (List<?>) response.get("data_streams");
         assertThat(retrievedDataStreams, hasSize(1));
         List<?> actualBackingIndexItems = (List<?>) ((Map<?, ?>) retrievedDataStreams.get(0)).get("indices");
         assertThat(actualBackingIndexItems, hasSize(expectedBackingIndices.length));
+        final List<String> actualBackingIndices = new ArrayList<>();
         for (int i = 0; i < expectedBackingIndices.length; i++) {
             Map<?, ?> actualBackingIndexItem = (Map<?, ?>) actualBackingIndexItems.get(i);
             String actualBackingIndex = (String) actualBackingIndexItem.get("index_name");
@@ -325,7 +327,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             int actualGeneration = Integer.parseInt(actualBackingIndex.substring(actualBackingIndex.lastIndexOf('-')));
             int expectedGeneration = Integer.parseInt(expectedBackingIndex.substring(expectedBackingIndex.lastIndexOf('-')));
             assertThat(actualGeneration, equalTo(expectedGeneration));
+            actualBackingIndices.add(actualBackingIndex);
         }
+        return org.elasticsearch.core.List.copyOf(actualBackingIndices);
     }
 
     protected static void createAutoFollowPattern(RestClient client, String name, String pattern, String remoteCluster) throws IOException {

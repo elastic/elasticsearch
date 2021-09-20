@@ -8,12 +8,11 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -47,8 +46,7 @@ public abstract class PipelineAggregator implements NamedWriteable {
          * @throws java.io.IOException
          *             When parsing fails
          */
-        PipelineAggregationBuilder parse(String pipelineAggregatorName, XContentParser parser)
-                throws IOException;
+        PipelineAggregationBuilder parse(String pipelineAggregatorName, XContentParser parser) throws IOException;
     }
 
     /**
@@ -119,7 +117,7 @@ public abstract class PipelineAggregator implements NamedWriteable {
             bucketsPaths = in.readStringArray();
             metadata = in.readMap();
         } else {
-           throw new IllegalStateException("Cannot deserialize pipeline [" + getClass() + "] from before 7.8.0");
+            throw new IllegalStateException("Cannot deserialize pipeline [" + getClass() + "] from before 7.8.0");
         }
     }
 
@@ -145,8 +143,7 @@ public abstract class PipelineAggregator implements NamedWriteable {
      * @deprecated pipeline aggregations added after 7.8.0 don't need to implement this
      */
     @Deprecated
-    protected void doWriteTo(StreamOutput out) throws IOException {
-    }
+    protected void doWriteTo(StreamOutput out) throws IOException {}
 
     /**
      * The name of the writeable object.
@@ -157,7 +154,6 @@ public abstract class PipelineAggregator implements NamedWriteable {
     public String getWriteableName() {
         throw new IllegalArgumentException("[" + name + "] is not supported on versions before 7.8.0");
     }
-
 
     public String name() {
         return name;

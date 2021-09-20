@@ -173,7 +173,9 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
                         "test3", newSet("0", "1", "2", "tw ", " ltw ", " lw"))));
     }
 
-    private <T> Set<T> newSet(T... elements) {
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    private final <T> Set<T> newSet(T... elements) {
         return newHashSet(elements);
     }
 

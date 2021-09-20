@@ -29,13 +29,16 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final Long precisionThreshold;
     private final CardinalityAggregatorSupplier aggregatorSupplier;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig config,
-                                 Long precisionThreshold,
-                                 AggregationContext context,
-                                 AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metadata,
-                                 CardinalityAggregatorSupplier aggregatorSupplier) throws IOException {
+    CardinalityAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        Long precisionThreshold,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        CardinalityAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         this.aggregatorSupplier = aggregatorSupplier;
@@ -43,7 +46,8 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY,
+        builder.register(
+            CardinalityAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.ALL_CORE,
             (name, valuesSourceConfig, precision, context, parent, metadata) -> {
                 // check global ords
@@ -53,19 +57,27 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                         final ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
                         if (useGlobalOrds(context, source, precision)) {
                             final long maxOrd = source.globalMaxOrd(context.searcher());
-                            return new GlobalOrdCardinalityAggregator(name, source, precision, Math.toIntExact(maxOrd),
-                                context, parent, metadata);
+                            return new GlobalOrdCardinalityAggregator(
+                                name,
+                                source,
+                                precision,
+                                Math.toIntExact(maxOrd),
+                                context,
+                                parent,
+                                metadata
+                            );
                         }
                     }
                 }
                 // fallback in the default aggregator
                 return new CardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
-            }, true);
+            },
+            true
+        );
     }
 
-    private static boolean useGlobalOrds(AggregationContext context,
-                                         ValuesSource.Bytes.WithOrdinals source,
-                                         int precision) throws IOException {
+    private static boolean useGlobalOrds(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+        throws IOException {
         final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
         // we compute the total number of terms across all segments
         long total = 0;
@@ -85,11 +97,8 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return aggregatorSupplier.build(name, config, precision(), context, parent, metadata);
     }
 

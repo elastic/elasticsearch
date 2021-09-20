@@ -129,6 +129,8 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         List<String> indices = org.elasticsearch.core.List.of(indexName, indexName2);
         createIndex(indexName, indexName2);
         SnapshotInfo lastSnapshot = null;
+        String expectedIndexMetadataId = null;
+
         int numSnapshots = randomIntBetween(5, 25);
         for (int i = 0; i < numSnapshots; i++) {
             if (randomBoolean()) {
@@ -139,6 +141,9 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             final SnapshotInfo snapshotInfo = createSnapshot(repoName, String.format(Locale.ROOT, "snap-%03d", i), snapshotIndices);
             if (snapshotInfo.indices().contains(indexName)) {
                 lastSnapshot = snapshotInfo;
+                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().execute().actionGet();
+                IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(indexName);
+                expectedIndexMetadataId = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
             }
         }
 
@@ -156,10 +161,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
             final ShardSnapshotInfo shardSnapshotInfo = indexShardSnapshotInfoOpt.get();
 
-            final ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().execute().actionGet();
-            final IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(indexName);
-            final String indexMetadataId = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
-            assertThat(shardSnapshotInfo.getIndexMetadataIdentifier(), equalTo(indexMetadataId));
+            assertThat(shardSnapshotInfo.getIndexMetadataIdentifier(), equalTo(expectedIndexMetadataId));
 
             final Snapshot snapshot = shardSnapshotInfo.getSnapshot();
             assertThat(snapshot, equalTo(lastSnapshot.snapshot()));
@@ -209,10 +211,11 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithContent(indexName);
 
         int snapshotIdx = 0;
-        createSnapshot(failingRepoName, "empty-snap-" + snapshotIdx++, Collections.singletonList(indexName));
+        createSnapshot(failingRepoName, String.format(Locale.ROOT, "snap-%03d", snapshotIdx++), Collections.singletonList(indexName));
         SnapshotInfo latestSnapshot = null;
         for (String workingRepoName : workingRepoNames) {
-            latestSnapshot = createSnapshot(workingRepoName, "empty-snap-" + snapshotIdx++, Collections.singletonList(indexName));
+            String snapshot = String.format(Locale.ROOT, "snap-%03d", snapshotIdx++);
+            latestSnapshot = createSnapshot(workingRepoName, snapshot, Collections.singletonList(indexName));
         }
 
         final MockRepository repository = getRepositoryOnMaster(failingRepoName);
@@ -266,7 +269,8 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         int snapshotIdx = 0;
         SnapshotInfo expectedLatestSnapshot = null;
         for (String repository : repositories) {
-            expectedLatestSnapshot = createSnapshot(repository, "snap-" + snapshotIdx++, Collections.singletonList(indexName));
+            String snapshot = String.format(Locale.ROOT, "snap-%03d", snapshotIdx++);
+            expectedLatestSnapshot = createSnapshot(repository, snapshot, Collections.singletonList(indexName));
         }
 
         GetShardSnapshotResponse response = getLatestSnapshotForShardFuture(repositories, indexName, 0).actionGet();

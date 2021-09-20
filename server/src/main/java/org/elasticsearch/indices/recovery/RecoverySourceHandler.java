@@ -36,9 +36,11 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -71,16 +73,23 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -105,6 +114,8 @@ public class RecoverySourceHandler {
     private final RecoveryTargetHandler recoveryTarget;
     private final int maxConcurrentFileChunks;
     private final int maxConcurrentOperations;
+    private final int maxConcurrentSnapshotFileDownloads;
+    private final boolean useSnapshots;
     private final ThreadPool threadPool;
     private final RecoveryPlannerService recoveryPlannerService;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
@@ -113,7 +124,8 @@ public class RecoverySourceHandler {
 
     public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, ThreadPool threadPool,
                                  StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks,
-                                 int maxConcurrentOperations, RecoveryPlannerService recoveryPlannerService) {
+                                 int maxConcurrentOperations, int maxConcurrentSnapshotFileDownloads, boolean useSnapshots,
+                                 RecoveryPlannerService recoveryPlannerService) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.threadPool = threadPool;
@@ -125,6 +137,8 @@ public class RecoverySourceHandler {
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
         this.maxConcurrentFileChunks = request.targetNode().getVersion().onOrAfter(Version.V_6_7_0) ? maxConcurrentFileChunks : 1;
         this.maxConcurrentOperations = maxConcurrentOperations;
+        this.maxConcurrentSnapshotFileDownloads = maxConcurrentSnapshotFileDownloads;
+        this.useSnapshots = useSnapshots;
     }
 
     public StartRecoveryRequest getRequest() {
@@ -481,7 +495,7 @@ public class RecoverySourceHandler {
                     startingSeqNo,
                     translogOps.getAsInt(),
                     getRequest().targetNode().getVersion(),
-                    false,
+                    useSnapshots,
                     ActionListener.wrap(plan ->
                         recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
                 );
@@ -548,6 +562,7 @@ public class RecoverySourceHandler {
         }
 
         final StepListener<Void> sendFileInfoStep = new StepListener<>();
+        final StepListener<List<StoreFileMetadata>> recoverSnapshotFilesStep = new StepListener<>();
         final StepListener<Void> sendFilesStep = new StepListener<>();
         final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
         final StepListener<Void> cleanFilesStep = new StepListener<>();
@@ -561,11 +576,19 @@ public class RecoverySourceHandler {
             sendFileInfoStep
         );
 
-        final List<StoreFileMetadata> sourceFiles = shardRecoveryPlan.getSourceFilesToRecover();
+        sendFileInfoStep.whenComplete(r -> recoverSnapshotFiles(shardRecoveryPlan, recoverSnapshotFilesStep), listener::onFailure);
 
-        sendFileInfoStep.whenComplete(r ->
+        recoverSnapshotFilesStep.whenComplete(filesFailedToRecoverFromSnapshot -> {
+            final List<StoreFileMetadata> filesToRecoverFromSource;
+            if (filesFailedToRecoverFromSnapshot.isEmpty()) {
+                filesToRecoverFromSource = shardRecoveryPlan.getSourceFilesToRecover();
+            } else {
+                filesToRecoverFromSource = concatLists(shardRecoveryPlan.getSourceFilesToRecover(), filesFailedToRecoverFromSnapshot);
+            }
+
             sendFiles(store,
-                sourceFiles.toArray(new StoreFileMetadata[0]), shardRecoveryPlan::getTranslogOps, sendFilesStep), listener::onFailure);
+                filesToRecoverFromSource.toArray(new StoreFileMetadata[0]), shardRecoveryPlan::getTranslogOps, sendFilesStep);
+        }, listener::onFailure);
 
         final long startingSeqNo = shardRecoveryPlan.getStartingSeqNo();
         sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
@@ -592,6 +615,168 @@ public class RecoverySourceHandler {
                     phase1ExistingFileNames, phase1ExistingFileSizes, existingTotalSize, took)
             );
         }, listener::onFailure);
+    }
+
+    /**
+     * Send requests to the target node to recover files from a given snapshot. In case of failure, the listener
+     * value contains the list of files that failed to be recovered from a snapshot.
+     */
+    void recoverSnapshotFiles(ShardRecoveryPlan shardRecoveryPlan,
+                              ActionListener<List<StoreFileMetadata>> listener) {
+        ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover();
+
+        if (snapshotFilesToRecover.isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+            return;
+        }
+
+        new SnapshotRecoverFileRequestsSender(shardRecoveryPlan, listener).start();
+    }
+
+    private class SnapshotRecoverFileRequestsSender {
+        private final ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover;
+        private final ActionListener<List<StoreFileMetadata>> listener;
+        private final CountDown countDown;
+        private final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> pendingSnapshotFilesToRecover;
+        private final AtomicBoolean cancelled = new AtomicBoolean();
+        private final Set<ListenableFuture<Void>> outstandingRequests = new HashSet<>(maxConcurrentSnapshotFileDownloads);
+        private List<StoreFileMetadata> filesFailedToDownloadFromSnapshot;
+
+        SnapshotRecoverFileRequestsSender(ShardRecoveryPlan shardRecoveryPlan, ActionListener<List<StoreFileMetadata>> listener) {
+            this.snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover();
+            this.listener = listener;
+            this.countDown = new CountDown(shardRecoveryPlan.getSnapshotFilesToRecover().size());
+            this.pendingSnapshotFilesToRecover =
+                new LinkedBlockingQueue<>(shardRecoveryPlan.getSnapshotFilesToRecover().getSnapshotFiles());
+        }
+
+        void start() {
+            for (int i = 0; i < maxConcurrentSnapshotFileDownloads; i++) {
+                sendRequest();
+            }
+        }
+
+        void sendRequest() {
+            BlobStoreIndexShardSnapshot.FileInfo snapshotFileToRecover = pendingSnapshotFilesToRecover.poll();
+            if (snapshotFileToRecover == null) {
+                return;
+            }
+
+            final ListenableFuture<Void> requestFuture = new ListenableFuture<>();
+            try {
+                cancellableThreads.checkForCancel();
+
+                ActionListener<Void> sendRequestListener = new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        onRequestCompletion(snapshotFileToRecover.metadata(), null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(new ParameterizedMessage("failed to recover file [{}] from snapshot, " +
+                            "will recover from primary instead", snapshotFileToRecover.metadata()), e);
+                        onRequestCompletion(snapshotFileToRecover.metadata(), e);
+                    }
+                };
+                requestFuture.addListener(sendRequestListener);
+
+                trackOutstandingRequest(requestFuture);
+                recoveryTarget.restoreFileFromSnapshot(
+                    snapshotFilesToRecover.getRepository(),
+                    snapshotFilesToRecover.getIndexId(),
+                    snapshotFileToRecover,
+                    ActionListener.runBefore(requestFuture, () -> unTrackOutstandingRequest(requestFuture))
+                );
+            } catch (CancellableThreads.ExecutionCancelledException e) {
+                onCancellation(e);
+            } catch (Exception e) {
+                unTrackOutstandingRequest(requestFuture);
+                onRequestCompletion(snapshotFileToRecover.metadata(), e);
+            }
+        }
+
+        void onCancellation(Exception e) {
+            if (cancelled.compareAndSet(false, true)) {
+                pendingSnapshotFilesToRecover.clear();
+                notifyFailureOnceAllOutstandingRequestAreDone(e);
+            }
+        }
+
+        void onRequestCompletion(StoreFileMetadata storeFileMetadata, @Nullable Exception exception) {
+            if (cancelled.get()) {
+                return;
+            }
+
+            if (exception != null) {
+                addFileFailedToRecoverFromSnapshot(storeFileMetadata);
+            }
+
+            if (countDown.countDown()) {
+                final List<StoreFileMetadata> failedToRecoverFromSnapshotFiles = getFilesFailedToRecoverFromSnapshot();
+                listener.onResponse(failedToRecoverFromSnapshotFiles);
+            } else {
+                sendRequest();
+            }
+        }
+
+        synchronized void addFileFailedToRecoverFromSnapshot(StoreFileMetadata storeFileMetadata) {
+            if (filesFailedToDownloadFromSnapshot == null) {
+                filesFailedToDownloadFromSnapshot = new ArrayList<>();
+            }
+            filesFailedToDownloadFromSnapshot.add(storeFileMetadata);
+        }
+
+        synchronized List<StoreFileMetadata> getFilesFailedToRecoverFromSnapshot() {
+            if (filesFailedToDownloadFromSnapshot == null) {
+                return Collections.emptyList();
+            }
+            return filesFailedToDownloadFromSnapshot;
+        }
+
+        private void trackOutstandingRequest(ListenableFuture<Void> future) {
+            boolean cancelled;
+            synchronized (outstandingRequests) {
+                cancelled = cancellableThreads.isCancelled();
+                if (cancelled == false) {
+                    outstandingRequests.add(future);
+                }
+            }
+            if (cancelled) {
+                cancellableThreads.checkForCancel();
+            }
+        }
+
+        private void unTrackOutstandingRequest(ListenableFuture<Void> future) {
+            synchronized (outstandingRequests) {
+                outstandingRequests.remove(future);
+            }
+        }
+
+        private void notifyFailureOnceAllOutstandingRequestAreDone(Exception e) {
+            assert cancelled.get();
+
+            final Set<ListenableFuture<Void>> pendingRequests;
+            synchronized (outstandingRequests) {
+                pendingRequests = new HashSet<>(outstandingRequests);
+            }
+
+            if (pendingRequests.isEmpty()) {
+                listener.onFailure(e);
+                return;
+            }
+            // The recovery was cancelled so from this point onwards outstandingRequests won't track
+            // new requests and therefore we can safely use to wait until all the pending requests complete
+            // to notify the listener about the cancellation
+            final CountDown pendingRequestsCountDown = new CountDown(pendingRequests.size());
+            for (ListenableFuture<Void> outstandingFuture : pendingRequests) {
+                outstandingFuture.addListener(ActionListener.wrap(() -> {
+                    if (pendingRequestsCountDown.countDown()) {
+                        listener.onFailure(e);
+                    }
+                }));
+            }
+        }
     }
 
     void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {

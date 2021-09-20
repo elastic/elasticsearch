@@ -80,11 +80,11 @@ connection is being initiated.
 The maximum period of inactivity between two data packets, before the
 request is aborted.
 
-`xpack.http.tcp.keep_alive`
+`xpack.http.tcp.keep_alive`::
 (<<static-cluster-setting,Static>>)
 Whether to enable TCP keepalives on HTTP connections. Defaults to `true`.
 
-`xpack.http.connection_pool_ttl`
+`xpack.http.connection_pool_ttl`::
 (<<static-cluster-setting,Static>>)
 The time-to-live of connections in the connection pool. If a connection is not
 re-used within this timeout, it is closed. By default, the time-to-live is

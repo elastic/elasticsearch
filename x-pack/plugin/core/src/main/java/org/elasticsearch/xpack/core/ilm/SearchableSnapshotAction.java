@@ -32,6 +32,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 
 /**
  * A {@link LifecycleAction} that will convert the index into a searchable snapshot, by taking a snapshot of the index, creating a
@@ -130,7 +131,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         // here before generating snapshots that can't be used if the user doesn't have the right license level.
         BranchingStep conditionalSkipActionStep = new BranchingStep(preActionBranchingKey, checkNoWriteIndex, nextStepKey,
             (index, clusterState) -> {
-                if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
+                if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
                     logger.error("[{}] action is not available in the current license", SearchableSnapshotAction.NAME);
                     throw LicenseUtils.newComplianceException("searchable-snapshots");
                 }
@@ -215,8 +216,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(generateSnapshotNameKey, cleanSnapshotKey,
             snapshotRepository);
         CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
-        AsyncActionBranchingStep createSnapshotBranchingStep = new AsyncActionBranchingStep(
-            new CreateSnapshotStep(createSnapshotKey, waitForDataTierKey, client), cleanSnapshotKey, client);
+        CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, waitForDataTierKey, cleanSnapshotKey,
+            client);
 
         MountSearchableSnapshotRequest.Storage storageType = getConcreteStorageType(mountSnapshotKey);
 
@@ -258,7 +259,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         }
         steps.add(generateSnapshotNameStep);
         steps.add(cleanupSnapshotStep);
-        steps.add(createSnapshotBranchingStep);
+        steps.add(createSnapshotStep);
         steps.add(waitForDataTierStep);
         steps.add(mountSnapshotStep);
         steps.add(waitForGreenIndexHealthStep);

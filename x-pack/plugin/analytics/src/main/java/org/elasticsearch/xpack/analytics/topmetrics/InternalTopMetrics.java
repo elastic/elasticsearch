@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
@@ -29,8 +29,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.SORT_FIELD;
-import static  org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.METRIC_FIELD;
-
+import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.METRIC_FIELD;
 
 public class InternalTopMetrics extends InternalMultiValueAggregation {
     private final SortOrder sortOrder;
@@ -38,8 +37,14 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     private final List<String> metricNames;
     private final List<TopMetric> topMetrics;
 
-    public InternalTopMetrics(String name, @Nullable SortOrder sortOrder, List<String> metricNames,
-            int size, List<TopMetric> topMetrics, Map<String, Object> metadata) {
+    public InternalTopMetrics(
+        String name,
+        @Nullable SortOrder sortOrder,
+        List<String> metricNames,
+        int size,
+        List<TopMetric> topMetrics,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.sortOrder = sortOrder;
         this.metricNames = metricNames;
@@ -157,10 +162,10 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     public boolean equals(Object obj) {
         if (super.equals(obj) == false) return false;
         InternalTopMetrics other = (InternalTopMetrics) obj;
-        return sortOrder.equals(other.sortOrder) &&
-            metricNames.equals(other.metricNames) &&
-            size == other.size &&
-            topMetrics.equals(other.topMetrics);
+        return sortOrder.equals(other.sortOrder)
+            && metricNames.equals(other.metricNames)
+            && size == other.size
+            && topMetrics.equals(other.topMetrics);
     }
 
     @Override
@@ -312,9 +317,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
                 return false;
             }
             TopMetric other = (TopMetric) obj;
-            return sortFormat.equals(other.sortFormat)
-                    && sortValue.equals(other.sortValue)
-                    && metricValues.equals(other.metricValues);
+            return sortFormat.equals(other.sortFormat) && sortValue.equals(other.sortValue) && metricValues.equals(other.metricValues);
         }
 
         @Override

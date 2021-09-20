@@ -155,10 +155,12 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _ID);
         final ConstructingObjectParser<Explanation, Boolean> explanationParser = new ConstructingObjectParser<>("explanation", true,
             arg -> {
+                @SuppressWarnings("unchecked")
+                final Collection<Explanation> details = (Collection<Explanation>) arg[2];
                 if ((float) arg[0] > 0) {
-                    return Explanation.match((float) arg[0], (String) arg[1], (Collection<Explanation>) arg[2]);
+                    return Explanation.match((float) arg[0], (String) arg[1], details);
                 } else {
-                    return Explanation.noMatch((String) arg[1], (Collection<Explanation>) arg[2]);
+                    return Explanation.noMatch((String) arg[1], details);
                 }
             });
         explanationParser.declareFloat(ConstructingObjectParser.constructorArg(), VALUE);

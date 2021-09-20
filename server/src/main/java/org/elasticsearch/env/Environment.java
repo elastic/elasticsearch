@@ -161,6 +161,7 @@ public class Environment {
                 finalSettings.putList(PATH_DATA_SETTING.getKey(),
                     Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList()));
             } else {
+                assert dataFiles.length == 1;
                 finalSettings.put(PATH_DATA_SETTING.getKey(), dataFiles[0]);
             }
         }
@@ -324,7 +325,7 @@ public class Environment {
             return false;
         }
         String rawDataPath = settings.get(PATH_DATA_SETTING.getKey());
-        return rawDataPath.startsWith("[");
+        return rawDataPath.startsWith("[") || rawDataPath.contains(",");
     }
 
     public static FileStore getFileStore(final Path path) throws IOException {

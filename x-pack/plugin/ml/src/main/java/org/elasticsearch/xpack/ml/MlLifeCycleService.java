@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -21,9 +23,23 @@ import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 
 public class MlLifeCycleService {
+
+    /**
+     * Maximum time we'll wait for jobs to gracefully persist their state and stop their associated
+     * processes. We expect this to take a minute or two at most if all goes to plan. The longer
+     * timeout here is to avoid the need for user intervention if something doesn't work and the
+     * graceful shutdown gets stuck.
+     */
+    public static final Duration MAX_GRACEFUL_SHUTDOWN_TIME = Duration.of(10, ChronoUnit.MINUTES);
+
+    private static final Logger logger = LogManager.getLogger(MlLifeCycleService.class);
 
     private final Environment environment;
     private final ClusterService clusterService;
@@ -31,6 +47,7 @@ public class MlLifeCycleService {
     private final AutodetectProcessManager autodetectProcessManager;
     private final DataFrameAnalyticsManager analyticsManager;
     private final MlMemoryTracker memoryTracker;
+    private volatile Instant shutdownStartTime;
 
     public MlLifeCycleService(Environment environment, ClusterService clusterService, DatafeedRunner datafeedRunner,
                               AutodetectProcessManager autodetectProcessManager, DataFrameAnalyticsManager analyticsManager,
@@ -84,16 +101,22 @@ public class MlLifeCycleService {
      * @return Has all active ML work vacated the specified node?
      */
     public boolean isNodeSafeToShutdown(String nodeId) {
-        return isNodeSafeToShutdown(nodeId, clusterService.state());
+        return isNodeSafeToShutdown(nodeId, clusterService.state(), shutdownStartTime, Clock.systemUTC());
     }
 
-    static boolean isNodeSafeToShutdown(String nodeId, ClusterState state) {
+    static boolean isNodeSafeToShutdown(String nodeId, ClusterState state, Instant shutdownStartTime, Clock clock) {
         // If we are in a mixed version cluster that doesn't support locally aborting persistent tasks then
         // we cannot perform graceful shutdown, so just revert to the behaviour of previous versions where
         // the node shutdown API didn't exist
         if (PersistentTasksService.isLocalAbortSupported(state) == false) {
             return true;
         }
+
+        // If the shutdown has taken too long then any remaining tasks will just be cut off when the node dies
+        if (shutdownStartTime != null && shutdownStartTime.isBefore(clock.instant().minus(MAX_GRACEFUL_SHUTDOWN_TIME))) {
+            return true;
+        }
+
         PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         // TODO: currently only considering anomaly detection jobs - could extend in the future
         // Ignore failed jobs - the persistent task still exists to remember the failure (because no
@@ -111,10 +134,10 @@ public class MlLifeCycleService {
      * @param shutdownNodeIds IDs of all nodes being shut down.
      */
     public void signalGracefulShutdown(Collection<String> shutdownNodeIds) {
-        signalGracefulShutdown(clusterService.state(), shutdownNodeIds);
+        signalGracefulShutdown(clusterService.state(), shutdownNodeIds, Clock.systemUTC());
     }
 
-    void signalGracefulShutdown(ClusterState state, Collection<String> shutdownNodeIds) {
+    void signalGracefulShutdown(ClusterState state, Collection<String> shutdownNodeIds, Clock clock) {
 
         // If we are in a mixed version cluster that doesn't support locally aborting persistent tasks then
         // we cannot perform graceful shutdown, so just revert to the behaviour of previous versions where
@@ -124,10 +147,17 @@ public class MlLifeCycleService {
         }
 
         if (shutdownNodeIds.contains(state.nodes().getLocalNodeId())) {
-
+            if (shutdownStartTime == null) {
+                shutdownStartTime = Instant.now(clock);
+                logger.info("Starting node shutdown sequence for ML");
+            }
             datafeedRunner.vacateAllDatafeedsOnThisNode(
                 "previously assigned node [" + state.nodes().getLocalNode().getName() + "] is shutting down");
             autodetectProcessManager.vacateOpenJobsOnThisNode();
         }
+    }
+
+    Instant getShutdownStartTime() {
+        return shutdownStartTime;
     }
 }

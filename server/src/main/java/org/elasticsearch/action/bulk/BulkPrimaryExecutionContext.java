@@ -216,7 +216,7 @@ class BulkPrimaryExecutionContext {
     /** completes the operation without doing anything on the primary */
     public void markOperationAsNoOp(DocWriteResponse response) {
         assertInvariants(ItemProcessingState.INITIAL);
-        executionResult = new BulkItemResponse(getCurrentItem().id(), getCurrentItem().request().opType(), response);
+        executionResult = BulkItemResponse.success(getCurrentItem().id(), getCurrentItem().request().opType(), response);
         currentItemState = ItemProcessingState.EXECUTED;
         assertInvariants(ItemProcessingState.EXECUTED);
     }
@@ -226,7 +226,7 @@ class BulkPrimaryExecutionContext {
         assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
         currentItemState = ItemProcessingState.EXECUTED;
         final DocWriteRequest<?> docWriteRequest = getCurrentItem().request();
-        executionResult = new BulkItemResponse(getCurrentItem().id(), docWriteRequest.opType(),
+        executionResult = BulkItemResponse.failure(getCurrentItem().id(), docWriteRequest.opType(),
             // Make sure to use getCurrentItem().index() here, if you use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
             new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause));
@@ -253,13 +253,13 @@ class BulkPrimaryExecutionContext {
                 } else {
                     throw new AssertionError("unknown result type :" + result.getResultType());
                 }
-                executionResult = new BulkItemResponse(current.id(), current.request().opType(), response);
+                executionResult = BulkItemResponse.success(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
                 executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
                 break;
             case FAILURE:
-                executionResult = new BulkItemResponse(current.id(), docWriteRequest.opType(),
+                executionResult = BulkItemResponse.failure(current.id(), docWriteRequest.opType(),
                     // Make sure to use request.index() here, if you
                     // use docWriteRequest.index() it will use the
                     // concrete index instead of an alias if used!

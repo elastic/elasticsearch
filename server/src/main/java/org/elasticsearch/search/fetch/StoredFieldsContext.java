@@ -53,6 +53,7 @@ public class StoredFieldsContext implements Writeable {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public StoredFieldsContext(StreamInput in) throws IOException {
         this.fetchFields = in.readBoolean();
         if (fetchFields) {

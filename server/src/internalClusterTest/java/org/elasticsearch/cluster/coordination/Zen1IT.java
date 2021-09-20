@@ -62,12 +62,12 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class Zen1IT extends ESIntegTestCase {
 
-    private static Settings ZEN1_SETTINGS = Coordinator.addZen1Attribute(true, Settings.builder()
+    private static final Settings ZEN1_SETTINGS = Coordinator.addZen1Attribute(true, Settings.builder()
         .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.ZEN_DISCOVERY_TYPE)
         .put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false)
         ).build();
 
-    private static Settings ZEN2_SETTINGS = Settings.builder()
+    private static final Settings ZEN2_SETTINGS = Settings.builder()
         .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.ZEN2_DISCOVERY_TYPE)
         .build();
 

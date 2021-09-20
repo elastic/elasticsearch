@@ -912,10 +912,9 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("a", "foo").endObject();
 
-        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
-        boolean includeUnmapped = true;
-        for (int i = 0; i < 1000; i++) {
-            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, includeUnmapped));
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>(10_000);
+        for (int i = 0; i < 8000; i++) {
+            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, true));
         }
         expectThrows(TooComplexToDeterminizeException.class, () -> fetchFields(mapperService, source, fieldAndFormatList));
     }

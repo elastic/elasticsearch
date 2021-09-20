@@ -185,9 +185,9 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         public Swap(StreamInput in) throws IOException {
             this.total = in.readLong();
-            assert total >= 0 : "expected total swap to be positive, got: " + total;
+            assert this.total >= 0 : "expected total swap to be positive, got: " + total;
             this.free = in.readLong();
-            assert free >= 0 : "expected free swap to be positive, got: " + total;
+            assert this.free >= 0 : "expected free swap to be positive, got: " + total;
         }
 
         @Override
@@ -315,7 +315,6 @@ public class OsStats implements Writeable, ToXContentFragment {
         private final long cpuCfsPeriodMicros;
         private final long cpuCfsQuotaMicros;
         private final CpuStat cpuStat;
-        // These will be null for nodes running versions prior to 6.1.0
         private final String memoryControlGroup;
         private final String memoryLimitInBytes;
         private final String memoryUsageInBytes;

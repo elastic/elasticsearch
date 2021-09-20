@@ -2,6 +2,11 @@
 [[anonymous-access]]
 === Enabling anonymous access
 
+TIP: To embed {kib} dashboards or grant access to {kib} without requiring
+credentials, use {kib}'s
+{kibana-ref}/kibana-authentication.html#anonymous-authentication[anonymous
+authentication] feature instead.
+
 Incoming requests are considered to be _anonymous_ if no authentication token 
 can be extracted from the incoming request. By default, anonymous requests are rejected and an authentication error is returned (status code `401`). 
 

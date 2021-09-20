@@ -31,6 +31,7 @@ public class AnalyticsBuilder {
     private static final String LENGTH_ENCODED_INPUT_ARG = "--lengthEncodedInput";
     private static final String CONFIG_ARG = "--config=";
     private static final String MEMORY_USAGE_ESTIMATION_ONLY_ARG = "--memoryUsageEstimationOnly";
+    private static final String LICENSE_KEY_VALIDATED_ARG = "--validElasticLicenseKeyConfirmed=";
 
     private final Supplier<Path> tempDirPathSupplier;
     private final NativeController nativeController;
@@ -67,6 +68,8 @@ public class AnalyticsBuilder {
         if (performMemoryUsageEstimationOnly) {
             command.add(MEMORY_USAGE_ESTIMATION_ONLY_ARG);
         }
+        // License was validated when the data frame analytics job was started
+        command.add(LICENSE_KEY_VALIDATED_ARG + true);
         return command;
     }
 

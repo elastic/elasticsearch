@@ -120,10 +120,9 @@ documents directly to a data stream. Instead, use the
 If needed, you can <<update-delete-docs-in-a-backing-index,update or delete
 documents>> by submitting requests directly to the document's backing index.
 
-TIP: If you frequently update or delete existing documents, use an
-<<indices-add-alias,index alias>> and <<index-templates,index template>>
-instead of a data stream. You can still use
-<<index-lifecycle-management,{ilm-init}>> to manage indices for the alias.
+TIP: If you frequently update or delete existing time series data, use an index
+alias with a write index instead of a data stream. See
+<<manage-time-series-data-without-data-streams>>.
 
 include::set-up-a-data-stream.asciidoc[]
 include::use-a-data-stream.asciidoc[]

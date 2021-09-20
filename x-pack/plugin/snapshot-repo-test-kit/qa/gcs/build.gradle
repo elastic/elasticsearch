@@ -6,7 +6,6 @@
  */
 
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.MavenFilteringHack
 
 import java.nio.file.Files
 import java.security.KeyPair

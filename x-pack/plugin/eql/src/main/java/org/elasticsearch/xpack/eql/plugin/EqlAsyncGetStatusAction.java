@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.eql.plugin;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.xpack.eql.action.EqlStatusResponse;
+import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
-public class EqlAsyncGetStatusAction extends ActionType<EqlStatusResponse> {
+public class EqlAsyncGetStatusAction extends ActionType<QlStatusResponse> {
     public static final EqlAsyncGetStatusAction INSTANCE = new EqlAsyncGetStatusAction();
     public static final String NAME = "cluster:monitor/eql/async/status";
 
     private EqlAsyncGetStatusAction() {
-        super(NAME, EqlStatusResponse::new);
+        super(NAME, QlStatusResponse::new);
     }
 }

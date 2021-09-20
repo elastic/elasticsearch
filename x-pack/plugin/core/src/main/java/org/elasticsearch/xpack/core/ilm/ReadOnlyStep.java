@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.TimeValue;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 
@@ -29,14 +30,14 @@ public class ReadOnlyStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
-                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
+                              ClusterStateObserver observer, ActionListener<Void> listener) {
         getClient().admin().indices().execute(AddIndexBlockAction.INSTANCE,
-            new AddIndexBlockRequest(WRITE, indexMetadata.getIndex().getName()).masterNodeTimeout(getMasterTimeout(currentState)),
+            new AddIndexBlockRequest(WRITE, indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE),
             ActionListener.wrap(response -> {
                 if (response.isAcknowledged() == false) {
                     throw new ElasticsearchException("read only add block index request failed to be acknowledged");
                 }
-                listener.onResponse(true);
+                listener.onResponse(null);
             }, listener::onFailure));
     }
 

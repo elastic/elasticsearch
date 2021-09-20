@@ -97,7 +97,7 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
             createServiceAccountClient().execute(AuthenticateAction.INSTANCE, authenticateRequest).actionGet();
         final String nodeName = node().settings().get(Node.NODE_NAME_SETTING.getKey());
         assertThat(authenticateResponse.authentication(), equalTo(
-           getExpectedAuthentication("token1")
+           getExpectedAuthentication("token1", "file")
         ));
     }
 
@@ -110,7 +110,7 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
         final AuthenticateRequest authenticateRequest = new AuthenticateRequest("elastic/fleet-server");
         final AuthenticateResponse authenticateResponse = createServiceAccountClient(secretValue1.toString())
             .execute(AuthenticateAction.INSTANCE, authenticateRequest).actionGet();
-        assertThat(authenticateResponse.authentication(), equalTo(getExpectedAuthentication("api-token-1")));
+        assertThat(authenticateResponse.authentication(), equalTo(getExpectedAuthentication("api-token-1", "index")));
         // cache is populated after authenticate
         assertThat(cache.count(), equalTo(1));
 
@@ -170,13 +170,14 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
         return client().filterWithHeader(Map.of("Authorization", "Bearer " + bearerString));
     }
 
-    private Authentication getExpectedAuthentication(String tokenName) {
+    private Authentication getExpectedAuthentication(String tokenName, String tokenSource) {
         final String nodeName = node().settings().get(Node.NODE_NAME_SETTING.getKey());
         return new Authentication(
             new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
                 Map.of("_elastic_service_account", true), true),
             new Authentication.RealmRef("_service_account", "_service_account", nodeName),
-            null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of("_token_name", tokenName)
+            null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
+            Map.of("_token_name", tokenName, "_token_source", tokenSource)
         );
     }
 
@@ -195,6 +196,6 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
         final AuthenticateResponse authenticateResponse =
             createServiceAccountClient(secret.toString())
                 .execute(AuthenticateAction.INSTANCE, authenticateRequest).actionGet();
-        assertThat(authenticateResponse.authentication(), equalTo(getExpectedAuthentication(tokenName)));
+        assertThat(authenticateResponse.authentication(), equalTo(getExpectedAuthentication(tokenName, "index")));
     }
 }

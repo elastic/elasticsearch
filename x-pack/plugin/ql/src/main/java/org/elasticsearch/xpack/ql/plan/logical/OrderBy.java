@@ -29,7 +29,7 @@ public class OrderBy extends UnaryPlan {
     }
 
     @Override
-    protected OrderBy replaceChild(LogicalPlan newChild) {
+    public OrderBy replaceChild(LogicalPlan newChild) {
         return new OrderBy(source(), newChild, order);
     }
 

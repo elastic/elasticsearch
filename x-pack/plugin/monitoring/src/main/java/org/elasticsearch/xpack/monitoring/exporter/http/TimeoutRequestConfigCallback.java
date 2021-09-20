@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.client.config.RequestConfig.Builder;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * {@code TimeoutRequestConfigCallback} enables the setting of connection-related timeouts for HTTP requests.

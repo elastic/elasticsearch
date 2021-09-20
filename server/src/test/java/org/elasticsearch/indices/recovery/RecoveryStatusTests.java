@@ -28,8 +28,11 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         IndexShard indexShard = service.getShardOrNull(0);
         MultiFileWriter multiFileWriter = new MultiFileWriter(indexShard.store(),
             indexShard.recoveryState().getIndex(), "recovery.test.", logger, () -> {});
-        try (IndexOutput indexOutput = multiFileWriter.openAndPutIndexOutput("foo.bar",
-            new StoreFileMetadata("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw", MIN_SUPPORTED_LUCENE_VERSION), indexShard.store())) {
+        try (IndexOutput indexOutput = multiFileWriter.openAndPutIndexOutput(
+            "foo.bar",
+            new StoreFileMetadata("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw", MIN_SUPPORTED_LUCENE_VERSION.toString()),
+            indexShard.store())) {
+
             indexOutput.writeInt(1);
             IndexOutput openIndexOutput = multiFileWriter.getOpenIndexOutput("foo.bar");
             assertSame(openIndexOutput, indexOutput);
@@ -38,8 +41,10 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         }
 
         try {
-            multiFileWriter.openAndPutIndexOutput("foo.bar", new StoreFileMetadata("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw",
-                MIN_SUPPORTED_LUCENE_VERSION), indexShard.store());
+            multiFileWriter.openAndPutIndexOutput(
+                "foo.bar",
+                new StoreFileMetadata("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw", MIN_SUPPORTED_LUCENE_VERSION.toString()),
+                indexShard.store());
             fail("file foo.bar is already opened and registered");
         } catch (IllegalStateException ex) {
             assertEquals("output for file [foo.bar] has already been created", ex.getMessage());

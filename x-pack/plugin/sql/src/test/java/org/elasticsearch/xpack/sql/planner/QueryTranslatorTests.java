@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.UnaryString
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingContext;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -110,7 +112,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
@@ -406,18 +407,6 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNotEquals(eqe.output().get(0).id(), eqe.output().get(1).id());
     }
 
-    public void testInOutOfRangeValues() {
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class,
-                () -> optimizeAndPlan("SELECT int FROM test WHERE int IN (1, 2, 3, " + Long.MAX_VALUE + ", 5, 6, 7)"));
-        assertThat(ex.getMessage(), is("[" + Long.MAX_VALUE + "] out of [integer] range"));
-    }
-
-    public void testInInRangeValues() {
-        TestContext testContext = new TestContext("mapping-numeric.json");
-        PhysicalPlan p = testContext.optimizeAndPlan("SELECT long FROM test WHERE long IN (1, 2, 3, " + Long.MAX_VALUE + ", 5, 6, 7)");
-        assertEquals(EsQueryExec.class, p.getClass());
-    }
-
     // Datetime
     ///////////
     public void testTermEqualityForDateWithLiteralDate() {
@@ -667,7 +656,7 @@ public class QueryTranslatorTests extends ESTestCase {
     public void testDateRangeWithESDateMath() {
         ZoneId zoneId = randomZone();
         String operator = randomFrom(">", ">=", "<", "<=", "=", "!=");
-        String dateMath = randomFrom("now", "now/d", "now/h", "now-2h", "now+2h", "now-5d", "now+5d");
+        String dateMath = randomFrom("now", "now/d", "now/h", "now-2h", "now+2h", "now-5d", "now+5d", "2021-01-01||/M");
         LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + "'" + dateMath + "'", zoneId);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
@@ -1205,8 +1194,8 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     // Tests the workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
-    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes)
-    // and SUM(all nulls)
+    // should be removed as soon as root cause https://github.com/elastic/elasticsearch/issues/71582 is fixed and the sum aggregation
+    // results can differentiate between SUM(all zeroes) and SUM(all nulls)
     public void testReplaceSumWithStats() {
         List<String> testCases = asList(
             "SELECT keyword, SUM(int) FROM test GROUP BY keyword",
@@ -1284,5 +1273,42 @@ public class QueryTranslatorTests extends ESTestCase {
             .transformDown(FieldAttribute.class, x -> x.name().equals("int") ? (FieldAttribute) expectedInts.toArray()[0] : x);
 
         assertEquals(expectedCondition, condition);
+    }
+
+    // Subqueries
+    /////////////////////
+    public void testMultiLevelSubqueryWithoutRelation1() {
+        PhysicalPlan p = optimizeAndPlan(
+                "SELECT int FROM (" +
+                "  SELECT int FROM (" +
+                "    SELECT 1 AS int" +
+                "  ) AS subq1" +
+                ") AS subq2");
+        assertThat(p, instanceOf(LocalExec.class));
+        LocalExec le = (LocalExec) p;
+        assertThat(le.executable(), instanceOf(SingletonExecutable.class));
+        assertEquals(1, le.executable().output().size());
+        assertEquals("int", le.executable().output().get(0).name());
+    }
+
+    public void testMultiLevelSubqueryWithoutRelation2() {
+        PhysicalPlan p = optimizeAndPlan(
+                "SELECT i, string FROM (" +
+                "  SELECT * FROM (" +
+                "    SELECT int as i, str AS string FROM (" +
+                "      SELECT * FROM (" +
+                "        SELECT int, s AS str FROM (" +
+                "          SELECT 1 AS int, 'foo' AS s" +
+                "        ) AS subq1" +
+                "      )" +
+                "    ) AS subq2" +
+                "  ) AS subq3" +
+                ")");
+        assertThat(p, instanceOf(LocalExec.class));
+        LocalExec le = (LocalExec) p;
+        assertThat(le.executable(), instanceOf(SingletonExecutable.class));
+        assertEquals(2, le.executable().output().size());
+        assertEquals("i", le.executable().output().get(0).name());
+        assertEquals("string", le.executable().output().get(1).name());
     }
 }

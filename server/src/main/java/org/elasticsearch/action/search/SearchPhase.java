@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 
 import java.io.IOException;
 import java.util.Objects;

@@ -18,11 +18,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -124,10 +124,10 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         remoteClusterName = "local-cluster";
         discoveryAddress = getDiscoveryAddress();
 
-        handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, new ActionListener<DiscoveryNode>() {
+        handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, new ActionListener<ProbeConnectionResult>() {
             @Override
-            public void onResponse(DiscoveryNode discoveryNode) {
-                receivedNode.set(discoveryNode);
+            public void onResponse(ProbeConnectionResult connectResult) {
+                receivedNode.set(connectResult.getDiscoveryNode());
                 completionLatch.countDown();
             }
 
@@ -223,12 +223,12 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         return randomBoolean() ? remoteNode.getAddress() : buildNewFakeTransportAddress();
     }
 
-    private static class FailureListener implements ActionListener<DiscoveryNode> {
+    private static class FailureListener implements ActionListener<ProbeConnectionResult> {
         final CountDownLatch completionLatch = new CountDownLatch(1);
 
         @Override
-        public void onResponse(DiscoveryNode discoveryNode) {
-            fail(discoveryNode.toString());
+        public void onResponse(ProbeConnectionResult connectResult) {
+            fail(connectResult.getDiscoveryNode().toString());
         }
 
         @Override

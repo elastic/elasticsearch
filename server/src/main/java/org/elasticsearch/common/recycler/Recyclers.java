@@ -111,7 +111,7 @@ public enum Recyclers {
             private final Recycler<T>[] recyclers;
 
             {
-                @SuppressWarnings("unchecked")
+                @SuppressWarnings({"rawtypes", "unchecked"})
                 final Recycler<T>[] recyclers = new Recycler[concurrencyLevel];
                 this.recyclers = recyclers;
                 for (int i = 0; i < concurrencyLevel; ++i) {

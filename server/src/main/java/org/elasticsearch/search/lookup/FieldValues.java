@@ -70,4 +70,35 @@ public interface FieldValues<T> {
             }
         };
     }
+
+    /**
+     * Creates a {@link ValueFetcher} that fetches values from a {@link FieldValues} instance
+     * @param fieldValues the source of the values
+     * @param formatter   a function to format the list values
+     * @param context the search execution context
+     * @return the value fetcher
+     */
+    static <T> ValueFetcher valueListFetcher(FieldValues<T> fieldValues, Function<List<T>, List<Object>> formatter,
+                                             SearchExecutionContext context) {
+        return new ValueFetcher() {
+            LeafReaderContext ctx;
+
+            @Override
+            public void setNextReader(LeafReaderContext context) {
+                this.ctx = context;
+            }
+
+            @Override
+            public List<Object> fetchValues(SourceLookup lookup)  {
+                List<T> values = new ArrayList<>();
+                try {
+                    fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(v));
+                } catch (Exception e) {
+                    // ignore errors - if they exist here then they existed at index time
+                    // and so on_script_error must have been set to `ignore`
+                }
+                return formatter.apply(values);
+            }
+        };
+    }
 }

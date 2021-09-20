@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -32,7 +32,6 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
     @Before
     public void setUpAction() {
         controller().registerHandler(new RestMultiTermVectorsAction());
-        //TODO clarify why we need to set these? any workaround?
         verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiTermVectorsResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiTermVectorsResponse.class));
     }

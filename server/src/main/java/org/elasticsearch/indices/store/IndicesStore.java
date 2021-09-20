@@ -11,6 +11,7 @@ package org.elasticsearch.indices.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,14 +25,15 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -263,7 +265,9 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                 return;
             }
 
-            clusterService.getClusterApplierService().runOnApplierThread("indices_store ([" + shardId + "] active fully on other nodes)",
+            clusterService.getClusterApplierService().runOnApplierThread(
+                "indices_store ([" + shardId + "] active fully on other nodes)",
+                Priority.HIGH,
                 currentState -> {
                     if (clusterStateVersion != currentState.getVersion()) {
                         logger.trace("not deleting shard {}, the update task state version[{}] is not equal to cluster state before " +
@@ -276,9 +280,20 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                         logger.debug(() -> new ParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId), ex);
                     }
                 },
-                (source, e) -> logger.error(() -> new ParameterizedMessage("{} unexpected error during deletion of unallocated shard",
-                    shardId), e)
-            );
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "{} unexpected error during deletion of unallocated shard",
+                                shardId),
+                            e);
+                    }
+                });
         }
 
     }

@@ -335,3 +335,8 @@ WARNING: You cannot use filesystem snapshots of individual nodes as a backup
 mechanism. You must use the {es} snapshot and restore feature to copy the
 cluster contents to a separate repository. Then, if desired, you can take a
 filesystem snapshot of this repository.
+
+When restoring a repository from a backup, you must not register the repository
+with {es} until the repository contents are fully restored. If you alter the
+contents of a repository while it is registered with {es} then the repository
+may become unreadable or may silently lose some of its contents.

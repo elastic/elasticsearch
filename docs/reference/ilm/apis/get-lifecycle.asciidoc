@@ -107,6 +107,11 @@ If the request succeeds, the body of the response contains the policy definition
           }
         }
       }
+    },
+    "in_use_by" : { <3>
+      "indices" : [],
+      "data_streams" : [],
+      "composable_templates" : []
     }
   }
 }
@@ -115,3 +120,4 @@ If the request succeeds, the body of the response contains the policy definition
 
 <1> The policy version is incremented whenever the policy is updated
 <2> When this policy was last modified
+<3> Which indices, data streams, or templates currently use this policy

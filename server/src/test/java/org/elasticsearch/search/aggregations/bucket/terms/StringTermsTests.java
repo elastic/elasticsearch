@@ -23,11 +23,13 @@ import java.util.Set;
 
 public class StringTermsTests extends InternalTermsTestCase {
     @Override
-    protected InternalTerms<?, ?> createTestInstance(String name,
-                                                     Map<String, Object> metadata,
-                                                     InternalAggregations aggregations,
-                                                     boolean showTermDocCountError,
-                                                     long docCountError) {
+    protected InternalTerms<?, ?> createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        boolean showTermDocCountError,
+        long docCountError
+    ) {
         return createTestInstance(generateRandomDict(), name, metadata, aggregations, showTermDocCountError, docCountError);
     }
 
@@ -86,8 +88,16 @@ public class StringTermsTests extends InternalTermsTestCase {
                     break;
                 case 7:
                     buckets = new ArrayList<>(buckets);
-                    buckets.add(new StringTerms.Bucket(new BytesRef(randomAlphaOfLengthBetween(1, 10)), randomNonNegativeLong(),
-                        InternalAggregations.EMPTY, showTermDocCountError, docCountError, format));
+                    buckets.add(
+                        new StringTerms.Bucket(
+                            new BytesRef(randomAlphaOfLengthBetween(1, 10)),
+                            randomNonNegativeLong(),
+                            InternalAggregations.EMPTY,
+                            showTermDocCountError,
+                            docCountError,
+                            format
+                        )
+                    );
                     break;
                 case 8:
                     if (metadata == null) {
@@ -101,8 +111,20 @@ public class StringTermsTests extends InternalTermsTestCase {
                     throw new AssertionError("Illegal randomisation branch");
             }
             Collections.sort(buckets, stringTerms.reduceOrder.comparator());
-            return new StringTerms(name, stringTerms.reduceOrder, order, requiredSize, minDocCount, metadata, format, shardSize,
-                showTermDocCountError, otherDocCount, buckets, docCountError);
+            return new StringTerms(
+                name,
+                stringTerms.reduceOrder,
+                order,
+                requiredSize,
+                minDocCount,
+                metadata,
+                format,
+                shardSize,
+                showTermDocCountError,
+                otherDocCount,
+                buckets,
+                docCountError
+            );
         } else {
             String name = instance.getName();
             BucketOrder order = instance.order;
@@ -147,12 +169,14 @@ public class StringTermsTests extends InternalTermsTestCase {
         return createTestInstance(dict, name, createTestMetadata(), createSubAggregations(), showDocCount, docCountError);
     }
 
-    private InternalTerms<?, ?> createTestInstance(BytesRef[] dict,
-                                                   String name,
-                                                   Map<String, Object> metadata,
-                                                   InternalAggregations aggregations,
-                                                   boolean showTermDocCountError,
-                                                   long docCountError) {
+    private InternalTerms<?, ?> createTestInstance(
+        BytesRef[] dict,
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        boolean showTermDocCountError,
+        long docCountError
+    ) {
         BucketOrder order = BucketOrder.count(false);
         long minDocCount = 1;
         int requiredSize = 3;
@@ -163,16 +187,29 @@ public class StringTermsTests extends InternalTermsTestCase {
         final int numBuckets = randomNumberOfBuckets();
         Set<BytesRef> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
-            BytesRef term = dict[randomIntBetween(0, dict.length-1)];
+            BytesRef term = dict[randomIntBetween(0, dict.length - 1)];
             if (terms.add(term)) {
                 int docCount = randomIntBetween(1, 100);
                 buckets.add(new StringTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
             }
         }
-        BucketOrder reduceOrder = randomBoolean() ?
-            BucketOrder.compound(BucketOrder.key(true), BucketOrder.count(false)) : BucketOrder.key(true);
+        BucketOrder reduceOrder = randomBoolean()
+            ? BucketOrder.compound(BucketOrder.key(true), BucketOrder.count(false))
+            : BucketOrder.key(true);
         Collections.sort(buckets, reduceOrder.comparator());
-        return new StringTerms(name, reduceOrder, order, requiredSize, minDocCount,
-                metadata, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
+        return new StringTerms(
+            name,
+            reduceOrder,
+            order,
+            requiredSize,
+            minDocCount,
+            metadata,
+            format,
+            shardSize,
+            showTermDocCountError,
+            otherDocCount,
+            buckets,
+            docCountError
+        );
     }
 }

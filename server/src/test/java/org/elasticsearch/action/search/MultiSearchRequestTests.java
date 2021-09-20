@@ -10,9 +10,9 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -209,10 +209,15 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertEquals(3, msearchRequest.requests().size());
     }
 
+    private MultiSearchRequest parseMultiSearchRequestFromString(String request, RestApiVersion restApiVersion) throws IOException {
+        return parseMultiSearchRequest(createRestRequest(request.getBytes(StandardCharsets.UTF_8), restApiVersion));
+    }
+
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
-        byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withContent(new BytesArray(data), XContentType.JSON).build();
+        return parseMultiSearchRequest(createRestRequest(sample, null));
+    }
+
+    private MultiSearchRequest parseMultiSearchRequest(RestRequest restRequest) throws IOException {
 
         MultiSearchRequest request = new MultiSearchRequest();
         RestMultiSearchAction.parseMultiLineRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS, true,
@@ -222,6 +227,26 @@ public class MultiSearchRequestTests extends ESTestCase {
             });
         return request;
     }
+
+    private RestRequest createRestRequest(String sample, RestApiVersion restApiVersion) throws IOException {
+        byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
+        return createRestRequest(data, restApiVersion);
+    }
+
+    private FakeRestRequest createRestRequest(byte[] data, RestApiVersion restApiVersion) {
+        if (restApiVersion != null) {
+            final List<String> contentTypeHeader =
+                Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
+            return new FakeRestRequest.Builder(xContentRegistry())
+                .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+                .withContent(new BytesArray(data), null)
+                .build();
+        } else {
+            return new FakeRestRequest.Builder(xContentRegistry())
+                .withContent(new BytesArray(data), XContentType.JSON).build();
+        }
+    }
+
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -269,6 +294,48 @@ public class MultiSearchRequestTests extends ESTestCase {
             randomBoolean(), randomBoolean(), randomBoolean()), "hidden");
         assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false, false, randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean()), "none");
+    }
+
+    public void testEmptyFirstLine1() throws Exception {
+        MultiSearchRequest request = parseMultiSearchRequestFromString(
+            "\n" +
+                "\n" +
+                "{ \"query\": {\"match_all\": {}}}\n" +
+                "{}\n" +
+                "{ \"query\": {\"match_all\": {}}}\n" +
+                "\n" +
+                "{ \"query\": {\"match_all\": {}}}\n" +
+                "{}\n" +
+                "{ \"query\": {\"match_all\": {}}}\n",
+            RestApiVersion.V_7);
+        assertThat(request.requests().size(), equalTo(4));
+        for (SearchRequest searchRequest : request.requests()) {
+            assertThat(searchRequest.indices().length, equalTo(0));
+            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
+        }
+        assertWarnings("support for empty first line before any action metadata in msearch API is deprecated and will be removed " +
+            "in the next major version");
+    }
+
+    public void testEmptyFirstLine2() throws Exception {
+        MultiSearchRequest request = parseMultiSearchRequestFromString(
+            "\n" +
+                "{}\n" +
+                "{ \"query\": {\"match_all\": {}}}\n" +
+                "\n" +
+                "{ \"query\": {\"match_all\": {}}}\n" +
+                "{}\n" +
+                "{ \"query\": {\"match_all\": {}}}\n" +
+                "\n" +
+                "{ \"query\": {\"match_all\": {}}}\n",
+            RestApiVersion.V_7);
+        assertThat(request.requests().size(), equalTo(4));
+        for (SearchRequest searchRequest : request.requests()) {
+            assertThat(searchRequest.indices().length, equalTo(0));
+            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
+        }
+        assertWarnings("support for empty first line before any action metadata in msearch API is deprecated and will be removed " +
+            "in the next major version");
     }
 
     private void assertExpandWildcardsValue(IndicesOptions options, String expectedValue) throws IOException {

@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 
 public class TransportSearchableSnapshotCacheStoresAction extends TransportNodesAction<
     TransportSearchableSnapshotCacheStoresAction.Request,
@@ -84,7 +84,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     }
 
     @Override
-    protected NodeCacheFilesMetadata newNodeResponse(StreamInput in) throws IOException {
+    protected NodeCacheFilesMetadata newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeCacheFilesMetadata(in);
     }
 

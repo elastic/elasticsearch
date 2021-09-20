@@ -170,7 +170,7 @@ public class CppLogMessageHandler implements Closeable {
     /**
      * Get the process ID of the C++ process if available.
      *
-     * In contrast to {@link getPid} this version will not wait/block.
+     * In contrast to {@link #getPid} this version will not wait/block.
      *
      * @return the pid or -1 if the pid is unknown
      */

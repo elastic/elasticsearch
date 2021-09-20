@@ -48,7 +48,7 @@ public class RestCreateServiceAccountTokenAction extends SecurityBaseRestHandler
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String tokenName = request.param("name");
         if (Strings.isNullOrEmpty(tokenName)) {
-            tokenName = UUIDs.base64UUID();
+            tokenName = "token_" + UUIDs.base64UUID();
         }
         final CreateServiceAccountTokenRequest createServiceAccountTokenRequest = new CreateServiceAccountTokenRequest(
                 request.param("namespace"), request.param("service"), tokenName);

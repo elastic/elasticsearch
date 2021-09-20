@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
@@ -27,16 +28,15 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.junit.Before;
 import org.mockito.Mockito;
 
-import javax.security.auth.x500.X500Principal;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -49,7 +49,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import javax.security.auth.x500.X500Principal;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -79,7 +82,6 @@ public class PkiRealmTests extends ESTestCase {
                 .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
     }
 
@@ -155,17 +157,18 @@ public class PkiRealmTests extends ESTestCase {
         }
 
         final int numTimes = invalidate ? 2 : 1;
-        verify(roleMapper, times(numTimes)).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        verify(roleMapper, times(numTimes)).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         verifyNoMoreInteractions(roleMapper);
     }
 
     private UserRoleMapper buildRoleMapper() {
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onResponse(Collections.emptySet());
             return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         return roleMapper;
     }
 
@@ -173,6 +176,7 @@ public class PkiRealmTests extends ESTestCase {
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         Mockito.doAnswer(invocation -> {
             final UserRoleMapper.UserData userData = (UserRoleMapper.UserData) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
             final ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             if (userData.getDn().equals(dn)) {
                 listener.onResponse(roles);
@@ -180,7 +184,7 @@ public class PkiRealmTests extends ESTestCase {
                 listener.onFailure(new IllegalArgumentException("Expected DN '" + dn + "' but was '" + userData + "'"));
             }
             return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
         return roleMapper;
     }
 
@@ -265,6 +269,30 @@ public class PkiRealmTests extends ESTestCase {
         User user = authenticate(token, realm).getUser();
         assertThat(user, is(notNullValue()));
         assertThat(user.principal(), is("Elasticsearch Test Node"));
+        assertThat(user.roles(), is(notNullValue()));
+        assertThat(user.roles().length, is(0));
+    }
+
+    public void testVerificationUsingCertificateAuthorities() throws Exception {
+        final Path caPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt");
+        final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt");
+        final X509Certificate certificate = readCert(certPath);
+
+        UserRoleMapper roleMapper = buildRoleMapper();
+        Settings settings = Settings.builder()
+                .put(globalSettings)
+                .putList("xpack.security.authc.realms.pki.my_pki.certificate_authorities", caPath.toString())
+                .build();
+        ThreadContext threadContext = new ThreadContext(globalSettings);
+        PkiRealm realm = buildRealm(roleMapper, settings);
+        assertRealmUsageStats(realm, true, false, true, false);
+
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+
+        X509AuthenticationToken token = realm.token(threadContext);
+        User user = authenticate(token, realm).getUser();
+        assertThat(user, is(notNullValue()));
+        assertThat(user.principal(), is("trusted"));
         assertThat(user.roles(), is(notNullValue()));
         assertThat(user.roles().length, is(0));
     }
@@ -394,13 +422,12 @@ public class PkiRealmTests extends ESTestCase {
                 .put("xpack.security.authc.realms.pki.my_pki.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks"))
                 .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+        SslConfigException e = expectThrows(SslConfigException.class, () ->
                 new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier(PkiRealmSettings.TYPE, REALM_NAME), settings,
                         TestEnvironment.newEnvironment(settings), new ThreadContext(settings)),
                     mock(UserRoleMapper.class))
         );
-        assertThat(e.getMessage(), containsString("Neither [xpack.security.authc.realms.pki.my_pki.truststore.secure_password] or [" +
-                    "xpack.security.authc.realms.pki.my_pki.truststore.password] is configured"));
+        assertThat(e, throwableWithMessage(containsString("incorrect password; (no password")));
     }
 
     public void testTruststorePathWithLegacyPasswordDoesNotThrow() throws Exception {
@@ -413,7 +440,7 @@ public class PkiRealmTests extends ESTestCase {
                 .build();
         new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier(PkiRealmSettings.TYPE, REALM_NAME), settings,
                 TestEnvironment.newEnvironment(settings), new ThreadContext(settings)), mock(UserRoleMapper.class));
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD.getConcreteSettingForNamespace(REALM_NAME)
         });
     }
@@ -471,7 +498,7 @@ public class PkiRealmTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(settingList));
         clusterSettings.validate(settings, true);
 
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD.getConcreteSettingForNamespace("pki1")
         });
     }

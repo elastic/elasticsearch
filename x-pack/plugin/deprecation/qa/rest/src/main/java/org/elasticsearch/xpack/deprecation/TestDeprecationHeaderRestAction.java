@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -68,6 +68,8 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
     public static final String DEPRECATED_ENDPOINT = "[/_test_cluster/deprecated_settings] exists for deprecated tests";
     public static final String DEPRECATED_USAGE = "[deprecated_settings] usage is deprecated. use [settings] instead";
+    public static final String DEPRECATED_WARN_USAGE =
+        "[deprecated_warn_settings] usage is deprecated but won't be breaking in next version";
     public static final String COMPATIBLE_API_USAGE = "You are using a compatible API for this request";
 
     private final Settings settings;
@@ -98,15 +100,19 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
         try (XContentParser parser = request.contentParser()) {
             if (parser.getRestApiVersion() == RestApiVersion.minimumSupported()) {
-                deprecationLogger.compatibleApiWarning("compatible_key", COMPATIBLE_API_USAGE);
+                deprecationLogger.compatibleCritical("compatible_key", COMPATIBLE_API_USAGE);
             }
 
             final Map<String, Object> source = parser.map();
-
-            if (source.containsKey("deprecated_settings")) {
-                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "deprecated_settings", DEPRECATED_USAGE);
-
+            if (parser.getRestApiVersion() == RestApiVersion.minimumSupported()) {
+                deprecationLogger.compatibleCritical("compatible_key", COMPATIBLE_API_USAGE);
                 settings = (List<String>) source.get("deprecated_settings");
+            } else if (source.containsKey("deprecated_settings")) {
+                deprecationLogger.critical(DeprecationCategory.SETTINGS, "deprecated_settings", DEPRECATED_USAGE);
+                settings = (List<String>) source.get("deprecated_settings");
+            } else if (source.containsKey("deprecation_warning")) {
+                deprecationLogger.warn(DeprecationCategory.SETTINGS, "deprecated_warn_settings", DEPRECATED_WARN_USAGE);
+                settings = (List<String>) source.get("deprecation_warning");
             } else {
                 settings = (List<String>) source.get("settings");
             }

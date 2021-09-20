@@ -17,7 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -39,7 +39,6 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -225,7 +224,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             request.setJsonEntity(Strings.toString(requestBody));
             final ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(exc.getMessage(), containsString("[indices] cannot be used with point in time"));
+            assertThat(exc.getMessage(), containsString("[indices] cannot be used with point in time. Do not specify any index with point in time."));
         } finally {
             closePointInTime(pitId, authorizedUser);
         }

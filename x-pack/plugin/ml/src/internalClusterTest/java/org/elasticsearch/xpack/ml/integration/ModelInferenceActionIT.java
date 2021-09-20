@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
@@ -354,11 +355,12 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         }
     }
 
-    private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {
+    static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {
         return TrainedModelConfig.builder()
             .setCreatedBy("ml_test")
             .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
             .setDescription("trained model config for test")
+            .setModelType(TrainedModelType.TREE_ENSEMBLE)
             .setModelId(modelId);
     }
 

@@ -30,9 +30,9 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -51,7 +51,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
                                      ThreadPool threadPool, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, SystemIndices systemIndices) {
         super(GetAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest::new,
-            indexNameExpressionResolver, GetAliasesResponse::new, ThreadPool.Names.SAME);
+            indexNameExpressionResolver, GetAliasesResponse::new, ThreadPool.Names.MANAGEMENT);
         this.systemIndices = systemIndices;
     }
 
@@ -64,16 +64,14 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
     @Override
     protected void masterOperation(Task task, GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
-        String[] concreteIndices;
-        // Switch to a context which will drop any deprecation warnings, because there may be indices resolved here which are not
-        // returned in the final response. We'll add warnings back later if necessary in checkSystemIndexAccess.
-        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext(false)) {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        }
+        assert Transports.assertNotTransportThread("no need to avoid the context switch and may be expensive if there are many aliases");
+        // resolve all concrete indices upfront and warn/error later
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
         listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases, state,
-            systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices), postProcess(request, state)));
+            systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices),
+            postProcess(indexNameExpressionResolver, request, state)));
     }
 
     /**
@@ -107,17 +105,19 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         return finalResponse;
     }
 
-    Map<String, List<DataStreamAlias>> postProcess(GetAliasesRequest request, ClusterState state) {
+    static Map<String, List<DataStreamAlias>> postProcess(IndexNameExpressionResolver resolver, GetAliasesRequest request,
+                                                          ClusterState state) {
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
-        List<String> requestedDataStreams =
-            indexNameExpressionResolver.dataStreamNames(state, request.indicesOptions(), request.indices());
+        List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
         for (String requestedDataStream : requestedDataStreams) {
             List<DataStreamAlias> aliases = state.metadata().dataStreamAliases().values().stream()
                 .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
                 .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
                 .collect(Collectors.toList());
-            result.put(requestedDataStream, aliases);
+            if (aliases.isEmpty() == false) {
+                result.put(requestedDataStream, aliases);
+            }
         }
         return result;
     }
@@ -134,23 +134,30 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
         }
 
+        List<String> netNewSystemIndices = new ArrayList<>();
         List<String> systemIndicesNames = new ArrayList<>();
         for (Iterator<String> it = aliasesMap.keysIt(); it.hasNext(); ) {
             String indexName = it.next();
             IndexMetadata index = state.metadata().index(indexName);
             if (index != null && index.isSystem()) {
                 if (systemIndexAccessAllowPredicate.test(index) == false) {
-                    systemIndicesNames.add(indexName);
+                    if (systemIndices.isNetNewSystemIndex(indexName)) {
+                        netNewSystemIndices.add(indexName);
+                    } else {
+                        systemIndicesNames.add(indexName);
+                    }
                 }
             }
         }
         if (systemIndicesNames.isEmpty() == false) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access",
+            deprecationLogger.critical(DeprecationCategory.API, "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system " +
                     "indices will be prevented by default", systemIndicesNames);
-        } else {
-            checkSystemAliasAccess(request, systemIndices, systemIndexAccessLevel, threadContext);
         }
+        if (netNewSystemIndices.isEmpty() == false) {
+            throw systemIndices.netNewSystemIndexAccessException(threadContext, netNewSystemIndices);
+        }
+        checkSystemAliasAccess(request, systemIndices, systemIndexAccessLevel, threadContext);
     }
 
     private static void checkSystemAliasAccess(GetAliasesRequest request, SystemIndices systemIndices,
@@ -164,14 +171,27 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
         }
 
-        final List<String> systemAliases = Arrays.stream(request.aliases())
-            .filter(systemIndices::isSystemName)
-            .filter(systemIndexAccessAllowPredicate)
-            .collect(Collectors.toList());
+        final List<String> systemAliases = new ArrayList<>();
+        final List<String> netNewSystemAliases = new ArrayList<>();
+        for (String alias : request.aliases()) {
+            if (systemIndices.isSystemName(alias)) {
+                if (systemIndexAccessAllowPredicate.test(alias)) {
+                    if (systemIndices.isNetNewSystemIndex(alias)) {
+                        netNewSystemAliases.add(alias);
+                    } else {
+                        systemAliases.add(alias);
+                    }
+                }
+            }
+        }
+
         if (systemAliases.isEmpty() == false) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_alias_access",
-                "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct" +
+            deprecationLogger.critical(DeprecationCategory.API, "open_system_alias_access",
+                "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct " +
                     "access to system indices and their aliases will not be allowed", systemAliases);
+        }
+        if (netNewSystemAliases.isEmpty() == false) {
+            throw systemIndices.netNewSystemIndexAccessException(threadContext, netNewSystemAliases);
         }
     }
 }

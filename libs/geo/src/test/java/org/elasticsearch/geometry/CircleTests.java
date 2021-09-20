@@ -28,19 +28,19 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
-        assertEquals("CIRCLE (20.0 10.0 15.0)", wkt.toWKT(new Circle(20, 10, 15)));
-        assertEquals(new Circle(20, 10, 15), wkt.fromWKT("circle (20.0 10.0 15.0)"));
+        GeometryValidator validator =  GeographyValidator.instance(true);
+        assertEquals("CIRCLE (20.0 10.0 15.0)", WellKnownText.toWKT(new Circle(20, 10, 15)));
+        assertEquals(new Circle(20, 10, 15), WellKnownText.fromWKT(validator, true, "circle (20.0 10.0 15.0)"));
 
-        assertEquals("CIRCLE (20.0 10.0 15.0 25.0)", wkt.toWKT(new Circle(20, 10, 25, 15)));
-        assertEquals(new Circle(20, 10, 25, 15), wkt.fromWKT("circle (20.0 10.0 15.0 25.0)"));
+        assertEquals("CIRCLE (20.0 10.0 15.0 25.0)", WellKnownText.toWKT(new Circle(20, 10, 25, 15)));
+        assertEquals(new Circle(20, 10, 25, 15), WellKnownText.fromWKT(validator, true, "circle (20.0 10.0 15.0 25.0)"));
 
-        assertEquals("CIRCLE EMPTY", wkt.toWKT(Circle.EMPTY));
-        assertEquals(Circle.EMPTY, wkt.fromWKT("CIRCLE EMPTY)"));
+        assertEquals("CIRCLE EMPTY", WellKnownText.toWKT(Circle.EMPTY));
+        assertEquals(Circle.EMPTY, WellKnownText.fromWKT(validator, true, "CIRCLE EMPTY)"));
     }
 
     public void testInitValidation() {
-        GeometryValidator validator = new GeographyValidator(true);
+        GeometryValidator validator = GeographyValidator.instance(true);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Circle(20, 10, -1)));
         assertEquals("Circle radius [-1.0] cannot be negative", ex.getMessage());
 
@@ -50,9 +50,9 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
         ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Circle(200, 10, 1)));
         assertEquals("invalid longitude 200.0; must be between -180.0 and 180.0", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(new Circle(200, 10, 1, 20)));
+        ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(new Circle(200, 10, 1, 20)));
         assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        new StandardValidator(true).validate(new Circle(200, 10, 1, 20));
+        StandardValidator.instance(true).validate(new Circle(200, 10, 1, 20));
     }
 }

@@ -11,14 +11,14 @@ package org.elasticsearch.transport;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.RefCounted;
+import org.elasticsearch.core.RefCounted;
 
 public abstract class TransportMessage implements Writeable, RefCounted {
 
     private TransportAddress remoteAddress;
 
-    public void remoteAddress(TransportAddress remoteAddress) {
-        this.remoteAddress = remoteAddress;
+    public void remoteAddress(TransportAddress address) {
+        this.remoteAddress = address;
     }
 
     public TransportAddress remoteAddress() {
@@ -43,6 +43,7 @@ public abstract class TransportMessage implements Writeable, RefCounted {
 
     @Override
     public boolean tryIncRef() {
+        // noop, override to manage the life-cycle of resources held by a transport message
         return true;
     }
 
@@ -50,5 +51,11 @@ public abstract class TransportMessage implements Writeable, RefCounted {
     public boolean decRef() {
         // noop, override to manage the life-cycle of resources held by a transport message
         return false;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        // noop, override to manage the life-cycle of resources held by a transport message
+        return true;
     }
 }

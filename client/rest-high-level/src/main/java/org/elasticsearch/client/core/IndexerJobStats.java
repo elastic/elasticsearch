@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 
 import java.util.Objects;
 

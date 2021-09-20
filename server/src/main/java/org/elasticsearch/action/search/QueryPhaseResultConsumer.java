@@ -15,9 +15,8 @@ import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -57,7 +56,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final SearchPhaseController controller;
     private final SearchProgressListener progressListener;
     private final ReduceContextBuilder aggReduceContextBuilder;
-    private final NamedWriteableRegistry namedWriteableRegistry;
 
     private final int topNSize;
     private final boolean hasTopDocs;
@@ -76,7 +74,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                                     CircuitBreaker circuitBreaker,
                                     SearchPhaseController controller,
                                     SearchProgressListener progressListener,
-                                    NamedWriteableRegistry namedWriteableRegistry,
                                     int expectedResultSize,
                                     Consumer<Exception> onPartialMergeFailure) {
         super(expectedResultSize);
@@ -85,7 +82,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.controller = controller;
         this.progressListener = progressListener;
         this.aggReduceContextBuilder = controller.getReduceContext(request);
-        this.namedWriteableRegistry = namedWriteableRegistry;
         this.topNSize = getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();
         this.onPartialMergeFailure = onPartialMergeFailure;
@@ -352,19 +348,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 circuitBreakerBytes = 0;
             }
             failure.compareAndSet(null, exc);
-            MergeTask task = runningTask.get();
-            runningTask.compareAndSet(task, null);
-            onPartialMergeFailure.accept(exc);
-            List<MergeTask> toCancels = new ArrayList<>();
+            final List<Releasable> toCancels = new ArrayList<>();
+            toCancels.add(() -> onPartialMergeFailure.accept(exc));
+            final MergeTask task = runningTask.getAndSet(null);
             if (task != null) {
-                toCancels.add(task);
+                toCancels.add(task::cancel);
             }
-            queue.stream().forEach(toCancels::add);
-            queue.clear();
+            MergeTask mergeTask;
+            while ((mergeTask = queue.pollFirst()) != null) {
+                toCancels.add(mergeTask::cancel);
+            }
             mergeResult = null;
-            for (MergeTask toCancel : toCancels) {
-                toCancel.cancel();
-            }
+            Releasables.close(toCancels);
         }
 
         private void onAfterMerge(MergeTask task, MergeResult newResult, long estimatedSize) {

@@ -8,10 +8,10 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A task that can be cancelled
@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class CancellableTask extends Task {
 
     private volatile String reason;
-    private final AtomicBoolean cancelled = new AtomicBoolean(false);
+    private volatile boolean isCancelled;
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);
@@ -30,10 +30,14 @@ public class CancellableTask extends Task {
      */
     final void cancel(String reason) {
         assert reason != null;
-        if (cancelled.compareAndSet(false, true)) {
+        synchronized (this) {
+            if (this.isCancelled) {
+                return;
+            }
+            this.isCancelled = true;
             this.reason = reason;
-            onCancelled();
         }
+        onCancelled();
     }
 
     /**
@@ -45,12 +49,18 @@ public class CancellableTask extends Task {
         return true;
     }
 
-    public boolean isCancelled() {
-        return cancelled.get();
+    /**
+     * Return whether the task is cancelled. If testing this flag to decide whether to throw a {@link TaskCancelledException}, consider
+     * using {@link #ensureNotCancelled} or {@link #notifyIfCancelled} instead: these methods construct an exception that automatically
+     * includes the cancellation reason.
+     */
+    public final boolean isCancelled() {
+        return isCancelled;
     }
 
     /**
-     * The reason the task was cancelled or null if it hasn't been cancelled.
+     * The reason the task was cancelled or null if it hasn't been cancelled. May also be null if the task was just cancelled since we don't
+     * set the reason and the cancellation flag atomically.
      */
     @Nullable
     public final String getReasonCancelled() {
@@ -61,5 +71,37 @@ public class CancellableTask extends Task {
      * Called after the task is cancelled so that it can take any actions that it has to take.
      */
     protected void onCancelled() {
+    }
+
+    /**
+     * Throws a {@link TaskCancelledException} if this task has been cancelled, otherwise does nothing.
+     */
+    public final synchronized void ensureNotCancelled() {
+        if (isCancelled()) {
+            throw getTaskCancelledException();
+        }
+    }
+
+    /**
+     * Notifies the listener of failure with a {@link TaskCancelledException} if this task has been cancelled, otherwise does nothing.
+     * @return {@code true} if the task is cancelled and the listener was notified, otherwise {@code false}.
+     */
+    public final <T> boolean notifyIfCancelled(ActionListener<T> listener) {
+        final TaskCancelledException taskCancelledException;
+        synchronized (this) {
+            if (isCancelled() == false) {
+                return false;
+            }
+            taskCancelledException = getTaskCancelledException();
+        } // NB releasing the mutex before notifying the listener
+        listener.onFailure(taskCancelledException);
+        return true;
+    }
+
+    private TaskCancelledException getTaskCancelledException() {
+        assert Thread.holdsLock(this);
+        assert isCancelled;
+        assert reason != null;
+        return new TaskCancelledException("task cancelled [" + reason + ']');
     }
 }

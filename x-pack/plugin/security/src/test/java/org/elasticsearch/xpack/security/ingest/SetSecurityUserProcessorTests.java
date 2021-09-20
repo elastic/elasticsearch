@@ -12,11 +12,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -31,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -42,23 +44,21 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     private ThreadContext threadContext;
     private SecurityContext securityContext;
-    private XPackLicenseState licenseState;
 
     @Before
     public void setupObjects() {
         threadContext = new ThreadContext(Settings.EMPTY);
         securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        licenseState = Mockito.mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
     }
 
+    @SuppressWarnings("unchecked")
     public void testProcessorWithData() throws Exception {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
@@ -80,11 +80,12 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         }
         assertThat(result.get("username"), equalTo(authentication.getUser().principal()));
         assertThat(result.get("full_name"), equalTo(authentication.getUser().fullName()));
-        assertThat(((Map) result.get("realm")).get("name"), equalTo(authentication.getSourceRealm().getName()));
-        assertThat(((Map) result.get("realm")).get("type"), equalTo(authentication.getSourceRealm().getType()));
+        assertThat(((Map<String, String>) result.get("realm")).get("name"), equalTo(authentication.getSourceRealm().getName()));
+        assertThat(((Map<String, String>) result.get("realm")).get("type"), equalTo(authentication.getSourceRealm().getType()));
         assertThat(result.get("authentication_type"), equalTo(authentication.getAuthenticationType().toString()));
     }
 
+    @SuppressWarnings("unchecked")
     public void testProcessorWithEmptyUserData() throws Exception {
         // test when user returns null for all values (need a mock, because a real user cannot have a null username)
         User user = Mockito.mock(User.class);
@@ -99,7 +100,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         // Still holds data for realm and authentication type
@@ -112,17 +113,17 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     public void testNoCurrentUser() throws Exception {
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(),
             equalTo("There is no authenticated user - the [set_security_user] processor requires an authenticated user"));
     }
 
     public void testSecurityDisabled() throws Exception {
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
+        Settings securityDisabledSettings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, securityDisabledSettings, "_field", EnumSet.allOf(Property.class));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("Security (authentication) is not enabled on this cluster, so there is no active user" +
             " - the [set_security_user] processor cannot be used without security"));
@@ -134,7 +135,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.USERNAME));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.USERNAME));
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
@@ -149,7 +150,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.ROLES));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.ROLES));
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
@@ -168,7 +169,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor
-            = new SetSecurityUserProcessor("_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.FULL_NAME));
+            = new SetSecurityUserProcessor("_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.FULL_NAME));
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
@@ -183,7 +184,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.EMAIL));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.EMAIL));
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
@@ -202,7 +203,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.METADATA));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.METADATA));
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
@@ -220,7 +221,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         authentication.writeToContext(threadContext);
 
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.USERNAME));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.USERNAME));
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         ingestDocument.setFieldValue("_field", "test");
@@ -243,6 +244,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         assertThat(result2.get("other"), equalTo("test"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testApiKeyPopulation() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
@@ -265,7 +267,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
@@ -278,11 +280,12 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         } else {
             assertThat(apiKeyMap.get("metadata"), equalTo(apiKeyMetadata));
         }
-        assertThat(((Map) result.get("realm")).get("name"), equalTo("creator_realm_name"));
-        assertThat(((Map) result.get("realm")).get("type"), equalTo("creator_realm_type"));
+        assertThat(((Map<String, String>) result.get("realm")).get("name"), equalTo("creator_realm_name"));
+        assertThat(((Map<String, String>) result.get("realm")).get("type"), equalTo("creator_realm_type"));
         assertThat(result.get("authentication_type"), equalTo("API_KEY"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testWillNotOverwriteExistingApiKeyAndRealm() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
@@ -307,15 +310,16 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             "_field", Map.of("api_key", Map.of("version", 42), "realm", Map.of("id", 7))
         )), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result.size(), equalTo(4));
-        assertThat(((Map) result.get("api_key")).get("version"), equalTo(42));
-        assertThat(((Map) result.get("realm")).get("id"), equalTo(7));
+        assertThat(((Map<String, Integer>) result.get("api_key")).get("version"), equalTo(42));
+        assertThat(((Map<String, Integer>) result.get("realm")).get("id"), equalTo(7));
     }
 
+    @SuppressWarnings("unchecked")
     public void testWillSetRunAsRealmForNonApiKeyAuth() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef authRealmRef = new Authentication.RealmRef(
@@ -330,13 +334,13 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result.size(), equalTo(3));
-        assertThat(((Map) result.get("realm")).get("name"), equalTo(lookedUpRealmRef.getName()));
-        assertThat(((Map) result.get("realm")).get("type"), equalTo(lookedUpRealmRef.getType()));
+        assertThat(((Map<String, String>) result.get("realm")).get("name"), equalTo(lookedUpRealmRef.getName()));
+        assertThat(((Map<String, String>) result.get("realm")).get("type"), equalTo(lookedUpRealmRef.getType()));
     }
 
     private User randomUser() {
@@ -367,8 +371,9 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             assert false == user.isRunAs() : "cannot run-as service account";
             final Authentication.RealmRef authBy =
                 new Authentication.RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8));
+            final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
             return new Authentication(user, authBy, null, Version.CURRENT, AuthenticationType.TOKEN,
-                Map.of("_token_name", ValidationTests.randomTokenName()));
+                Map.of("_token_name", ValidationTests.randomTokenName(), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
         } else {
             final Authentication.RealmRef lookupBy;
             final String nodeName = randomAlphaOfLengthBetween(3, 8);

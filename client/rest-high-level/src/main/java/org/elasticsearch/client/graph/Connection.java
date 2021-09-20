@@ -9,7 +9,7 @@ package org.elasticsearch.client.graph;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;

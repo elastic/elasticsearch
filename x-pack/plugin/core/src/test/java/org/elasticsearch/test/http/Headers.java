@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.test.http;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.ArrayList;
 import java.util.Collections;

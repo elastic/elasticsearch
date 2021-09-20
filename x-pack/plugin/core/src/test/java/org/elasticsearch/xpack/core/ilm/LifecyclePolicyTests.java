@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -123,7 +123,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             }
             phases.put(phase, new Phase(phase, after, actions));
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
     }
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
@@ -203,7 +203,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         } else {
             phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
     }
 
     private static Function<String, Set<String>> getPhaseToValidActions() {
@@ -271,7 +271,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             String phaseName = randomAlphaOfLength(10);
             phases.put(phaseName, new Phase(phaseName, after, actions));
         }
-        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
     }
 
     @Override
@@ -299,7 +299,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases);
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, randomMeta());
     }
 
     @Override
@@ -311,8 +311,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Client client = mock(Client.class);
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
-        List<Step> steps = policy.toSteps(client);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
+        List<Step> steps = policy.toSteps(client, null);
         assertThat(steps.size(), equalTo(2));
         assertThat(steps.get(0), instanceOf(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(new StepKey("new", "init", "init")));
@@ -331,10 +331,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
         Phase firstPhase = new Phase("test", TimeValue.ZERO, actions);
         phases.put(firstPhase.getName(), firstPhase);
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
         StepKey firstStepKey = InitializePolicyContextStep.KEY;
         StepKey secondStepKey = PhaseCompleteStep.finalStep("new").getKey();
-        List<Step> steps = policy.toSteps(client);
+        List<Step> steps = policy.toSteps(client, null);
         assertThat(steps.size(), equalTo(4));
         assertSame(steps.get(0).getKey(), firstStepKey);
         assertThat(steps.get(0).getNextStepKey(), equalTo(secondStepKey));
@@ -366,9 +366,9 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Phase secondPhase = new Phase("second_phase", TimeValue.ZERO, secondActions);
         phases.put(firstPhase.getName(), firstPhase);
         phases.put(secondPhase.getName(), secondPhase);
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
 
-        List<Step> steps = policy.toSteps(client);
+        List<Step> steps = policy.toSteps(client, null);
         assertThat(steps.size(), equalTo(7));
         assertThat(steps.get(0).getClass(), equalTo(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(init.getKey()));
@@ -395,7 +395,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Phase secondPhase = new Phase("second_phase", TimeValue.ZERO, secondActions);
         phases.put(firstPhase.getName(), firstPhase);
         phases.put(secondPhase.getName(), secondPhase);
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
 
         assertTrue(policy.isActionSafe(new StepKey("first_phase", MockAction.NAME, randomAlphaOfLength(10))));
 
@@ -427,5 +427,18 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0, 10) + "+" + randomAlphaOfLengthBetween(0, 10));
 
         LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1, 255));
+    }
+
+    public static Map<String, Object> randomMeta() {
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
+            } else {
+                return Collections.singletonMap(randomAlphaOfLength(5),
+                    Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+            }
+        } else {
+            return null;
+        }
     }
 }

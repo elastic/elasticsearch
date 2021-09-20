@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,11 +19,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckRequest;
-import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -61,7 +58,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     }
 
     @Override
-    protected NodesDeprecationCheckAction.NodeResponse newNodeResponse(StreamInput in) throws IOException {
+    protected NodesDeprecationCheckAction.NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodesDeprecationCheckAction.NodeResponse(in);
     }
 

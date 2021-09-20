@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -54,7 +54,6 @@ public class SharedBytes extends AbstractRefCounted {
 
     SharedBytes(int numRegions, long regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes)
         throws IOException {
-        super("shared-bytes");
         this.numRegions = numRegions;
         this.regionSize = regionSize;
         final long fileSize = numRegions * regionSize;
@@ -158,7 +157,6 @@ public class SharedBytes extends AbstractRefCounted {
         private final long pageStart;
 
         private IO(final int sharedBytesPos) {
-            super("shared-bytes-io");
             this.sharedBytesPos = sharedBytesPos;
             pageStart = getPhysicalOffset(sharedBytesPos);
         }

@@ -46,7 +46,7 @@ public class SearchAfterSortedDocQuery extends Query {
         this.sort = Objects.requireNonNull(sort);
         this.after = after;
         int numFields = sort.getSort().length;
-        this.fieldComparators = new FieldComparator[numFields];
+        this.fieldComparators = new FieldComparator<?>[numFields];
         this.reverseMuls = new int[numFields];
         for (int i = 0; i < numFields; i++) {
             SortField sortField = sort.getSort()[i];
@@ -66,7 +66,7 @@ public class SearchAfterSortedDocQuery extends Query {
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 Sort segmentSort = context.reader().getMetaData().getSort();
                 if (segmentSort == null || Lucene.canEarlyTerminate(sort, segmentSort) == false) {
-                    throw new IOException("search sort :[" + sort.getSort() + "] does not match the index sort:[" + segmentSort + "]");
+                    throw new IOException("search sort :[" + sort + "] does not match the index sort:[" + segmentSort + "]");
                 }
                 final int afterDoc = after.doc - context.docBase;
                 TopComparator comparator = getTopComparator(fieldComparators, reverseMuls, context, afterDoc);

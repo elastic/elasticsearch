@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -182,7 +182,9 @@ public class QueryContainer {
      */
     public BitSet columnMask(List<Attribute> columns) {
         BitSet mask = new BitSet(fields.size());
-        aliasName(columns.get(0));
+        if (columns.size() > 0) {
+            aliasName(columns.get(0));
+        }
 
         for (Attribute column : columns) {
             Expression expression = aliases.resolve(column, column);
@@ -304,9 +306,16 @@ public class QueryContainer {
         return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
-    public QueryContainer addSort(String expressionId, Sort sortable) {
-        Map<String, Sort> newSort = new LinkedHashMap<>(this.sort);
+    /**
+     * Adds a sort expression that takes precedence over all existing sort expressions. Expressions are prepended because the logical plan
+     * is folded from bottom up. So the most significant sort order will be added last.
+     */
+    public QueryContainer prependSort(String expressionId, Sort sortable) {
+        Map<String, Sort> newSort = new LinkedHashMap<>(this.sort.size() + 1);
         newSort.put(expressionId, sortable);
+        for (Map.Entry<String, Sort> entry : this.sort.entrySet()) {
+            newSort.putIfAbsent(entry.getKey(), entry.getValue());
+        }
         return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, newSort, limit, trackHits, includeFrozen,
                 minPageSize);
     }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -22,6 +22,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests.randomMeta;
 
 public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<LifecyclePolicyMetadata> {
 
@@ -87,6 +89,10 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
 
     @Override
     protected LifecyclePolicyMetadata createTestInstance() {
+        return createRandomPolicyMetadata(lifecycleName);
+    }
+
+    public static LifecyclePolicyMetadata createRandomPolicyMetadata(String lifecycleName) {
         Map<String, String> headers = new HashMap<>();
         int numberHeaders = between(0, 10);
         for (int i = 0; i < numberHeaders; i++) {
@@ -110,7 +116,7 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
         switch (between(0, 3)) {
         case 0:
             policy = new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, policy.getName() + randomAlphaOfLengthBetween(1, 5),
-                    policy.getPhases());
+                    policy.getPhases(), randomMeta());
             break;
         case 1:
             headers = new HashMap<>(headers);

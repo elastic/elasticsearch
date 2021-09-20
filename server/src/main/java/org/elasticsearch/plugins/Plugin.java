@@ -113,15 +113,6 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Returns parsers with compatible logic for named objects this plugin will parse from
-     * {@link XContentParser#namedObject(Class, String, Object)}.
-     * @see NamedWriteableRegistry
-     */
-    public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
-        return Collections.emptyList();
-    }
-
-    /**
      * Called before a new index is created on a node. The given module can be used to register index-level
      * extensions.
      */
@@ -153,7 +144,7 @@ public abstract class Plugin implements Closeable {
      * <p>
      * The order of the template upgrader calls is undefined and can change between runs so, it is expected that
      * plugins will modify only templates owned by them to avoid conflicts.
-     * <p>
+     *
      * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetadata} map.
      * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetadata}
      *                               cannot be upgraded

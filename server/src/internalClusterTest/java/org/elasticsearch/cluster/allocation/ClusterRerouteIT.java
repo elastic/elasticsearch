@@ -37,7 +37,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -97,7 +97,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         if (randomBoolean()) {
-            client().admin().indices().prepareClose("test").get();
+            client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.NONE).get();
         }
 
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -232,7 +232,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
         final boolean closed = randomBoolean();
         if (closed) {
-            client().admin().indices().prepareClose("test").get();
+            client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.NONE).get();
         }
 
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();

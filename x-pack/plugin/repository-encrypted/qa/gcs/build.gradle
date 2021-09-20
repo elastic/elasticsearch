@@ -1,4 +1,3 @@
-
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.java'
 

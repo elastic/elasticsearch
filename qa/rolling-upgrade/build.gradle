@@ -11,7 +11,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -42,6 +42,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
   }
 
+  String oldVersion = bwcVersion.toString()
+
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "processTestResources"
     useCluster testClusters."${baseName}"
@@ -50,6 +52,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       delete("${buildDir}/cluster/shared/repo/${baseName}")
     }
     systemProperty 'tests.rest.suite', 'old_cluster'
+    systemProperty 'tests.upgrade_from_version', oldVersion
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
@@ -61,6 +64,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       testClusters."${baseName}".nextNodeToNextVersion()
     }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.first_round', 'true'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
@@ -73,6 +77,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       testClusters."${baseName}".nextNodeToNextVersion()
     }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.first_round', 'false'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
@@ -85,6 +90,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
     useCluster testClusters."${baseName}"
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
+    systemProperty 'tests.upgrade_from_version', oldVersion
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 
@@ -475,7 +475,7 @@ public enum Hasher {
         }
     };
 
-    private static final String BCRYPT_PREFIX = "$2a$";
+    private static final int BCRYPT_PREFIX_LENGTH = 4;
     private static final String SHA1_PREFIX = "{SHA}";
     private static final String MD5_PREFIX = "{MD5}";
     private static final String SSHA256_PREFIX = "{SSHA256}";
@@ -572,8 +572,8 @@ public enum Hasher {
      * @return the hasher that can be used for validation
      */
     public static Hasher resolveFromHash(char[] hash) {
-        if (CharArrays.charsBeginsWith(BCRYPT_PREFIX, hash)) {
-            int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, BCRYPT_PREFIX.length(), hash.length - 54)));
+        if (isBcryptPrefix(hash)) {
+            int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, BCRYPT_PREFIX_LENGTH, hash.length - 54)));
             return cost == BCRYPT_DEFAULT_COST ? Hasher.BCRYPT : resolve("bcrypt" + cost);
         } else if (CharArrays.charsBeginsWith(PBKDF2_STRETCH_PREFIX, hash)) {
             int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, PBKDF2_STRETCH_PREFIX.length(), hash.length - 90)));
@@ -591,6 +591,16 @@ public enum Hasher {
             // This is either a non hashed password from cache or a corrupted hash string.
             return Hasher.NOOP;
         }
+    }
+
+    private static boolean isBcryptPrefix(char[] hash) {
+        if (hash.length < 4) {
+            return false;
+        }
+        if (hash[0] == '$' && hash[1] == '2' && hash[3] == '$') {
+            return BCrypt.valid_minor(hash[2]);
+        }
+        return false;
     }
 
     /**
@@ -673,7 +683,7 @@ public enum Hasher {
 
     private static boolean verifyBcryptHash(SecureString text, char[] hash) {
         String hashStr = new String(hash);
-        if (hashStr.startsWith(BCRYPT_PREFIX) == false) {
+        if (isBcryptPrefix(hash) == false) {
             return false;
         }
         return BCrypt.checkpw(text, hashStr);

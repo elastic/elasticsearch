@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
@@ -20,11 +21,16 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -71,11 +77,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_S
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.getDataTiersPreference;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -103,7 +108,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         // Peer recovery always copies .liv files but we do not permit writing to searchable snapshot directories so this doesn't work, but
         // we can bypass this by forcing soft deletes to be used. TODO this restriction can be lifted when #55142 is resolved.
-        assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
+        final Settings.Builder originalIndexSettings = Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        if (randomBoolean()) {
+            originalIndexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum"));
+        }
+        assertAcked(prepareCreate(indexName, originalIndexSettings));
         assertAcked(client().admin().indices().prepareAliases().addAlias(indexName, aliasName));
 
         populateIndex(indexName, 10_000);
@@ -160,8 +169,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         logger.info("--> restoring index [{}] with cache [{}]", restoredIndexName, cacheEnabled ? "enabled" : "disabled");
 
         Settings.Builder indexSettingsBuilder = Settings.builder()
-            .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled)
-            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString());
+            .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled);
         boolean preWarmEnabled = false;
         if (cacheEnabled) {
             preWarmEnabled = randomBoolean();
@@ -197,7 +205,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             );
             indexSettingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, expectedDataTiersPreference);
         } else {
-            expectedDataTiersPreference = getDataTiersPreference(MountSearchableSnapshotRequest.Storage.FULL_COPY);
+            expectedDataTiersPreference = MountSearchableSnapshotRequest.Storage.FULL_COPY.defaultDataTiersPreference();
         }
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
@@ -232,7 +240,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING.get(settings), equalTo(repositoryMetadata.uuid()));
         assertThat(SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.get(settings), equalTo(fsRepoName));
         assertThat(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(settings), equalTo(snapshotName));
-        assertThat(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings), equalTo(SNAPSHOT_DIRECTORY_FACTORY_KEY));
+        assertThat(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings), equalTo(SEARCHABLE_SNAPSHOT_STORE_TYPE));
         assertThat(IndexModule.INDEX_RECOVERY_TYPE_SETTING.get(settings), equalTo(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY));
         assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(settings));
         assertTrue(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.exists(settings));
@@ -240,6 +248,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).toString(), equalTo("false"));
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(expectedReplicas));
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings), equalTo(expectedDataTiersPreference));
+        assertThat(IndexSettings.INDEX_CHECK_ON_STARTUP.get(settings), equalTo("false"));
 
         checkSoftDeletesNotEagerlyLoaded(restoredIndexName);
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
@@ -424,9 +433,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         logger.info("--> restoring index [{}]", restoredIndexName);
 
-        Settings.Builder indexSettingsBuilder = Settings.builder()
-            .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString());
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             restoredIndexName,
             fsRepoName,
@@ -488,7 +495,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             repositoryName,
             snapshotName,
             indexName,
-            Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString()).build(),
+            Settings.EMPTY,
             Strings.EMPTY_ARRAY,
             true,
             MountSearchableSnapshotRequest.Storage.FULL_COPY
@@ -561,8 +568,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         {
             logger.info("--> restoring index [{}] with default replica counts", restoredIndexName);
             Settings.Builder indexSettingsBuilder = Settings.builder()
-                .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString());
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
             final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
                 restoredIndexName,
                 fsRepoName,
@@ -596,7 +602,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             logger.info("--> restoring index [{}] with specific replica count", restoredIndexName);
             Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicaCount);
             final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
                 restoredIndexName,
@@ -630,7 +635,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             logger.info("--> restoring index [{}] with auto-expand replicas configured", restoredIndexName);
             Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, replicaLimit == dataNodesCount ? "0-all" : "0-" + replicaLimit);
             final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
                 restoredIndexName,
@@ -938,6 +942,10 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
 
+        internalCluster().fullRestart();
+        ensureGreen(restoredIndexName);
+        assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
+
         final IllegalArgumentException remountException = expectThrows(IllegalArgumentException.class, () -> {
             try {
                 mountSnapshot(
@@ -965,6 +973,179 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 containsString("cannot be mounted; did you mean to restore it instead?")
             )
         );
+    }
+
+    public void testSnapshotOfSearchableSnapshotCanBeRestoredBeforeRepositoryRegistered() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createAndPopulateIndex(
+            indexName,
+            Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+        );
+
+        final TotalHits originalAllHits = internalCluster().client()
+            .prepareSearch(indexName)
+            .setTrackTotalHits(true)
+            .get()
+            .getHits()
+            .getTotalHits();
+        final TotalHits originalBarHits = internalCluster().client()
+            .prepareSearch(indexName)
+            .setTrackTotalHits(true)
+            .setQuery(matchQuery("foo", "bar"))
+            .get()
+            .getHits()
+            .getTotalHits();
+        logger.info("--> [{}] in total, of which [{}] match the query", originalAllHits, originalBarHits);
+
+        // Take snapshot containing the actual data to one repository
+        final String dataRepoName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(dataRepoName, "fs");
+
+        final SnapshotId dataSnapshot = createSnapshot(dataRepoName, "data-snapshot", List.of(indexName)).snapshotId();
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        final String restoredIndexName = randomValueOtherThan(indexName, () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
+        mountSnapshot(dataRepoName, dataSnapshot.getName(), indexName, restoredIndexName, Settings.EMPTY);
+        ensureGreen(restoredIndexName);
+
+        if (randomBoolean()) {
+            logger.info("--> closing index before snapshot");
+            assertAcked(client().admin().indices().prepareClose(restoredIndexName));
+        }
+
+        // Back up the cluster to a different repo
+        final String backupRepoName = randomValueOtherThan(dataRepoName, () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
+        createRepository(backupRepoName, "fs");
+        final SnapshotId backupSnapshot = createSnapshot(backupRepoName, "backup-snapshot", List.of(restoredIndexName)).snapshotId();
+
+        // Clear out data & the repo that contains it
+        final RepositoryMetadata dataRepoMetadata = client().admin()
+            .cluster()
+            .prepareGetRepositories(dataRepoName)
+            .get()
+            .repositories()
+            .get(0);
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
+        assertAcked(client().admin().cluster().prepareDeleteRepository(dataRepoName));
+
+        // Restore the backup snapshot
+        assertThat(
+            client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(backupRepoName, backupSnapshot.getName())
+                .setIndices(restoredIndexName)
+                .get()
+                .status(),
+            equalTo(RestStatus.ACCEPTED)
+        );
+
+        assertBusy(() -> {
+            final ClusterAllocationExplanation clusterAllocationExplanation = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex(restoredIndexName)
+                .setShard(0)
+                .setPrimary(true)
+                .get()
+                .getExplanation();
+
+            final String description = Strings.toString(clusterAllocationExplanation);
+            final AllocateUnassignedDecision allocateDecision = clusterAllocationExplanation.getShardAllocationDecision()
+                .getAllocateDecision();
+            assertTrue(description, allocateDecision.isDecisionTaken());
+            assertThat(description, allocateDecision.getAllocationDecision(), equalTo(AllocationDecision.NO));
+            for (NodeAllocationResult nodeAllocationResult : allocateDecision.getNodeDecisions()) {
+                for (Decision decision : nodeAllocationResult.getCanAllocateDecision().getDecisions()) {
+                    final String explanation = decision.getExplanation();
+                    if (explanation.contains("this index is backed by a searchable snapshot")
+                        && explanation.contains("no such repository is registered")
+                        && explanation.contains("the required repository was originally named [" + dataRepoName + "]")) {
+                        return;
+                    }
+                }
+            }
+
+            fail(description);
+        });
+
+        assertBusy(() -> {
+            final RestoreInProgress restoreInProgress = client().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setCustoms(true)
+                .get()
+                .getState()
+                .custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+            assertTrue(Strings.toString(restoreInProgress, true, true), restoreInProgress.isEmpty());
+        });
+
+        // Re-register the repository containing the actual data & verify that the shards are now allocated
+        final String newRepositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final Settings.Builder settings = Settings.builder().put(dataRepoMetadata.settings());
+        if (randomBoolean()) {
+            settings.put(READONLY_SETTING_KEY, "true");
+        }
+        assertAcked(clusterAdmin().preparePutRepository(newRepositoryName).setType("fs").setSettings(settings));
+
+        ensureGreen(restoredIndexName);
+        assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
+    }
+
+    public void testCheckOnStartupCanBeOverridden() throws Exception {
+        final String suffix = getTestName().toLowerCase(Locale.ROOT);
+
+        final String index = "index_" + suffix;
+        final Settings.Builder indexSettings = Settings.builder();
+        indexSettings.put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
+
+        final String checkOnStartup = randomFrom("false", "true", "checksum", null);
+        if (checkOnStartup != null) {
+            indexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), checkOnStartup);
+        }
+        createAndPopulateIndex(index, indexSettings);
+
+        final String repository = "repository_" + suffix;
+        createRepository(repository, "fs");
+
+        final String snapshot = "snapshot_" + suffix;
+        createFullSnapshot(repository, snapshot);
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        {
+            final String mountedIndex = mountSnapshot(repository, snapshot, index, Settings.EMPTY);
+            assertThat(
+                client().admin()
+                    .indices()
+                    .prepareGetSettings(mountedIndex)
+                    .get()
+                    .getIndexToSettings()
+                    .get(mountedIndex)
+                    .get(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey()),
+                equalTo("false")
+            );
+            assertAcked(client().admin().indices().prepareDelete(mountedIndex));
+        }
+        {
+            final String overridingCheckOnStartup = randomValueOtherThan(checkOnStartup, () -> randomFrom("false", "true", "checksum"));
+            final String mountedIndex = mountSnapshot(
+                repository,
+                snapshot,
+                index,
+                Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), overridingCheckOnStartup).build()
+            );
+            assertThat(
+                client().admin()
+                    .indices()
+                    .prepareGetSettings(mountedIndex)
+                    .get()
+                    .getIndexToSettings()
+                    .get(mountedIndex)
+                    .get(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey()),
+                equalTo(overridingCheckOnStartup)
+            );
+            assertAcked(client().admin().indices().prepareDelete(mountedIndex));
+        }
     }
 
     private void assertSearchableSnapshotStats(String indexName, boolean cacheEnabled, List<String> nonCachedExtensions) {

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesMetadata;
@@ -55,6 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
@@ -71,13 +71,12 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        final Settings.Builder indexSettingsBuilder = Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false);
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             indexName,
             repoName,
             snapshotName,
             indexName,
-            indexSettingsBuilder.build(),
+            Settings.EMPTY,
             Strings.EMPTY_ARRAY,
             true,
             randomFrom(MountSearchableSnapshotRequest.Storage.values())
@@ -169,10 +168,19 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         waitNoPendingTasksOnAll();
         ensureClusterStateConsistency();
 
-        PostStartTrialRequest startTrialRequest = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName())
-            .acknowledge(true);
-        PostStartTrialResponse resp = client().execute(PostStartTrialAction.INSTANCE, startTrialRequest).get();
-        assertEquals(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL, resp.getStatus());
+        PostStartTrialRequest request = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName()).acknowledge(true);
+        final PostStartTrialResponse response = client().execute(PostStartTrialAction.INSTANCE, request).get();
+        assertThat(
+            response.getStatus(),
+            oneOf(
+                PostStartTrialResponse.Status.UPGRADED_TO_TRIAL,
+                // The LicenceService automatically generates a license of {@link LicenceService#SELF_GENERATED_LICENSE_TYPE} type
+                // if there is no license found in the cluster state (see {@link LicenceService#registerOrUpdateSelfGeneratedLicense).
+                // Since this test explicitly removes the LicensesMetadata from cluster state it is possible that the self generated
+                // license is created before the PostStartTrialRequest is acked.
+                PostStartTrialResponse.Status.TRIAL_ALREADY_ACTIVATED
+            )
+        );
         // check if cluster goes green again after valid license has been put in place
         ensureGreen(indexName);
     }

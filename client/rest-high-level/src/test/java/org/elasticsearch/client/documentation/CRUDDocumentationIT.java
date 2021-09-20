@@ -55,7 +55,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -1047,9 +1047,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // <1>
             // end::update-by-query-request-indicesOptions
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::update-by-query-execute
             BulkByScrollResponse bulkResponse =
-                    client.updateByQuery(request, RequestOptions.DEFAULT);
+                    client.updateByQuery(request, requestOptions);
             // end::update-by-query-execute
             assertSame(0, bulkResponse.getSearchFailures().size());
             assertSame(0, bulkResponse.getBulkFailures().size());
@@ -1159,9 +1160,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // <1>
             // end::delete-by-query-request-indicesOptions
 
+            RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
             // tag::delete-by-query-execute
             BulkByScrollResponse bulkResponse =
-                    client.deleteByQuery(request, RequestOptions.DEFAULT);
+                    client.deleteByQuery(request, requestOptions);
             // end::delete-by-query-execute
             assertSame(0, bulkResponse.getSearchFailures().size());
             assertSame(0, bulkResponse.getBulkFailures().size());

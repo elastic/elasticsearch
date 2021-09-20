@@ -4,10 +4,8 @@
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
 .The cat node API's `local` query parameter has been removed.
 [%collapsible]
 ====
@@ -74,10 +72,21 @@ include this parameter will return an error.
 [%collapsible]
 ====
 *Details* +
-The {ml} <<ml-post-data,post data to jobs API>> is deprecated starting in 7.11.0
+The {ml} {ref}/ml-post-data.html[post data to jobs API] is deprecated starting in 7.11.0
 and will be removed in a future major version.
 
 *Impact* +
-Use <<ml-api-datafeed-endpoint,{dfeeds}>> instead.
-
+Use {ref}/ml-apis.html#ml-api-datafeed-endpoint[{dfeeds}] instead.
 ====
+
+.The `job_id` property of the Update {dfeeds} API has been removed.
+[%collapsible]
+====
+*Details* +
+The ability to update a `job_id` in a {dfeed} was deprecated in 7.3.0. and is 
+removed in 8.0.
+
+*Impact* +
+It is not possible to move {dfeeds} between {anomaly-jobs}.
+====
+// end::notable-breaking-changes[]

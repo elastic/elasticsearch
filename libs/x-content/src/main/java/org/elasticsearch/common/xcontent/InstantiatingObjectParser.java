@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
-
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.List;
@@ -78,7 +76,7 @@ public class InstantiatingObjectParser<Value, Context>
             this.valueClass = valueClass;
         }
 
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "checkstyle:HiddenField"})
         public InstantiatingObjectParser<Value, Context> build() {
             Constructor<?> constructor = null;
             int neededArguments = constructingObjectParser.getNumberOfFields();

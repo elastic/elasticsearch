@@ -12,7 +12,7 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -39,6 +39,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
         for (int i = 0; i < numPatterns; i++) {
             String remoteCluster = randomAlphaOfLength(4);
             List<String> leaderIndexPatterns = Collections.singletonList(randomAlphaOfLength(4));
+            List<String> leaderIndexExclusionsPatterns = randomList(0, randomIntBetween(1, 10), () -> randomAlphaOfLength(4));
             String followIndexNamePattern = randomAlphaOfLength(4);
             final Settings settings =
                 Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build();
@@ -89,6 +90,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
                 new AutoFollowMetadata.AutoFollowPattern(
                     remoteCluster,
                     leaderIndexPatterns,
+                    leaderIndexExclusionsPatterns,
                     followIndexNamePattern,
                     settings,
                     active,
@@ -124,6 +126,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
             assertThat(serverPattern.getRemoteCluster(), equalTo(clientPattern.getRemoteCluster()));
             assertThat(serverPattern.getLeaderIndexPatterns(), equalTo(clientPattern.getLeaderIndexPatterns()));
             assertThat(serverPattern.getFollowIndexPattern(), equalTo(clientPattern.getFollowIndexNamePattern()));
+            assertThat(serverPattern.getLeaderIndexExclusionPatterns(), equalTo(clientPattern.getLeaderIndexExclusionPatterns()));
             assertThat(serverPattern.getSettings(), equalTo(clientPattern.getSettings()));
             assertThat(serverPattern.getMaxOutstandingReadRequests(), equalTo(clientPattern.getMaxOutstandingReadRequests()));
             assertThat(serverPattern.getMaxOutstandingWriteRequests(), equalTo(clientPattern.getMaxOutstandingWriteRequests()));

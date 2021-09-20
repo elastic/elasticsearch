@@ -49,14 +49,14 @@ import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -1437,7 +1437,7 @@ public class RequestConvertersTests extends ESTestCase {
                 openRequest.preference(preference);
                 expectedParams.put("preference", preference);
             }
-            openRequest.indicesOptions(setRandomIndicesOptions(openRequest.indicesOptions(), expectedParams));
+            setRandomIndicesOptions(openRequest::indicesOptions, openRequest::indicesOptions, expectedParams);
             final Request request = RequestConverters.openPointInTime(openRequest);
             assertThat(request.getParameters(), equalTo(expectedParams));
             assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
@@ -1576,7 +1576,8 @@ public class RequestConvertersTests extends ESTestCase {
         endpoint.add("_field_caps");
 
         assertEquals(endpoint.toString(), request.getEndpoint());
-        assertEquals(5, request.getParameters().size());
+        int expectedSize = FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS.equals(fieldCapabilitiesRequest.indicesOptions()) ? 1 : 5;
+        assertEquals(expectedSize, request.getParameters().size());
 
         // Note that we don't check the field param value explicitly, as field names are
         // passed through
@@ -1617,7 +1618,8 @@ public class RequestConvertersTests extends ESTestCase {
         endpoint.add("_field_caps");
 
         assertEquals(endpoint.toString(), request.getEndpoint());
-        assertEquals(5, request.getParameters().size());
+        int expectedSize = FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS.equals(fieldCapabilitiesRequest.indicesOptions()) ? 1 : 5;
+        assertEquals(expectedSize, request.getParameters().size());
 
         // Note that we don't check the field param value explicitly, as field names are
         // passed through
@@ -1656,7 +1658,8 @@ public class RequestConvertersTests extends ESTestCase {
         }
         endpoint.add(RestRankEvalAction.ENDPOINT);
         assertEquals(endpoint.toString(), request.getEndpoint());
-        assertEquals(5, request.getParameters().size());
+        int expectedSize = SearchRequest.DEFAULT_INDICES_OPTIONS.equals(rankEvalRequest.indicesOptions()) ? 1 : 5;
+        assertEquals(expectedSize, request.getParameters().size());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(spec, request.getEntity());
     }
@@ -1994,9 +1997,19 @@ public class RequestConvertersTests extends ESTestCase {
                                         Map<String, String> expectedParams) {
 
         if (randomBoolean()) {
-            setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                true, false, false, randomBoolean()));
+            // randomly not set random indices options.
+            return;
         }
+
+        IndicesOptions defaults = getter.get();
+        IndicesOptions random = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), true, false,
+            false, randomBoolean());
+        if (random.equals(defaults)) {
+            // Random indices options is equal to the defaults, we expect no params to be set.
+            return;
+        }
+
+        setter.accept(random);
         expectedParams.put("ignore_unavailable", Boolean.toString(getter.get().ignoreUnavailable()));
         expectedParams.put("allow_no_indices", Boolean.toString(getter.get().allowNoIndices()));
         if (getter.get().expandWildcardsOpen() && getter.get().expandWildcardsClosed()) {

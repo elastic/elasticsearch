@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -26,9 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -55,7 +52,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
     private static final Logger logger = LogManager.getLogger(TransportPutTransformAction.class);
 
-    private final XPackLicenseState licenseState;
+    private final Settings settings;
     private final Client client;
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
@@ -69,7 +66,6 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
         TransformServices transformServices,
         Client client,
         IngestService ingestService
@@ -82,7 +78,6 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             actionFilters,
             indexNameExpressionResolver,
             clusterService,
-            licenseState,
             transformServices,
             client,
             ingestService
@@ -97,7 +92,6 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
         TransformServices transformServices,
         Client client,
         IngestService ingestService
@@ -112,7 +106,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
-        this.licenseState = licenseState;
+        this.settings = settings;
         this.client = client;
         this.transformConfigManager = transformServices.getConfigManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -160,7 +154,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (licenseState.isSecurityEnabled() && request.isDeferValidation() == false) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings) && request.isDeferValidation() == false) {
             TransformPrivilegeChecker.checkPrivileges(
                 "create", securityContext, indexNameExpressionResolver, clusterState, client, config, true, checkPrivilegesListener);
         } else { // No security enabled, just move on
@@ -179,7 +173,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         // create the function for validation
         final Function function = FunctionFactory.create(config);
 
-        // <3> Return to the listener
+        // <2> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
             logger.debug("[{}] created transform", config.getId());
             auditor.info(config.getId(), "Created transform.");
@@ -191,30 +185,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             listener.onResponse(AcknowledgedResponse.TRUE);
         }, listener::onFailure);
 
-        // <2> Put our transform
-        ActionListener<Boolean> validationListener = ActionListener.wrap(
-            validationResult -> transformConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
-            validationException -> {
-                if (validationException instanceof ElasticsearchStatusException) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                            ((ElasticsearchStatusException) validationException).status(),
-                            validationException
-                        )
-                    );
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            validationException
-                        )
-                    );
-                }
-            }
-        );
-
-        validationListener.onResponse(true);
+        // <1> Put our transform
+        transformConfigManager.putTransformConfiguration(config, putTransformConfigurationListener);
     }
 }

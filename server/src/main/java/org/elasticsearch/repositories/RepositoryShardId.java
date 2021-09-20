@@ -26,7 +26,7 @@ public final class RepositoryShardId implements Writeable {
 
     public RepositoryShardId(IndexId index, int shard) {
         assert index != null;
-        this.index = index;
+        this.index = Objects.requireNonNull(index);
         this.shard = shard;
     }
 

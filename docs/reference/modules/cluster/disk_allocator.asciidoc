@@ -84,10 +84,10 @@ Controls the high watermark. It defaults to `90%`, meaning that {es} will attemp
 
 `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`::
     (<<static-cluster-setting,Static>>)
-    For a single data node, the default is to disregard disk watermarks when
-    making an allocation decision. This is deprecated behavior and will be
-    changed in 8.0. This setting can be set to `true` to enable the
-    disk watermarks for a single data node cluster (will become default in 8.0).
+In earlier releases, the default behaviour was to disregard disk watermarks for a single
+data node cluster when making an allocation decision. This is deprecated behavior
+since 7.14 and has been removed in 8.0. The only valid value for this setting
+is now `true`. The setting will be removed in a future release.
 
 [[cluster-routing-flood-stage]]
 // tag::cluster-routing-flood-stage-tag[]

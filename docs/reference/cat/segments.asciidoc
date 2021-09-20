@@ -24,18 +24,15 @@ indices.
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API. You must
 also have the `monitor` or `manage` <<privileges-list-indices,index privilege>>
-for any data stream, index, or index alias you retrieve.
+for any data stream, index, or alias you retrieve.
 
 [[cat-segments-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cat-segments-query-params]]
 ==== {api-query-parms-title}
@@ -130,7 +127,7 @@ The API returns the following response:
 ["source","txt",subs="attributes,callouts"]
 --------------------------------------------------
 index shard prirep ip        segment generation docs.count docs.deleted size size.memory committed searchable version compound
-test  0     p      127.0.0.1 _0               0          1            0  3kb        2042 false     true       {lucene_version}   true
-test1 0     p      127.0.0.1 _0               0          1            0  3kb        2042 false     true       {lucene_version}   true
+test  0     p      127.0.0.1 _0               0          1            0  3kb           0 false     true       {lucene_version}   true
+test1 0     p      127.0.0.1 _0               0          1            0  3kb           0 false     true       {lucene_version}   true
 --------------------------------------------------
 // TESTRESPONSE[s/3kb/\\d+(\\.\\d+)?[mk]?b/ s/2042/\\d+/ non_json]

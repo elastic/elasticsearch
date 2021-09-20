@@ -56,8 +56,9 @@ public class GeoTestUtils {
     }
 
     public static GeoShapeValues.GeoShapeValue geoShapeValue(Geometry geometry) throws IOException {
-        GeometryDocValueReader reader = geometryDocValueReader(geometry, CoordinateEncoder.GEO);
-        return new GeoShapeValues.GeoShapeValue(reader);
+        GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue();
+        value.reset(binaryGeoShapeDocValuesField("test", geometry).binaryValue());
+        return value;
     }
 
     public static GeoBoundingBox randomBBox() {

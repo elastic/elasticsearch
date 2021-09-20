@@ -29,15 +29,16 @@ public class StoreFileMetadata implements Writeable {
 
     private final String checksum;
 
-    private final Version writtenBy;
+    private final String writtenBy;
 
     private final BytesRef hash;
 
-    public StoreFileMetadata(String name, long length, String checksum, Version writtenBy) {
+    public StoreFileMetadata(String name, long length, String checksum, String writtenBy) {
         this(name, length, checksum, writtenBy, null);
     }
 
-    public StoreFileMetadata(String name, long length, String checksum, Version writtenBy, BytesRef hash) {
+    public StoreFileMetadata(String name, long length, String checksum, String writtenBy, BytesRef hash) {
+        assert assertValidWrittenBy(writtenBy);
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.length = length;
         this.checksum = Objects.requireNonNull(checksum, "checksum must not be null");
@@ -52,11 +53,7 @@ public class StoreFileMetadata implements Writeable {
         name = in.readString();
         length = in.readVLong();
         checksum = in.readString();
-        try {
-            writtenBy = Version.parse(in.readString());
-        } catch (ParseException e) {
-            throw new AssertionError(e);
-        }
+        writtenBy = in.readString();
         hash = in.readBytesRef();
     }
 
@@ -65,7 +62,7 @@ public class StoreFileMetadata implements Writeable {
         out.writeString(name);
         out.writeVLong(length);
         out.writeString(checksum);
-        out.writeString(writtenBy.toString());
+        out.writeString(writtenBy);
         out.writeBytesRef(hash);
     }
 
@@ -127,13 +124,13 @@ public class StoreFileMetadata implements Writeable {
 
     @Override
     public String toString() {
-        return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "]" ;
+        return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "]";
     }
 
     /**
-     * Returns the Lucene version this file has been written by or <code>null</code> if unknown
+     * Returns a String representation of the Lucene version this file has been written by or <code>null</code> if unknown
      */
-    public Version writtenBy() {
+    public String writtenBy() {
         return writtenBy;
     }
 
@@ -143,5 +140,14 @@ public class StoreFileMetadata implements Writeable {
      */
     public BytesRef hash() {
         return hash;
+    }
+
+    private static boolean assertValidWrittenBy(String writtenBy) {
+        try {
+            Version.parse(writtenBy);
+        } catch (ParseException e) {
+            throw new AssertionError("invalid writtenBy: " + writtenBy, e);
+        }
+        return true;
     }
 }

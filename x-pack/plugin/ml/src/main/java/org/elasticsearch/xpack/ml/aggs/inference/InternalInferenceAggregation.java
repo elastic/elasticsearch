@@ -11,13 +11,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.invalidPathException;
 
 public  class InternalInferenceAggregation extends InternalAggregation {
 
@@ -63,19 +64,15 @@ public  class InternalInferenceAggregation extends InternalAggregation {
             if (CommonFields.VALUE.getPreferredName().equals(path.get(0))) {
                 propertyValue = inferenceResult.predictedValue();
             } else {
-                throw invalidPathException(path);
+                throw invalidPathException(path, InferencePipelineAggregationBuilder.NAME, getName());
             }
         } else {
-            throw invalidPathException(path);
+            throw invalidPathException(path, InferencePipelineAggregationBuilder.NAME, getName());
         }
 
         return propertyValue;
     }
 
-    private InvalidAggregationPathException invalidPathException(List<String> path) {
-        return new InvalidAggregationPathException("unknown property " +  path + " for " +
-            InferencePipelineAggregationBuilder.NAME + " aggregation [" + getName() + "]");
-    }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

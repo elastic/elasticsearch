@@ -20,11 +20,11 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -213,7 +213,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         final Parameter<Integer> ignoreAbove
             = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Integer.MAX_VALUE)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v < 0) {
                     throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
                 }
@@ -270,14 +270,14 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ICUCollationKeywordFieldMapper build(ContentPath contentPath) {
+        public ICUCollationKeywordFieldMapper build(MapperBuilderContext context) {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
-            CollationFieldType ft = new CollationFieldType(buildFullName(contentPath), indexed.getValue(),
+            CollationFieldType ft = new CollationFieldType(context.buildFullName(name), indexed.getValue(),
                 stored.getValue(), hasDocValues.getValue(), collator, nullValue.getValue(), ignoreAbove.getValue(),
                 meta.getValue());
             return new ICUCollationKeywordFieldMapper(name, buildFieldType(), ft,
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), collator, this);
+                multiFieldsBuilder.build(this, context), copyTo.build(), collator, this);
         }
     }
 
@@ -435,7 +435,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value;
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
@@ -444,7 +444,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             value = parser.textOrNull();
         }
 
-        if (value == null || value.length() > ignoreAbove) {
+        if (value == null) {
+            return;
+        }
+
+        if (value.length() > ignoreAbove) {
+            context.addIgnoredField(name());
             return;
         }
 

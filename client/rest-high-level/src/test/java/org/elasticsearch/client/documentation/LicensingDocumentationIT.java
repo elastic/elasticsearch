@@ -21,7 +21,7 @@ import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.client.license.StartBasicResponse;
 import org.elasticsearch.client.license.GetBasicStatusResponse;
 import org.elasticsearch.client.license.GetTrialStatusResponse;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.elasticsearch.client.license.DeleteLicenseRequest;

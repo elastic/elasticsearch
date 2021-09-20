@@ -10,8 +10,8 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
@@ -178,7 +178,6 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
         private final CancellationChecks cancellationChecks = new CancellationChecks();
 
         CachedItem(Key key) {
-            super("cached item");
             this.key = key;
             incRef(); // start with a refcount of 2 so we're not closed while adding the first listener
             this.future.addListener(new ActionListener<>() {

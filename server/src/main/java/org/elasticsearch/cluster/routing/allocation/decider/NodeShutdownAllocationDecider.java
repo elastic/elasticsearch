@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 /**
  * An allocation decider that prevents shards from being allocated to a
@@ -46,6 +46,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
         }
 
         switch (thisNodeShutdownMetadata.getType()) {
+            case REPLACE:
             case REMOVE:
                 return allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be removed from the cluster", node.nodeId());
             case RESTART:
@@ -98,6 +99,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
                     "node [%s] is preparing to restart, auto-expansion waiting until it is complete",
                     node.getId()
                 );
+            case REPLACE:
             case REMOVE:
                 return allocation.decision(Decision.NO, NAME, "node [%s] is preparing for removal from the cluster", node.getId());
             default:

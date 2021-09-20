@@ -172,7 +172,7 @@ PUT my-index-000001/_doc/1
 --------------------------------------------------
 
 <1> The `my_integer` field is mapped as an `integer`.
-<2> The `my_string` field is mapped as a `text`, with a `keyword` <<multi-fields,multi field>>.
+<2> The `my_string` field is mapped as a `text`, with a `keyword` <<multi-fields,multi-field>>.
 
 [[match-unmatch]]
 ==== `match` and `unmatch`

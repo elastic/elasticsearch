@@ -15,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -153,6 +153,9 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         table.addCell("description", TableColumnAttributeBuilder.builder("The model description", false)
             .setAliases("d")
             .build());
+        table.addCell("type", TableColumnAttributeBuilder.builder("The model type")
+            .setAliases("t")
+            .build());
 
         // Trained Model Stats
         table.addCell("ingest.pipelines", TableColumnAttributeBuilder.builder("The number of pipelines referencing the model")
@@ -239,6 +242,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             table.addCell(config.getCreateTime());
             table.addCell(config.getVersion().toString());
             table.addCell(config.getDescription());
+            table.addCell(config.getModelType());
 
             GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats = statsMap.get(config.getModelId());
             table.addCell(modelStats.getPipelineCount());

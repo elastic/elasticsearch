@@ -5,7 +5,10 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.apache.lucene.search.uhighlight;
+package org.elasticsearch.lucene.search.uhighlight;
+
+import org.apache.lucene.search.uhighlight.FieldHighlighter;
+import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 
 import java.text.BreakIterator;
 import java.text.CharacterIterator;

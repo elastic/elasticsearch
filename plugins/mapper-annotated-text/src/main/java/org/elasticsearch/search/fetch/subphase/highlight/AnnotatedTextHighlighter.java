@@ -10,7 +10,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;

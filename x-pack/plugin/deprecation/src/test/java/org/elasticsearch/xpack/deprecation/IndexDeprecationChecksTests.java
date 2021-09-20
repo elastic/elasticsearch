@@ -515,7 +515,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 INDEX_ROUTING_REQUIRE_SETTING.getKey()),
-            "https://ela.st/es-deprecation-7-index-routing-settings",
+            "https://ela.st/es-deprecation-7-tier-filtering-settings",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%s], remove this setting",
                 INDEX_ROUTING_REQUIRE_SETTING.getKey(),
@@ -526,7 +526,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 INDEX_ROUTING_INCLUDE_SETTING.getKey()),
-            "https://ela.st/es-deprecation-7-index-routing-settings",
+            "https://ela.st/es-deprecation-7-tier-filtering-settings",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%s], remove this setting",
                 INDEX_ROUTING_INCLUDE_SETTING.getKey(),
@@ -537,7 +537,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 INDEX_ROUTING_EXCLUDE_SETTING.getKey()),
-            "https://ela.st/es-deprecation-7-index-routing-settings",
+            "https://ela.st/es-deprecation-7-tier-filtering-settings",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%s], remove this setting",
                 INDEX_ROUTING_EXCLUDE_SETTING.getKey(),
@@ -602,7 +602,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "mappings for index test contains deprecated geo_shape properties that must be removed",
-                "https://ela.st/es-deprecation-7-geo-shape-settings",
+                "https://ela.st/es-deprecation-7-geo-shape-mappings",
                 "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter " +
                     "[strategy] in field [location]]]", false, null)
         ));
@@ -621,7 +621,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "mappings for index test contains deprecated geo_shape properties that must be removed",
-                "https://ela.st/es-deprecation-7-geo-shape-settings",
+                "https://ela.st/es-deprecation-7-geo-shape-mappings",
                 "The following geo_shape parameters must be removed from test: [[parameter [points_only] in field [location]; parameter " +
                     "[strategy] in field [location]]]", false, null)
         ));

@@ -339,7 +339,7 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkIndexRoutingRequireSetting(IndexMetadata indexMetadata) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_REQUIRE_SETTING,
-            "https://ela.st/es-deprecation-7-index-routing-settings",
+            "https://ela.st/es-deprecation-7-tier-filtering-settings",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -347,7 +347,7 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkIndexRoutingIncludeSetting(IndexMetadata indexMetadata) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_INCLUDE_SETTING,
-            "https://ela.st/es-deprecation-7-index-routing-settings",
+            "https://ela.st/es-deprecation-7-tier-filtering-settings",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -355,7 +355,7 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkIndexRoutingExcludeSetting(IndexMetadata indexMetadata) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_EXCLUDE_SETTING,
-            "https://ela.st/es-deprecation-7-index-routing-settings",
+            "https://ela.st/es-deprecation-7-tier-filtering-settings",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -393,7 +393,7 @@ public class IndexDeprecationChecks {
             String details = String.format(Locale.ROOT,
                 "The following geo_shape parameters must be removed from %s: [%s]", indexMetadata.getIndex().getName(),
                 messages.stream().collect(Collectors.joining("; ")));
-            String url = "https://ela.st/es-deprecation-7-geo-shape-settings";
+            String url = "https://ela.st/es-deprecation-7-geo-shape-mappings";
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
     }

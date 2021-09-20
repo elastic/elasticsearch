@@ -392,7 +392,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "index templates contain deprecated geo_shape properties that must be removed",
-                "https://ela.st/es-deprecation-7-geo-shape-settings",
+                "https://ela.st/es-deprecation-7-geo-shape-mappings",
                 "mappings in index template single-type contains deprecated geo_shape properties. [parameter [points_only] in field " +
                     "[location]; parameter [strategy] in field [location]]", false, null)
         ));
@@ -414,7 +414,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates contain deprecated geo_shape properties that must be removed",
-                "https://ela.st/es-deprecation-7-geo-shape-settings",
+                "https://ela.st/es-deprecation-7-geo-shape-mappings",
                 "mappings in component template my-template contains deprecated geo_shape properties. [parameter [points_only] in field " +
                     "[location]; parameter [strategy] in field [location]]", false, null)
         ));
@@ -430,7 +430,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates and index templates contain deprecated geo_shape properties that must be removed",
-                "https://ela.st/es-deprecation-7-geo-shape-settings",
+                "https://ela.st/es-deprecation-7-geo-shape-mappings",
                 "mappings in component template my-template contains deprecated geo_shape properties. [parameter [points_only] in field " +
                     "[location]; parameter [strategy] in field [location]]; mappings in index template single-type contains " +
                     "deprecated geo_shape properties. [parameter [points_only] in field [location]; parameter [strategy] in field " +

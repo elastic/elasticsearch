@@ -271,7 +271,7 @@ public class ClusterDeprecationChecks {
         String detailsForIndexTemplates = getDetailsMessageForGeoShapeIndexTemplates(clusterState.getMetadata().getTemplates());
         boolean deprecationInComponentTemplates = Strings.isEmpty(detailsForComponentTemplates) == false;
         boolean deprecationInIndexTemplates = Strings.isEmpty(detailsForIndexTemplates) == false;
-        String url = "https://ela.st/es-deprecation-7-geo-shape-settings";
+        String url = "https://ela.st/es-deprecation-7-geo-shape-mappings";
         if (deprecationInComponentTemplates && deprecationInIndexTemplates) {
             String message = "component templates and index templates contain deprecated geo_shape properties that must be removed";
             String details = detailsForComponentTemplates + "; " + detailsForIndexTemplates;

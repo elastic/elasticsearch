@@ -29,6 +29,7 @@ tasks.named("dependencyLicenses").configure {
 tasks.named('splitPackagesAudit').configure {
     // o.e.i.analysis is owned by server, these should be moved to a kuromoji package
   ignoreClasses 'org.elasticsearch.index.analysis.JapaneseStopTokenFilterFactory',
+    'org.elasticsearch.index.analysis.JapaneseCompletionFilterFactory',
     'org.elasticsearch.index.analysis.KuromojiAnalyzerProvider',
     'org.elasticsearch.index.analysis.KuromojiBaseFormFilterFactory',
     'org.elasticsearch.index.analysis.KuromojiIterationMarkCharFilterFactory',

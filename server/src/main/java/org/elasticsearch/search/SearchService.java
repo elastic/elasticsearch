@@ -640,7 +640,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         final ReaderContext reader = activeReaders.get(id.getId());
         if (reader == null) {
-            logger.info("Unknown reader context [{}], available contexts are [{}]", id.getId(), activeReaders.keySet());
             throw new SearchContextMissingException(id);
         }
         try {

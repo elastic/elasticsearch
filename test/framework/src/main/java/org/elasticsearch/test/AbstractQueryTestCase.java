@@ -9,6 +9,7 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;

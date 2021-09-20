@@ -657,8 +657,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Tests recovery of an index with or without a translog and the
      * statistics we gather about that.
      */
-    // NORELEASE
-    @AwaitsFix(bugUrl = "Lucene version on 7.x is 8.10 instead of 8.9")
     public void testRecovery() throws Exception {
         int count;
         boolean shouldHaveTranslog;

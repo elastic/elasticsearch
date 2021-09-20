@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.kuromoji;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -19,7 +19,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
+import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -69,7 +75,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertThat(analyzer.analyzer(), instanceOf(CustomAnalyzer.class));
         assertThat(analyzer.analyzer().tokenStream(null, new StringReader("")), instanceOf(JapaneseTokenizer.class));
 
-        CharFilterFactory  charFilterFactory = analysis.charFilter.get("kuromoji_iteration_mark");
+        CharFilterFactory charFilterFactory = analysis.charFilter.get("kuromoji_iteration_mark");
         assertThat(charFilterFactory, instanceOf(KuromojiIterationMarkCharFilterFactory.class));
 
     }
@@ -199,7 +205,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         Files.createDirectory(config);
         Files.copy(empty_dict, config.resolve("empty_user_dict.txt"));
         Files.copy(dict, config.resolve("user_dict.txt"));
-        String json = "/org/elasticsearch/index/analysis/kuromoji_analysis.json";
+        String json = "/org/elasticsearch/plugin/analysis/kuromoji/kuromoji_analysis.json";
 
         Settings settings = Settings.builder()
             .loadFromStream(json, KuromojiAnalysisTests.class.getResourceAsStream(json), false)

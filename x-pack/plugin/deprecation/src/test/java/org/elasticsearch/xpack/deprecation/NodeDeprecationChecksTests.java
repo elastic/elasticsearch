@@ -695,8 +695,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir()).build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null, null, licenseState);
-        final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+        final String expectedUrl = "https://ela.st/es-deprecation-7-shared-path-settings";
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "setting [path.shared_data] is deprecated and will be removed in a future version",
@@ -905,7 +904,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 settingKey),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-cluster.html#disk-based-shard-allocation",
+            "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%b], remove this setting",
                 settingKey,

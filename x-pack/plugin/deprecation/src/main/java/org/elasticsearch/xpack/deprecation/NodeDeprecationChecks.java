@@ -531,8 +531,7 @@ class NodeDeprecationChecks {
         if (Environment.PATH_SHARED_DATA_SETTING.exists(settings)) {
             final String message = String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in a future version", Environment.PATH_SHARED_DATA_SETTING.getKey());
-            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
-                "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+            final String url = "https://ela.st/es-deprecation-7-shared-path-settings";
             final String details = "Found shared data path configured. Discontinue use of this setting.";
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
@@ -667,7 +666,7 @@ class NodeDeprecationChecks {
                                                                                    final XPackLicenseState licenseState) {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-cluster.html#disk-based-shard-allocation",
+            "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
             DeprecationIssue.Level.CRITICAL
         );
     }

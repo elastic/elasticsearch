@@ -91,7 +91,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "User-Agent ingest plugin will always use ECS-formatted output",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/user-agent-processor.html#user-agent-processor",
+            "https://ela.st/es-deprecation-7-ingest-pipeline-ecs-option",
             "Ingest pipelines [ecs_false, ecs_true] uses the [ecs] option which needs to be removed to work in 8.0", false, null);
         assertEquals(singletonList(expected), issues);
     }
@@ -159,8 +159,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Fields in index template exceed automatic field expansion limit",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
-                "#_limiting_the_number_of_auto_expanded_fields",
+            "https://ela.st/es-deprecation-7-number-of-auto-expanded-fields",
             "Index templates " + Collections.singletonList(tooManyFieldsTemplate) + " have a number of fields which exceeds the " +
                 "automatic field expansion limit of [1024] and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, " +
                 "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and multi_match " +
@@ -234,7 +233,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             assertEquals(1, issues.size());
             DeprecationIssue issue = issues.get(0);
             assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
-            assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/7.15/mapping-field-names-field.html#disable-field-names"
+            assertEquals("https://ela.st/es-deprecation-7-field_names-settings"
                     , issue.getUrl());
             assertEquals("Index templates contain _field_names settings.", issue.getMessage());
             assertEquals("Index templates [" + badTemplateName + "] "
@@ -260,8 +259,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
             DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Index Lifecycle Management poll interval is set too low",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
-                    "#ilm-poll-interval-limit",
+                "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
                 "The Index Lifecycle Management poll interval setting [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] is " +
                     "currently set to [" + tooLowInterval + "], but must be 1s or greater", false, null);
             List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
@@ -340,7 +338,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 settingKey),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-cluster.html#disk-based-shard-allocation",
+            "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%b], remove this setting",
                 settingKey,
@@ -394,8 +392,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "index templates contain deprecated geo_shape properties that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
-                    "#_deprecated_literal_geo_shape_literal_parameters",
+                "https://ela.st/es-deprecation-7-geo-shape-settings",
                 "mappings in index template single-type contains deprecated geo_shape properties. [parameter [points_only] in field " +
                     "[location]; parameter [strategy] in field [location]]", false, null)
         ));
@@ -417,8 +414,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates contain deprecated geo_shape properties that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
-                    "#_deprecated_literal_geo_shape_literal_parameters",
+                "https://ela.st/es-deprecation-7-geo-shape-settings",
                 "mappings in component template my-template contains deprecated geo_shape properties. [parameter [points_only] in field " +
                     "[location]; parameter [strategy] in field [location]]", false, null)
         ));
@@ -434,8 +430,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates and index templates contain deprecated geo_shape properties that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
-                    "#_deprecated_literal_geo_shape_literal_parameters",
+                "https://ela.st/es-deprecation-7-geo-shape-settings",
                 "mappings in component template my-template contains deprecated geo_shape properties. [parameter [points_only] in field " +
                     "[location]; parameter [strategy] in field [location]]; mappings in index template single-type contains " +
                     "deprecated geo_shape properties. [parameter [points_only] in field [location]; parameter [strategy] in field " +
@@ -477,7 +472,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "index templates contain deprecated sparse_vector fields that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_search_changes",
+                "https://ela.st/es-deprecation-7-sparse-vector",
                 "mappings in index template single-type contains deprecated sparse_vector fields: [my_sparse_vector], " +
                     "[my_nested_sparse_vector]", false, null)
         ));
@@ -498,7 +493,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates contain deprecated sparse_vector fields that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_search_changes",
+                "https://ela.st/es-deprecation-7-sparse-vector",
                 "mappings in component template [my-template] contains deprecated sparse_vector fields: [my_sparse_vector]", false, null)
         ));
 
@@ -513,7 +508,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates and index templates contain deprecated sparse_vector fields that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_search_changes",
+                "https://ela.st/es-deprecation-7-sparse-vector",
                 "mappings in component template [my-template] contains deprecated sparse_vector fields: [my_sparse_vector]; " +
                     "mappings in index template single-type contains deprecated sparse_vector fields: " +
                     "[my_sparse_vector], [my_nested_sparse_vector]", false, null)

@@ -6,10 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.smartcn;
 
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 import org.elasticsearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin;
+import org.elasticsearch.plugin.analysis.smartcn.SmartChineseTokenizerTokenizerFactory;
 
 import java.util.HashMap;
 import java.util.Map;

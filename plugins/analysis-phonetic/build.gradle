@@ -10,7 +10,7 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin'
+  classname 'org.elasticsearch.plugin.analysis.phonetic.AnalysisPhoneticPlugin'
 }
 
 dependencies {

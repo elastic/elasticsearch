@@ -164,6 +164,7 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
+import org.hamcrest.Description;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Matchers;
@@ -268,33 +269,56 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
         ).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), anyActionListener());
 
+        final Map<Set<String>, Role> roleCache = new HashMap<>();
         doAnswer((i) -> {
             ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[2];
             User user = (User) i.getArguments()[0];
-            Set<String> names = new HashSet<>(Arrays.asList(user.roles()));
-            assertNotNull(names);
-            Set<RoleDescriptor> roleDescriptors = new HashSet<>();
-            for (String name : names) {
-                RoleDescriptor descriptor = roleMap.get(name);
-                if (descriptor != null) {
-                    roleDescriptors.add(descriptor);
-                }
-            }
-
-            if (roleDescriptors.isEmpty()) {
-                callback.onResponse(Role.EMPTY);
-            } else {
-                CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegesStore,
-                    RESTRICTED_INDICES_AUTOMATON, ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
-                );
-            }
-            return Void.TYPE;
+            buildRole(user, privilegesStore, fieldPermissionsCache, roleCache, callback);
+            return null;
         }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
             auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings),
             null, Collections.emptySet(), licenseState, TestIndexNameExpressionResolver.newInstance(), operatorPrivilegesService);
+    }
+
+    private void buildRole(
+        User user,
+        NativePrivilegeStore privilegesStore,
+        FieldPermissionsCache fieldPermissionsCache,
+        Map<Set<String>, Role> roleCache,
+        ActionListener<Role> listener
+    ) {
+        final Set<String> names = Set.of(user.roles());
+        assertNotNull(names);
+
+        // We need a cache here because CompositeRoleStore has one, and our tests rely on it
+        // (to check that nested calls use the same object)
+        final Role cachedRole = roleCache.get(names);
+        if (cachedRole != null) {
+            listener.onResponse(cachedRole);
+            return;
+        }
+
+        Set<RoleDescriptor> roleDescriptors = new HashSet<>();
+        for (String name : names) {
+            RoleDescriptor descriptor = roleMap.get(name);
+            if (descriptor != null) {
+                roleDescriptors.add(descriptor);
+            }
+        }
+
+        if (roleDescriptors.isEmpty()) {
+            listener.onResponse(Role.EMPTY);
+        } else {
+            CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegesStore,
+                RESTRICTED_INDICES_AUTOMATON, ActionListener.wrap(r -> {
+                    roleCache.put(names, r);
+                    listener.onResponse(r);
+                }, listener::onFailure)
+            );
+        }
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -329,10 +353,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
         }
         AuthorizationInfo authorizationInfoHeader = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
-        if (authorizationInfoHeader == null && randomBoolean()) {
-            authorizationInfoHeader = mock(AuthorizationInfo.class);
-            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfoHeader);
-        }
+        if (authorizationInfoHeader == null)
+            // If we have an originating action, we must also have origination authz info
+            if (originatingActionHeader != null || randomBoolean()) {
+                authorizationInfoHeader = mock(AuthorizationInfo.class);
+                threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfoHeader);
+            }
         Mockito.reset(operatorPrivilegesService);
         final AtomicBoolean operatorPrivilegesChecked = new AtomicBoolean(false);
         final ElasticsearchSecurityException operatorPrivilegesException =
@@ -891,9 +917,9 @@ public class AuthorizationServiceTests extends ESTestCase {
                 shardRequest,
                 false,
                 () -> {
-                    // This child action should not have required another interaction with the role store
-                    verifyNoMoreInteractions(rolesStore);
-                    // Not should it need a new IndicesAccessControl
+                    // This child action triggers a second interaction with the role store (which is cached)
+                    verify(rolesStore, times(2)).getRoles(Mockito.same(user), Mockito.same(authentication), Mockito.any());
+                    // But it does not create a new IndicesAccessControl
                     assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), sameInstance(iac));
                 }
             );
@@ -2029,7 +2055,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         final AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(
             authentication,
             new SearchRequest(),
-            SearchAction.NAME
+            SearchAction.NAME,
+            null
         );
         final AuthorizationService.LoadAuthorizedIndiciesTimeChecker checker = new AuthorizationService.LoadAuthorizedIndiciesTimeChecker(
             now - TimeUnit.MILLISECONDS.toNanos(210),
@@ -2081,6 +2108,11 @@ public class AuthorizationServiceTests extends ESTestCase {
                 return Arrays.equals(wanted, found);
             }
             return false;
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("RBAC AuthorizationInfo Roles[").appendText(Strings.arrayToCommaDelimitedString(wanted)).appendText("]");
         }
     }
 

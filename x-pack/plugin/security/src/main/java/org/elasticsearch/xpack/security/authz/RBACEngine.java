@@ -18,7 +18,6 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
@@ -71,7 +70,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
@@ -90,6 +88,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
@@ -133,50 +132,6 @@ public class RBACEngine implements AuthorizationEngine {
 
     private void getRoles(User user, Authentication authentication, ActionListener<Role> listener) {
         rolesStore.getRoles(user, authentication, listener);
-    }
-
-    @Override
-    public boolean isChildActionAuthorizedByParent(RequestInfo requestInfo, String parentAction, IndicesAccessControl parentAccessControl) {
-        final String childAction = requestInfo.getAction();
-        if (IndexPrivilege.CREATE_INDEX_MATCHER.test(childAction) || childAction.equals(TransportShardBulkAction.ACTION_NAME)) {
-            // These need special handling, so don't short circuit
-            return false;
-        }
-        if (isScrollRelatedAction(childAction) || isAsyncRelatedAction(childAction)) {
-            // These need special handling, so don't short circuit
-            return false;
-        }
-        if (childAction.startsWith(parentAction) == false) {
-            // Parent action is not a true parent
-            // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]')
-            // or similar (e.g. search phases) as children, but not every action that is triggered
-            // within another action should be authorized this way
-            return false;
-        }
-        final IndicesRequest indicesRequest;
-        if (requestInfo.getRequest() instanceof IndicesRequest) {
-            indicesRequest = (IndicesRequest) requestInfo.getRequest();
-        } else {
-            // Can only handle indices request here
-            return false;
-        }
-
-        final String[] indices = indicesRequest.indices();
-        if (indices == null || indices.length == 0) {
-            // No indices to check
-            return false;
-        }
-
-
-        return Arrays.stream(indices).allMatch(idx -> {
-            if (Regex.isSimpleMatchPattern(idx)) {
-                // The request contains a wildcard
-                return false;
-            }
-            IndicesAccessControl.IndexAccessControl iac = parentAccessControl.getIndexPermissions(idx);
-            // The parent context has already successfully authorized access to this index (by name)
-            return iac != null && iac.isGranted();
-        });
     }
 
     @Override
@@ -354,6 +309,8 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onFailure(new IllegalStateException("only scroll and async-search related requests are known indices " +
                     "api that don't support retrieving the indices they relate to"));
             }
+        } else if (isChildActionAuthorizedByParent(requestInfo, authorizationInfo)) {
+            listener.onResponse((IndexAuthorizationResult) requestInfo.getParentAuthorizationContext().getAuthorizationResult());
         } else if (((IndicesRequest) request).allowsRemoteIndices()) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
@@ -393,6 +350,60 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onFailure(e);
             }
         }
+    }
+
+    private boolean isChildActionAuthorizedByParent(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
+        final AuthorizationContext parent = requestInfo.getParentAuthorizationContext();
+        if (parent == null) {
+            return false;
+        }
+
+        final AuthorizationResult parentResult = parent.getAuthorizationResult();
+        if ((parentResult instanceof IndexAuthorizationResult) == false) {
+            return false;
+        }
+
+        if (requestInfo.getAction().startsWith(parent.getAction()) == false) {
+            // Parent action is not a true parent
+            // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]')
+            // or similar (e.g. search phases) as children, but not every action that is triggered
+            // within another action should be authorized this way
+            return false;
+        }
+
+        if (authorizationInfo.equals(parent.getAuthorizationInfo()) == false) {
+            // Authorization changed
+            // This should only happen if the user's list of roles changed between requests
+            // Take the safe option and perform full authorization
+            return false;
+        }
+
+        final IndicesRequest indicesRequest;
+        if (requestInfo.getRequest() instanceof IndicesRequest) {
+            indicesRequest = (IndicesRequest) requestInfo.getRequest();
+        } else {
+            // Can only handle indices request here
+            return false;
+        }
+
+        final String[] indices = indicesRequest.indices();
+        if (indices == null || indices.length == 0) {
+            // No indices to check
+            return false;
+        }
+
+        final IndicesAccessControl indicesAccessControl = ((IndexAuthorizationResult) parentResult).getIndicesAccessControl();
+        assert indicesAccessControl != null;
+
+        return Arrays.stream(indices).allMatch(idx -> {
+            if (Regex.isSimpleMatchPattern(idx)) {
+                // The request contains a wildcard
+                return false;
+            }
+            IndicesAccessControl.IndexAccessControl iac = indicesAccessControl.getIndexPermissions(idx);
+            // The parent context has already successfully authorized access to this index (by name)
+            return iac != null && iac.isGranted();
+        });
     }
 
     private static IndexAuthorizationResult authorizeIndexActionName(String action,
@@ -647,7 +658,7 @@ public class RBACEngine implements AuthorizationEngine {
         private final RBACAuthorizationInfo authenticatedUserAuthorizationInfo;
 
         RBACAuthorizationInfo(Role role, Role authenticatedUserRole) {
-            this.role = role;
+            this.role = Objects.requireNonNull(role);
             this.info = Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, role.names());
             this.authenticatedUserAuthorizationInfo =
                 authenticatedUserRole == null ? this : new RBACAuthorizationInfo(authenticatedUserRole, null);
@@ -665,6 +676,32 @@ public class RBACEngine implements AuthorizationEngine {
         @Override
         public RBACAuthorizationInfo getAuthenticatedUserAuthorizationInfo() {
             return authenticatedUserAuthorizationInfo;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            RBACAuthorizationInfo that = (RBACAuthorizationInfo) o;
+            if (this.role.equals(that.role) == false) {
+                return false;
+            }
+            // Because authenticatedUserAuthorizationInfo can be reference to this, calling `equals` can result in infinite recursion.
+            // But if both user-authz-info objects are references to their containing object, then they must be equal.
+            if (this.authenticatedUserAuthorizationInfo == this) {
+                return that.authenticatedUserAuthorizationInfo == that;
+            } else {
+                return this.authenticatedUserAuthorizationInfo.equals(that.authenticatedUserAuthorizationInfo);
+            }
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(role, authenticatedUserAuthorizationInfo);
         }
     }
 

@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -91,16 +92,6 @@ public interface AuthorizationEngine {
      *                 or failure using {@link ActionListener#onFailure(Exception)}
      */
     void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener);
-
-    /**
-     * Determine whether to treat the action specified in the {@link RequestInfo} parameter as an implicitly authorized child of
-     * the {@code parentAction} (with the given {@link IndicesAccessControl}).
-     * If this returns {@code true} no other methods in the engine will be called for this request, the action will be automatically
-     * authorized (and will be audited if auditing is enabled).
-     */
-    default boolean isChildActionAuthorizedByParent(RequestInfo request, String parentAction, IndicesAccessControl parentAccessControl) {
-        return false;
-    }
 
     /**
      * Asynchronously authorizes an attempt for a user to run as another user.
@@ -257,11 +248,14 @@ public interface AuthorizationEngine {
         private final Authentication authentication;
         private final TransportRequest request;
         private final String action;
+        @Nullable
+        private final AuthorizationContext parentAuthorizationContext;
 
-        public RequestInfo(Authentication authentication, TransportRequest request, String action) {
-            this.authentication = authentication;
-            this.request = request;
-            this.action = action;
+        public RequestInfo(Authentication authentication, TransportRequest request, String action, AuthorizationContext parentContext) {
+            this.authentication = Objects.requireNonNull(authentication);
+            this.request = Objects.requireNonNull(request);
+            this.action = Objects.requireNonNull(action);
+            this.parentAuthorizationContext = parentContext;
         }
 
         public String getAction() {
@@ -274,6 +268,27 @@ public interface AuthorizationEngine {
 
         public TransportRequest getRequest() {
             return request;
+        }
+
+        @Nullable
+        public AuthorizationContext getParentAuthorizationContext() {
+            return parentAuthorizationContext;
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName()
+                + '{'
+                + "authentication=["
+                + authentication
+                + "], request=["
+                + request
+                + "], action=["
+                + action
+                + ']'
+                + ", parent=["
+                + parentAuthorizationContext
+                + "]}";
         }
     }
 
@@ -361,6 +376,31 @@ public interface AuthorizationEngine {
 
         public IndicesAccessControl getIndicesAccessControl() {
             return indicesAccessControl;
+        }
+    }
+
+
+    final class AuthorizationContext {
+        private final String action;
+        private final AuthorizationInfo authorizationInfo;
+        private final AuthorizationResult authorizationResult;
+
+        public AuthorizationContext(String action, AuthorizationInfo authorizationInfo, AuthorizationResult authorizationResult) {
+            this.action = action;
+            this.authorizationInfo = authorizationInfo;
+            this.authorizationResult = authorizationResult;
+        }
+
+        public String getAction() {
+            return action;
+        }
+
+        public AuthorizationInfo getAuthorizationInfo() {
+            return authorizationInfo;
+        }
+
+        public AuthorizationResult getAuthorizationResult() {
+            return authorizationResult;
         }
     }
 

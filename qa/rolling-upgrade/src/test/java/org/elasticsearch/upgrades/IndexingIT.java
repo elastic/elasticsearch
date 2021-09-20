@@ -315,7 +315,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         indexSpec.startObject("mappings").startObject("properties");
         {
             indexSpec.startObject("@timestamp").field("type", "date").endObject();
-            indexSpec.startObject("dim").field("type", "keyword").field("dimension", true).endObject();
+            indexSpec.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
         }
         indexSpec.endObject().endObject();
         indexSpec.startObject("settings").field("mode", "time_series").endObject();

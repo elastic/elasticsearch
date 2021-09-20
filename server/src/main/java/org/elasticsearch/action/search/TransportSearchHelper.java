@@ -8,9 +8,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -32,14 +31,13 @@ final class TransportSearchHelper {
 
     static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults) {
         try {
-            // TODO replace with BytesStreamOutput to avoid endiannessreverser
-            ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+            BytesStreamOutput out = new BytesStreamOutput();
             out.writeString(INCLUDE_CONTEXT_UUID);
             out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
             out.writeVInt(searchPhaseResults.asList().size());
             for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
                 out.writeString(searchPhaseResult.getContextId().getSessionId());
-                CodecUtil.writeBELong(out, searchPhaseResult.getContextId().getId());
+                out.writeLong(searchPhaseResult.getContextId().getId());
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {
                     out.writeString(
@@ -48,8 +46,7 @@ final class TransportSearchHelper {
                     out.writeString(searchShardTarget.getNodeId());
                 }
             }
-            byte[] bytes = out.toArrayCopy();
-            return Base64.getUrlEncoder().encodeToString(bytes);
+            return Base64.getUrlEncoder().encodeToString(out.copyBytes().array());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

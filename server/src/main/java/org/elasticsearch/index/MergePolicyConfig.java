@@ -188,6 +188,10 @@ public final class MergePolicyConfig {
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
     }
 
+    void setMaxMergesAtOnceExplicit(Integer maxMergeAtOnceExplicit) {
+
+    }
+
     void setMaxMergesAtOnce(Integer maxMergeAtOnce) {
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
     }

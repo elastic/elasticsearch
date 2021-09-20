@@ -447,7 +447,9 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
                     bw.write(XPackSettings.SECURITY_ENABLED.getKey() + ": true");
                     bw.newLine();
                     bw.newLine();
-                    if (false == env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())) {
+                    // Set enrollment mode to true unless user explicitly set it to false themselves
+                    if (false == (env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())
+                        && false == XPackSettings.ENROLLMENT_ENABLED.get(env.settings()))) {
                         bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
                         bw.newLine();
                         bw.newLine();
@@ -637,9 +639,6 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
     void checkExistingConfiguration(Settings settings) throws UserException {
         if (XPackSettings.SECURITY_ENABLED.exists(settings)) {
             throw new UserException(ExitCodes.CONFIG, "Aborting enrolling to cluster. It appears that security is already configured.");
-        }
-        if (XPackSettings.ENROLLMENT_ENABLED.exists(settings) && false == XPackSettings.ENROLLMENT_ENABLED.get(settings)) {
-            throw new UserException(ExitCodes.CONFIG, "Aborting enrolling to cluster. Enrollment is explicitly disabled.");
         }
         if (false == settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX).isEmpty() ||
             false == settings.getByPrefix(XPackSettings.HTTP_SSL_PREFIX).isEmpty()) {

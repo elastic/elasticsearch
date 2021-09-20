@@ -15,7 +15,6 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.Accountables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,9 +24,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 

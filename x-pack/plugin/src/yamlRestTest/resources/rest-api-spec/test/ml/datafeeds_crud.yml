@@ -433,6 +433,8 @@ setup:
   - match: { acknowledged: true }
 ---
 "Test put and update datafeed with indices options":
+  - skip:
+      features: warnings
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-indices-options-1
@@ -473,7 +475,11 @@ setup:
   - match: { datafeeds.0.indices_options.ignore_throttled: true }
 ---
 "Test put and update datafeed with indices options in params":
+  - skip:
+      features: warnings
   - do:
+      warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
       ml.put_datafeed:
         datafeed_id: test-datafeed-indices-options-params-1
         ignore_throttled: false
@@ -492,6 +498,8 @@ setup:
 
 
   - do:
+      warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
       ml.update_datafeed:
         datafeed_id: test-datafeed-indices-options-params-1
         ignore_throttled: false

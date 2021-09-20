@@ -419,11 +419,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         dir.close();
     }
 
-    /*
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74057")
     public void testIndexSortIntRange() throws Exception {
         doTestIndexSortRangeQueries(NumberType.INTEGER, random()::nextInt);
     }
-    */
 
     public void testIndexSortLongRange() throws Exception {
         doTestIndexSortRangeQueries(NumberType.LONG, random()::nextLong);

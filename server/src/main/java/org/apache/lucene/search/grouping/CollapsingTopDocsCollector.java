@@ -59,10 +59,6 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
             ((FieldComparator<Object>) comparator).setTopValue(after.fields[0]);
         }
         this.reversed = sortField.getReverse() ? -1 : 1;
-
-        if (sortField.getOptimizeSortWithPoints() == false) {
-            comparator.disableSkipping();
-        }
     }
 
     /**

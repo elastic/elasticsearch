@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.settings;
+package org.elasticsearch.cli.keystore;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
@@ -15,6 +15,8 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 
 import java.nio.file.Files;

@@ -17,7 +17,7 @@ repositories {
         name = "local-test"
         url = file("sample_jars/build/testrepo")
     }
-    jcenter()
+    mavenCentral()
 }
 
 configurations.create("forbiddenApisCliJar")

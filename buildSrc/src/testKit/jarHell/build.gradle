@@ -12,7 +12,7 @@ ext.licenseFile = file("$buildDir/dummy/license")
 ext.noticeFile = file("$buildDir/dummy/notice")
 
 repositories {
-    jcenter()
+    mavenCentral()
     repositories {
         maven {
             name "local"

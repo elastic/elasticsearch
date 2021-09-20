@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -37,6 +36,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -327,6 +327,55 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     @Override
+    public void getTransformCheckpointForUpdate(
+        String transformId,
+        long checkpoint,
+        ActionListener<Tuple<TransformCheckpoint, SeqNoPrimaryTermAndIndex>> checkpointAndVersionListener
+    ) {
+        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformCheckpoint.documentId(transformId, checkpoint));
+        SearchRequest searchRequest = client.prepareSearch(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        )
+            .setQuery(queryBuilder)
+            // use sort to get the last
+            .addSort("_index", SortOrder.DESC)
+            .setSize(1)
+            .seqNoAndPrimaryTerm(true)
+            .setAllowPartialSearchResults(false)
+            .request();
+
+        executeAsyncWithOrigin(
+            client,
+            TRANSFORM_ORIGIN,
+            SearchAction.INSTANCE,
+            searchRequest,
+            ActionListener.<SearchResponse>wrap(searchResponse -> {
+                if (searchResponse.getHits().getHits().length == 0) {
+                    // do not fail, this _must_ be handled by the caller
+                    checkpointAndVersionListener.onResponse(null);
+                    return;
+                }
+                SearchHit hit = searchResponse.getHits().getHits()[0];
+                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
+                parseCheckpointsLenientlyFromSource(
+                    source,
+                    transformId,
+                    ActionListener.wrap(
+                        parsedCheckpoint -> checkpointAndVersionListener.onResponse(
+                            Tuple.tuple(
+                                parsedCheckpoint,
+                                new SeqNoPrimaryTermAndIndex(hit.getSeqNo(), hit.getPrimaryTerm(), hit.getIndex())
+                            )
+                        ),
+                        checkpointAndVersionListener::onFailure
+                    )
+                );
+            }, checkpointAndVersionListener::onFailure)
+        );
+    }
+
+    @Override
     public void getTransformConfiguration(String transformId, ActionListener<TransformConfig> resultListener) {
         QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId));
         SearchRequest searchRequest = client.prepareSearch(
@@ -547,6 +596,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     @Override
     public void getTransformStoredDoc(
         String transformId,
+        boolean allowNoMatch,
         ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> resultListener
     ) {
         QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformStoredDoc.documentId(transformId));
@@ -569,9 +619,15 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
-                    resultListener.onFailure(
-                        new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.UNKNOWN_TRANSFORM_STATS, transformId))
-                    );
+                    if (allowNoMatch) {
+                        resultListener.onResponse(null);
+                    } else {
+                        resultListener.onFailure(
+                            new ResourceNotFoundException(
+                                TransformMessages.getMessage(TransformMessages.UNKNOWN_TRANSFORM_STATS, transformId)
+                            )
+                        );
+                    }
                     return;
                 }
                 SearchHit searchHit = searchResponse.getHits().getHits()[0];

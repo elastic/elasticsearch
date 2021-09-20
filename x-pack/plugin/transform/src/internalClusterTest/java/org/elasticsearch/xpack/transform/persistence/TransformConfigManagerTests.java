@@ -14,10 +14,10 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -302,7 +302,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         assertAsync(listener -> transformConfigManager.putOrUpdateTransformStoredDoc(storedDocs, null, listener), firstIndex, null, null);
         assertAsync(
-            listener -> transformConfigManager.getTransformStoredDoc(transformId, listener),
+            listener -> transformConfigManager.getTransformStoredDoc(transformId, false, listener),
             tuple(storedDocs, firstIndex),
             null,
             null
@@ -317,7 +317,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             null
         );
         assertAsync(
-            listener -> transformConfigManager.getTransformStoredDoc(transformId, listener),
+            listener -> transformConfigManager.getTransformStoredDoc(transformId, false, listener),
             tuple(updated, secondIndex),
             null,
             null
@@ -512,7 +512,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // test that the other docs are still there
         assertAsync(
-            listener -> transformConfigManager.getTransformStoredDoc(transformId, listener),
+            listener -> transformConfigManager.getTransformStoredDoc(transformId, false, listener),
             tuple(storedDocs, firstIndex),
             null,
             null

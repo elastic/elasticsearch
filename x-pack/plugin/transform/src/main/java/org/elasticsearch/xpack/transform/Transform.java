@@ -31,9 +31,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.core.transform.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
+import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActionDeprecated;
 import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDeprecated;
@@ -88,6 +89,7 @@ import org.elasticsearch.xpack.transform.action.TransportSetTransformResetModeAc
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
+import org.elasticsearch.xpack.transform.action.TransportUpgradeTransformsAction;
 import org.elasticsearch.xpack.transform.action.TransportValidateTransformAction;
 import org.elasticsearch.xpack.transform.action.compat.TransportDeleteTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.action.compat.TransportGetTransformActionDeprecated;
@@ -111,6 +113,7 @@ import org.elasticsearch.xpack.transform.rest.action.RestPutTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStartTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
+import org.elasticsearch.xpack.transform.rest.action.RestUpgradeTransformsAction;
 import org.elasticsearch.xpack.transform.rest.action.compat.RestDeleteTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.rest.action.compat.RestGetTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.rest.action.compat.RestGetTransformStatsActionDeprecated;
@@ -190,6 +193,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestPreviewTransformAction(),
             new RestUpdateTransformAction(),
             new RestCatTransformAction(),
+            new RestUpgradeTransformsAction(),
 
             // deprecated endpoints, to be removed for 8.0.0
             new RestPutTransformActionDeprecated(),
@@ -217,6 +221,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
             new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
             new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
+            new ActionHandler<>(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
 
             // deprecated actions, to be removed for 8.0.0
             new ActionHandler<>(PutTransformActionDeprecated.INSTANCE, TransportPutTransformActionDeprecated.class),

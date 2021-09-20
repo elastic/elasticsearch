@@ -27,7 +27,7 @@ A `rate` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following request will group all sales records into monthly bucket and than convert the number of sales transaction in each bucket
+The following request will group all sales records into monthly bucket and then convert the number of sales transaction in each bucket
 into per annual sales rate.
 
 [source,console]

@@ -17,6 +17,7 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
   testImplementation "com.google.jimfs:jimfs:1.2"
+  testImplementation project(':distribution:tools:plugin-cli')
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugins.cli;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -16,6 +16,8 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

@@ -59,8 +59,8 @@ don't use a sub-field. Must be a value from the `metrics` array.
 
 include::numeric.asciidoc[tag=time_series_metric]
 +
-For `aggregate_metric_double` fields, this parameter also accepts `counter`,
-`gauge`, and `summary`. You can't update this parameter for existing fields.
+For `aggregate_metric_double` fields, this parameter accepts `counter`, `gauge`,
+and `summary`. You can't update this parameter for existing fields.
 
 [[aggregate-metric-double-uses]]
 ==== Uses

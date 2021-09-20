@@ -84,6 +84,7 @@ IF "%attemptautoconfig%"=="Y" (
       -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
       -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*" "org.elasticsearch.xpack.security.cli.ConfigInitialNode" !newparams!
     SET SHOULDEXIT=Y
+    IF !ERRORLEVEL! EQU 0 SET SHOULDEXIT=N
     IF !ERRORLEVEL! EQU 73 SET SHOULDEXIT=N
     IF !ERRORLEVEL! EQU 78 SET SHOULDEXIT=N
     IF !ERRORLEVEL! EQU 80 SET SHOULDEXIT=N

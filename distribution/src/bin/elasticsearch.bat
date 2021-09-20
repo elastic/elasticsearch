@@ -81,19 +81,19 @@ IF "%checkpassword%"=="Y" (
   )
 )
 
-IF "!enrolltocluster!"=="Y" (
-    CALL "%~dp0elasticsearch-env.bat" || exit /b 1
-    CALL "%~dp0x-pack-env"
-    CALL "%~dp0x-pack-security-env"
-    ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
-      -Des.path.home="%ES_HOME%" ^
-      -Des.path.conf="%ES_PATH_CONF%" ^
-      -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
-      -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
-      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*" ^
-      "org.elasticsearch.xpack.security.cli.EnrollNodeToCluster" --enrollment-token "%enrollmenttoken%"
+rem windows batch pipe will choke on special characters in strings
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^^=^^^^!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^&=^^^&!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^|=^^^|!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^<=^^^<!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
 
+IF "!enrolltocluster!"=="Y" (
+    ECHO.!KEYSTORE_PASSWORD!|CALL "%~dp0elasticsearch-enroll-node.bat" --enrollment-token "%enrollmenttoken%"
+    IF !ERRORLEVEL! NEQ 0 (
       exit /b !ERRORLEVEL!
+    )
 )
 
 if not defined ES_TMPDIR (
@@ -116,14 +116,6 @@ for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elastic
 if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
   exit /b 1
 )
-
-rem windows batch pipe will choke on special characters in strings
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^^=^^^^!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^&=^^^&!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^|=^^^|!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^<=^^^<!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
 
 ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
   -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" ^

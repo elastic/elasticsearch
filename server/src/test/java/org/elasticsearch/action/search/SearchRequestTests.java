@@ -236,6 +236,23 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 assertNull(validationErrors);
             }
         }
+        {
+            // "enable_fields_emulation" should only work for qtf search type
+            SearchRequest searchRequest = new SearchRequest();
+            if (randomBoolean()) {
+                // this should already be the default, but also randomly explicitely set it
+                searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
+            }
+            searchRequest.setFieldsOptionEmulationEnabled(true);
+            assertNull(searchRequest.validate());
+
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[enable_fields_emulation] cannot be used with [dfs_query_then_fetch] search type. Use the default "
+                + "[query_then_fetch] search type instead.", validationErrors.validationErrors().get(0));
+        }
     }
 
     public void testCopyConstructor() throws IOException {

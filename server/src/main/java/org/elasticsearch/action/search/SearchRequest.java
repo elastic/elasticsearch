@@ -344,6 +344,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     + "shard version", validationException);
             }
         }
+        if (isFieldsOptionEmulationEnabled() && searchType().equals(SearchType.DFS_QUERY_THEN_FETCH)) {
+            validationException = addValidationError(
+                "[enable_fields_emulation] cannot be used with [dfs_query_then_fetch] search type. Use the default [query_then_fetch] "
+                    + "search type instead.",
+                validationException
+            );
+        }
         return validationException;
     }
 

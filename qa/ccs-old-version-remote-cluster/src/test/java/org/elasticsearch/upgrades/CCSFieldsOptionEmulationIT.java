@@ -37,6 +37,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
@@ -57,6 +58,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -156,6 +159,21 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
                     }
                 }
             }
+
+            // also check validation of request
+            Request request = new Request("POST", "/_search");
+            request.addParameter("index", localIndex + "," + CLUSTER_ALIAS + ":" + remoteIndex);
+            request.addParameter("enable_fields_emulation", "true");
+            request.addParameter("search_type", "dfs_query_then_fetch");
+            request.setJsonEntity("{\"_source\": false, \"fields\": [\"*\"] , \"size\": " + expectedHitCount + "}");
+            final ResponseException ex = expectThrows(ResponseException.class, () -> lowLevelClient.performRequest(request));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(ex.getMessage(), containsString("Validation Failed"));
+            assertThat(
+                ex.getMessage(),
+                containsString("[enable_fields_emulation] cannot be used with [dfs_query_then_fetch] search type.")
+            );
+
             localClient.indices().delete(new DeleteIndexRequest(localIndex), RequestOptions.DEFAULT);
             remoteClient.indices().delete(new DeleteIndexRequest(remoteIndex), RequestOptions.DEFAULT);
         }

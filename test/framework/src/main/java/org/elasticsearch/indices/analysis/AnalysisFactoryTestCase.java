@@ -190,6 +190,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("delimitedboost", Void.class),
         // LUCENE-9574
         entry("dropifflagged", Void.class),
+        entry("japanesecompletion", Void.class),
         // LUCENE-9575
         entry("patterntyping", Void.class));
 

@@ -83,7 +83,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     }
 
     @Override
-    protected NodeCacheFilesMetadata newNodeResponse(StreamInput in) throws IOException {
+    protected NodeCacheFilesMetadata newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeCacheFilesMetadata(in);
     }
 

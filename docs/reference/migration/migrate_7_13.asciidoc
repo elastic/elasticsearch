@@ -11,12 +11,12 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_713_mapping_changes>>
 * <<breaking_713_ssl_changes>>
-* <<breaking_713_frozen_multiple_data_paths_changes>>
+* <<breaking_713_settings_changes>>
 * <<breaking_713_agg_deprecations>>
 * <<breaking_713_infra_core_deprecations>>
 * <<breaking_713_eql_deprecations>>
-* <<breaking_713_security_changes>>
-* <<breaking_713_setting_changes>>
+* <<breaking_713_security_deprecations>>
+* <<breaking_713_settings_deprecations>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -88,9 +88,14 @@ SSL/TLS versions on your JDK].
 ====
 
 [discrete]
-[[breaking_713_frozen_multiple_data_paths_changes]]
-==== Frozen tier and multiple data paths changes
+[[breaking_713_settings_changes]]
+==== Settings changes
 
+[[breaking_713_frozen_multiple_data_paths_changes]]
+.Changes to the frozen tier and multiple data paths
+[%collapsible]
+====
+*Details* +
 {es} 7.12 included a technical preview of the frozen tier, being able to use
 partially mounted indices (searchable snapshots mounted with the shared cache
 option). Trying out this feature required configuring a shared cache using the
@@ -103,6 +108,7 @@ you do not utilize multiple data paths this will not affect you. Likewise, if
 you have not set `xpack.searchable.snapshot.shared_cache.size` and have not
 configured dedicated frozen nodes (nodes with the `data_frozen` role and no
 other data roles) this will not affect you.
+====
 // end::notable-breaking-changes[]
 
 [discrete]
@@ -252,14 +258,22 @@ errors in 8.0.0.
 ====
 
 [[slow-log-level-removal]]
-.`index.indexing.slowlog.level` and `index.search.slowlog.level` are removed.
+.`index.indexing.slowlog.level` and `index.search.slowlog.level` are deprecated.
 [%collapsible]
 ====
 *Details* +
-`index.indexing.slowlog.level` and `index.search.slowlog.level` are removed. These settings can be worked around
-by using appropriate thresholds. If for instance we want to simulate `index.indexing.slowlog.level` = `INFO` then
-all we need to do is to set `index.indexing.slowlog.threshold.index.debug` and
-`index.indexing.slowlog.threshold.index.trace` to `-1` {es-pull}57591[#57591]
+The `index.indexing.slowlog.level` and `index.search.slowlog.level` index
+settings are now deprecated. You use these setting to set the logging level for
+the search and indexing slow logs. To reproduce similar results, use the
+respective `index.*.slowlog.threshold.index.debug` and
+`index.*.slowlog.threshold.index.trace` index settings instead.
+
+For example, to reproduce a `index.indexing.slowlog.level` setting of `INFO`,
+set `index.indexing.slowlog.threshold.index.debug` and
+`index.indexing.slowlog.threshold.index.trace` to `-1`.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the deprecated settings.
 ====
 
 [discrete]
@@ -277,7 +291,7 @@ instead.
 ====
 
 [discrete]
-[[breaking_713_security_changes]]
+[[breaking_713_security_deprecations]]
 ==== Security deprecations
 
 [[implicitly-disabled-basic-realms]]
@@ -317,8 +331,34 @@ configuration will result in an error on startup.
 ====
 
 [discrete]
-[[breaking_713_setting_changes]]
-==== Setting deprecations
+[[breaking_713_settings_deprecations]]
+==== Settings deprecations
+
+[[deprecate-tier-filter-setting]]
+.Several tier filtering settings are deprecated.
+[%collapsible]
+====
+*Details* +
+The following cluster settings are now deprecated:
+
+- `cluster.routing.allocation.include._tier`
+- `cluster.routing.allocation.exclude._tier`
+- `cluster.routing.allocation.require._tier`
+
+The following index settings are also now deprecated:
+
+- `index.routing.allocation.include._tier`
+- `index.routing.allocation.exclude._tier`
+- `index.routing.allocation.require._tier`
+
+These settings are used to filter the allocation of a shard to a specific set of
+nodes. Instead, use the
+{ref}/data-tier-shard-filtering.html#tier-preference-allocation-filter[`index.routing.allocation.include._tier_preference`]
+index setting.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the deprecated settings.
+====
 
 [[deprecate-shared-data-path-settings]]
 .The `path.shared_data` and `index.data_path` settings are deprecated.

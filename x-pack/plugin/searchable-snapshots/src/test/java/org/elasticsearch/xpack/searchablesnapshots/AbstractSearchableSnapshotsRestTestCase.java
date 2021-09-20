@@ -13,6 +13,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -472,6 +474,15 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         request.setJsonEntity(new SearchSourceBuilder().trackTotalHits(true).query(query).toString());
         if (ignoreThrottled != null) {
             request.addParameter("ignore_throttled", ignoreThrottled.toString());
+            RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(
+                    warnings -> Collections.singletonList(
+                        "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. "
+                            + "Consider cold or frozen tiers in place of frozen indices."
+                    ).equals(warnings) == false
+                )
+                .build();
+            request.setOptions(requestOptions);
         }
 
         final Response response = client().performRequest(request);

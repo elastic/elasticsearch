@@ -363,8 +363,10 @@ public class IndexingIT extends AbstractRollingTestCase {
         request.setJsonEntity(Strings.toString(body.endObject()));
         ListMatcher tsidsExpected = matchesList();
         for (int d = 0; d < expected.length; d++) {
+//            Object key = Map.of("dim", TSDB_DIMS.get(d)); TODO use this once tsid is real
+            Object key = "dim:" + TSDB_DIMS.get(d);
             tsidsExpected = tsidsExpected.item(
-                matchesMap().extraOk().entry("key", Map.of("dim", TSDB_DIMS.get(d))).entry("avg", Map.of("value", expected[d]))
+                matchesMap().extraOk().entry("key", key).entry("avg", Map.of("value", expected[d]))
             );
         }
         assertMap(

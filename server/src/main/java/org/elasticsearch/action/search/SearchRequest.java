@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.Scroll;
@@ -26,8 +26,8 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
 
@@ -222,6 +222,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         preFilterShardSize = in.readOptionalVInt();
         allowPartialSearchResults = in.readOptionalBoolean();
         localClusterAlias = in.readOptionalString();
+        // read dummy boolean back for testing
+        in.readBoolean();
         if (localClusterAlias != null) {
             absoluteStartMillis = in.readVLong();
             finalReduce = in.readBoolean();
@@ -257,6 +259,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalVInt(preFilterShardSize);
         out.writeOptionalBoolean(allowPartialSearchResults);
         out.writeOptionalString(localClusterAlias);
+        // introduce minor change in transport layer for testing
+        out.writeBoolean(true);
         if (localClusterAlias != null) {
             out.writeVLong(absoluteStartMillis);
             out.writeBoolean(finalReduce);

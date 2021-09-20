@@ -27,7 +27,7 @@ SQL::
 * Fix disjunctions (and `IN`) with multiple date math expressions {es-pull}76424[#76424] (issue: {es-issue}76336[#76336])
 
 Snapshot/Restore::
-* Fix Queued Snapshot Clone not Starting after Data Node Drops Out {es-pull}77111[#77111] (issue: {es-issue}77101[#77101])
+* Fix queued snapshot clone not starting after data node drops {es-pull}77111[#77111] (issue: {es-issue}77101[#77101])
 
 [[release-notes-7.14.1]]
 == {es} version 7.14.1

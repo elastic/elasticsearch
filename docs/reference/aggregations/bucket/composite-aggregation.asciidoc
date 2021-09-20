@@ -614,14 +614,15 @@ GET /_search
 }
 --------------------------------------------------
 
-In the example above the source `product_name` will emit an explicit `null` bucket for
-documents without a value for the field `product` and the bucket will be placed last.
+In the above example, the `product_name` source emits an explicit `null` bucket
+for documents without a `product` value. This bucket is placed last.
 
-The position of the `null` bucket can be controlled with the optional `missing_order`
-parameter. If `missing_order` is `first` or last `last`, the `null` bucket will be placed
-at first or last position respectively. If `missing_order` is omitted or `default` the
-`order` specified in the source dictates whether the `null` bucket should rank first
-(ascending order, `asc`) or last (descending order, `desc`).
+You can control the position of the `null` bucket using the optional
+`missing_order` parameter. If `missing_order` is `first` or `last`, the `null`
+bucket is placed in the respective first or last position. If `missing_order` is
+omitted or `default`, the source's `order` determines the bucket's position. If
+`order` is `asc` (ascending), the bucket is in the first position. If `order` is
+`desc` (descending), the bucket is in the last position.
 
 ==== Size
 

@@ -31,7 +31,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 
 /**
  * Rest test for _mvt end point. The test only check that the structure of the vector tiles is sound in

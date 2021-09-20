@@ -1017,8 +1017,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     getElectionStrategy(),
                     nodeHealthService);
                 masterService.setClusterStatePublisher(coordinator);
-                final GatewayService gatewayService
-                    = new GatewayService(settings, allocationService, clusterService, threadPool, coordinator, null);
+                final GatewayService gatewayService = new GatewayService(settings, allocationService, clusterService, threadPool);
 
                 logger.trace("starting up [{}]", localNode);
                 transportService.start();

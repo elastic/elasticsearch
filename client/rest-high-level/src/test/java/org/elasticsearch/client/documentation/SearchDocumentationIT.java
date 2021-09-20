@@ -149,7 +149,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::search-request-preference
             searchRequest.preference("_local"); // <1>
             // end::search-request-preference
-            assertNotNull(client.search(searchRequest, RequestOptions.DEFAULT));
+            assertNotNull(client.search(searchRequest, IGNORE_THROTTLED_WARNING));
         }
         {
             // tag::search-source-basics
@@ -777,7 +777,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             openRequest.preference("_local"); // <1>
             // end::open-point-in-time-preference
 
-            openResponse = client.openPointInTime(openRequest, RequestOptions.DEFAULT);
+            openResponse = client.openPointInTime(openRequest, IGNORE_THROTTLED_WARNING);
             pitId = openResponse.getPointInTimeId();
             client.closePointInTime(new ClosePointInTimeRequest(pitId), RequestOptions.DEFAULT);
         }
@@ -1119,8 +1119,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
         // end::field-caps-request-indicesOptions
 
+        RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
         // tag::field-caps-execute
-        FieldCapabilitiesResponse response = client.fieldCaps(request, RequestOptions.DEFAULT);
+        FieldCapabilitiesResponse response = client.fieldCaps(request, requestOptions);
         // end::field-caps-execute
 
         // tag::field-caps-response
@@ -1371,7 +1372,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 .indicesOptions(IndicesOptions.lenientExpandOpen()) // <3>
                 .preference("_local"); // <4>
             // end::count-request-args
-            assertNotNull(client.count(countRequest, RequestOptions.DEFAULT));
+            assertNotNull(client.count(countRequest, IGNORE_THROTTLED_WARNING));
         }
         {
             // tag::count-source-basics

@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
@@ -81,7 +80,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         String masterNode = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
-        Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, masterNode);
+        Coordinator coordinator = internalCluster().getInstance(Coordinator.class, masterNode);
         final ClusterState state = clusterService.state();
         Metadata.Builder mdBuilder = Metadata.builder(state.metadata());
         mdBuilder.putCustom(CustomMetadata.TYPE, new CustomMetadata("data"));

@@ -183,6 +183,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(checker.apply(fieldType), equalTo(isDimension));
     }
 
+    protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker)
+        throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", metricType);
+        }));
+
+        @SuppressWarnings("unchecked") // Syntactic sugar in tests
+        T fieldType = (T) mapperService.fieldType("field");
+        assertThat(checker.apply(fieldType).name(), equalTo(metricType));
+    }
+
     public final void testEmptyName() {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
             b.startObject("");

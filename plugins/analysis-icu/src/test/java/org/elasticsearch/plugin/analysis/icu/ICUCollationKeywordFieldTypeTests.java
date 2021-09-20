@@ -6,7 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.plugin.analysis.icu;
+
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.plugin.analysis.icu.ICUCollationKeywordFieldMapper;
 
 import java.io.IOException;
 import java.util.List;

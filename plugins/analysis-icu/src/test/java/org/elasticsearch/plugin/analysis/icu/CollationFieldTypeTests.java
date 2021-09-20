@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.plugin.analysis.icu;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.ibm.icu.text.Collator;
@@ -18,7 +18,9 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper.CollationFieldType;
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.plugin.analysis.icu.ICUCollationKeywordFieldMapper.CollationFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 
 import java.io.IOException;
@@ -26,7 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class CollationFieldTypeTests extends FieldTypeTestCase{
+public class CollationFieldTypeTests extends FieldTypeTestCase {
 
     private static final Collator DEFAULT_COLLATOR = Collator.getInstance(ULocale.ROOT).freeze();
 

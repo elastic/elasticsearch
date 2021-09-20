@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.icu;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexSettings;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
 /**
  * An ICU based collation token filter. There are two ways to configure collation:

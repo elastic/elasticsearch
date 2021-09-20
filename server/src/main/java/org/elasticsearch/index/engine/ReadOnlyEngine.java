@@ -346,8 +346,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource,
-                                                 MapperService mapperService, long startingSeqNo) {
+    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource, long startingSeqNo) {
         return 0;
     }
 

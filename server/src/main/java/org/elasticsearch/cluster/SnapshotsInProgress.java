@@ -69,12 +69,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public SnapshotsInProgress(StreamInput in) throws IOException {
-        this(collectByRepo(in.readList(SnapshotsInProgress.Entry::readFrom)));
+        this(collectByRepo(in));
     }
 
-    private static Map<String, List<Entry>> collectByRepo(List<Entry> entries) {
+    private static Map<String, List<Entry>> collectByRepo(StreamInput in) throws IOException {
+        final int count = in.readVInt();
+        if (count == 0) {
+            return Map.of();
+        }
         final Map<String, List<Entry>> entriesByRepo = new HashMap<>();
-        for (Entry entry : entries) {
+        for (int i = 0; i < count; i++) {
+            final Entry entry = Entry.readFrom(in);
             entriesByRepo.computeIfAbsent(entry.repository(), repo -> new ArrayList<>()).add(entry);
         }
         for (Map.Entry<String, List<Entry>> entryForRepo : entriesByRepo.entrySet()) {

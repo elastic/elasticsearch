@@ -17,8 +17,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
@@ -37,25 +37,24 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.ConfiguredHostsResolver;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
@@ -94,7 +93,7 @@ import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecov
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
-public class Coordinator extends AbstractLifecycleComponent implements Discovery {
+public class Coordinator extends AbstractLifecycleComponent implements ClusterStatePublisher {
 
     private static final Logger logger = LogManager.getLogger(Coordinator.class);
 
@@ -796,7 +795,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    @Override
     public DiscoveryStats stats() {
         return new DiscoveryStats(
             new PendingClusterStateStats(0, 0, 0),
@@ -805,7 +803,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         );
     }
 
-    @Override
     public void startInitialJoin() {
         synchronized (mutex) {
             becomeCandidate("startInitialJoin");

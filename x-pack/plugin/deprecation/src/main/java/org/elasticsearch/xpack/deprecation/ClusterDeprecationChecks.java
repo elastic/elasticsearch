@@ -405,7 +405,7 @@ public class ClusterDeprecationChecks {
                     policiesWithFreezeActions.stream().sorted().collect(Collectors.joining(","))
                 );
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "some ilm policies contain a freeze action, which is deprecated in favor of the frozen tier",
+                    "some ilm policies contain a freeze action, which is deprecated",
                     "https://ela.st/es-deprecation-7-frozen-indices",
                     details,
                     false,

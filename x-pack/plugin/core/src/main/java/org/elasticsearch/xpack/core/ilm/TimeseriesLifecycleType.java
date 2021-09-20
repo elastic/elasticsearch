@@ -56,8 +56,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String DELETE_PHASE = "delete";
     static final List<String> ORDERED_VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
 
-    public static final String FREEZE_ACTION_DEPRECATION_WARNING = "the freeze action has been deprecated in favor of the frozen tier, " +
-        "and will be removed in a future release";
+    public static final String FREEZE_ACTION_DEPRECATION_WARNING = "the freeze action has been deprecated and will be removed in a future" +
+        " release";
 
     static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
             ReadOnlyAction.NAME, RollupV2.isEnabled() ? RollupILMAction.NAME : null, ShrinkAction.NAME, ForceMergeAction.NAME,

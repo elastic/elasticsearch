@@ -34,3 +34,31 @@ setup:
   - length: { aggregations.by_date.buckets: 2 }
   - match: { aggregations.by_date.buckets.0.rate.value: 1.0 }
   - match: { aggregations.by_date.buckets.1.rate.value: 2.0 }
+
+
+---
+"rate with doc_count":
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"timestamp": "2021-09-14T22:33:37.477Z", "_doc_count": 10}'
+  - do:
+      search:
+        size: 0
+        index: "test2"
+        body:
+          aggs:
+            by_date:
+              date_histogram:
+                field: timestamp
+                fixed_interval: 60s
+              aggs:
+                rate:
+                  rate:
+                    unit: minute
+
+  - length: { aggregations.by_date.buckets: 1 }
+  - match: { aggregations.by_date.buckets.0.rate.value: 10.0 }

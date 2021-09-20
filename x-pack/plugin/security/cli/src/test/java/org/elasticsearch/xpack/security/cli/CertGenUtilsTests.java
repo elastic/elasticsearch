@@ -146,8 +146,6 @@ public class CertGenUtilsTests extends ESTestCase {
         validateEndEntityTlsChain(trustStore, certChain, true, true);
     }
 
-    // Wrap TrustStore in TrustManager[], cast first TrustManager to X509ExtendedTrustManager to call validation methods
-
     /**
      * Perform PKIX TLS certificate chain validation. This validates trust and chain correctness, not server hostname verification.
      * Wrap TrustStore with TrustManager[], and select first element that implements the X509ExtendedTrustManager interface.
@@ -188,7 +186,7 @@ public class CertGenUtilsTests extends ESTestCase {
         // EKU=null|serverAuth, KU=digitalSignature, authType=DHE_DSS/DHE_RSA/ECDHE_ECDSA/ECDHE_RSA/RSA_EXPORT/UNKNOWN
         // EKU=null|serverAuth, KU=keyEncipherment,  authType=RSA
         // EKU=null|serverAuth, KU=keyAgreement,     authType=DH_DSS/DH_RSA/ECDH_ECDSA/ECDH_RSA
-        if (doTlsClientCheck) {
+        if (doTlsServerCheck) {
             x509ExtendedTrustManager.checkServerTrusted(certChain, "ECDHE_RSA");
         }
     }

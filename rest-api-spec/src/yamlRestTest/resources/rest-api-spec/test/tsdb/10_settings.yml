@@ -1,7 +1,7 @@
 enable:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 7.15.99"
+      reason: introduced in 7.16.0
 
   - do:
       indices.create:
@@ -40,8 +40,8 @@ enable:
 ---
 no sort field:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 7.15.99"
+      reason: introduced in 7.16.0
 
   - do:
       catch: /\[index.mode=time_series\] is incompatible with \[index.sort.field\]/
@@ -56,8 +56,8 @@ no sort field:
 ---
 no sort order:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 7.15.99"
+      reason: introduced in 7.16.0
 
   - do:
       catch: /\[index.mode=time_series\] is incompatible with \[index.sort.order\]/
@@ -72,8 +72,8 @@ no sort order:
 ---
 no sort mode:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 7.15.99"
+      reason: introduced in 7.16.0
 
   - do:
       catch: /\[index.mode=time_series\] is incompatible with \[index.sort.mode\]/
@@ -88,8 +88,8 @@ no sort mode:
 ---
 no sort missing:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 7.15.99"
+      reason: introduced in 7.16.0
 
   - do:
       catch: /\[index.mode=time_series\] is incompatible with \[index.sort.missing\]/
@@ -104,8 +104,8 @@ no sort missing:
 ---
 no partitioning:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 7.15.99"
+      reason: introduced in 7.16.0
 
   - do:
       catch: /\[index.mode=time_series\] is incompatible with \[index.routing_partition_size\]/

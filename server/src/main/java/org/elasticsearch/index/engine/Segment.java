@@ -44,7 +44,6 @@ public class Segment implements Writeable {
     public Boolean compound = null;
     public String mergeId;
     public Sort segmentSort;
-    public Accountable ramTree = null;
     public Map<String, String> attributes;
 
     public Segment(StreamInput in) throws IOException {
@@ -62,8 +61,7 @@ public class Segment implements Writeable {
             in.readLong(); // memoryInBytes
         }
         if (in.readBoolean()) {
-            // verbose mode
-            ramTree = readRamTree(in);
+            readRamTree(in);
         }
         segmentSort = readSegmentSort(in);
         if (in.readBoolean()) {
@@ -170,11 +168,7 @@ public class Segment implements Writeable {
             out.writeLong(0); // memoryInBytes
         }
 
-        boolean verbose = ramTree != null;
-        out.writeBoolean(verbose);
-        if (verbose) {
-            writeRamTree(out, ramTree);
-        }
+        out.writeBoolean(false);
         writeSegmentSort(out, segmentSort);
         boolean hasAttributes = attributes != null;
         out.writeBoolean(hasAttributes);
@@ -274,18 +268,13 @@ public class Segment implements Writeable {
         }
     }
 
-    private Accountable readRamTree(StreamInput in) throws IOException {
-        final String name = in.readString();
-        final long bytes = in.readVLong();
+    private static void readRamTree(StreamInput in) throws IOException {
+        in.readString();
+        in.readVLong();
         int numChildren = in.readVInt();
-        if (numChildren == 0) {
-            return Accountables.namedAccountable(name, bytes);
+        for (int i = 0; i < numChildren; i++) {
+            readRamTree(in);
         }
-        List<Accountable> children = new ArrayList<>(numChildren);
-        while (numChildren-- > 0) {
-            children.add(readRamTree(in));
-        }
-        return Accountables.namedAccountable(name, children, bytes);
     }
 
     // the ram tree is written recursively since the depth is fairly low (5 or 6)

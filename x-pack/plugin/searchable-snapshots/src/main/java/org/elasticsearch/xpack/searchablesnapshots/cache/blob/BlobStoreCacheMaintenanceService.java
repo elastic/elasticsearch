@@ -19,11 +19,11 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -36,7 +36,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -57,15 +56,13 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheMaintenanceService.class);
 
-    private final ClusterService clusterService;
     private final Client clientWithOrigin;
     private final String systemIndexName;
     private final ThreadPool threadPool;
 
-    public BlobStoreCacheMaintenanceService(ClusterService clusterService, ThreadPool threadPool, Client client, String systemIndexName) {
+    public BlobStoreCacheMaintenanceService(ThreadPool threadPool, Client client, String systemIndexName) {
         this.clientWithOrigin = new OriginSettingClient(Objects.requireNonNull(client), SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.systemIndexName = Objects.requireNonNull(systemIndexName);
-        this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
@@ -75,41 +72,13 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
             return; // state not fully recovered
         }
-        if (event.indicesDeleted() == null || event.indicesDeleted().isEmpty()) {
-            return; // no indices deleted in this cluster state update
-        }
         final ShardRouting primary = systemIndexPrimaryShard(state);
         if (primary == null || Objects.equals(state.nodes().getLocalNodeId(), primary.currentNodeId()) == false) {
             return; // system index primary shard does not exist or is not assigned to this data node
         }
-
-        final Set<MaintenanceTask> tasks = new HashSet<>();
-
-        for (Index deletedIndex : event.indicesDeleted()) {
-            final IndexMetadata indexMetadata = event.previousState().metadata().index(deletedIndex);
-            if (indexMetadata != null) {
-                final Settings indexSetting = indexMetadata.getSettings();
-                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSetting)) {
-                    assert state.metadata().hasIndex(deletedIndex) == false;
-
-                    final SnapshotId snapshotId = new SnapshotId(
-                        SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSetting),
-                        SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSetting)
-                    );
-                    final IndexId indexId = new IndexId(
-                        SNAPSHOT_INDEX_NAME_SETTING.get(indexSetting),
-                        SNAPSHOT_INDEX_ID_SETTING.get(indexSetting)
-                    );
-
-                    // we should do nothing if the current cluster state contains another
-                    // searchable snapshot index that uses the same index snapshot
-                    if (hasSearchableSnapshotWith(state, snapshotId, indexId) == false) {
-                        tasks.add(new MaintenanceTask(snapshotId, indexId, indexMetadata.getNumberOfShards(), clusterService::state));
-                    }
-                }
-            }
+        if (event.indicesDeleted().isEmpty() == false) {
+            threadPool.generic().execute(new MaintenanceTask(event));
         }
-        tasks.forEach(maintenanceTask -> threadPool.generic().execute(maintenanceTask));
     }
 
     @Nullable
@@ -146,84 +115,89 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         return false;
     }
 
+    static QueryBuilder buildDeleteByQuery(int numberOfShards, String snapshotUuid, String indexUuid) {
+        final Set<String> paths = new HashSet<>(numberOfShards);
+        for (int shard = 0; shard < numberOfShards; shard++) {
+            paths.add(String.join("/", snapshotUuid, indexUuid, String.valueOf(shard)));
+        }
+        return QueryBuilders.termsQuery("blob.path", paths);
+    }
+
     private class MaintenanceTask extends AbstractRunnable {
 
-        private final SnapshotId snapshotId;
-        private final IndexId indexId;
-        private final int numberOfShards;
-        private final Supplier<ClusterState> state;
+        private final ClusterChangedEvent event;
 
-        MaintenanceTask(SnapshotId snapshotId, IndexId indexId, int numberOfShards, Supplier<ClusterState> clusterStateSupplier) {
-            this.snapshotId = Objects.requireNonNull(snapshotId);
-            this.indexId = Objects.requireNonNull(indexId);
-            this.numberOfShards = numberOfShards;
-            this.state = clusterStateSupplier;
+        MaintenanceTask(ClusterChangedEvent event) {
+            assert event.indicesDeleted().isEmpty() == false;
+            this.event = Objects.requireNonNull(event);
         }
 
         @Override
         protected void doRun() {
-            if (hasSearchableSnapshotWith(state.get(), snapshotId, indexId)) {
-                logger.debug(
-                    "snapshot blob cache maintenance task skipped, another index is using [snapshot:{}, index:{}]]",
-                    snapshotId,
-                    indexId
-                );
-                return;
-            }
+            final ClusterState state = event.state();
+            for (Index deletedIndex : event.indicesDeleted()) {
+                final IndexMetadata indexMetadata = event.previousState().metadata().index(deletedIndex);
+                if (indexMetadata != null) {
+                    final Settings indexSetting = indexMetadata.getSettings();
+                    if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSetting)) {
+                        assert state.metadata().hasIndex(deletedIndex) == false;
 
-            final Set<String> paths = new HashSet<>(numberOfShards);
-            for (int shard = 0; shard < numberOfShards; shard++) {
-                paths.add(String.join("/", snapshotId.getUUID(), indexId.getId(), String.valueOf(shard)));
-            }
+                        final SnapshotId snapshotId = new SnapshotId(
+                            SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSetting),
+                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSetting)
+                        );
+                        final IndexId indexId = new IndexId(
+                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSetting),
+                            SNAPSHOT_INDEX_ID_SETTING.get(indexSetting)
+                        );
 
-            final DeleteByQueryRequest request = new DeleteByQueryRequest(systemIndexName);
-            request.setQuery(QueryBuilders.termsQuery("blob.path", paths));
-            clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
-                @Override
-                public void onResponse(BulkByScrollResponse response) {
-                    logger.debug(
-                        "snapshot blob cache maintenance task deleted [{}] documents for [snapshot:{}, index:{}]]",
-                        response.getDeleted(),
-                        snapshotId,
-                        indexId
-                    );
+                        // we should do nothing if the current cluster state contains another
+                        // searchable snapshot index that uses the same index snapshot
+                        if (hasSearchableSnapshotWith(state, snapshotId, indexId)) {
+                            logger.debug(
+                                "snapshot [{}] of index {} is in use, skipping maintenance of snapshot blob cache entries",
+                                snapshotId,
+                                indexId
+                            );
+                            continue;
+                        }
+
+                        final DeleteByQueryRequest request = new DeleteByQueryRequest(systemIndexName);
+                        request.setQuery(buildDeleteByQuery(indexMetadata.getNumberOfShards(), snapshotId.getUUID(), indexId.getId()));
+                        clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
+                            @Override
+                            public void onResponse(BulkByScrollResponse response) {
+                                logger.debug(
+                                    "snapshot blob cache maintenance task deleted [{}] documents for snapshot [{}] of index {}",
+                                    response.getDeleted(),
+                                    snapshotId,
+                                    indexId
+                                );
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.debug(
+                                    () -> new ParameterizedMessage(
+                                        "exception when executing snapshot blob cache maintenance task for snapshot [{}] of index {}",
+                                        snapshotId,
+                                        indexId
+                                    ),
+                                    e
+                                );
+                            }
+                        });
+                    }
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn(
-                        () -> new ParameterizedMessage(
-                            "exception when executing snapshot blob cache maintenance task for [snapshot:{}, index:{}]]",
-                            snapshotId,
-                            indexId
-                        ),
-                        e
-                    );
-                }
-            });
+            }
         }
 
         @Override
         public void onFailure(Exception e) {
             logger.warn(
-                () -> new ParameterizedMessage("snapshot blob cache maintenance task [snapshot:{}, index:{}]] failed", snapshotId, indexId),
+                () -> new ParameterizedMessage("snapshot blob cache maintenance task failed for cluster state update [{}]", event.source()),
                 e
             );
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            MaintenanceTask that = (MaintenanceTask) o;
-            return numberOfShards == that.numberOfShards
-                && Objects.equals(snapshotId, that.snapshotId)
-                && Objects.equals(indexId, that.indexId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(snapshotId, indexId, numberOfShards);
         }
     }
 }

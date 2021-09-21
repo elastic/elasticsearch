@@ -348,7 +348,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 threadPool::absoluteTimeInMillis
             );
             this.blobStoreCacheService.set(blobStoreCacheService);
-            clusterService.addListener(new BlobStoreCacheMaintenanceService(clusterService, threadPool, client, SNAPSHOT_BLOB_CACHE_INDEX));
+            clusterService.addListener(new BlobStoreCacheMaintenanceService(threadPool, client, SNAPSHOT_BLOB_CACHE_INDEX));
             components.add(blobStoreCacheService);
         } else {
             PersistentCache.cleanUp(settings, nodeEnvironment);

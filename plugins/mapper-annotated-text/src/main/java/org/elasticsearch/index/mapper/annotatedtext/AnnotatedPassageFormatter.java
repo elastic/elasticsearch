@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.fetch.subphase.highlight;
+package org.elasticsearch.index.mapper.annotatedtext;
 
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.Passage;
@@ -14,6 +14,7 @@ import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;

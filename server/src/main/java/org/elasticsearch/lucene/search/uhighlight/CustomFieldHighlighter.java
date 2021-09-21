@@ -6,9 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.apache.lucene.search.uhighlight;
+package org.elasticsearch.lucene.search.uhighlight;
 
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.uhighlight.FieldHighlighter;
+import org.apache.lucene.search.uhighlight.FieldOffsetStrategy;
+import org.apache.lucene.search.uhighlight.OffsetsEnum;
+import org.apache.lucene.search.uhighlight.Passage;
+import org.apache.lucene.search.uhighlight.PassageFormatter;
+import org.apache.lucene.search.uhighlight.PassageScorer;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
@@ -18,7 +24,7 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.PriorityQueue;
 
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
+import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 /**
  * Custom {@link FieldHighlighter} that creates a single passage bounded to {@code noMatchSize} when
@@ -39,6 +45,10 @@ class CustomFieldHighlighter extends FieldHighlighter {
             maxNoHighlightPassages, passageFormatter);
         this.breakIteratorLocale = breakIteratorLocale;
         this.noMatchSize = noMatchSize;
+    }
+
+    FieldOffsetStrategy getFieldOffsetStrategy() {
+        return fieldOffsetStrategy;
     }
 
     @Override

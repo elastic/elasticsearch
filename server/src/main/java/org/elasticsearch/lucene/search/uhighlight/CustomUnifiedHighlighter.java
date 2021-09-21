@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.apache.lucene.search.uhighlight;
+package org.elasticsearch.lucene.search.uhighlight;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.LeafReader;
@@ -19,6 +19,14 @@ import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.uhighlight.FieldOffsetStrategy;
+import org.apache.lucene.search.uhighlight.LabelledCharArrayMatcher;
+import org.apache.lucene.search.uhighlight.NoOpOffsetStrategy;
+import org.apache.lucene.search.uhighlight.PassageFormatter;
+import org.apache.lucene.search.uhighlight.PhraseHelper;
+import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
+import org.apache.lucene.search.uhighlight.UHComponents;
+import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -55,7 +63,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final String field;
     private final Locale breakIteratorLocale;
     private final int noMatchSize;
-    private final FieldHighlighter fieldHighlighter;
+    private final CustomFieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
     private final Integer queryMaxAnalyzedOffset;
 
@@ -109,7 +117,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * Highlights the field value.
      */
     public Snippet[] highlightField(LeafReader reader, int docId, CheckedSupplier<String, IOException> loadFieldValue) throws IOException {
-        if (fieldHighlighter.fieldOffsetStrategy == NoOpOffsetStrategy.INSTANCE && noMatchSize == 0) {
+        if (fieldHighlighter.getFieldOffsetStrategy() == NoOpOffsetStrategy.INSTANCE && noMatchSize == 0) {
             // If the query is such that there can't possibly be any matches then skip doing *everything*
             return EMPTY_SNIPPET;
         }
@@ -146,7 +154,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     }
 
     @Override
-    protected FieldHighlighter getFieldHighlighter(String field, Query query, Set<Term> allTerms, int maxPassages) {
+    protected CustomFieldHighlighter getFieldHighlighter(String field, Query query, Set<Term> allTerms, int maxPassages) {
         Predicate<String> fieldMatcher = getFieldMatcher(field);
         BytesRef[] terms = filterExtractedTerms(fieldMatcher, allTerms);
         Set<HighlightFlag> highlightFlags = getFlags(field);

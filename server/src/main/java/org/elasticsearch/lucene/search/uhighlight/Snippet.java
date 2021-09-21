@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.apache.lucene.search.uhighlight;
+package org.elasticsearch.lucene.search.uhighlight;
 
 /**
  * Represents a scored highlighted snippet.

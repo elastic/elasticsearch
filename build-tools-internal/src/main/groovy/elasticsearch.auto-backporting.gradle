@@ -1,0 +1,55 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+
+import org.elasticsearch.gradle.internal.rewrite.RewritePlugin
+
+allprojects {
+    apply plugin: 'elasticsearch.rewrite'
+    rewrite {
+        rewriteVersion = "7.11.0"
+        activeRecipe("org.elasticsearch.java.backport.ListOfBackport",
+                "org.elasticsearch.java.backport.MapOfBackport",
+                "org.elasticsearch.java.backport.SetOfBackport")
+        configFile = rootProject.file("rewrite.yml")
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    configurations {
+        rewrite {
+            resolutionStrategy {
+                force 'org.jetbrains:annotations:21.0.1'
+                force 'org.slf4j:slf4j-api:1.7.31'
+                force 'org.jetbrains.kotlin:kotlin-stdlib:1.5.10'
+                force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.5.10'
+            }
+        }
+    }
+
+    dependencies {
+        rewrite "org.openrewrite:rewrite-java-11"
+        rewrite "org.openrewrite:rewrite-java"
+    }
+
+    if (gradle.getStartParameter().getTaskNames().any { it.endsWith(RewritePlugin.REWRITE_TASKNAME) }) {
+        afterEvaluate {
+            def java = project.getExtensions().findByType(JavaPluginExtension.class);
+            if (java) {
+                java.setSourceCompatibility(JavaVersion.VERSION_11)
+                java.setTargetCompatibility(JavaVersion.VERSION_11)
+            }
+        }
+    }
+
+    tasks.named('rewrite').configure {rewrite ->
+        rewrite.getMaxHeapSize().set("2g")
+    }
+}

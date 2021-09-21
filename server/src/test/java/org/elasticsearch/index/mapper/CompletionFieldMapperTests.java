@@ -14,7 +14,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -124,7 +124,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMappingPostingFormatCodec.class));
         PerFieldMappingPostingFormatCodec perFieldCodec = (PerFieldMappingPostingFormatCodec) codec;
-        assertThat(perFieldCodec.getPostingsFormatForField("field"), instanceOf(Completion84PostingsFormat.class));
+        assertThat(perFieldCodec.getPostingsFormatForField("field"), instanceOf(Completion90PostingsFormat.class));
     }
 
     public void testDefaultConfiguration() throws IOException {

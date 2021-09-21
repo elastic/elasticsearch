@@ -11,5 +11,5 @@ package org.elasticsearch.client.migration;
 import org.elasticsearch.client.TimedRequest;
 
 public class GetFeatureUpgradeStatusRequest extends TimedRequest {
-    // TODO
+
 }

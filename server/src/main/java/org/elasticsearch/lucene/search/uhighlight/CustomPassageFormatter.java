@@ -6,9 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.apache.lucene.search.uhighlight;
+package org.elasticsearch.lucene.search.uhighlight;
 
 import org.apache.lucene.search.highlight.Encoder;
+import org.apache.lucene.search.uhighlight.Passage;
+import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 
 /**

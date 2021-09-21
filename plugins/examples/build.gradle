@@ -13,6 +13,11 @@ buildscript {
 }
 
 subprojects {
+  apply plugin: 'java'
+
+  sourceCompatibility = 11
+  targetCompatibility = 11
+
   repositories {
     // Only necessary when building plugins against SNAPSHOT versions of Elasticsearch
     maven {

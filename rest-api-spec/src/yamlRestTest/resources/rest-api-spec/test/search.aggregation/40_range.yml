@@ -11,6 +11,8 @@ setup:
                   type: double
                 long:
                   type: long
+                float:
+                  type: float
 
   - do:
       cluster.health:
@@ -22,14 +24,39 @@ setup:
         refresh: true
         body:
          - {"index": {}}
-         - { "double" : 42.1, "long": 25 }
+         - { "double" : 42.1, "long": 25, "float": 0.1 }
          - {"index": {}}
-         - { "double" : 100.7, "long": 80 }
+         - { "double" : 100.7, "long": 80, "float": 0.3 }
          - {"index": {}}
-         - { "double" : 50.5, "long":  75}
+         - { "double" : 50.5, "long":  75, "float": 0.4 }
 # For testing missing values
          - {"index": {}}
          - {}
+
+---
+# Regression test for 77033
+"Float Endpoint Exclusive":
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            double_range:
+              range:
+                field: "float"
+                ranges:
+                  -
+                    from: 0
+                    to: 0.4
+                  - from: 0.4
+                    to: 1.0
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.double_range.buckets: 2 }
+  - match: { aggregations.double_range.buckets.0.key: "0.0-0.4" }
+  - match: { aggregations.double_range.buckets.0.doc_count: 2 }
+  - match: { aggregations.double_range.buckets.1.key: "0.4-1.0" }
+  - match: { aggregations.double_range.buckets.1.doc_count: 1 }
 
 ---
 "Double range":

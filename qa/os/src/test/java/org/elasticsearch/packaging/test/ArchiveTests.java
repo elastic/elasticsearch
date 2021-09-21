@@ -160,7 +160,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
-        installation = installArchive(sh, distribution());
         Path tempDir = createTempDir("bc-backup");
         Files.move(installation.lib.resolve("tools/security-cli/bcprov-jdk15on-1.64.jar"), tempDir.resolve("bcprov-jdk15on-1.64.jar"));
         Shell.Result result = runElasticsearchStartCommand(null, false, false);

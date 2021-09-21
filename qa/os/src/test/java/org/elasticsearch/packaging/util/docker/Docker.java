@@ -44,6 +44,7 @@ import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.p444;
 import static org.elasticsearch.packaging.util.FileMatcher.p555;
+import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
@@ -438,7 +439,7 @@ public class Docker {
             .forEach(configFile -> assertThat(es.config(configFile), file("root", "root", p664)));
         // We write to the elasticsearch.yml and elasticsearch.keystore in ConfigInitialNode so it gets owned by elasticsearch.
         assertThat(es.config("elasticsearch.yml"), file("elasticsearch", "root", p664));
-        assertThat(es.config("elasticsearch.keystore"), file("elasticsearch", "root", p664));
+        assertThat(es.config("elasticsearch.keystore"), file("elasticsearch", "root", p660));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc")
             .forEach(doc -> assertThat(es.home.resolve(doc), file("root", "root", p444)));

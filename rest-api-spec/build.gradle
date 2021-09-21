@@ -1,5 +1,4 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.OS
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
@@ -84,6 +83,9 @@ tasks.named("yamlRestTestV7CompatTest").configure {
             'indices.stats/20_translog/Translog retention settings are deprecated',
             'indices.stats/20_translog/Translog retention without soft_deletes',
             'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
+
+            // field usage results will be different between lucene versions
+            'indices.stats/60_field_usage/*',
 
             // upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex
             'indices.upgrade/*/*',
@@ -220,6 +222,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
     "_all.primaries.indexing.types._doc.index_total"
   )
   task.replaceValueInMatch("_all.primaries.indexing.types._doc.index_total", 2)
+  // points get touched by sorting in ES 8
+  task.replaceValueInMatch("testindex.shards.0.stats.fields.price.points", 1)
 
   //override for "indices.open/10_basic/?wait_for_active_shards default is deprecated" and "indices.open/10_basic/?wait_for_active_shards=index-setting"
   task.addAllowedWarningRegexForTest("\\?wait_for_active_shards=index-setting is now the default behaviour.*", "?wait_for_active_shards=index-setting")

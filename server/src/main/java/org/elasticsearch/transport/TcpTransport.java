@@ -272,7 +272,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             throw new ConnectTransportException(null, "can't open connection to a null node");
         }
         ConnectionProfile finalProfile = maybeOverrideConnectionProfile(profile);
-        closeLock.readLock().lock(); // ensure we don't open connections while we are closing
+        if (closeLock.readLock().tryLock() == false) {
+            ensureOpen();
+            assert false : "should not get here ever because close-write-lock should only be held on shutdown";
+            throw new ConnectTransportException(node, "failed to acquire close-read-lock");
+        }
         try {
             ensureOpen();
             initiateConnection(node, finalProfile, listener);
@@ -379,7 +383,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
-        closeLock.writeLock().lock();
+        if (closeLock.writeLock().tryLock() == false) {
+            assert false; // can't be concurrently stopping and mustn't be opening any connections yet
+            throw new IllegalStateException("failed to acquire close-write-lock");
+        }
         try {
             // No need for locking here since Lifecycle objects can't move from STARTED to INITIALIZED
             if (lifecycle.initialized() == false && lifecycle.started() == false) {

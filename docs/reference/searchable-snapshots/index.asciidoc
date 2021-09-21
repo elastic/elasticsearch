@@ -199,6 +199,51 @@ IMPORTANT: You can only configure these settings on nodes with the
 cache can only have a single <<path-settings,data path>>.
 
 [discrete]
+[[searchable-snapshots-costs]]
+=== Reduce costs with {search-snaps}
+
+In most cases, {search-snaps} reduce the costs of running a cluster by removing
+the need for replica shards  and for shard data to be copied between
+nodes. However, if it's particularly expensive to retrieve data from a snapshot
+repository in your environment, {search-snaps} may be more costly than
+regular indices. Ensure that the cost structure of your operating environment is
+compatible with {search-snaps} before using them.
+
+[discrete]
+[[searchable-snapshots-costs-replicas]]
+==== Replica costs
+
+For resiliency, a regular index requires multiple redundant copies of each shard
+across multiple nodes. If a node fails, {es} uses the redundancy to rebuild any
+lost shard copies. A {search-snap} index doesn't require replicas. If a node
+containing a {search-snap} index fails, {es} can rebuild the lost shard copy
+from the snapshot repository.
+
+Without replicas, rarely-accessed {search-snap} indices require far fewer
+resources. A cold data tier that contains replica-free fully-mounted
+{search-snap} indices requires half the nodes and disk space of a tier
+containing the same data in regular indices. The frozen tier, which contains
+only partially-mounted {search-snap} indices, requires even fewer resources.
+
+[discrete]
+[[snapshot-retrieval-costs]]
+==== Data transfer costs
+
+When a shard of a regular index is moved between nodes, its contents are copied
+from another node in your cluster. In many environments, the costs of moving data
+between nodes are significant, especially if running in a Cloud environment with
+nodes in different zones. In contrast, when mounting a {search-snap} index or
+moving one of its shards, the data is always copied from the snapshot repository.
+This is typically much cheaper.
+
+WARNING: Most cloud providers charge significant fees for data transferred
+between regions and for data transferred out of their platforms. You should only
+mount snapshots into a cluster that is in the same region as the snapshot
+repository. If you wish to search data across multiple regions, configure
+multiple clusters and use <<modules-cross-cluster-search,{ccs}>> or
+<<xpack-ccr,{ccr}>> instead of {search-snaps}.
+
+[discrete]
 [[back-up-restore-searchable-snapshots]]
 === Back up and restore {search-snaps}
 

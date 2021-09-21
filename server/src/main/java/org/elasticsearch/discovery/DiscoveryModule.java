@@ -70,7 +70,7 @@ public class DiscoveryModule {
     public static final Setting<String> ELECTION_STRATEGY_SETTING =
         new Setting<>("cluster.election.strategy", DEFAULT_ELECTION_STRATEGY, Function.identity(), Property.NodeScope);
 
-    private final Discovery discovery;
+    private final Coordinator coordinator;
 
     public DiscoveryModule(
         Settings settings,
@@ -145,7 +145,7 @@ public class DiscoveryModule {
         }
 
         if (ZEN2_DISCOVERY_TYPE.equals(discoveryType) || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
-            discovery = new Coordinator(
+            coordinator = new Coordinator(
                 NODE_NAME_SETTING.get(settings),
                 settings,
                 clusterSettings,
@@ -173,7 +173,7 @@ public class DiscoveryModule {
         return SINGLE_NODE_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(settings));
     }
 
-    public Discovery getDiscovery() {
-        return discovery;
+    public Coordinator getCoordinator() {
+        return coordinator;
     }
 }

@@ -1,8 +1,6 @@
 [[setup]]
 = Set up {es}
 
-[partintro]
---
 This section includes information on how to setup Elasticsearch and get it
 running, including:
 
@@ -35,7 +33,15 @@ https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
 Elasticsearch will refuse to start if a known-bad version of Java is used.
 The bundled JVM directory may be removed when using your own JVM.
 
---
+[discrete]
+[[dedicated-host]]
+== Use a dedicated host
+
+In production, we recommend you run {es} on a dedicated host or as a primary
+service. Several {es} features, such as automatic JVM heap sizing, assume it's
+the only resource-intensive application on the host or container. For example,
+you might run {metricbeat} alongside {es} for cluster statistics, but a
+resource-heavy {ls} deployment should be on its own host.
 
 include::setup/install.asciidoc[]
 

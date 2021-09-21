@@ -384,6 +384,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
         if (closeLock.writeLock().tryLock() == false) {
+            assert false; // can't be concurrently stopping and mustn't be opening any connections yet
             throw new IllegalStateException("failed to acquire close-write-lock");
         }
         try {

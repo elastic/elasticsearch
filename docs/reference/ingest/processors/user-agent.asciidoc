@@ -23,7 +23,7 @@ The ingest-user-agent module ships by default with the regexes.yaml made availab
 | `properties`           | no        | [`name`, `major`, `minor`, `patch`, `build`, `os`, `os_name`, `os_major`, `os_minor`, `device`] | Controls what properties are added to `target_field`.
 | `extract_device_type`  | no        | `false`                                                                                         | beta:[] Extracts device type from the user agent string on a best-effort basis.
 | `ignore_missing`       | no        | `false`                                                                                         | If `true` and `field` does not exist, the processor quietly exits without modifying the document
-| `ecs`                  | no        | `true`                                                                                         | Whether to return the output in Elastic Common Schema format. NOTE: This setting is deprecated and will be removed in a future version.
+| `ecs`                  | no        | `true`                                                                                         | deprecated:[7.2] Whether to return the output in Elastic Common Schema format.
 |======
 
 Here is an example that adds the user agent details to the `user_agent` field based on the `agent` field:

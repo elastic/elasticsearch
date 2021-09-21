@@ -72,6 +72,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
@@ -162,7 +163,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             "_scrollId1", 1, 1, 0, 1, null, null));
 
         final Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = future.get(1, TimeUnit.SECONDS);
-        assertThat(applicationPrivilegeDescriptors.size(), equalTo(0));
+        assertThat(applicationPrivilegeDescriptors, empty());
     }
 
     public void testGetPrivilegesByApplicationName() throws Exception {

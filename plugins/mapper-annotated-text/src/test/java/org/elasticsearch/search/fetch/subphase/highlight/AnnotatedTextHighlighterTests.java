@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
+import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 import java.net.URLEncoder;
@@ -36,8 +36,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
-import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
-import org.apache.lucene.search.uhighlight.Snippet;
+import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;

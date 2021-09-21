@@ -9,6 +9,9 @@ your application to Elasticsearch 7.2.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+* <<breaking_72_discovery_changes>>
+* <<breaking_72_ilm_deprecations>>
+
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
@@ -41,4 +44,16 @@ be removed in 8.0. In 8.x, the `user_agent` ingest processor will only return
 
 To avoid deprecation warnings, remove the parameter from your ingest pipelines.
 
+[[breaking_72_ilm_deprecations]]
+=== {ilm-cap} ({ilm-init}) deprecations
+
+[discrete]
+[[deprecate-ilm-poll-interval-1s]]
+==== An {ilm-init} poll interval of less than one second is deprecated.
+
+Setting `indices.lifecycle.poll_interval` to less than one second (`1s`) is now
+deprecated. If the `indices.lifecycle.poll_interval` cluster setting is too low,
+it can cause excessive load on a cluster.
+
+To avoid deprecation warnings, use a setting value of `1s` or greater.
 // end::notable-breaking-changes[]

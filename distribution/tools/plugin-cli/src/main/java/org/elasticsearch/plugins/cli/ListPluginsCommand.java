@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugins.cli;
 
 import joptsimple.OptionSet;
 
@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;

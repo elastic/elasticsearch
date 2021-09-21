@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
@@ -236,6 +236,23 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 assertNull(validationErrors);
             }
         }
+        {
+            // "enable_fields_emulation" should only work for qtf search type
+            SearchRequest searchRequest = new SearchRequest();
+            if (randomBoolean()) {
+                // this should already be the default, but also randomly explicitely set it
+                searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
+            }
+            searchRequest.setFieldsOptionEmulationEnabled(true);
+            assertNull(searchRequest.validate());
+
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[enable_fields_emulation] cannot be used with [dfs_query_then_fetch] search type. Use the default "
+                + "[query_then_fetch] search type instead.", validationErrors.validationErrors().get(0));
+        }
     }
 
     public void testCopyConstructor() throws IOException {
@@ -247,7 +264,12 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testEqualsAndHashcode() throws IOException {
-        checkEqualsAndHashCode(createSearchRequest(), SearchRequest::new, this::mutate);
+        SearchRequest searchRequest = createSearchRequest();
+        // test fields emulation flag here since its part of equals/hashcode but not serialized
+        if (randomBoolean()) {
+            searchRequest.setFieldsOptionEmulationEnabled(randomBoolean());
+        }
+        checkEqualsAndHashCode(searchRequest, SearchRequest::new, this::mutate);
     }
 
     private SearchRequest mutate(SearchRequest searchRequest) {
@@ -266,6 +288,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
+        mutators.add(() -> mutation.setFieldsOptionEmulationEnabled(searchRequest.isFieldsOptionEmulationEnabled() == false));
         randomFrom(mutators).run();
         return mutation;
     }

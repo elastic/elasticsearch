@@ -63,8 +63,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildDnFromDomain;
-
 /**
  * Configures a new cluster node, by appending to the elasticsearch.yml, so that it forms a single node cluster with
  * Security enabled. Used to configure only the initial node of a cluster, and only before the first time that the node
@@ -156,17 +154,17 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
             if (view != null) {
                 view.setPermissions(PosixFilePermissions.fromString("rwxr-x---"));
             }
-        } catch (Exception e) {
+        } catch(Throwable t) {
             try {
                 deleteDirectory(instantAutoConfigDir);
             } catch (Exception ex) {
-                e.addSuppressed(ex);
+                t.addSuppressed(ex);
             }
             // the config dir is probably read-only, either because this auto-configuration runs as a different user from the install user,
             // or if the admin explicitly makes configuration immutable (read-only), both of which are reasons to skip auto-configuration
             // this will show a message to the console (the first time the node starts) and auto-configuration is effectively bypassed
             // the message will not be subsequently shown (because auto-configuration doesn't run for node restarts)
-            throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory", e);
+            throw new UserException(ExitCodes.CANT_CREATE, "Could not create auto configuration directory", t);
         }
 
         // Check that the created auto-config dir has the same owner as the config dir.
@@ -187,7 +185,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         final X509Certificate httpCert;
         try {
             // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
-            final X500Principal certificatePrincipal = new X500Principal(buildDnFromDomain(System.getenv("HOSTNAME")));
+            final X500Principal certificatePrincipal = new X500Principal("CN="+System.getenv("HOSTNAME"));
             final X500Principal caPrincipal = new X500Principal(AUTO_CONFIG_ALT_DN);
             // this does DNS resolve and could block
             final GeneralNames subjectAltNames = getSubjectAltNames();
@@ -214,11 +212,11 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                     pemWriter.writeObject(httpCACert);
                 }
             });
-        } catch (Exception e) {
+        } catch(Throwable t) {
             deleteDirectory(instantAutoConfigDir);
             // this is an error which mustn't be ignored during node startup
             // the exit code for unhandled Exceptions is "1"
-            throw e;
+            throw t;
         }
 
         // save original keystore before updating (replacing)
@@ -227,13 +225,13 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         if (Files.exists(keystorePath)) {
             try {
                 Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
-            } catch (Exception e) {
+            } catch(Throwable t) {
                 try {
                     deleteDirectory(instantAutoConfigDir);
                 } catch (Exception ex) {
-                    e.addSuppressed(ex);
+                    t.addSuppressed(ex);
                 }
-                throw e;
+                throw t;
             }
         }
 
@@ -304,7 +302,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
             }
             // finally overwrites the node keystore (if the keystores have been successfully written)
             nodeKeystore.save(env.configFile(), nodeKeystorePassword.get() == null ? new char[0] : nodeKeystorePassword.get().getChars());
-        } catch (Exception e) {
+        } catch(Throwable t) {
             // restore keystore to revert possible keystore bootstrap
             try {
                 if (Files.exists(keystoreBackupPath)) {
@@ -313,14 +311,14 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                     Files.deleteIfExists(keystorePath);
                 }
             } catch (Exception ex) {
-                e.addSuppressed(ex);
+                t.addSuppressed(ex);
             }
             try {
                 deleteDirectory(instantAutoConfigDir);
             } catch (Exception ex) {
-                e.addSuppressed(ex);
+                t.addSuppressed(ex);
             }
-            throw e;
+            throw t;
         } finally {
             if (nodeKeystorePassword.get() != null) {
                 nodeKeystorePassword.get().close();
@@ -423,7 +421,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                     }
                 }
             });
-        } catch (Exception e) {
+        } catch(Throwable t) {
             try {
                 if (Files.exists(keystoreBackupPath)) {
                     Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
@@ -432,14 +430,14 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                     Files.deleteIfExists(keystorePath);
                 }
             } catch (Exception ex) {
-                e.addSuppressed(ex);
+                t.addSuppressed(ex);
             }
             try {
                 deleteDirectory(instantAutoConfigDir);
             } catch (Exception ex) {
-                e.addSuppressed(ex);
+                t.addSuppressed(ex);
             }
-            throw e;
+            throw t;
         }
         // only delete the backed up file if all went well
         Files.deleteIfExists(keystoreBackupPath);
@@ -450,18 +448,14 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         FileUtils.deleteDirectory(directory.toFile());
     }
 
-    @SuppressForbidden(reason = "DNS resolve InetAddress#getCanonicalHostName used to populate auto generated HTTPS cert")
     private GeneralNames getSubjectAltNames() throws IOException {
         Set<GeneralName> generalNameSet = new HashSet<>();
         for (InetAddress ip : NetworkUtils.getAllAddresses()) {
             String ipString = NetworkAddress.format(ip);
             generalNameSet.add(new GeneralName(GeneralName.iPAddress, ipString));
-            String reverseFQDN = ip.getCanonicalHostName();
-            if (false == ipString.equals(reverseFQDN)) {
-                // reverse FQDN successful
-                generalNameSet.add(new GeneralName(GeneralName.dNSName, reverseFQDN));
-            }
         }
+        generalNameSet.add(new GeneralName(GeneralName.dNSName, "localhost"));
+        generalNameSet.add(new GeneralName(GeneralName.dNSName, System.getenv("HOSTNAME")));
         return new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
     }
 

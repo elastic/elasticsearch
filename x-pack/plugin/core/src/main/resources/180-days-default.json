@@ -9,6 +9,7 @@
       }
     },
     "warm": {
+      "min_age": "2d",
       "actions": {
         "shrink": {
           "number_of_shards": 1
@@ -23,14 +24,14 @@
       "actions": {}
     },
     "delete": {
-      "min_age": "365d",
+      "min_age": "180d",
       "actions":{
         "delete": {}
       }
     }
   },
   "_meta": {
-    "description": "built-in ILM policy using the hot, warm, and cold phases with a retention of 365 days",
+    "description": "built-in ILM policy using the hot, warm, and cold phases with a retention of 180 days",
     "managed": true
   }
 }

@@ -4,11 +4,12 @@
       "actions": {
         "rollover": {
           "max_primary_shard_size": "50gb",
-          "max_age": "30d"
+          "max_age": "7d"
         }
       }
     },
     "warm": {
+      "min_age": "2d",
       "actions": {
         "shrink": {
           "number_of_shards": 1
@@ -18,19 +19,15 @@
         }
       }
     },
-    "cold": {
-      "min_age": "30d",
-      "actions": {}
-    },
     "delete": {
-      "min_age": "180d",
+      "min_age": "7d",
       "actions":{
         "delete": {}
       }
     }
   },
   "_meta": {
-    "description": "built-in ILM policy using the hot, warm, and cold phases with a retention of 180 days",
+    "description": "built-in ILM policy using the hot and warm phases with a retention of 7 days",
     "managed": true
   }
 }

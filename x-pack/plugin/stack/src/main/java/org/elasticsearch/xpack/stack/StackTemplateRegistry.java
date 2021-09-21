@@ -56,11 +56,11 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     // Built in ILM policies for users to use
     //////////////////////////////////////////////////////////
-    public static final String ILM_7_DAYS_POLICY_NAME = "7-days-hot-warm";
-    public static final String ILM_30_DAYS_POLICY_NAME = "30-days-hot-warm";
-    public static final String ILM_90_DAYS_POLICY_NAME = "90-days-hot-warm-cold";
-    public static final String ILM_180_DAYS_POLICY_NAME = "180-days-hot-warm-cold";
-    public static final String ILM_365_DAYS_POLICY_NAME = "365-days-hot-warm-cold";
+    public static final String ILM_7_DAYS_POLICY_NAME = "7-days-default";
+    public static final String ILM_30_DAYS_POLICY_NAME = "30-days-default";
+    public static final String ILM_90_DAYS_POLICY_NAME = "90-days-default";
+    public static final String ILM_180_DAYS_POLICY_NAME = "180-days-default";
+    public static final String ILM_365_DAYS_POLICY_NAME = "365-days-default";
 
     public static final LifecyclePolicyConfig ILM_7_DAYS_POLICY = new LifecyclePolicyConfig(
         ILM_7_DAYS_POLICY_NAME,

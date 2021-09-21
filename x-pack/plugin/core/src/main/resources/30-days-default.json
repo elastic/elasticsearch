@@ -9,6 +9,7 @@
       }
     },
     "warm": {
+      "min_age": "2d",
       "actions": {
         "shrink": {
           "number_of_shards": 1

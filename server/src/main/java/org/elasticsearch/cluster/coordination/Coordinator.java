@@ -603,27 +603,28 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void sendJoinPing(DiscoveryNode discoveryNode, TransportRequestOptions.Type channelType, ActionListener<Empty> listener) {
-        if (discoveryNode.getVersion().onOrAfter(Version.V_7_16_0) && isZen1Node(discoveryNode) == false) {
-            transportService.sendRequest(
-                discoveryNode,
-                JoinHelper.JOIN_PING_ACTION_NAME,
-                TransportRequest.Empty.INSTANCE,
-                TransportRequestOptions.of(null, channelType),
-                new ActionListenerResponseHandler<>(
-                    listener.delegateResponse((l, e) -> {
-                        logger.warn(
-                            () -> new ParameterizedMessage(
-                                "failed to ping joining node [{}] on channel type [{}]",
-                                discoveryNode,
-                                channelType),
-                            e);
-                        listener.onFailure(new IllegalStateException("failure when sending a join ping request to node", e));
-                    }),
-                    i -> Empty.INSTANCE,
-                    Names.GENERIC));
-        } else {
+        if (discoveryNode.getVersion().before(Version.V_7_16_0) || isZen1Node(discoveryNode)) {
             listener.onResponse(Empty.INSTANCE);
+            return;
         }
+
+        transportService.sendRequest(
+            discoveryNode,
+            JoinHelper.JOIN_PING_ACTION_NAME,
+            TransportRequest.Empty.INSTANCE,
+            TransportRequestOptions.of(null, channelType),
+            new ActionListenerResponseHandler<>(
+                listener.delegateResponse((l, e) -> {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "failed to ping joining node [{}] on channel type [{}]",
+                            discoveryNode,
+                            channelType),
+                        e);
+                    listener.onFailure(new IllegalStateException("failure when sending a join ping request to node", e));
+                }),
+                i -> Empty.INSTANCE,
+                Names.GENERIC));
     }
 
     private void processJoinRequest(JoinRequest joinRequest, ActionListener<Void> joinListener) {

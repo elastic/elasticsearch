@@ -56,7 +56,7 @@ public class TextEmbeddingResults implements InferenceResults {
 
     @Override
     public Map<String, Object> asMap() {
-        Map<String, Object> map = new LinkedHashMap<>();
+        return Collections.singletonMap(DEFAULT_RESULTS_FIELD, inference);
         map.put(DEFAULT_RESULTS_FIELD, inference);
         return map;
     }

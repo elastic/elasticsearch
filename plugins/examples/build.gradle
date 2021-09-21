@@ -2,7 +2,6 @@ import org.elasticsearch.gradle.VersionProperties
 
 buildscript {
   repositories {
-    mavenLocal()
     maven {
       url = 'https://snapshots.elastic.co/maven/'
     }
@@ -15,7 +14,6 @@ buildscript {
 
 subprojects {
   repositories {
-    mavenLocal()
     // Only necessary when building plugins against SNAPSHOT versions of Elasticsearch
     maven {
       url = 'https://snapshots.elastic.co/maven/'

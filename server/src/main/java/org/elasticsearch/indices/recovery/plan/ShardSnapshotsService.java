@@ -132,8 +132,9 @@ public class ShardSnapshotsService {
             // If the snapshot is taken using a Lucene version that this node cannot read
             // (i.e. the snapshot was taken in a node with version > than this node version)
             // reading the segment commit information could likely fail and we won't be able
-            // to recover from a snapshot. This should be a rare edge-case since for most cases
-            // the allocation deciders won't allow allocating replicas in nodes with older versions.
+            // to recover from a snapshot.
+            // This should be a rare edge-case since the allocation deciders won't allow allocating
+            // primaries in nodes with older versions.
             //
             // One possible scenario that could lead to having a snapshot taken in a newer node (credits to Henning):
             // 1. We have a primary and a replica.

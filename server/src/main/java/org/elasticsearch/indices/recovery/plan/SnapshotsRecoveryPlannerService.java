@@ -129,7 +129,9 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
     private boolean isSnapshotVersionCompatible(ShardSnapshot snapshot) {
         Version commitVersion = snapshot.getCommitVersion();
         // if the snapshotVersion == null that means that the snapshot was taken in a version <= 7.15,
-        // therefore we can safely use that snapshot.
+        // therefore we can safely use that snapshot. Since this runs on the shard primary and
+        // NodeVersionAllocationDecider ensures that we only recover to a node that has newer or
+        // same version.
         if (commitVersion == null) {
             assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
             return Version.CURRENT.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());

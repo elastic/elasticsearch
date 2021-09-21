@@ -21,7 +21,7 @@ public class PutTrainedModelActionRequestTests extends AbstractWireSerializingTe
     protected Request createTestInstance() {
         String modelId = randomAlphaOfLength(10);
         return new Request(
-            TrainedModelConfigTests.createTestInstance(modelId)
+            TrainedModelConfigTests.createTestInstance(modelId, false)
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .build(),
             randomBoolean()

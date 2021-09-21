@@ -70,6 +70,7 @@ public class RestVectorTileAction extends BaseRestHandler {
 
     private static final String COUNT_TAG = "_count";
     private static final String ID_TAG = "_id";
+    private static final String INDEX_TAG = "_index";
 
     // mime type as defined by the mapbox vector tile specification
     private static final String MIME_TYPE = "application/vnd.mapbox-vector-tile";
@@ -205,9 +206,9 @@ public class RestVectorTileAction extends BaseRestHandler {
                 tileAggBuilder.subAggregations(request.getAggBuilder());
                 final Collection<AggregationBuilder> aggregations = otherAggBuilder.getAggregatorFactories();
                 for (AggregationBuilder aggregation : aggregations) {
-                    searchRequestBuilder.addAggregation(
-                        new StatsBucketPipelineAggregationBuilder(aggregation.getName(), GRID_FIELD + ">" + aggregation.getName())
-                    );
+                    // we add the metric (.value) to the path in order to support aggregation names with '.'
+                    final String bucketPath = GRID_FIELD + ">" + aggregation.getName() + ".value";
+                    searchRequestBuilder.addAggregation(new StatsBucketPipelineAggregationBuilder(aggregation.getName(), bucketPath));
                 }
             }
         }
@@ -237,6 +238,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                 featureBuilder.clear();
                 featureBuilder.mergeFrom((byte[]) feature);
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
+                VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, INDEX_TAG, searchHit.getIndex());
                 if (fields != null) {
                     for (FieldAndFormat field : fields) {
                         final DocumentField documentField = searchHit.field(field.field);

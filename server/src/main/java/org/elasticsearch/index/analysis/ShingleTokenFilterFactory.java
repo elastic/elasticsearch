@@ -39,7 +39,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
                         + " must be less than or equal to: [" + maxAllowedShingleDiff + "] but was [" + shingleDiff + "]. This limit"
                         + " can be set by changing the [" + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey() + "] index level setting.");
             } else {
-                DEPRECATION_LOGGER.deprecate(DeprecationCategory.ANALYSIS, "excessive_shingle_diff",
+                DEPRECATION_LOGGER.critical(DeprecationCategory.ANALYSIS, "excessive_shingle_diff",
                     "Deprecated big difference between maxShingleSize and minShingleSize" +
                             " in Shingle TokenFilter, expected difference must be less than or equal to: [" + maxAllowedShingleDiff + "]");
             }
@@ -65,7 +65,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
                 "] cannot be used to parse synonyms");
         }
         else {
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.ANALYSIS, "synonym_tokenfilters", "Token filter " + name()
+            DEPRECATION_LOGGER.critical(DeprecationCategory.ANALYSIS, "synonym_tokenfilters", "Token filter " + name()
                     + "] will not be usable to parse synonym after v7.0");
         }
         return this;

@@ -33,6 +33,7 @@ import java.util.function.LongUnaryOperator;
  * Base class for numeric field data.
  */
 public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumericFieldData> {
+
     /**
      * The type of number.
      */
@@ -103,6 +104,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN;
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
+        // TODO fix this!
+        sortField.setOptimizeSortWithPoints(false);
         return sortField;
     }
 

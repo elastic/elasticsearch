@@ -183,7 +183,7 @@ public class JoinHelperTests extends ESTestCase {
             .generateClusterUuidIfNeeded()).build();
 
         final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
-        transportService.sendRequest(localNode, JoinHelper.VALIDATE_JOIN_ACTION_NAME,
+        transportService.sendRequest(localNode, JoinHelper.JOIN_VALIDATE_ACTION_NAME,
             new ValidateJoinRequest(otherClusterState),
             new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE));
         deterministicTaskQueue.runAllTasks();

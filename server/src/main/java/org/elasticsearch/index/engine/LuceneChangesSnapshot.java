@@ -266,7 +266,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final Query rangeQuery = rangeQuery(Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo);
         assert accurateTotalHits == false || after == null : "accurate total hits is required by the first batch only";
         final SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
-        sortBySeqNo.setCanUsePoints();
         final TopFieldCollector collector =
             TopFieldCollector.create(new Sort(sortBySeqNo), searchBatchSize, after, accurateTotalHits ? Integer.MAX_VALUE : 0);
         indexSearcher.search(rangeQuery, collector);

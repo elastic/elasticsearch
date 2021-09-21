@@ -168,7 +168,7 @@ public class JoinHelperTests extends ESTestCase {
     }
 
     public void testJoinValidationRejectsMismatchedClusterUUID() {
-        assertJoinValidationRejectsMismatchedClusterUUID(JoinHelper.VALIDATE_JOIN_ACTION_NAME);
+        assertJoinValidationRejectsMismatchedClusterUUID(JoinHelper.JOIN_VALIDATE_ACTION_NAME);
     }
 
     private void assertJoinValidationRejectsMismatchedClusterUUID(String actionName) {

@@ -35,7 +35,7 @@ The bundled JVM directory may be removed when using your own JVM.
 
 [discrete]
 [[dedicated-host]]
-== Use a dedicated host
+== Use dedicated hosts
 
 In production, we recommend you run {es} on a dedicated host or as a primary
 service. Several {es} features, such as automatic JVM heap sizing, assume it's

@@ -1353,6 +1353,53 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    public void testNodeCannotJoinIfJoinPingValidationFailsOnMaster() throws IllegalAccessException {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            cluster.getAnyLeader().addActionBlock(JoinHelper.JOIN_PING_ACTION_NAME);
+
+            // check that if node ping join validation fails on master, the nodes can't join
+            List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
+            final long previousClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
+
+            MockLogAppender mockAppender = new MockLogAppender();
+            mockAppender.start();
+            Logger joinLogger = LogManager.getLogger(JoinHelper.class);
+            Logger coordinatorLogger = LogManager.getLogger(Coordinator.class);
+            Loggers.addAppender(joinLogger, mockAppender);
+            Loggers.addAppender(coordinatorLogger, mockAppender);
+            try {
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "failed to join",
+                        JoinHelper.class.getCanonicalName(),
+                        Level.INFO,
+                        "*failed to join*"));
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "failed to ping",
+                        Coordinator.class.getCanonicalName(),
+                        Level.WARN,
+                        "*failed to ping joining node*"));
+                cluster.runFor(10000, "failing joins");
+                mockAppender.assertAllExpectationsMatched();
+            } finally {
+                Loggers.removeAppender(coordinatorLogger, mockAppender);
+                Loggers.removeAppender(joinLogger, mockAppender);
+                mockAppender.stop();
+            }
+
+            assertTrue(addedNodes.stream().allMatch(ClusterNode::isCandidate));
+            final long newClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
+            assertEquals(previousClusterStateVersion, newClusterStateVersion);
+
+            cluster.getAnyLeader().clearActionBlocks();
+            cluster.stabilise();
+        }
+    }
+
     public void testNodeCannotJoinIfJoinValidationFailsOnJoiningNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
             cluster.runRandomly();

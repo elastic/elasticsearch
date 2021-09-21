@@ -161,7 +161,7 @@ final class SeqIdGeneratingFilterReader extends FilterDirectoryReader {
 
                 @Override
                 public PointValues getPointValues(String field) {
-                    throw new UnsupportedOperationException("_source only indices can't be searched or filtered");
+                    return null;
                 }
             };
         }

@@ -32,6 +32,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -383,8 +384,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue deprecationIssue = deprecationIssues.get(0);
         assertEquals(DeprecationIssue.Level.WARNING, deprecationIssue.getLevel());
         assertEquals("Realm names cannot start with [_] in a future major release.", deprecationIssue.getMessage());
-        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference" +
-            "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names", deprecationIssue.getUrl());
+        assertEquals("https://www.elastic.co/guide/en/elastic-stack" +
+            "/7.14/elasticsearch-breaking-changes.html#breaking_714_security_changes", deprecationIssue.getUrl());
         assertEquals("Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names")
                 + " with reserved prefix [_]: ["
                 + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()), "; ") + "]. "
@@ -631,8 +632,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals(1, deprecationIssues.size());
         assertEquals("File and/or native realms are enabled by default in next major release.",
             deprecationIssues.get(0).getMessage());
-        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference" +
-                "/7.13/deprecated-7.13.html#implicitly-disabled-basic-realms",
+        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/7.15/migrating-7.13.html#breaking_713_security_changes",
             deprecationIssues.get(0).getUrl());
     }
 
@@ -654,7 +654,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issue.getDetails(),
             equalTo("Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks."));
         String url =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes";
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-node.html#max-local-storage-nodes";
         assertThat(issue.getUrl(), equalTo(url));
     }
 
@@ -678,7 +678,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issue.getDetails(),
             equalTo("Configuring [path.data] with a list is deprecated. Instead specify as a string value."));
         String url =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes";
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-node.html#max-local-storage-nodes";
         assertThat(issue.getUrl(), equalTo(url));
     }
 
@@ -713,8 +713,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             null, ClusterState.EMPTY_STATE, new XPackLicenseState(Settings.EMPTY, () -> 0)));
 
         final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
-                "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-cluster.html#disk-based-shard-allocation";
         assertThat(issues, hasItem(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
@@ -743,8 +742,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 null, ClusterStateCreationUtils.state(node1, node1, node1), licenseState));
 
         final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
-                "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-cluster.html#disk-based-shard-allocation";
         DeprecationIssue deprecationIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "the default value [false] of setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node]" +
                 " is deprecated and will be changed to true in a future version." +
@@ -818,7 +816,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 settingKey),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_cluster_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/modules-discovery-settings.html",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%s], remove this setting",
                 settingKey,
@@ -907,7 +905,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 settingKey),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-cluster.html#disk-based-shard-allocation",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%b], remove this setting",
                 settingKey,
@@ -1218,7 +1216,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         DeprecationIssue issue = NodeDeprecationChecks.checkTransportClientProfilesFilterSetting(settings, null, null, licenseState);
         final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#separating-node-and-client-traffic";
+            "https://www.elastic.co/guide/en/elasticsearch/client/java-api/7.x/transport-client.html";
         final String joinedNames = Arrays
             .stream(profileNames)
             .map(s -> "transport.profiles." + s + ".xpack.security.type")
@@ -1255,7 +1253,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "cannot use properties related to delaying cluster state recovery after a majority of master nodes have joined because they " +
                 "have been deprecated and will be removed in the next major version",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/modules-gateway.html",
             "cannot use properties [gateway.expected_nodes,gateway.expected_master_nodes,gateway.recover_after_nodes,gateway" +
                 ".recover_after_master_nodes] because they have been deprecated and will be removed in the next major version",
             false, null
@@ -1271,8 +1269,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testCheckFixedAutoQueueSizeThreadpool() {
-        String settingKey = "thread_pool.search.min_queue_size";
-        String settingValue = "";
         Settings settings = Settings.builder()
             .put("thread_pool.search.min_queue_size", randomIntBetween(30, 100))
             .put("thread_pool.search.max_queue_size", randomIntBetween(1, 25))
@@ -1290,7 +1286,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "thread_pool.search_throttled.max_queue_size,thread_pool.search_throttled.auto_queue_frame_size,thread_pool" +
                 ".search_throttled.target_response_time] because fixed_auto_queue_size threadpool type has been deprecated" +
                 " and will be removed in the next major version",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_threadpool_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/modules-threadpool.html",
             "cannot use properties [thread_pool.search.min_queue_size,thread_pool.search.max_queue_size,thread_pool.search" +
                 ".auto_queue_frame_size,thread_pool.search.target_response_time,thread_pool.search_throttled.min_queue_size," +
                 "thread_pool.search_throttled.max_queue_size,thread_pool.search_throttled.auto_queue_frame_size,thread_pool" +
@@ -1319,7 +1315,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 INDEX_ROUTING_REQUIRE_SETTING.getKey()),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%s], remove this setting",
                 INDEX_ROUTING_REQUIRE_SETTING.getKey(),
@@ -1330,7 +1326,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 INDEX_ROUTING_INCLUDE_SETTING.getKey()),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%s], remove this setting",
                 INDEX_ROUTING_INCLUDE_SETTING.getKey(),
@@ -1341,7 +1337,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 INDEX_ROUTING_EXCLUDE_SETTING.getKey()),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/data-tier-shard-filtering.html#data-tier-allocation-filters",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%s], remove this setting",
                 INDEX_ROUTING_EXCLUDE_SETTING.getKey(),
@@ -1429,7 +1425,72 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testCheckMaxLocalStorageNodesSetting() {
         String settingKey = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey();
         String settingValue = Integer.toString(randomIntBetween(1, 100));
-        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_node_changes";
+        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/modules-node.html#max-local-storage-nodes";
         checkSimpleSetting(settingKey, settingValue, url, NodeDeprecationChecks::checkMaxLocalStorageNodesSetting);
+    }
+
+    public void testCheckSamlNameIdFormatSetting() {
+        Settings settings = Settings.builder()
+            .put("xpack.security.authc.realms.saml.saml1.attributes.principal", randomIntBetween(30, 100))
+            .put("xpack.security.authc.realms.saml.saml1.nameid_format", randomIntBetween(1, 25))
+            .build();
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.getOperationMode())
+            .thenReturn(randomValueOtherThanMany((m -> m.equals(License.OperationMode.BASIC) || m.equals(License.OperationMode.TRIAL)),
+                () -> randomFrom(License.OperationMode.values())));
+        assertThat(
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            equalTo(null)
+        );
+
+        settings = Settings.builder()
+            .put("xpack.security.authc.realms.saml.saml1.attributes.principal", randomIntBetween(30, 100))
+            .build();
+        DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "if nameid_format is not explicitly set, the previous default of 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no " +
+                "longer used",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/saml-guide.html",
+            "no value for [xpack.security.authc.realms.saml.saml1.nameid_format] set in realm [xpack.security.authc.realms.saml.saml1]",
+            false, null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        settings = Settings.builder()
+            .put("xpack.security.authc.realms.saml.saml1.attributes.principal", randomIntBetween(30, 100))
+            .put("xpack.security.authc.realms.saml.saml2.attributes.principal", randomIntBetween(30, 100))
+            .put("xpack.security.authc.realms.saml.saml2.nameid_format", randomIntBetween(1, 25))
+            .build();
+        expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "if nameid_format is not explicitly set, the previous default of 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no " +
+                "longer used",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/saml-guide.html",
+            "no value for [xpack.security.authc.realms.saml.saml1.nameid_format] set in realm [xpack.security.authc.realms.saml.saml1]",
+            false, null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
+
+        settings = Settings.builder()
+            .put("xpack.security.authc.realms.saml.saml1.attributes.principal", randomIntBetween(30, 100))
+            .put("xpack.security.authc.realms.saml.saml2.attributes.principal", randomIntBetween(30, 100))
+            .build();
+        expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "if nameid_format is not explicitly set, the previous default of 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no " +
+                "longer used",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/saml-guide.html",
+            "no value for [xpack.security.authc.realms.saml.saml1.nameid_format] set in realm [xpack.security.authc.realms.saml.saml1]," +
+                "no value for [xpack.security.authc.realms.saml.saml2.nameid_format] set in realm [xpack.security.authc.realms.saml.saml2]",
+            false, null
+        );
+        assertThat(
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            equalTo(expectedIssue)
+        );
     }
 }

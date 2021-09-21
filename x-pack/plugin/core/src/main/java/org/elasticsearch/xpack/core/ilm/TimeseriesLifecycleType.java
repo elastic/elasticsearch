@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -79,9 +80,10 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Sets.newHashSet(ReadOnlyAction.NAME, ShrinkAction.NAME,
         ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
-    // a set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot
-    static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Sets.newHashSet(ShrinkAction.NAME, ForceMergeAction.NAME,
-        FreezeAction.NAME, RollupILMAction.NAME);
+    // Set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot.
+    // It's ordered to produce consistent error messages which can be unit tested.
+    static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = new LinkedHashSet<>(Arrays.asList(
+        ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, RollupILMAction.NAME));
 
     private TimeseriesLifecycleType() {
     }

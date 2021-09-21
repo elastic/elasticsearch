@@ -47,6 +47,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class WatcherUtilsTests extends ESTestCase {
+
+    private static final String IGNORE_THROTTLED_FIELD_WARNING = "Deprecated field [ignore_throttled] used, this field is unused and " +
+        "will be removed entirely";
+
     public void testFlattenModel() throws Exception {
         ZonedDateTime now = ZonedDateTime.now(Clock.systemUTC());
         Map<String, Object> map = new HashMap<>();
@@ -146,11 +150,16 @@ public class WatcherUtilsTests extends ESTestCase {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedSource.utf8ToString()));
             assertThat(result.getTemplate().getType(), equalTo(ScriptType.INLINE));
         }
-        if (expectedTypes == null) {
-            assertNull(result.getTypes());
-        } else {
+        if (expectedIndicesOptions != DEFAULT_INDICES_OPTIONS && expectedTypes != null) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING, WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
             assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes));
+        } else if (expectedIndicesOptions != DEFAULT_INDICES_OPTIONS) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING);
+        } else if (expectedTypes != null) {
             assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
+            assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes));
+        } else {
+            assertNull(result.getTypes());
         }
     }
 
@@ -183,9 +192,11 @@ public class WatcherUtilsTests extends ESTestCase {
             indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), randomBoolean(), indicesOptions.allowAliasesToMultipleIndices(),
                 indicesOptions.forbidClosedIndices(), indicesOptions.ignoreAliases(), indicesOptions.ignoreThrottled());
-            builder.startObject("indices_options");
-            indicesOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
+            if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+                builder.startObject("indices_options");
+                indicesOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+            }
         }
 
         SearchType searchType = SearchType.DEFAULT;
@@ -240,11 +251,16 @@ public class WatcherUtilsTests extends ESTestCase {
             assertThat(result.getTemplate().getParams(), equalTo(template.getParams()));
             assertThat(result.getTemplate().getLang(), equalTo(stored ? null : "mustache"));
         }
-        if (types == Strings.EMPTY_ARRAY) {
-            assertNull(result.getTypes());
-        } else {
+        if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false && types != Strings.EMPTY_ARRAY) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING, WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
             assertThat(result.getTypes(), arrayContainingInAnyOrder(types));
+        } else if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING);
+        } else if (types != Strings.EMPTY_ARRAY) {
             assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
+            assertThat(result.getTypes(), arrayContainingInAnyOrder(types));
+        } else {
+            assertNull(result.getTypes());
         }
     }
 }

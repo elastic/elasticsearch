@@ -40,6 +40,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     private final List<InternalBucket> buckets;
     private final CompositeKey afterKey;
     private final int[] reverseMuls;
+    private final MissingOrder[] missingOrders;
     private final List<String> sourceNames;
     private final List<DocValueFormat> formats;
 
@@ -53,6 +54,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         List<InternalBucket> buckets,
         CompositeKey afterKey,
         int[] reverseMuls,
+        MissingOrder[] missingOrders,
         boolean earlyTerminated,
         Map<String, Object> metadata
     ) {
@@ -63,6 +65,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         this.afterKey = afterKey;
         this.size = size;
         this.reverseMuls = reverseMuls;
+        this.missingOrders = missingOrders;
         this.earlyTerminated = earlyTerminated;
     }
 
@@ -79,7 +82,13 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             }
         }
         this.reverseMuls = in.readIntArray();
-        this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls));
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
+        } else {
+            this.missingOrders = new MissingOrder[reverseMuls.length];
+            Arrays.fill(missingOrders, MissingOrder.DEFAULT);
+        }
+        this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
         } else {
@@ -98,6 +107,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             }
         }
         out.writeIntArray(reverseMuls);
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeArray((o, order) -> order.writeTo(o), missingOrders);
+        }
         out.writeList(buckets);
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeBoolean(afterKey != null);
@@ -127,7 +139,18 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
          * keep the <code>afterKey</code> of the original aggregation in order
          * to be able to retrieve the next page even if all buckets have been filtered.
          */
-        return new InternalComposite(name, size, sourceNames, formats, newBuckets, afterKey, reverseMuls, earlyTerminated, getMetadata());
+        return new InternalComposite(
+            name,
+            size,
+            sourceNames,
+            formats,
+            newBuckets,
+            afterKey,
+            reverseMuls,
+            missingOrders,
+            earlyTerminated,
+            getMetadata()
+        );
     }
 
     @Override
@@ -137,6 +160,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             prototype.formats,
             prototype.key,
             prototype.reverseMuls,
+            prototype.missingOrders,
             prototype.docCount,
             aggregations
         );
@@ -229,7 +253,18 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             lastKey = lastBucket.getRawKey();
         }
         reduceContext.consumeBucketsAndMaybeBreak(result.size());
-        return new InternalComposite(name, size, sourceNames, reducedFormats, result, lastKey, reverseMuls, earlyTerminated, metadata);
+        return new InternalComposite(
+            name,
+            size,
+            sourceNames,
+            reducedFormats,
+            result,
+            lastKey,
+            reverseMuls,
+            missingOrders,
+            earlyTerminated,
+            metadata
+        );
     }
 
     @Override
@@ -247,7 +282,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
          * just whatever formats make sense for *its* index. This can be real
          * trouble when the index doing the reducing is unmapped. */
         List<DocValueFormat> reducedFormats = buckets.get(0).formats;
-        return new InternalBucket(sourceNames, reducedFormats, buckets.get(0).key, reverseMuls, docCount, aggs);
+        return new InternalBucket(sourceNames, reducedFormats, buckets.get(0).key, reverseMuls, missingOrders, docCount, aggs);
     }
 
     @Override
@@ -260,12 +295,13 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         return Objects.equals(size, that.size)
             && Objects.equals(buckets, that.buckets)
             && Objects.equals(afterKey, that.afterKey)
-            && Arrays.equals(reverseMuls, that.reverseMuls);
+            && Arrays.equals(reverseMuls, that.reverseMuls)
+            && Arrays.equals(missingOrders, that.missingOrders);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), size, buckets, afterKey, Arrays.hashCode(reverseMuls));
+        return Objects.hash(super.hashCode(), size, buckets, afterKey, Arrays.hashCode(reverseMuls), Arrays.hashCode(missingOrders));
     }
 
     private static class BucketIterator implements Comparable<BucketIterator> {
@@ -295,6 +331,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         private final long docCount;
         private final InternalAggregations aggregations;
         private final transient int[] reverseMuls;
+        private final transient MissingOrder[] missingOrders;
         private final transient List<String> sourceNames;
         private final transient List<DocValueFormat> formats;
 
@@ -303,6 +340,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             List<DocValueFormat> formats,
             CompositeKey key,
             int[] reverseMuls,
+            MissingOrder[] missingOrders,
             long docCount,
             InternalAggregations aggregations
         ) {
@@ -310,15 +348,23 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             this.docCount = docCount;
             this.aggregations = aggregations;
             this.reverseMuls = reverseMuls;
+            this.missingOrders = missingOrders;
             this.sourceNames = sourceNames;
             this.formats = formats;
         }
 
-        InternalBucket(StreamInput in, List<String> sourceNames, List<DocValueFormat> formats, int[] reverseMuls) throws IOException {
+        InternalBucket(
+            StreamInput in,
+            List<String> sourceNames,
+            List<DocValueFormat> formats,
+            int[] reverseMuls,
+            MissingOrder[] missingOrders
+        ) throws IOException {
             this.key = new CompositeKey(in);
             this.docCount = in.readVLong();
             this.aggregations = InternalAggregations.readFrom(in);
             this.reverseMuls = reverseMuls;
+            this.missingOrders = missingOrders;
             this.sourceNames = sourceNames;
             this.formats = formats;
         }
@@ -398,9 +444,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                     if (other.key.get(i) == null) {
                         continue;
                     }
-                    return -1 * reverseMuls[i];
+                    return -1 * missingOrders[i].compareAnyValueToMissing(reverseMuls[i]);
                 } else if (other.key.get(i) == null) {
-                    return reverseMuls[i];
+                    return missingOrders[i].compareAnyValueToMissing(reverseMuls[i]);
                 }
                 assert key.get(i).getClass() == other.key.get(i).getClass();
                 @SuppressWarnings("unchecked")

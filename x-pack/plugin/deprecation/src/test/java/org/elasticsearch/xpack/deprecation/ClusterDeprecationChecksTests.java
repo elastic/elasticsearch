@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -90,8 +91,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "User-Agent ingest plugin will always use ECS-formatted output",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
-                "#ingest-user-agent-ecs-always",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/user-agent-processor.html#user-agent-processor",
             "Ingest pipelines [ecs_false, ecs_true] uses the [ecs] option which needs to be removed to work in 8.0", false, null);
         assertEquals(singletonList(expected), issues);
     }
@@ -234,7 +234,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             assertEquals(1, issues.size());
             DeprecationIssue issue = issues.get(0);
             assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
-            assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling"
+            assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/7.15/mapping-field-names-field.html#disable-field-names"
                     , issue.getUrl());
             assertEquals("Index templates contain _field_names settings.", issue.getMessage());
             assertEquals("Index templates [" + badTemplateName + "] "
@@ -340,7 +340,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 settingKey),
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-cluster.html#disk-based-shard-allocation",
             String.format(Locale.ROOT,
                 "the setting [%s] is currently set to [%b], remove this setting",
                 settingKey,
@@ -394,7 +394,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "index templates contain deprecated geo_shape properties that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
+                    "#_deprecated_literal_geo_shape_literal_parameters",
                 "mappings in index template single-type contains deprecated geo_shape properties. [parameter [points_only] in field " +
                     "[location]; parameter [strategy] in field [location]]", false, null)
         ));
@@ -416,7 +417,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates contain deprecated geo_shape properties that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
+                    "#_deprecated_literal_geo_shape_literal_parameters",
                 "mappings in component template my-template contains deprecated geo_shape properties. [parameter [points_only] in field " +
                     "[location]; parameter [strategy] in field [location]]", false, null)
         ));
@@ -432,7 +434,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "component templates and index templates contain deprecated geo_shape properties that must be removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
+                    "#_deprecated_literal_geo_shape_literal_parameters",
                 "mappings in component template my-template contains deprecated geo_shape properties. [parameter [points_only] in field " +
                     "[location]; parameter [strategy] in field [location]]; mappings in index template single-type contains " +
                     "deprecated geo_shape properties. [parameter [points_only] in field [location]; parameter [strategy] in field " +

@@ -28,7 +28,6 @@ import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import java.nio.file.Files
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
-import java.util.concurrent.atomic.AtomicInteger;
 
 plugins {
   id 'lifecycle-base'

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.phonetic;
 
 import org.apache.commons.codec.Encoder;
 import org.apache.commons.codec.language.Caverphone1;
@@ -31,8 +31,8 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.phonetic.HaasePhonetik;
-import org.elasticsearch.index.analysis.phonetic.KoelnerPhonetik;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.HashSet;
 import java.util.List;

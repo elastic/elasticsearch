@@ -6,14 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.phonetic;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
-import org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin;
+import org.elasticsearch.plugin.analysis.phonetic.AnalysisPhoneticPlugin;
+import org.elasticsearch.plugin.analysis.phonetic.PhoneticTokenFilterFactory;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 

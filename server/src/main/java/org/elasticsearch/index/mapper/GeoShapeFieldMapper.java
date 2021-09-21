@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -146,25 +145,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
     }
 
-    @SuppressWarnings("deprecation")
+    @Deprecated
     public static Mapper.TypeParser PARSER = (name, node, parserContext) -> {
-        FieldMapper.Builder builder;
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
-        if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
-                Set<String> deprecatedParams = LegacyGeoShapeFieldMapper.getDeprecatedParameters(node.keySet());
-                throw new IllegalArgumentException("using deprecated parameters " + Arrays.toString(deprecatedParams.toArray())
-                    + " in mapper [" + name + "] of type [geo_shape] is no longer allowed");
-            }
-            builder = new LegacyGeoShapeFieldMapper.Builder(
-                name,
-                parserContext.indexVersionCreated(),
-                ignoreMalformedByDefault,
-                coerceByDefault);
-        } else {
-            builder = new Builder(name, ignoreMalformedByDefault, coerceByDefault);
-        }
+        FieldMapper.Builder builder = new Builder(name, ignoreMalformedByDefault, coerceByDefault);
         builder.parse(name, parserContext, node);
         return builder;
     };
@@ -196,17 +181,6 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             builder.ignoreMalformed.getDefaultValue().value(),
             builder.coerce.getDefaultValue().value()
         ).init(this);
-    }
-
-    @Override
-    @SuppressWarnings("deprecation")
-    protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        if (mergeWith instanceof LegacyGeoShapeFieldMapper) {
-            String strategy = ((LegacyGeoShapeFieldMapper)mergeWith).strategy();
-            throw new IllegalArgumentException("mapper [" + name()
-                + "] of type [geo_shape] cannot change strategy from [BKD] to [" + strategy + "]");
-        }
-        super.checkIncomingMergeType(mergeWith);
     }
 
     @Override

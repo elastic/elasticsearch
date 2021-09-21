@@ -10,6 +10,8 @@ package org.elasticsearch.script.field;
 
 public class VersionField extends Field<String> {
 
+    /* ---- Version Field Members ---- */
+
     public VersionField(String name, FieldValues<String> values) {
         super(name, values);
     }

@@ -812,7 +812,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                
         
         private class TranslatingTermsToFullPath extends FilterTerms {
-          public TranslatingTermsToFullPath(Terms in) {
+          TranslatingTermsToFullPath(Terms in) {
               super(in);
           }
           

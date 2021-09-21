@@ -60,6 +60,9 @@ or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
 (Required, string) Comma-separated list of data streams, indices, or aliases to
 search. Supports wildcards (`*`). To search all data streams and indices, omit
 this parameter or use `*` or `_all`.
++
+To search a remote cluster, use the `<cluster>:<target>` syntax. See
+<<modules-cross-cluster-search>>.
 
 `<field>`::
 (Required, string) Field containing geospatial values to return. Must be a

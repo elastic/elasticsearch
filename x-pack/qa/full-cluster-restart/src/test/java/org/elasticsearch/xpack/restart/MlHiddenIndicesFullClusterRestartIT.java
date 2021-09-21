@@ -107,7 +107,8 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> contentAsMap(Response response) throws IOException {
-        return new ObjectMapper().readValue(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8), HashMap.class);
+        return new ObjectMapper().readValue(
+            new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8), HashMap.class);
     }
 
     private void assertThatNoMlIndicesExist() throws IOException {

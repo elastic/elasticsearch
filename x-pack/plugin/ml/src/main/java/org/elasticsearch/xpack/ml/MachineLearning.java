@@ -1419,6 +1419,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             .build();
     }
 
+    /**
+     * These are the ML hidden indices. They are "associated" in the sense that if the ML system indices
+     * are backed up or deleted then these hidden indices should also be backed up or deleted.
+     */
     private static Collection<AssociatedIndexDescriptor> ASSOCIATED_INDEX_DESCRIPTORS =
         List.of(
             new AssociatedIndexDescriptor(RESULTS_INDEX_PREFIX + "*", "Results indices"),

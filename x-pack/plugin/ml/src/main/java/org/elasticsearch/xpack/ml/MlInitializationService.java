@@ -139,11 +139,11 @@ public class MlInitializationService implements ClusterStateListener {
                 .map(Map.Entry::getKey)
                 .toArray(String[]::new);
         if (nonHiddenIndices.length == 0) {
-            logger.info("There are no indices that need to be made hidden, " + getSettingsResponse);
+            logger.debug("There are no ML internal indices that need to be made hidden, " + getSettingsResponse);
             return;
         }
         String nonHiddenIndicesString = Arrays.stream(nonHiddenIndices).collect(Collectors.joining(", "));
-        logger.info("The following indices will now be made hidden: {}", nonHiddenIndicesString);
+        logger.info("The following ML internal indices will now be made hidden: {}", nonHiddenIndicesString);
         AcknowledgedResponse updateSettingsResponse =
             client.admin().indices().prepareUpdateSettings()
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
@@ -151,8 +151,9 @@ public class MlInitializationService implements ClusterStateListener {
                 .setSettings(Collections.singletonMap(SETTING_INDEX_HIDDEN, true))
                 .get();
         if (updateSettingsResponse.isAcknowledged() == false) {
-            logger.error("One or more of the following indices could not be made hidden: {}", nonHiddenIndicesString);
+            logger.error("One or more of the following ML internal indices could not be made hidden: {}", nonHiddenIndicesString);
         }
+        // TODO: Make aliases hidden
     }
 }
 

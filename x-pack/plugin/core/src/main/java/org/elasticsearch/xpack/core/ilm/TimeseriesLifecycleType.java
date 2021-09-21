@@ -6,8 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rollup.RollupV2;
@@ -41,7 +45,8 @@ import static java.util.stream.Collectors.toList;
  */
 public class TimeseriesLifecycleType implements LifecycleType {
     public static final TimeseriesLifecycleType INSTANCE = new TimeseriesLifecycleType();
-
+    private static final Logger logger = LogManager.getLogger(TimeseriesLifecycleType.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
     public static final String TYPE = "timeseries";
 
     static final String HOT_PHASE = "hot";
@@ -50,6 +55,9 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String FROZEN_PHASE = "frozen";
     static final String DELETE_PHASE = "delete";
     static final List<String> ORDERED_VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
+
+    public static final String FREEZE_ACTION_DEPRECATION_WARNING = "the freeze action has been deprecated and will be removed in a future" +
+        " release";
 
     static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
             ReadOnlyAction.NAME, RollupV2.isEnabled() ? RollupILMAction.NAME : null, ShrinkAction.NAME, ForceMergeAction.NAME,
@@ -296,6 +304,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
         validateActionsFollowingSearchableSnapshot(phases);
         validateAllSearchableSnapshotActionsUseSameRepository(phases);
         validateFrozenPhaseHasSearchableSnapshotAction(phases);
+        logDeprecationWarningForFreezeAction(phases);
+    }
+
+    private void logDeprecationWarningForFreezeAction(Collection<Phase> phases) {
+        if (phases.stream().anyMatch(phase -> phase.getActions().containsKey(FreezeAction.NAME))) {
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "ilm_freee_action", FREEZE_ACTION_DEPRECATION_WARNING);
+        }
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {

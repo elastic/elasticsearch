@@ -25,7 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
-@AwaitsFix(bugUrl = "WIP")
 public class PluginCliTests extends PackagingTestCase {
 
     private static final String EXAMPLE_PLUGIN_NAME = "custom-settings";

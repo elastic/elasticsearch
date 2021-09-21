@@ -18,6 +18,16 @@ sourceSets {
   }
 }
 
+if (!gradle.includedBuilds) {
+  configurations.all {
+    resolutionStrategy.dependencySubstitution {
+      // Temporary workaround for https://github.com/elastic/elasticsearch/issues/77602
+      substitute module('org.elasticsearch:server') using module("org.elasticsearch:elasticsearch:${elasticsearchVersion}")
+      substitute module('org.elasticsearch.client:rest') using module("org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}")
+    }
+  }
+}
+
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
   javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"

@@ -20,9 +20,9 @@ gradle.projectsEvaluated {
     gradle.allprojects {
       configurations.all {
         resolutionStrategy.dependencySubstitution {
-          // When using compositle builds we need to tell Gradle to use the project names since we rename the published artifacts
-          substitute module('org.elasticsearch:elasticsearch') with module("org.elasticsearch:server:${elasticsearchVersion}")
-          substitute module('org.elasticsearch.client:elasticsearch-rest-client') with module("org.elasticsearch.client:rest:${elasticsearchVersion}")
+          // When using composite builds we need to tell Gradle to use the project names since we rename the published artifacts
+          substitute module('org.elasticsearch:elasticsearch') using module("org.elasticsearch:server:${elasticsearchVersion}")
+          substitute module('org.elasticsearch.client:elasticsearch-rest-client') using module("org.elasticsearch.client:rest:${elasticsearchVersion}")
         }
       }
     }

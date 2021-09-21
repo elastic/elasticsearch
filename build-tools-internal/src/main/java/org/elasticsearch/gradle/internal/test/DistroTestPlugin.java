@@ -13,20 +13,22 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
-import org.elasticsearch.gradle.internal.Jdk;
-import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
+import org.elasticsearch.gradle.LoggedExec;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
+import org.elasticsearch.gradle.internal.Jdk;
+import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
+import org.elasticsearch.gradle.internal.conventions.GUtils;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
-import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
-import org.elasticsearch.gradle.util.GradleUtils;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.internal.vagrant.VagrantExtension;
-import org.elasticsearch.gradle.internal.conventions.GUtils;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -100,7 +102,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         Map<String, TaskProvider<?>> versionTasks = versionTasks(project, "destructiveDistroUpgradeTest");
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
 
-        //Configuration examplePlugin = configureExamplePlugin(project);
+        Configuration examplePlugin = configureExamplePlugin(project);
 
         List<TaskProvider<Test>> windowsTestTasks = new ArrayList<>();
         Map<ElasticsearchDistributionType, List<TaskProvider<Test>>> linuxTestTasks = new HashMap<>();
@@ -111,12 +113,12 @@ public class DistroTestPlugin implements Plugin<Project> {
             String taskname = destructiveDistroTestTaskName(distribution);
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
             // explicitly depend on the archive not on the implicit extracted distribution
-            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies()));
+            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies(), examplePlugin));
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
                 addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
-                //addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
+                addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
             }, depsTask);
 
@@ -311,9 +313,27 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static Configuration configureExamplePlugin(Project project) {
         Configuration examplePlugin = project.getConfigurations().create(EXAMPLE_PLUGIN_CONFIGURATION);
         DependencyHandler deps = project.getDependencies();
-        Map<String, String> examplePluginProject = Map.of("path", ":example-plugins:custom-settings", "configuration", "zip");
-        deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(examplePluginProject));
+        deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.create(project.files(configureExamplePluginBuildTask(project))));
         return examplePlugin;
+    }
+
+    private static TaskProvider<LoggedExec> configureExamplePluginBuildTask(Project project) {
+        return project.getTasks().register("buildExamplePlugin", LoggedExec.class, t -> {
+            t.getOutputs().file(project.getRootProject().file("plugins/examples/custom-settings/build/distributions/custom-settings.zip"));
+
+            t.workingDir(project.getRootProject().file("plugins/examples"));
+            if (OS.current() == OS.WINDOWS) {
+                t.executable("cmd");
+                t.args("/C", "call", "gradlew");
+            } else {
+                t.executable("./gradlew");
+            }
+            if (project.getGradle().getStartParameter().isOffline()) {
+                t.args("--offline");
+            }
+            t.args("--include-build", project.getRootDir());
+            t.args(":custom-settings:assemble");
+        });
     }
 
     private static void configureVMWrapperTasks(

@@ -41,6 +41,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -118,7 +119,7 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
             )
         );
         assertThat(response.getTokenValue(), equalTo(TOKEN_VALUE));
-        assertThat(createServiceAccountTokenRequests.size(), equalTo(1));
+        assertThat(createServiceAccountTokenRequests, hasSize(1));
     }
 
     public void testKibanaEnrollmentFailedTokenCreation() {

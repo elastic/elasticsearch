@@ -70,7 +70,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -222,14 +222,14 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         assertNotNull(response);
         assertThat(response.getEndSessionUrl(), notNullValue());
         // One index request to create the token
-        assertThat(indexRequests.size(), equalTo(1));
+        assertThat(indexRequests, hasSize(1));
         final IndexRequest indexRequest = indexRequests.get(0);
         assertThat(indexRequest, notNullValue());
         assertThat(indexRequest.id(), startsWith("token"));
         // One bulk request (containing one update request) to invalidate the token
-        assertThat(bulkRequests.size(), equalTo(1));
+        assertThat(bulkRequests, hasSize(1));
         final BulkRequest bulkRequest = bulkRequests.get(0);
-        assertThat(bulkRequest.requests().size(), equalTo(1));
+        assertThat(bulkRequest.requests(), hasSize(1));
         assertThat(bulkRequest.requests().get(0), instanceOf(UpdateRequest.class));
         assertThat(bulkRequest.requests().get(0).id(), startsWith("token_"));
         assertThat(bulkRequest.requests().get(0).toString(), containsString("\"access_token\":{\"invalidated\":true"));

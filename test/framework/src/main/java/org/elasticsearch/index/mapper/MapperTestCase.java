@@ -175,7 +175,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected <T> void assertDimension(boolean isDimension, Function<T, Boolean> checker) throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", isDimension);
+            b.field("time_series_dimension", isDimension);
         }));
 
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
@@ -557,25 +557,25 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected void registerDimensionChecks(ParameterChecker checker) throws IOException {
         // dimension cannot be updated
-        checker.registerConflictCheck("dimension", b -> b.field("dimension", true));
-        checker.registerConflictCheck("dimension", b -> b.field("dimension", false));
-        checker.registerConflictCheck("dimension",
+        checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", true));
+        checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", false));
+        checker.registerConflictCheck("time_series_dimension",
             fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", false);
+                b.field("time_series_dimension", false);
             }),
             fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true);
+                b.field("time_series_dimension", true);
             }));
-        checker.registerConflictCheck("dimension",
+        checker.registerConflictCheck("time_series_dimension",
             fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true);
+                b.field("time_series_dimension", true);
             }),
             fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", false);
+                b.field("time_series_dimension", false);
             }));
     }
 

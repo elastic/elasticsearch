@@ -229,13 +229,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     // a "bundle" is a group of jars in a single classloader
-    static class Bundle {
-        final PluginInfo plugin;
-        final Set<URL> urls;
-        final Set<URL> spiUrls;
-        final Set<URL> allUrls;
+    public static class Bundle {
+        public final PluginInfo plugin;
+        public final Set<URL> urls;
+        public final Set<URL> spiUrls;
+        public final Set<URL> allUrls;
 
-        Bundle(PluginInfo plugin, Path dir) throws IOException {
+        public Bundle(PluginInfo plugin, Path dir) throws IOException {
             this.plugin = Objects.requireNonNull(plugin);
 
             Path spiDir = dir.resolve("spi");
@@ -315,7 +315,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
-    static void verifyCompatibility(PluginInfo info) {
+    public static void verifyCompatibility(PluginInfo info) {
         if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
             throw new IllegalArgumentException("Plugin [" + info.getName() + "] was built for Elasticsearch version "
                 + info.getElasticsearchVersion() + " but version " + Version.CURRENT + " is running");
@@ -323,7 +323,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
     }
 
-    static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
+    public static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
         /*
          * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
          * plugin.
@@ -345,12 +345,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     /** Get bundles for plugins installed in the given modules directory. */
-    static Set<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
+    public static Set<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
         return findBundles(modulesDirectory, "module");
     }
 
     /** Get bundles for plugins installed in the given plugins directory. */
-    static Set<Bundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
+    public static Set<Bundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
         return findBundles(pluginsDirectory, "plugin");
     }
 
@@ -397,8 +397,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      *
      * @throws IllegalStateException if a dependency cycle is found
      */
-    // pkg private for tests
-    static List<Bundle> sortBundles(Set<Bundle> bundles) {
+    public static List<Bundle> sortBundles(Set<Bundle> bundles) {
         Map<String, Bundle> namedBundles = bundles.stream().collect(Collectors.toMap(b -> b.plugin.getName(), Function.identity()));
         LinkedHashSet<Bundle> sortedBundles = new LinkedHashSet<>();
         LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
@@ -543,7 +542,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // jar-hell check the bundle against the parent classloader and extended plugins
     // the plugin cli does it, but we do it again, in case users mess with jar files manually
-    static void checkBundleJarHell(Set<URL> classpath, Bundle bundle, Map<String, Set<URL>> transitiveUrls) {
+    public static void checkBundleJarHell(Set<URL> classpath, Bundle bundle, Map<String, Set<URL>> transitiveUrls) {
         // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
         List<String> exts = bundle.plugin.getExtendedPlugins();
 

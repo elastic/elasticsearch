@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.phonetic;
 
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.Tokenizer;
@@ -16,7 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Before;
@@ -32,7 +32,7 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
 
     @Before
     public void setup() throws IOException {
-        String yaml = "/org/elasticsearch/index/analysis/phonetic-1.yml";
+        String yaml = "/org/elasticsearch/plugin/analysis/phonetic/phonetic-1.yml";
         Settings settings = Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();

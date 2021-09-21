@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis.phonetic;
+package org.elasticsearch.plugin.analysis.phonetic;
 
 /**
  * Ge&auml;nderter Algorithmus aus der Matching Toolbox von Rainer Schnell

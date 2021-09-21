@@ -6,9 +6,8 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.analysis;
+package org.elasticsearch.plugin.analysis.phonetic;
 
-import org.elasticsearch.index.analysis.PhoneticTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;

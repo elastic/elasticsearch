@@ -158,7 +158,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
         fileMode 0644
       }
       into('lib') {
-        with libFiles(oss)
+        with libFiles
       }
       into('modules') {
         with modulesFiles('linux-' + ((architecture == 'x64') ? 'x86_64' : architecture))

@@ -12,6 +12,9 @@ plugins {
 includeBuild "build-conventions"
 includeBuild "build-tools"
 includeBuild "build-tools-internal"
+includeBuild("plugins/examples") {
+  name = "example-plugins"
+}
 
 rootProject.name = "elasticsearch"
 

@@ -6,14 +6,12 @@
  * Side Public License, v 1.
  */
 
-include ':custom-settings'
-include ':custom-significance-heuristic'
-include ':custom-suggester'
-include ':painless-whitelist'
-include ':rescore'
-include ':rest-handler'
-include ':script-expert-scoring'
-include ':security-authorization-engine'
+includeBuild '../../'
+
+// Include all subdirectories as example projects
+rootDir.listFiles().findAll { it.directory && new File(it, 'build.gradle').exists() }.each { subDir ->
+  include ":${subDir.name}"
+}
 
 gradle.projectsEvaluated {
   if (gradle.includedBuilds) {
@@ -23,6 +21,11 @@ gradle.projectsEvaluated {
           // When using composite builds we need to tell Gradle to use the project names since we rename the published artifacts
           substitute module('org.elasticsearch:elasticsearch') using module("org.elasticsearch:server:${elasticsearchVersion}")
           substitute module('org.elasticsearch.client:elasticsearch-rest-client') using module("org.elasticsearch.client:rest:${elasticsearchVersion}")
+          substitute module('org.elasticsearch.distribution.integ-test-zip:elasticsearch') using variant(module("org.elasticsearch.distribution.integ-test-zip:integ-test-zip:${elasticsearchVersion}")) {
+            attributes {
+              attribute(Attribute.of("composite", Boolean.class), true)
+            }
+          }
         }
       }
     }

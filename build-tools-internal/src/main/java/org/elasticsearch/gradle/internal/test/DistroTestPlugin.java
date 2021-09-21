@@ -13,8 +13,6 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
-import org.elasticsearch.gradle.LoggedExec;
-import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
@@ -36,6 +34,8 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Specs;
@@ -312,28 +312,10 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private static Configuration configureExamplePlugin(Project project) {
         Configuration examplePlugin = project.getConfigurations().create(EXAMPLE_PLUGIN_CONFIGURATION);
+        examplePlugin.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
         DependencyHandler deps = project.getDependencies();
-        deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.create(project.files(configureExamplePluginBuildTask(project))));
+        deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.create("org.elasticsearch.examples:custom-settings:1.0.0-SNAPSHOT"));
         return examplePlugin;
-    }
-
-    private static TaskProvider<LoggedExec> configureExamplePluginBuildTask(Project project) {
-        return project.getTasks().register("buildExamplePlugin", LoggedExec.class, t -> {
-            t.getOutputs().file(project.getRootProject().file("plugins/examples/custom-settings/build/distributions/custom-settings.zip"));
-
-            t.workingDir(project.getRootProject().file("plugins/examples"));
-            if (OS.current() == OS.WINDOWS) {
-                t.executable("cmd");
-                t.args("/C", "call", "gradlew");
-            } else {
-                t.executable("./gradlew");
-            }
-            if (project.getGradle().getStartParameter().isOffline()) {
-                t.args("--offline");
-            }
-            t.args("--include-build", project.getRootDir());
-            t.args(":custom-settings:assemble");
-        });
     }
 
     private static void configureVMWrapperTasks(

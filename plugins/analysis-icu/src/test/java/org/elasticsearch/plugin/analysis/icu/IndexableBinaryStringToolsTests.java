@@ -1,4 +1,4 @@
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.icu;
 
 /* @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.plugin.analysis.icu.IndexableBinaryStringTools;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.junit.BeforeClass;
 

@@ -620,7 +620,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     @Override
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        if (mergeWith instanceof AbstractShapeGeometryFieldMapper<?> && (mergeWith instanceof LegacyGeoShapeFieldMapper) == false) {
+        if (mergeWith instanceof LegacyGeoShapeFieldMapper == false && CONTENT_TYPE.equals(mergeWith.typeName())) {
             throw new IllegalArgumentException(
                 "mapper [" + name() + "] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"
             );

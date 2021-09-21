@@ -188,7 +188,12 @@ public class DataTierAllocationDecider extends AllocationDecider {
     }
 
     public static String[] parseTierList(String tiers) {
-        return Strings.tokenizeToStringArray(tiers, ",");
+        if (Strings.hasLength(tiers) == false) {
+            // avoid parsing overhead in the null/empty string case
+            return Strings.EMPTY_ARRAY;
+        } else {
+            return Strings.tokenizeToStringArray(tiers, ",");
+        }
     }
 
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
@@ -207,7 +212,6 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     private static boolean allocationAllowed(String tierSetting, Set<DiscoveryNodeRole> roles) {
         String[] values = parseTierList(tierSetting);
-        Set<String> roleNames = null;
         if (values.length == 0) {
             return true;
         }
@@ -224,18 +228,11 @@ public class DataTierAllocationDecider extends AllocationDecider {
             }
             return false;
         } else {
-            for (String value : values) {
-                if (roleNames == null) {
-                    roleNames = new HashSet<>(roles.size());
-                    for (DiscoveryNodeRole role : roles) {
-                        roleNames.add(role.roleName());
-                    }
-                }
-                if (roleNames.contains(value) == false) {
-                    return false;
-                }
+            final Set<String> roleNames = new HashSet<>(roles.size());
+            for (DiscoveryNodeRole role : roles) {
+                roleNames.add(role.roleName());
             }
+            return roleNames.containsAll(Arrays.asList(values));
         }
-        return true;
     }
 }

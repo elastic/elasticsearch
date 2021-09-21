@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.nori;
 
 import java.util.List;
 import java.util.Set;
@@ -18,8 +18,10 @@ import org.apache.lucene.analysis.ko.POS;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-import static org.elasticsearch.index.analysis.NoriPartOfSpeechStopFilterFactory.resolvePOSList;
+import static org.elasticsearch.plugin.analysis.nori.NoriPartOfSpeechStopFilterFactory.resolvePOSList;
 
 
 public class NoriAnalyzerProvider extends AbstractIndexAnalyzerProvider<KoreanAnalyzer> {

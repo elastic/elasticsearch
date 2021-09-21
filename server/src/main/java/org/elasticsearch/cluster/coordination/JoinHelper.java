@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -37,6 +36,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -64,9 +65,10 @@ public class JoinHelper {
 
     private static final Logger logger = LogManager.getLogger(JoinHelper.class);
 
-    public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
-    public static final String VALIDATE_JOIN_ACTION_NAME = "internal:cluster/coordination/join/validate";
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
+    public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
+    public static final String JOIN_VALIDATE_ACTION_NAME = "internal:cluster/coordination/join/validate";
+    public static final String JOIN_PING_ACTION_NAME = "internal:cluster/coordination/join/ping";
 
     private final MasterService masterService;
     private final TransportService transportService;
@@ -140,8 +142,16 @@ public class JoinHelper {
                 channel.sendResponse(Empty.INSTANCE);
             });
 
+        transportService.registerRequestHandler(
+            JOIN_PING_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            false,
+            TransportRequest.Empty::new,
+            (request, channel, task) -> channel.sendResponse(Empty.INSTANCE));
+
         final String dataPath = Environment.PATH_DATA_SETTING.get(settings);
-        transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
+        transportService.registerRequestHandler(JOIN_VALIDATE_ACTION_NAME,
             ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
@@ -265,23 +275,28 @@ public class JoinHelper {
                     // which point the NodeConnectionsService will have taken ownership of it.
                     registerConnection(destination, connectionReference);
 
-                    transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest, new TransportResponseHandler.Empty() {
-                        @Override
-                        public void handleResponse(TransportResponse.Empty response) {
-                            pendingOutgoingJoins.remove(dedupKey);
-                            logger.debug("successfully joined {} with {}", destination, joinRequest);
-                            lastFailedJoinAttempt.set(null);
-                        }
+                    transportService.sendRequest(
+                        destination,
+                        JOIN_ACTION_NAME,
+                        joinRequest,
+                        TransportRequestOptions.of(null, TransportRequestOptions.Type.PING),
+                        new TransportResponseHandler.Empty() {
+                            @Override
+                            public void handleResponse(TransportResponse.Empty response) {
+                                pendingOutgoingJoins.remove(dedupKey);
+                                logger.debug("successfully joined {} with {}", destination, joinRequest);
+                                lastFailedJoinAttempt.set(null);
+                            }
 
-                        @Override
-                        public void handleException(TransportException exp) {
-                            pendingOutgoingJoins.remove(dedupKey);
-                            FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
-                            attempt.logNow();
-                            lastFailedJoinAttempt.set(attempt);
-                            unregisterAndReleaseConnection(destination, connectionReference);
-                        }
-                    });
+                            @Override
+                            public void handleException(TransportException exp) {
+                                pendingOutgoingJoins.remove(dedupKey);
+                                FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
+                                attempt.logNow();
+                                lastFailedJoinAttempt.set(attempt);
+                                unregisterAndReleaseConnection(destination, connectionReference);
+                            }
+                        });
                 }
 
                 @Override
@@ -315,11 +330,6 @@ public class JoinHelper {
                     logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
                 }
             });
-    }
-
-    void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
-        transportService.sendRequest(node, VALIDATE_JOIN_ACTION_NAME, new ValidateJoinRequest(state),
-                new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     static class JoinTaskListener implements ClusterStateTaskListener {

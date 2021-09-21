@@ -5,11 +5,10 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.bootstrap;
+package org.elasticsearch.cli.keystore;
 
-import org.elasticsearch.common.settings.KeyStoreCommandTestCase;
+import org.elasticsearch.bootstrap.BootstrapUtil;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
-import org.elasticsearch.common.settings.KeyStoreWrapperTests;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +60,7 @@ public class BootstrapTests extends ESTestCase {
             ? new ByteArrayInputStream(new String(password).getBytes(StandardCharsets.UTF_8))
             : System.in;
         assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
-        try (SecureSettings secureSettings = Bootstrap.loadSecureSettings(env, in)) {
+        try (SecureSettings secureSettings = BootstrapUtil.loadSecureSettings(env, in)) {
             SecureString seedAfterLoad = KeyStoreWrapper.SEED_SETTING.get(Settings.builder().setSecureSettings(secureSettings).build());
             assertEquals(seedAfterLoad.toString(), seed.toString());
             assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
@@ -87,7 +86,7 @@ public class BootstrapTests extends ESTestCase {
             expectThrows(
                 RuntimeException.class,
                 "Password exceeded maximum length of 10",
-                () -> Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH)
+                () -> BootstrapUtil.readPassphrase(stream, MAX_PASSPHRASE_LENGTH)
             );
         }
     }
@@ -98,14 +97,14 @@ public class BootstrapTests extends ESTestCase {
             expectThrows(
                 RuntimeException.class,
                 "Keystore passphrase required but none provided.",
-                () -> Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH)
+                () -> BootstrapUtil.readPassphrase(stream, MAX_PASSPHRASE_LENGTH)
             );
         }
     }
 
     private void assertPassphraseRead(String source, String expected) {
         try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8))) {
-            SecureString result = Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
+            SecureString result = BootstrapUtil.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
             assertThat(result, equalTo(expected));
         } catch (IOException e) {
             throw new RuntimeException(e);

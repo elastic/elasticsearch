@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.settings;
+package org.elasticsearch.cli.keystore;
 
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
@@ -15,6 +15,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;

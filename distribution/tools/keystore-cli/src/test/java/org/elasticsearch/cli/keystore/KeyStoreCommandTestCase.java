@@ -6,13 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.settings;
+package org.elasticsearch.cli.keystore;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;

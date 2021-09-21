@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -167,7 +168,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     protected void reestablishRecovery(final StartRecoveryRequest request, final String reason, TimeValue retryAfter) {
         final long recoveryId = request.recoveryId();
         logger.trace("will try to reestablish recovery with id [{}] in [{}] (reason [{}])", recoveryId, retryAfter, reason);
-        threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryId, request));
+        threadPool.schedule(new RecoveryRunner(recoveryId, request), retryAfter, ThreadPool.Names.GENERIC);
     }
 
     private void doRecovery(final long recoveryId, final StartRecoveryRequest preExistingRequest) {
@@ -543,8 +544,33 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     );
                 } else {
                     logger.debug(() -> new ParameterizedMessage(
-                            "unexpected error during recovery, but recovery id [{}] is finished", recoveryId), e);
+                        "unexpected error during recovery, but recovery id [{}] is finished", recoveryId), e);
                 }
+            }
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            assert e instanceof EsRejectedExecutionException : e;
+            if (((EsRejectedExecutionException) e).isExecutorShutdown()) {
+                try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
+                    if (recoveryRef != null) {
+                        logger.debug(
+                            () -> new ParameterizedMessage(
+                                "could not schedule execution of recovery [{}] as executor is shut down",
+                                recoveryId
+                            ),
+                            e
+                        );
+                        onGoingRecoveries.failRecovery(
+                            recoveryId,
+                            new RecoveryFailedException(recoveryRef.target().state(), "node is shutting down, releasing resources", e),
+                            false
+                        );
+                    }
+                }
+            } else {
+                onFailure(e);
             }
         }
 

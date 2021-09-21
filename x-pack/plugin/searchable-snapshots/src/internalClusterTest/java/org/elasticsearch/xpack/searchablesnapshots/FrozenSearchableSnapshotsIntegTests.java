@@ -142,8 +142,6 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             assertAcked(client().admin().indices().prepareClose(indexName));
         }
 
-        logger.info("--> restoring partial index [{}] with cache enabled", restoredIndexName);
-
         Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
         final List<String> nonCachedExtensions;
         if (randomBoolean()) {
@@ -200,12 +198,15 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         }, "test-stats-watcher");
         statsWatcher.start();
 
+        final Settings restoredIndexSettings = indexSettingsBuilder.build();
+        logger.info("--> restoring partial index [{}] with index settings [{}]", restoredIndexName, restoredIndexSettings);
+
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),
             indexName,
-            indexSettingsBuilder.build(),
+            restoredIndexSettings,
             Strings.EMPTY_ARRAY,
             true,
             MountSearchableSnapshotRequest.Storage.SHARED_CACHE
@@ -354,7 +355,9 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             oneOf("disk watermarks are ignored on this index", "there is only a single data node present")
         );
 
+        logger.info("--> full cluster restart");
         internalCluster().fullRestart();
+
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
         assertRecoveryStats(restoredIndexName, false);
         assertTotalHits(aliasName, originalAllHits, originalBarHits);

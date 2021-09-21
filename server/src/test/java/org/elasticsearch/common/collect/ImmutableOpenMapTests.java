@@ -78,6 +78,16 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertThat(ImmutableOpenMap.of().stream().count(), equalTo(0L));
     }
 
+    public void testKeysStreamOperationsAreSupported() {
+        assertThat(regionCurrencySymbols.keysStream().filter(e -> e.startsWith("U") == false).collect(Collectors.toSet()),
+            equalTo(Set.of("Japan", "EU", "Korea")));
+    }
+
+    public void testSortedKeysStream() {
+        assertThat(regionCurrencySymbols.keysStream().sorted().collect(Collectors.toList()),
+            equalTo(List.of("EU", "Japan", "Korea", "UK", "USA")));
+    }
+
     public void testStreamOperationsOnRandomMapKeys() {
         ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
 

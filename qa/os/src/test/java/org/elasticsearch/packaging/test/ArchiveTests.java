@@ -9,10 +9,12 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
@@ -117,7 +119,57 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
-    public void test50StartAndStop() throws Exception {
+    public void test40AutoconfigurationNotTriggered() throws Exception {
+        ServerUtils.addSettingToExistingConfiguration(installation, "discovery.seed_hosts", "[\"127.0.0.1:9300\"]");
+        startElasticsearch();
+        verifySecurityNotAutoConfigured(installation);
+        stopElasticsearch();
+        ServerUtils.removeSettingFromExistingConfiguration(installation, "discovery.seed_hosts");
+
+        ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"voting_only\", \"master\"]");
+        startElasticsearch();
+        verifySecurityNotAutoConfigured(installation);
+        stopElasticsearch();
+        ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
+
+        ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"ingest\"]");
+        startElasticsearch();
+        verifySecurityNotAutoConfigured(installation);
+        stopElasticsearch();
+        ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
+
+        ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.http.ssl.enabled", "false");
+        startElasticsearch();
+        verifySecurityNotAutoConfigured(installation);
+        stopElasticsearch();
+        ServerUtils.removeSettingFromExistingConfiguration(installation, "xpack.security.http.ssl.enabled");
+    }
+
+    public void test41AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
+        Path tempDir = createTempDir("custom-config");
+        Path tempConf = tempDir.resolve("elasticsearch");
+        FileUtils.copyDirectory(installation.config, tempConf);
+        Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempDir));
+        Platforms.onLinux(() -> sh.run("chmod -w " + tempDir));
+        sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
+        startElasticsearch();
+        verifySecurityNotAutoConfigured(installation);
+        stopElasticsearch();
+        sh.getEnv().remove("ES_PATH_CONF");
+        IOUtils.rm(tempDir);
+    }
+
+    public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
+        installation = installArchive(sh, distribution());
+        Path tempDir = createTempDir("bc-backup");
+        Files.move(installation.lib.resolve("tools/security-cli/bcprov-jdk15on-1.64.jar"), tempDir.resolve("bcprov-jdk15on-1.64.jar"));
+        Shell.Result result = runElasticsearchStartCommand(null, false, false);
+        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/asn1/x509/GeneralName", null);
+        Files.move(tempDir.resolve("bcprov-jdk15on-1.64.jar"), installation.lib.resolve("tools/security-cli/bcprov-jdk15on-1.64.jar"));
+        IOUtils.rm(tempDir);
+    }
+
+    public void test60StartAndStop() throws Exception {
         // cleanup from previous test
         rm(installation.config("elasticsearch.keystore"));
 
@@ -129,7 +181,7 @@ public class ArchiveTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
-    public void test51EsJavaHomeOverride() throws Exception {
+    public void test61EsJavaHomeOverride() throws Exception {
         Platforms.onLinux(() -> {
             String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
             sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
@@ -147,7 +199,7 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
     }
 
-    public void test51JavaHomeIgnored() throws Exception {
+    public void test62JavaHomeIgnored() throws Exception {
         assumeTrue(distribution().hasJdk);
         Platforms.onLinux(() -> {
             String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
@@ -175,7 +227,7 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(bundledJdk));
     }
 
-    public void test52BundledJdkRemoved() throws Exception {
+    public void test63BundledJdkRemoved() throws Exception {
         assumeThat(distribution().hasJdk, is(true));
 
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
@@ -201,7 +253,7 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
-    public void test53JavaHomeWithSpecialCharacters() throws Exception {
+    public void test64JavaHomeWithSpecialCharacters() throws Exception {
         Platforms.onWindows(() -> {
             String javaPath = "C:\\Program Files (x86)\\java";
             try {
@@ -249,7 +301,7 @@ public class ArchiveTests extends PackagingTestCase {
         });
     }
 
-    public void test54ForceBundledJdkEmptyJavaHome() throws Exception {
+    public void test65ForceBundledJdkEmptyJavaHome() throws Exception {
         assumeThat(distribution().hasJdk, is(true));
 
         sh.getEnv().put("ES_JAVA_HOME", "");
@@ -264,7 +316,7 @@ public class ArchiveTests extends PackagingTestCase {
      * <p>
      * This test purposefully ignores the existence of the Windows POSIX sub-system.
      */
-    public void test55InstallUnderPosix() throws Exception {
+    public void test66InstallUnderPosix() throws Exception {
         assumeTrue("Only run this test on Unix-like systems", Platforms.WINDOWS == false);
         sh.getEnv().put("POSIXLY_CORRECT", "1");
         startElasticsearch();

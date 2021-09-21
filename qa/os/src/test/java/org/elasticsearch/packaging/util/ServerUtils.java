@@ -35,7 +35,6 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -47,8 +46,6 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 
-import static java.nio.file.StandardOpenOption.APPEND;
-import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.elasticsearch.packaging.util.docker.Docker.dockerShell;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -335,22 +332,11 @@ public class ServerUtils {
     }
 
     public static void disableGeoIpDownloader(Installation installation) throws IOException {
-        List<String> yaml = Collections.singletonList("ingest.geoip.downloader.enabled: false");
-        Path yml = installation.config("elasticsearch.yml");
-        try (Stream<String> lines = Files.readAllLines(yml).stream()) {
-            if (lines.noneMatch(s -> s.startsWith("ingest.geoip.downloader.enabled"))) {
-                Files.write(yml, yaml, CREATE, APPEND);
-            }
-        }
+        addSettingToExistingConfiguration(installation, "ingest.geoip.downloader.enabled", "false");
     }
 
     public static void enableGeoIpDownloader(Installation installation) throws IOException {
-        Path yml = installation.config("elasticsearch.yml");
-        List<String> lines;
-        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-            lines = allLines.filter(s -> s.startsWith("ingest.geoip.downloader.enabled") == false).collect(Collectors.toList());
-        }
-        Files.write(yml, lines, TRUNCATE_EXISTING);
+        removeSettingFromExistingConfiguration(installation, "ingest.geoip.downloader.enabled");
     }
 
     /**
@@ -376,33 +362,35 @@ public class ServerUtils {
     }
 
     public static void enableSecurityFeatures(Installation installation) throws IOException {
-        Path yml = installation.config("elasticsearch.yml");
-        List<String> lines;
-        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-            lines = allLines.filter(s -> s.startsWith("xpack.security.enabled") == false).collect(Collectors.toList());
-        }
-        Files.write(yml, lines, TRUNCATE_EXISTING);
+       removeSettingFromExistingConfiguration(installation, "xpack.security.enabled");
     }
 
     public static void disableSecurityAutoConfiguration(Installation installation) throws IOException {
-        Path yml = installation.config("elasticsearch.yml");
-        List<String> addedLines = List.of("xpack.security.autoconfiguration.enabled: false");
-        List<String> lines;
-        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-            lines = allLines.filter(s -> s.startsWith("xpack.security.autoconfiguration.enabled") == false).collect(Collectors.toList());
-        }
-        lines.addAll(addedLines);
-        Files.write(yml, lines, TRUNCATE_EXISTING);
+        addSettingToExistingConfiguration(installation, "xpack.security.autoconfiguration.enabled", "false");
     }
 
     public static void enableSecurityAutoConfiguration(Installation installation) throws IOException {
+        removeSettingFromExistingConfiguration(installation, "xpack.security.autoconfiguration.enabled");
+    }
+
+    public static void addSettingToExistingConfiguration(Installation installation, String setting, String value) throws IOException{
         Path yml = installation.config("elasticsearch.yml");
-        List<String> addedLines = List.of("xpack.security.autoconfiguration.enabled: true");
         List<String> lines;
         try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-            lines = allLines.filter(s -> s.startsWith("xpack.security.autoconfiguration.enabled") == false).collect(Collectors.toList());
+            lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());
         }
-        lines.addAll(addedLines);
+        lines.add(setting + ": "+value);
         Files.write(yml, lines, TRUNCATE_EXISTING);
     }
+
+    public static void removeSettingFromExistingConfiguration(Installation installation, String setting) throws IOException{
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());
+        }
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
+
 }

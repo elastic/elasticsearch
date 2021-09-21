@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -70,9 +69,10 @@ public class JoinHelper {
 
     private static final Logger logger = LogManager.getLogger(JoinHelper.class);
 
-    public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
-    public static final String VALIDATE_JOIN_ACTION_NAME = "internal:cluster/coordination/join/validate";
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
+    public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
+    public static final String JOIN_VALIDATE_ACTION_NAME = "internal:cluster/coordination/join/validate";
+    public static final String JOIN_PING_ACTION_NAME = "internal:cluster/coordination/join/ping";
 
     // the timeout for Zen1 join attempts
     public static final Setting<TimeValue> JOIN_TIMEOUT_SETTING =
@@ -168,9 +168,17 @@ public class JoinHelper {
                 channel.sendResponse(Empty.INSTANCE);
             });
 
+        transportService.registerRequestHandler(
+            JOIN_PING_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            false,
+            TransportRequest.Empty::new,
+            (request, channel, task) -> channel.sendResponse(Empty.INSTANCE));
+
         final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
         final int maxLocalStorageNodes = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
-        transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
+        transportService.registerRequestHandler(JOIN_VALIDATE_ACTION_NAME,
             ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
@@ -328,37 +336,55 @@ public class JoinHelper {
                     // which point the NodeConnectionsService will have taken ownership of it.
                     registerConnection(destination, connectionReference);
 
-                    final String actionName;
-                    final TransportRequest transportRequest;
-                    final TransportRequestOptions transportRequestOptions;
                     if (Coordinator.isZen1Node(destination)) {
-                        actionName = MembershipAction.DISCOVERY_JOIN_ACTION_NAME;
-                        transportRequest = new MembershipAction.JoinRequest(transportService.getLocalNode());
-                        transportRequestOptions = TransportRequestOptions.timeout(joinTimeout);
-                    } else {
-                        actionName = JOIN_ACTION_NAME;
-                        transportRequest = joinRequest;
-                        transportRequestOptions = TransportRequestOptions.EMPTY;
+                        transportService.sendRequest(
+                            destination,
+                            MembershipAction.DISCOVERY_JOIN_ACTION_NAME,
+                            new MembershipAction.JoinRequest(transportService.getLocalNode()),
+                            TransportRequestOptions.timeout(joinTimeout),
+                            new TransportResponseHandler.Empty() {
+                                @Override
+                                public void handleResponse(TransportResponse.Empty response) {
+                                    pendingOutgoingJoins.remove(dedupKey);
+                                    logger.debug("successfully joined {} with {}", destination, joinRequest);
+                                    lastFailedJoinAttempt.set(null);
+                                    onCompletion.run();
+                                }
+
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    pendingOutgoingJoins.remove(dedupKey);
+                                    logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
+                                    FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
+                                    attempt.logNow();
+                                    lastFailedJoinAttempt.set(attempt);
+                                    unregisterAndReleaseConnection(destination, connectionReference);
+                                    onCompletion.run();
+                                }
+                            });
+                        return;
                     }
-                    transportService.sendRequest(destination, actionName, transportRequest, transportRequestOptions,
+
+                    transportService.sendRequest(
+                        destination,
+                        JOIN_ACTION_NAME,
+                        joinRequest,
+                        TransportRequestOptions.of(null, TransportRequestOptions.Type.PING),
                         new TransportResponseHandler.Empty() {
                             @Override
                             public void handleResponse(TransportResponse.Empty response) {
                                 pendingOutgoingJoins.remove(dedupKey);
                                 logger.debug("successfully joined {} with {}", destination, joinRequest);
                                 lastFailedJoinAttempt.set(null);
-                                onCompletion.run();
                             }
 
                             @Override
                             public void handleException(TransportException exp) {
                                 pendingOutgoingJoins.remove(dedupKey);
-                                logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
                                 FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
                                 attempt.logNow();
                                 lastFailedJoinAttempt.set(attempt);
                                 unregisterAndReleaseConnection(destination, connectionReference);
-                                onCompletion.run();
                             }
                         });
                 }
@@ -395,17 +421,6 @@ public class JoinHelper {
                     logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
                 }
             });
-    }
-
-    public void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
-        final String actionName;
-        if (Coordinator.isZen1Node(node)) {
-            actionName = MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME;
-        } else {
-            actionName = VALIDATE_JOIN_ACTION_NAME;
-        }
-        transportService.sendRequest(node, actionName, new ValidateJoinRequest(state),
-            new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     static class JoinTaskListener implements ClusterStateTaskListener {

@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.Scroll;
@@ -26,8 +26,8 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
 
@@ -91,6 +91,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean ccsMinimizeRoundtrips;
+
+    public static final boolean DEFAULT_FIELDS_EMULATION_ENABLED = false;
+    // the following flag is not serialized via transport layer, we only need it on the coordinating node
+    private transient boolean enableFieldsEmulation = DEFAULT_FIELDS_EMULATION_ENABLED;
 
     @Nullable
     private final Version minCompatibleShardNode;
@@ -193,6 +197,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
         this.minCompatibleShardNode = searchRequest.minCompatibleShardNode;
+        this.enableFieldsEmulation = searchRequest.enableFieldsEmulation;
     }
 
     /**
@@ -339,6 +344,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     + "shard version", validationException);
             }
         }
+        if (isFieldsOptionEmulationEnabled() && searchType().equals(SearchType.DFS_QUERY_THEN_FETCH)) {
+            validationException = addValidationError(
+                "[enable_fields_emulation] cannot be used with [dfs_query_then_fetch] search type. Use the default [query_then_fetch] "
+                    + "search type instead.",
+                validationException
+            );
+        }
         return validationException;
     }
 
@@ -431,6 +443,25 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
         this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
+    }
+
+    /**
+     * Returns whether the "fields" option will be emulated via fetching from source on pre 7.10 nodes.
+     * The default is false.
+     */
+    boolean isFieldsOptionEmulationEnabled() {
+        return enableFieldsEmulation;
+    }
+
+    /**
+     * Sets whether the "fields" option will be emulated via fetching from source on pre 7.10 nodes.
+     * @deprecated This option is only available temporarily. Instead of using this setter directly,
+     * use the parameter on the rest request. The bwc emulation will not be necessary on 8.0 any more,
+     * so this setter will not be availabe there.
+     */
+    @Deprecated
+    public void setFieldsOptionEmulationEnabled(boolean enableFieldsEmulation) {
+        this.enableFieldsEmulation = enableFieldsEmulation;
     }
 
     /**
@@ -792,14 +823,32 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 Objects.equals(localClusterAlias, that.localClusterAlias) &&
                 absoluteStartMillis == that.absoluteStartMillis &&
                 ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips &&
+                enableFieldsEmulation == that.enableFieldsEmulation &&
                 Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips, minCompatibleShardNode);
+        return Objects.hash(
+            searchType,
+            Arrays.hashCode(indices),
+            routing,
+            preference,
+            source,
+            requestCache,
+            scroll,
+            Arrays.hashCode(types),
+            indicesOptions,
+            batchedReduceSize,
+            maxConcurrentShardRequests,
+            preFilterShardSize,
+            allowPartialSearchResults,
+            localClusterAlias,
+            absoluteStartMillis,
+            ccsMinimizeRoundtrips,
+            minCompatibleShardNode,
+            enableFieldsEmulation
+        );
     }
 
     @Override
@@ -820,6 +869,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 ", localClusterAlias=" + localClusterAlias +
                 ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
                 ", ccsMinimizeRoundtrips=" + ccsMinimizeRoundtrips +
+                ", enableFieldsEmulation=" + enableFieldsEmulation +
                 ", source=" + source + '}';
     }
 }

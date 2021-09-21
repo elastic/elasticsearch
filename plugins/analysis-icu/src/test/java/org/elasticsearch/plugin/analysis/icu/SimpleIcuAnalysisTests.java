@@ -6,10 +6,19 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.icu;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.plugin.analysis.icu.IcuCollationTokenFilterFactory;
+import org.elasticsearch.plugin.analysis.icu.IcuFoldingTokenFilterFactory;
+import org.elasticsearch.plugin.analysis.icu.IcuNormalizerCharFilterFactory;
+import org.elasticsearch.plugin.analysis.icu.IcuNormalizerTokenFilterFactory;
+import org.elasticsearch.plugin.analysis.icu.IcuTokenizerFactory;
+import org.elasticsearch.plugin.analysis.icu.IcuTransformTokenFilterFactory;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.test.ESTestCase;
 

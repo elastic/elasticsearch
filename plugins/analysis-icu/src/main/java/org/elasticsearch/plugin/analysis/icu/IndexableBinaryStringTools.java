@@ -1,4 +1,4 @@
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.icu;
 
 /* @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more

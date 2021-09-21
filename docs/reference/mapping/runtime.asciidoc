@@ -1248,7 +1248,7 @@ value of the matching IP address. If the pattern doesn't match
 PUT my-index-000001/_mappings
 {
   "runtime": {
-    "http.clientip": {
+    "http.client_ip": {
       "type": "ip",
       "script": """
         String clientip=grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.clientip;
@@ -1289,6 +1289,39 @@ GET my-index-000001/_search
     }
   },
   "fields" : ["http.clientip"]
+}
+----
+// TEST[continued]
+
+[[runtime-examples-grok-composite]]
+==== Define a composite runtime field
+You can also define a _composite_ runtime field to emit multiple fields from a 
+single script. You can define a set of typed subfields and emit a map of 
+values. At search time, each subfield retrieves the value associated with 
+their name in the map. This means that you only need to specify your grok
+pattern one time and can return multiple values:
+
+[source,console]
+----
+PUT my-index-000001/_mappings
+{
+  "runtime": {
+    "http": {
+      "type": "composite",
+      "script": "emit(grok(\"%{COMMONAPACHELOG}\").extract(doc[\"message\"].value))",
+      "fields": {
+        "clientip": {
+          "type": "ip"
+        },
+        "verb": {
+          "type": "keyword"
+        },
+        "response": {
+          "type": "long"
+        }
+      }
+    }
+  }
 }
 ----
 // TEST[continued]

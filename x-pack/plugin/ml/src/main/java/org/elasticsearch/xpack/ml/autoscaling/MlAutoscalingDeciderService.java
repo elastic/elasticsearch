@@ -537,9 +537,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         if (largestJobOrModel == 0L && (dataframeAnalyticsTasks.size() + anomalyDetectionTasks.size() + modelAllocations.size() > 0)) {
             logger.warn(
                 "The calculated minimum required node size was unexpectedly [0] as there are "
-                    + "[{}] anomaly job tasks and [{}] data frame analytics tasks",
+                    + "[{}] anomaly job tasks, [{}] data frame analytics tasks and [{}] model allocations",
                 anomalyDetectionTasks.size(),
-                dataframeAnalyticsTasks.size()
+                dataframeAnalyticsTasks.size(),
+                modelAllocations.size()
             );
             return noScaleResultOrRefresh(reasonBuilder, true, new AutoscalingDeciderResult(
                 context.currentCapacity(),

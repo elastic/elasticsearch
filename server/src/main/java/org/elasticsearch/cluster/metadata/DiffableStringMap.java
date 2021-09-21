@@ -65,11 +65,39 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
 
     @Override
     public Diff<DiffableStringMap> diff(DiffableStringMap previousState) {
-        return new DiffableStringMapDiff(previousState, this);
+        if (this.equals(previousState)) {
+            return DiffableStringMapDiff.EMPTY;
+        }
+        final List<String> tempDeletes = new ArrayList<>();
+        final Map<String, String> tempUpserts = new HashMap<>();
+        for (String key : previousState.keySet()) {
+            if (containsKey(key) == false) {
+                tempDeletes.add(key);
+            }
+        }
+
+        for (Map.Entry<String, String> partIter : entrySet()) {
+            String beforePart = previousState.get(partIter.getKey());
+            if (beforePart == null) {
+                tempUpserts.put(partIter.getKey(), partIter.getValue());
+            } else if (partIter.getValue().equals(beforePart) == false) {
+                tempUpserts.put(partIter.getKey(), partIter.getValue());
+            }
+        }
+        return getDiff(tempDeletes, tempUpserts);
     }
 
     public static Diff<DiffableStringMap> readDiffFrom(StreamInput in) throws IOException {
-        return new DiffableStringMapDiff(in);
+        final List<String> deletes = in.readStringList();
+        final Map<String, String> upserts = in.readMap(StreamInput::readString, StreamInput::readString);
+        return getDiff(deletes, upserts);
+    }
+
+    private static Diff<DiffableStringMap> getDiff(List<String> deletes, Map<String, String> upserts) {
+        if (deletes.isEmpty() && upserts.isEmpty()) {
+            return DiffableStringMapDiff.EMPTY;
+        }
+        return new DiffableStringMapDiff(deletes, upserts);
     }
 
     /**
@@ -77,35 +105,19 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
      */
     public static class DiffableStringMapDiff implements Diff<DiffableStringMap> {
 
-        public static final DiffableStringMapDiff EMPTY = new DiffableStringMapDiff(DiffableStringMap.EMPTY, DiffableStringMap.EMPTY);
+        public static final DiffableStringMapDiff EMPTY = new DiffableStringMapDiff(Collections.emptyList(), Collections.emptyMap()) {
+            @Override
+            public DiffableStringMap apply(DiffableStringMap part) {
+                return part;
+            }
+        };
 
         private final List<String> deletes;
         private final Map<String, String> upserts; // diffs also become upserts
 
-        private DiffableStringMapDiff(DiffableStringMap before, DiffableStringMap after) {
-            final List<String> tempDeletes = new ArrayList<>();
-            final Map<String, String> tempUpserts = new HashMap<>();
-            for (String key : before.keySet()) {
-                if (after.containsKey(key) == false) {
-                    tempDeletes.add(key);
-                }
-            }
-
-            for (Map.Entry<String, String> partIter : after.entrySet()) {
-                String beforePart = before.get(partIter.getKey());
-                if (beforePart == null) {
-                    tempUpserts.put(partIter.getKey(), partIter.getValue());
-                } else if (partIter.getValue().equals(beforePart) == false) {
-                    tempUpserts.put(partIter.getKey(), partIter.getValue());
-                }
-            }
-            deletes = tempDeletes;
-            upserts = tempUpserts;
-        }
-
-        private DiffableStringMapDiff(StreamInput in) throws IOException {
-            deletes = in.readStringList();
-            upserts = in.readMap(StreamInput::readString, StreamInput::readString);
+        private DiffableStringMapDiff(final List<String> deletes, final Map<String, String> upserts) {
+            this.deletes = deletes;
+            this.upserts = upserts;
         }
 
         public List<String> getDeletes() {
@@ -135,9 +147,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
             }
             assert getDiffs().size() == 0 : "there should never be diffs for DiffableStringMap";
 
-            for (Map.Entry<String, String> upsert : upserts.entrySet()) {
-                builder.put(upsert.getKey(), upsert.getValue());
-            }
+            builder.putAll(upserts);
             return new DiffableStringMap(builder);
         }
     }

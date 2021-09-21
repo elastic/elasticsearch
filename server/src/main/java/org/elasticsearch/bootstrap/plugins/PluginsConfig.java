@@ -10,14 +10,9 @@ package org.elasticsearch.bootstrap.plugins;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -29,9 +24,6 @@ import java.util.Set;
  * Elasticsearch plugin.
  */
 public class PluginsConfig {
-    private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
-    private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
-
     private final List<PluginDescriptor> plugins;
     private final String proxy;
 
@@ -97,28 +89,6 @@ public class PluginsConfig {
                 }
             }
         }
-    }
-
-    /**
-     * Constructs a {@link PluginsConfig} instance from the config YAML file
-     * @param configPath the config file to load
-     * @return a validated config
-     * @throws PluginSyncException if there is a problem finding or parsing the file
-     */
-    public static PluginsConfig parseConfig(Path configPath) throws PluginSyncException {
-        PluginsConfig pluginsConfig;
-        try {
-            byte[] configBytes = Files.readAllBytes(configPath);
-            pluginsConfig = MAPPER.readValue(configBytes, PluginsConfig.class);
-        } catch (IOException e) {
-            throw new PluginSyncException("Cannot parse plugins config file [" + configPath + "]: " + e.getMessage(), e);
-        }
-
-        return pluginsConfig;
-    }
-
-    static void writeConfig(PluginsConfig config, Path destination) throws IOException {
-        MAPPER.writeValue(Files.newOutputStream(destination), config);
     }
 
     public List<PluginDescriptor> getPlugins() {

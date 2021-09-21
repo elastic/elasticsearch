@@ -51,10 +51,10 @@ dependencies {
   api "com.azure:azure-core:${versions.azureCore}"
 
   // jackson
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 
   // jackson xml
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"

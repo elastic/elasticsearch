@@ -8,6 +8,9 @@
 
 package org.elasticsearch.bootstrap.plugins;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -59,14 +62,15 @@ public class PluginsManager {
         // The official plugins that can be installed simply by name.
         final Set<String> officialPlugins = getFileFromClasspath("official plugins", "/plugins.txt");
 
-        // 1. Parse descriptor file
-        final PluginsConfig pluginsConfig = PluginsConfig.parseConfig(configPath);
+        final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
+        // 1. Parse descriptor file
+        final PluginsConfig pluginsConfig = parseConfig(yamlMapper, configPath);
         pluginsConfig.validate(officialPlugins);
 
         // 2. Parse cached descriptor file, if it exists
         Optional<PluginsConfig> cachedPluginsConfig = Files.exists(previousConfigPath)
-            ? Optional.of(PluginsConfig.parseConfig(previousConfigPath))
+            ? Optional.of(parseConfig(yamlMapper, previousConfigPath))
             : Optional.empty();
 
         // 3. Get list of installed plugins
@@ -121,11 +125,11 @@ public class PluginsManager {
             pluginRemover.setPurge(false);
             pluginRemover.execute(existingPlugins, pluginsToUpgrade);
 
-            pluginInstaller.execute(pluginsToInstall);
+            pluginInstaller.execute(pluginsToUpgrade);
         }
 
         // 8. Cached the applied config so that we can diff it on the next run.
-        PluginsConfig.writeConfig(pluginsConfig, previousConfigPath);
+        yamlMapper.writeValue(Files.newOutputStream(previousConfigPath), pluginsConfig);
     }
 
     private Set<String> getFileFromClasspath(String description, String path) throws PluginSyncException {
@@ -148,18 +152,12 @@ public class PluginsManager {
             config -> config.getPlugins().stream().collect(Collectors.toMap(PluginDescriptor::getId, PluginDescriptor::getLocation))
         ).orElse(Map.of());
 
-        logger.info("cachedPluginsConfig: {}", cachedPluginsConfig.orElse(null));
-        logger.info("cachedPluginIdToLocation: {}", cachedPluginIdToLocation);
-
         return pluginsToMaybeUpgrade.stream().filter(eachPlugin -> {
             final String eachPluginId = eachPlugin.getId();
 
             // If a plugin's location has changed, reinstall
             if (Objects.equals(eachPlugin.getLocation(), cachedPluginIdToLocation.get(eachPluginId)) == false) {
-                logger.info("eachPlugin: {}", eachPlugin);
-                logger.info("eachPlugin.getLocation(): {}", eachPlugin.getLocation());
-                // FIXME lower the log level
-                logger.info(
+                logger.debug(
                     "Location for plugin [{}] has changed from [{}] to [{}], reinstalling",
                     eachPluginId,
                     cachedPluginIdToLocation.get(eachPluginId),
@@ -263,5 +261,25 @@ public class PluginsManager {
             printSummary.accept("install", pluginsToInstall);
             printSummary.accept("upgrade", pluginsToUpgrade);
         }
+    }
+
+    /**
+     * Constructs a {@link PluginsConfig} instance from the config YAML file
+     *
+     * @param yamlMapper an ObjectMapper that has been created using {@link YAMLFactory}
+     * @param configPath the config file to load
+     * @return a validated config
+     * @throws PluginSyncException if there is a problem finding or parsing the file
+     */
+    public static PluginsConfig parseConfig(ObjectMapper yamlMapper, Path configPath) throws PluginSyncException {
+        PluginsConfig pluginsConfig;
+        try {
+            byte[] configBytes = Files.readAllBytes(configPath);
+            pluginsConfig = yamlMapper.readValue(configBytes, PluginsConfig.class);
+        } catch (IOException e) {
+            throw new PluginSyncException("Cannot parse plugins config file [" + configPath + "]: " + e.getMessage(), e);
+        }
+
+        return pluginsConfig;
     }
 }

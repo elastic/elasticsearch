@@ -222,6 +222,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
                     return true;
                 }
             }
+            return false;
         } else {
             for (String value : values) {
                 if (roleNames == null) {
@@ -229,9 +230,9 @@ public class DataTierAllocationDecider extends AllocationDecider {
                     for (DiscoveryNodeRole role : roles) {
                         roleNames.add(role.roleName());
                     }
-                    if (roleNames.contains(value) == false) {
-                        return false;
-                    }
+                }
+                if (roleNames.contains(value) == false) {
+                    return false;
                 }
             }
         }

@@ -24,6 +24,9 @@ import java.nio.charset.StandardCharsets;
  */
 public class BootstrapUtil {
 
+    // no construction
+    private BootstrapUtil() {}
+
     /**
      * Read from an InputStream up to the first carriage return or newline,
      * returning no more than maxLength characters.

@@ -11,7 +11,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
-import org.apache.lucene.search.uhighlight.Snippet;
+import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
 

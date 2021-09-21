@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -27,47 +25,11 @@ import java.util.Map;
 
 public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(AutoDateHistogramAggregator.class);
-
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             AutoDateHistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             AutoDateHistogramAggregator::build,
-            true
-        );
-
-        builder.register(
-            AutoDateHistogramAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.BOOLEAN,
-            (
-                String name,
-                AggregatorFactories factories,
-                int targetBuckets,
-                RoundingInfo[] roundingInfos,
-                ValuesSourceConfig valuesSourceConfig,
-                AggregationContext context,
-                Aggregator parent,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata) -> {
-
-                DEPRECATION_LOGGER.critical(
-                    DeprecationCategory.AGGREGATIONS,
-                    "auto-date-histogram-boolean",
-                    "Running AutoIntervalDateHistogram aggregations on [boolean] fields is deprecated"
-                );
-                return AutoDateHistogramAggregator.build(
-                    name,
-                    factories,
-                    targetBuckets,
-                    roundingInfos,
-                    valuesSourceConfig,
-                    context,
-                    parent,
-                    cardinality,
-                    metadata
-                );
-            },
             true
         );
     }

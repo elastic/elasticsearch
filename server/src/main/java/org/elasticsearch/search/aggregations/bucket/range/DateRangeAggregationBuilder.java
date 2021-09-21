@@ -9,15 +9,11 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -52,45 +48,8 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         }, (p, c) -> RangeAggregator.Range.PARSER.parse(p, null), RangeAggregator.RANGES_FIELD);
     }
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateRangeAggregationBuilder.class);
-
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(REGISTRY_KEY, List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE), RangeAggregator::build, true);
-
-        builder.register(
-            REGISTRY_KEY,
-            CoreValuesSourceType.BOOLEAN,
-            (
-                String name,
-                AggregatorFactories factories,
-                ValuesSourceConfig valuesSourceConfig,
-                InternalRange.Factory<?, ?> rangeFactory,
-                RangeAggregator.Range[] ranges,
-                boolean keyed,
-                AggregationContext context,
-                Aggregator parent,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata) -> {
-                DEPRECATION_LOGGER.critical(
-                    DeprecationCategory.AGGREGATIONS,
-                    "Range-boolean",
-                    "Running Range or DateRange aggregations on [boolean] fields is deprecated"
-                );
-                return RangeAggregator.build(
-                    name,
-                    factories,
-                    valuesSourceConfig,
-                    rangeFactory,
-                    ranges,
-                    keyed,
-                    context,
-                    parent,
-                    cardinality,
-                    metadata
-                );
-            },
-            true
-        );
     }
 
     public DateRangeAggregationBuilder(String name) {

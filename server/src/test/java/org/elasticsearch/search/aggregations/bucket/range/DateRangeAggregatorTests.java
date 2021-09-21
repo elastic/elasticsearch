@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -25,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -55,16 +53,6 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     private static final Instant T1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
     private static final Instant T2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant();
-
-    public void testBooleanFieldDeprecated() throws IOException {
-        final String fieldName = "bogusBoolean";
-        testCase(new DateRangeAggregationBuilder("name").field(fieldName).addRange("false", "true"), new MatchAllDocsQuery(), iw -> {
-            Document d = new Document();
-            d.add(new SortedNumericDocValuesField(fieldName, 0));
-            iw.addDocument(d);
-        }, a -> {}, new BooleanFieldMapper.BooleanFieldType(fieldName));
-        assertWarnings("Running Range or DateRange aggregations on [boolean] fields is deprecated");
-    }
 
     public void testNoMatchingField() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {

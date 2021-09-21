@@ -55,4 +55,17 @@ the `date_histogram` composite source will now generate an error.  Instead
 please use the more specific `fixed_interval` or `calendar_interval`
 parameters.
 ====
+[[booleans-as-dates]]
+.Running date aggregations on `boolean` fields is now an error
+[%collapsible]
+====
+*Details* +
+The `date-histogram`, `auto-date-histogram`, and `date-range` aggregations will
+no longer operate on boolean fields.  We never intended them to accept boolean
+fields, and they never did anything terribly useful in that case (as the values
+are treated as 0 and 1 millisecond past epoch).
+*Impact* +
+Running a date-based aggregation on a boolean field will now generate a runtime
+error.
+====
 // end::notable-breaking-changes[]

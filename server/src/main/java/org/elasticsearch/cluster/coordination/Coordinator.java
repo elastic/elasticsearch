@@ -603,7 +603,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void sendJoinPing(DiscoveryNode discoveryNode, TransportRequestOptions.Type channelType, ActionListener<Empty> listener) {
-        if (discoveryNode.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (discoveryNode.getVersion().onOrAfter(Version.V_7_16_0) && isZen1Node(discoveryNode) == false) {
             transportService.sendRequest(
                 discoveryNode,
                 JoinHelper.JOIN_PING_ACTION_NAME,

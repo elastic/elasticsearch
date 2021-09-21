@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch;
+package org.elasticsearch.test.diewithdignity;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Randomness;

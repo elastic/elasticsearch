@@ -6,10 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
+import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ public class PluginSecurityTests extends ESTestCase {
                 "test cannot run with security manager enabled",
                 System.getSecurityManager() == null);
         Path scratch = createTempDir();
-        PluginPolicyInfo info = makeDummyPlugin("security/simple-plugin-security.policy");
+        PluginPolicyInfo info = makeDummyPlugin("simple-plugin-security.policy");
         Set<String> actual = PluginSecurity.getPermissionDescriptions(info, scratch);
         assertThat(actual, contains(PluginSecurity.formatPermission(new PropertyPermission("someProperty", "read"))));
     }
@@ -50,7 +51,7 @@ public class PluginSecurityTests extends ESTestCase {
                 "test cannot run with security manager enabled",
                 System.getSecurityManager() == null);
         Path scratch = createTempDir();
-        PluginPolicyInfo info = makeDummyPlugin("security/complex-plugin-security.policy");
+        PluginPolicyInfo info = makeDummyPlugin("complex-plugin-security.policy");
         Set<String> actual = PluginSecurity.getPermissionDescriptions(info, scratch);
         assertThat(actual, containsInAnyOrder(
             PluginSecurity.formatPermission(new RuntimePermission("getClassLoader")),

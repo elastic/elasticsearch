@@ -6,11 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.kuromoji;
 
 import org.apache.lucene.analysis.ja.JapaneseTokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
+import org.elasticsearch.plugin.analysis.kuromoji.KuromojiBaseFormFilterFactory;
+import org.elasticsearch.plugin.analysis.kuromoji.KuromojiIterationMarkCharFilterFactory;
+import org.elasticsearch.plugin.analysis.kuromoji.KuromojiKatakanaStemmerFactory;
+import org.elasticsearch.plugin.analysis.kuromoji.KuromojiNumberFilterFactory;
+import org.elasticsearch.plugin.analysis.kuromoji.KuromojiPartOfSpeechFilterFactory;
+import org.elasticsearch.plugin.analysis.kuromoji.KuromojiReadingFormFilterFactory;
 
 import java.util.HashMap;
 import java.util.Map;

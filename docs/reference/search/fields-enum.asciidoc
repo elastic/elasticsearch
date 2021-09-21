@@ -11,8 +11,7 @@ a partial string. This is used for auto-complete:
 --------------------------------------------------
 POST stackoverflow/_fields_enum
 {
-    "field" : "tags",
-    "string" : "kiba"
+    "string" : "aut"
 }
 --------------------------------------------------
 // TEST[setup:stackoverflow]
@@ -29,7 +28,7 @@ The API returns the following response:
     "failed": 0
   },
   "terms": [
-    "kibana"
+    "author"
   ],
   "complete" : true
 }
@@ -76,7 +75,7 @@ are considered.
 [[fields-enum-size-param]]
 `size`::
 (Optional, integer)
-How many matching terms to return. Defaults to 10
+How many matching field names to return. Defaults to 10
 
 [[fields-enum-timeout-param]]
 `timeout`::
@@ -88,7 +87,7 @@ be partial or empty.
 [[fields-enum-case_insensitive-param]]
 `case_insensitive`::
 (Optional, boolean)
-When true the provided search string is matched against index terms without case sensitivity.
+When true the provided search string is matched against field names without case sensitivity.
 Defaults to false.
 
 [[fields-enum-index_filter-param]]

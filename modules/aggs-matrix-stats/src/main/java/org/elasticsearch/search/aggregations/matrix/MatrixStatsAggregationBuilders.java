@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.search.aggregations;
+package org.elasticsearch.search.aggregations.matrix;
 
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;

@@ -17,7 +17,6 @@ import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
-import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -609,20 +608,14 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
         return UUIDs.randomBase64UUIDSecureString();
     }
 
-    @SuppressForbidden(reason = "DNS resolve InetAddress#getCanonicalHostName used to populate auto generated HTTPS cert")
     private GeneralNames getSubjectAltNames() throws IOException {
         Set<GeneralName> generalNameSet = new HashSet<>();
-        // use only ipv4 addresses
-        // ipv6 can also technically be used, but they are many and they are long
-        for (InetAddress ip : NetworkUtils.getAllIPV4Addresses()) {
+        for (InetAddress ip : NetworkUtils.getAllAddresses()) {
             String ipString = NetworkAddress.format(ip);
             generalNameSet.add(new GeneralName(GeneralName.iPAddress, ipString));
-            String reverseFQDN = ip.getCanonicalHostName();
-            if (false == ipString.equals(reverseFQDN)) {
-                // reverse FQDN successful
-                generalNameSet.add(new GeneralName(GeneralName.dNSName, reverseFQDN));
-            }
         }
+        generalNameSet.add(new GeneralName(GeneralName.dNSName, "localhost"));
+        generalNameSet.add(new GeneralName(GeneralName.dNSName, System.getenv("HOSTNAME")));
         return new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
     }
 

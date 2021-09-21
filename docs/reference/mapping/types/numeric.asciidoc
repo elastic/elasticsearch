@@ -183,8 +183,6 @@ value is the metric type. Defaults to `null` (Not a time series metric).
 +
 For numeric fields, this parameter accepts `gauge` and `counter`. You can't
 update this parameter for existing fields.
-+
-`scaled_float` and `unsigned_long` fields don't support this parameter.
 
 [[scaled-float-params]]
 ==== Parameters for `scaled_float`

@@ -182,7 +182,7 @@ public class DiskThresholdSettings {
     }
 
     private static void doValidate(String low, String high, String flood) {
-        if (low.endsWith("b") == false) { // only try to validate as percentage if it isn't obviously a byte size value
+        if (definitelyNotPercentage(low) == false) { // only try to validate as percentage if it isn't obviously a byte size value
             try {
                 doValidateAsPercentage(low, high, flood);
                 return; // early return so that we do not try to parse as bytes
@@ -378,7 +378,7 @@ public class DiskThresholdSettings {
      * @return the parsed percentage
      */
     private static double thresholdPercentageFromWatermark(String watermark, boolean lenient) {
-        if (lenient && watermark.endsWith("b")) {
+        if (lenient && definitelyNotPercentage(watermark)) {
             // obviously not a percentage so return lenient fallback value like we would below on a parse failure
             return 100.0;
         }
@@ -429,7 +429,7 @@ public class DiskThresholdSettings {
      * @return the watermark value given
      */
     private static String validWatermarkSetting(String watermark, String settingName) {
-        if (watermark.endsWith("b")) {
+        if (definitelyNotPercentage(watermark)) {
             // short circuit to save expensive exception on obvious byte size value below
             ByteSizeValue.parseBytesSizeValue(watermark, settingName);
             return watermark;
@@ -445,5 +445,14 @@ public class DiskThresholdSettings {
             }
         }
         return watermark;
+    }
+
+    // Checks that a value is definitely not a percentage by testing if it ends on `b` which implies that it is probably a byte size value
+    // instead. This is used to make setting validation skip attempting to parse a value as a percentage/ration for the settings in this
+    // class that accept either a byte size value. The main motivation of this method is to make tests faster. Some tests call this method
+    // frequently when starting up internal cluster nodes and using exception throwing and catching when trying to parse as a ratio as a
+    // means of identifying that a string is not a ratio is quite slow.
+    private static boolean definitelyNotPercentage(String value) {
+        return value.endsWith("b");
     }
 }

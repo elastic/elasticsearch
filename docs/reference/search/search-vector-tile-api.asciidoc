@@ -295,6 +295,8 @@ include::search-vector-tile-api.asciidoc[tag=size]
 By default, the API calculates a bounding box for each feature. It sorts
 features based on this box's diagonal length, from longest to shortest.
 
+include::search-vector-tile-api.asciidoc[tag=track_total_hits]
+
 [role="child_attributes"]
 [[search-vector-tile-api-response]]
 ==== Response

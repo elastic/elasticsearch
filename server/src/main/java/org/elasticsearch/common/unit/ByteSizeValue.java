@@ -211,6 +211,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                 return ZERO;
             case "1b":
             case "1B":
+                // "1" is deliberately omitted, the units are required for all values except "0" and "-1"
                 return ONE;
             case "-1":
             case "-1b":

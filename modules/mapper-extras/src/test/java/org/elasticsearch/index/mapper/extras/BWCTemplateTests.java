@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.extras;
 
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
@@ -27,9 +27,9 @@ public class BWCTemplateTests extends ESSingleNodeTestCase {
     }
 
     public void testBeatsTemplatesBWC() throws Exception {
-        byte[] metricBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/metricbeat-6.0.template.json");
-        byte[] packetBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/packetbeat-6.0.template.json");
-        byte[] fileBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/filebeat-6.0.template.json");
+        byte[] metricBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/extras/metricbeat-6.0.template.json");
+        byte[] packetBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/extras/packetbeat-6.0.template.json");
+        byte[] fileBeat = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/extras/filebeat-6.0.template.json");
         client().admin().indices().preparePutTemplate("metricbeat").setSource(metricBeat, XContentType.JSON).get();
         client().admin().indices().preparePutTemplate("packetbeat").setSource(packetBeat, XContentType.JSON).get();
         client().admin().indices().preparePutTemplate("filebeat").setSource(fileBeat, XContentType.JSON).get();

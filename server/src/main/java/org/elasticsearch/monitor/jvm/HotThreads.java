@@ -19,6 +19,7 @@ import java.lang.management.ThreadMXBean;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +41,20 @@ public class HotThreads {
     private int threadElementsSnapshotCount = 10;
     private ReportType type = ReportType.CPU;
     private boolean ignoreIdleThreads = true;
+
+    private static final List<String[]> knownIdleStackFrames = Arrays.asList(
+        new String[] {"java.util.concurrent.ThreadPoolExecutor", "getTask"},
+        new String[] {"sun.nio.ch.SelectorImpl", "select"},
+        new String[] {"org.elasticsearch.threadpool.ThreadPool$CachedTimeThread", "run"},
+        new String[] {"org.elasticsearch.indices.ttl.IndicesTTLService$Notifier", "await"},
+        new String[] {"java.util.concurrent.LinkedTransferQueue", "poll"},
+        new String[] {"com.sun.jmx.remote.internal.ServerCommunicatorAdmin$Timeout", "run"}
+    );
+
+    // NOTE: these are JVM dependent and JVM version dependent
+    private static final List<String> knownJDKInternalThreads = Arrays.asList(
+        "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner", "process reaper"
+    );
 
     public enum ReportType {
 
@@ -103,37 +118,23 @@ public class HotThreads {
         }
     }
 
-    static boolean isIdleThread(ThreadInfo threadInfo) {
-        String threadName = threadInfo.getThreadName();
+    static boolean isKnownJDKThread(ThreadInfo threadInfo) {
+        return (knownJDKInternalThreads.stream().anyMatch(jvmThread ->
+            threadInfo.getThreadName() != null && threadInfo.getThreadName().equals(jvmThread)));
+    }
 
-        // NOTE: these are likely JVM dependent
-        if (threadName.equals("Signal Dispatcher") ||
-            threadName.equals("Finalizer") ||
-            threadName.equals("Reference Handler")) {
+    static boolean isKnownIdleStackFrame(String className, String methodName) {
+        return (knownIdleStackFrames.stream().anyMatch(pair ->
+            pair[0].equals(className) && pair[1].equals(methodName)));
+    }
+
+    static boolean isIdleThread(ThreadInfo threadInfo) {
+        if (isKnownJDKThread(threadInfo)) {
             return true;
         }
 
         for (StackTraceElement frame : threadInfo.getStackTrace()) {
-            String className = frame.getClassName();
-            String methodName = frame.getMethodName();
-            if (className.equals("java.util.concurrent.ThreadPoolExecutor") &&
-                methodName.equals("getTask")) {
-                return true;
-            }
-            if (className.equals("sun.nio.ch.SelectorImpl") &&
-                methodName.equals("select")) {
-                return true;
-            }
-            if (className.equals("org.elasticsearch.threadpool.ThreadPool$CachedTimeThread") &&
-                methodName.equals("run")) {
-                return true;
-            }
-            if (className.equals("org.elasticsearch.indices.ttl.IndicesTTLService$Notifier") &&
-                methodName.equals("await")) {
-                return true;
-            }
-            if (className.equals("java.util.concurrent.LinkedTransferQueue") &&
-                methodName.equals("poll")) {
+            if (isKnownIdleStackFrame(frame.getClassName(), frame.getMethodName())) {
                 return true;
             }
         }

@@ -8,10 +8,8 @@
 package org.apache.lucene.search;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * A Weight that caps scores of the wrapped query to a maximum value
@@ -25,11 +23,6 @@ public abstract class CappedScoreWeight extends Weight {
         super(query);
         this.maxScore = maxScore;
         this.innerWeight = innerWeight;
-    }
-
-    @Override
-    public void extractTerms(Set<Term> terms) {
-        innerWeight.extractTerms(terms);
     }
 
     @Override

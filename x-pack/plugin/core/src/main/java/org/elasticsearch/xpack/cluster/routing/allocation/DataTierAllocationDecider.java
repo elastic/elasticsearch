@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConst
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -160,7 +161,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
                 String tierName = tier.get();
                 // The OpType doesn't actually matter here, because we have
                 // selected only a single tier as our "preferred" tier
-                if (allocationAllowed(OpType.AND, tierName, roles)) {
+                if (allocationAllowed(tierName, roles)) {
                     return allocation.decision(Decision.YES, NAME,
                         "index has a preference for tiers [%s] and node has tier [%s]", tierPreference, tierName);
                 } else {
@@ -173,11 +174,6 @@ public class DataTierAllocationDecider extends AllocationDecider {
             }
         }
         return null;
-    }
-
-    private enum OpType {
-        AND,
-        OR
     }
 
     /**
@@ -209,25 +205,36 @@ public class DataTierAllocationDecider extends AllocationDecider {
     }
 
 
-    private static boolean allocationAllowed(OpType opType, String tierSetting, Set<DiscoveryNodeRole> roles) {
+    private static boolean allocationAllowed(String tierSetting, Set<DiscoveryNodeRole> roles) {
         String[] values = parseTierList(tierSetting);
-        for (String value : values) {
+        Set<String> roleNames = null;
+        if (values.length == 0) {
+            return true;
+        }
+        if (roles.contains(DiscoveryNodeRole.DATA_ROLE)) {
             // generic "data" roles are considered to have all tiers
-            if (roles.contains(DiscoveryNodeRole.DATA_ROLE) ||
-                roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toSet()).contains(value)) {
-                if (opType == OpType.OR) {
+            return true;
+        }
+        if (values.length == 1) {
+            final String value = values[0];
+            for (DiscoveryNodeRole role : roles) {
+                if (value.equals(role.roleName())) {
                     return true;
                 }
-            } else {
-                if (opType == OpType.AND) {
-                    return false;
+            }
+        } else {
+            for (String value : values) {
+                if (roleNames == null) {
+                    roleNames = new HashSet<>(roles.size());
+                    for (DiscoveryNodeRole role : roles) {
+                        roleNames.add(role.roleName());
+                    }
+                    if (roleNames.contains(value) == false) {
+                        return false;
+                    }
                 }
             }
         }
-        if (opType == OpType.OR) {
-            return false;
-        } else {
-            return true;
-        }
+        return true;
     }
 }

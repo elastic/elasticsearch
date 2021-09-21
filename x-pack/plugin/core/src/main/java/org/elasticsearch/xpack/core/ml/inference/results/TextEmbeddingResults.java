@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.Map;
 
 public class TextEmbeddingResults implements InferenceResults {
@@ -57,8 +57,6 @@ public class TextEmbeddingResults implements InferenceResults {
     @Override
     public Map<String, Object> asMap() {
         return Collections.singletonMap(DEFAULT_RESULTS_FIELD, inference);
-        map.put(DEFAULT_RESULTS_FIELD, inference);
-        return map;
     }
 
     @Override

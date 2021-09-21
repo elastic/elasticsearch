@@ -362,7 +362,7 @@ public class ServerUtils {
     }
 
     public static void enableSecurityFeatures(Installation installation) throws IOException {
-       removeSettingFromExistingConfiguration(installation, "xpack.security.enabled");
+        removeSettingFromExistingConfiguration(installation, "xpack.security.enabled");
     }
 
     public static void disableSecurityAutoConfiguration(Installation installation) throws IOException {
@@ -373,17 +373,17 @@ public class ServerUtils {
         removeSettingFromExistingConfiguration(installation, "xpack.security.autoconfiguration.enabled");
     }
 
-    public static void addSettingToExistingConfiguration(Installation installation, String setting, String value) throws IOException{
+    public static void addSettingToExistingConfiguration(Installation installation, String setting, String value) throws IOException {
         Path yml = installation.config("elasticsearch.yml");
         List<String> lines;
         try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
             lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());
         }
-        lines.add(setting + ": "+value);
+        lines.add(setting + ": " + value);
         Files.write(yml, lines, TRUNCATE_EXISTING);
     }
 
-    public static void removeSettingFromExistingConfiguration(Installation installation, String setting) throws IOException{
+    public static void removeSettingFromExistingConfiguration(Installation installation, String setting) throws IOException {
         Path yml = installation.config("elasticsearch.yml");
         List<String> lines;
         try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
@@ -391,6 +391,5 @@ public class ServerUtils {
         }
         Files.write(yml, lines, TRUNCATE_EXISTING);
     }
-
 
 }

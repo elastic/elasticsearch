@@ -362,6 +362,12 @@ public class RBACEngine implements AuthorizationEngine {
         if ((parentResult instanceof IndexAuthorizationResult) == false) {
             return false;
         }
+        final IndicesAccessControl indicesAccessControl = ((IndexAuthorizationResult) parentResult).getIndicesAccessControl();
+        if (indicesAccessControl == null) {
+            // This can happen for is the parent request was authorized by index name only - e.g. bulk request
+            // A missing IAC is not an error, but it means we can't safely tie authz of the child action to the parent authz
+            return false;
+        }
 
         if (requestInfo.getAction().startsWith(parent.getAction()) == false) {
             // Parent action is not a true parent
@@ -391,9 +397,6 @@ public class RBACEngine implements AuthorizationEngine {
             // No indices to check
             return false;
         }
-
-        final IndicesAccessControl indicesAccessControl = ((IndexAuthorizationResult) parentResult).getIndicesAccessControl();
-        assert indicesAccessControl != null;
 
         return Arrays.stream(indices).allMatch(idx -> {
             if (Regex.isSimpleMatchPattern(idx)) {

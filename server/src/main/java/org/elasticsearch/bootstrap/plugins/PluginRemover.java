@@ -6,12 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.bootstrap.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;

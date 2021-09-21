@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.bootstrap.plugins;
 
 class PluginSyncException extends Exception {
 

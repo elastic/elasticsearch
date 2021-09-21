@@ -136,7 +136,7 @@ class InstallPluginAction implements Closeable {
     private static final Set<String> MODULES;
 
     static {
-        try (var stream = PluginInstaller.class.getResourceAsStream("/modules.txt")) {
+        try (var stream = InstallPluginAction.class.getResourceAsStream("/modules.txt")) {
             MODULES = Streams.readAllLines(stream).stream().map(String::trim).collect(Collectors.toUnmodifiableSet());
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
@@ -146,7 +146,7 @@ class InstallPluginAction implements Closeable {
     /** The official plugins that can be installed simply by name. */
     static final Set<String> OFFICIAL_PLUGINS;
     static {
-        try (var stream = PluginInstaller.class.getResourceAsStream("/plugins.txt")) {
+        try (var stream = InstallPluginAction.class.getResourceAsStream("/plugins.txt")) {
             OFFICIAL_PLUGINS = Streams.readAllLines(stream).stream().map(String::trim).collect(Sets.toUnmodifiableSortedSet());
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
@@ -695,7 +695,7 @@ class InstallPluginAction implements Closeable {
      * @return an input stream to the public key
      */
     InputStream getPublicKey() {
-        return PluginInstaller.class.getResourceAsStream("/public_key.asc");
+        return InstallPluginAction.class.getResourceAsStream("/public_key.asc");
     }
 
     /**

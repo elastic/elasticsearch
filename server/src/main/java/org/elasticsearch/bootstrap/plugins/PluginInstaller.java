@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.bootstrap.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,6 +34,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginsService;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -62,6 +65,8 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.Permission;
+import java.security.UnresolvedPermission;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -746,7 +751,7 @@ class PluginInstaller implements Closeable {
         final PluginInfo info = loadPluginInfo(tmpRoot);
         PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
         if (pluginPolicy != null) {
-            Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
+            Set<String> permissions = getPermissionDescriptions(pluginPolicy, env.tmpFile());
             this.logger.warn("NOTE: plugin {} requires extra permissions! {}", descriptor.getId(), permissions);
             this.logger.warn(
                 "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html "
@@ -775,6 +780,55 @@ class PluginInstaller implements Closeable {
 
         movePlugin(tmpRoot, destination);
         return info;
+    }
+
+    /**
+     * Extract a unique set of permissions from the plugin's policy file. Each permission is formatted for output to users.
+     */
+    static Set<String> getPermissionDescriptions(PluginPolicyInfo pluginPolicyInfo, Path tmpDir) throws IOException {
+        Set<Permission> allPermissions = new HashSet<>(PolicyUtil.getPolicyPermissions(null, pluginPolicyInfo.policy, tmpDir));
+        for (URL jar : pluginPolicyInfo.jars) {
+            Set<Permission> jarPermissions = PolicyUtil.getPolicyPermissions(jar, pluginPolicyInfo.policy, tmpDir);
+            allPermissions.addAll(jarPermissions);
+        }
+
+        return allPermissions.stream().map(PluginInstaller::formatPermission).collect(Collectors.toSet());
+    }
+
+    /** Format permission type, name, and actions into a string */
+    static String formatPermission(Permission permission) {
+        StringBuilder sb = new StringBuilder();
+
+        String clazz = null;
+        if (permission instanceof UnresolvedPermission) {
+            clazz = ((UnresolvedPermission) permission).getUnresolvedType();
+        } else {
+            clazz = permission.getClass().getName();
+        }
+        sb.append(clazz);
+
+        String name = null;
+        if (permission instanceof UnresolvedPermission) {
+            name = ((UnresolvedPermission) permission).getUnresolvedName();
+        } else {
+            name = permission.getName();
+        }
+        if (name != null && name.length() > 0) {
+            sb.append(' ');
+            sb.append(name);
+        }
+
+        String actions = null;
+        if (permission instanceof UnresolvedPermission) {
+            actions = ((UnresolvedPermission) permission).getUnresolvedActions();
+        } else {
+            actions = permission.getActions();
+        }
+        if (actions != null && actions.length() > 0) {
+            sb.append(' ');
+            sb.append(actions);
+        }
+        return sb.toString();
     }
 
     /**

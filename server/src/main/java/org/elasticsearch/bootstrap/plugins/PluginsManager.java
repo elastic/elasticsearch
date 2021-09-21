@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.bootstrap.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -29,7 +30,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.plugins.ProxyUtils.buildProxy;
+import static org.elasticsearch.bootstrap.plugins.ProxyUtils.buildProxy;
 
 public class PluginsManager {
 

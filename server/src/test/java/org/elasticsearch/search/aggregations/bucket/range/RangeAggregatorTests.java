@@ -107,16 +107,13 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.4D).addRange("r2", 0.4D, 1.0D),
             new MatchAllDocsQuery(),
             iw -> {
-                iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(0.1D))));
-                iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(0.2D))));
-                iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(0.3D))));
-                iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(0.4D))));
+                iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(0.04D))));
             },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();
                 assertEquals(2, ranges.size());
-                assertEquals(3, ranges.get(0).getDocCount());
+                assertEquals(0, ranges.get(0).getDocCount());
                 assertEquals(1, ranges.get(1).getDocCount());
             },
             field
@@ -130,16 +127,13 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.4D).addRange("r2", 0.4D, 1.0D),
             new MatchAllDocsQuery(),
             iw -> {
-                iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(0.1F))));
-                iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(0.2F))));
-                iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(0.3F))));
-                iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(0.4F))));
+                iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(0.04F))));
             },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();
                 assertEquals(2, ranges.size());
-                assertEquals(3, ranges.get(0).getDocCount());
+                assertEquals(0, ranges.get(0).getDocCount());
                 assertEquals(1, ranges.get(1).getDocCount());
             },
             field

@@ -24,11 +24,11 @@ setup:
         refresh: true
         body:
          - {"index": {}}
-         - { "double" : 42.1, "long": 25, "float": 0.1 }
+         - { "double" : 42.1, "long": 25, "float": 0.01 }
          - {"index": {}}
-         - { "double" : 100.7, "long": 80, "float": 0.3 }
+         - { "double" : 100.7, "long": 80, "float": 0.03 }
          - {"index": {}}
-         - { "double" : 50.5, "long":  75, "float": 0.4 }
+         - { "double" : 50.5, "long":  75, "float": 0.04 }
 # For testing missing values
          - {"index": {}}
          - {}
@@ -47,15 +47,15 @@ setup:
                 ranges:
                   -
                     from: 0
-                    to: 0.4
-                  - from: 0.4
+                    to: 0.04
+                  - from: 0.04
                     to: 1.0
   - match: { hits.total.relation: "eq" }
   - match: { hits.total.value: 4 }
   - length: { aggregations.double_range.buckets: 2 }
-  - match: { aggregations.double_range.buckets.0.key: "0.0-0.4" }
+  - match: { aggregations.double_range.buckets.0.key: "0.0-0.04" }
   - match: { aggregations.double_range.buckets.0.doc_count: 2 }
-  - match: { aggregations.double_range.buckets.1.key: "0.4-1.0" }
+  - match: { aggregations.double_range.buckets.1.key: "0.04-1.0" }
   - match: { aggregations.double_range.buckets.1.doc_count: 1 }
 
 ---

@@ -25,7 +25,7 @@ public class ParseField {
     private final String[] deprecatedNames;
     private final Function<RestApiVersion, Boolean> forRestApiVersion;
     private final String allReplacedWith;
-    private boolean fullyDeprecated;
+    private final boolean fullyDeprecated;
 
     private final String[] allNames;
 
@@ -46,10 +46,10 @@ public class ParseField {
         }
         this.forRestApiVersion = forRestApiVersion;
 
-        Set<String> allNames = new HashSet<>();
-        allNames.add(name);
-        Collections.addAll(allNames, this.deprecatedNames);
-        this.allNames = allNames.toArray(new String[allNames.size()]);
+        Set<String> names = new HashSet<>();
+        names.add(name);
+        Collections.addAll(names, this.deprecatedNames);
+        this.allNames = names.toArray(new String[names.size()]);
     }
 
     /**
@@ -80,23 +80,23 @@ public class ParseField {
     }
 
     /**
-     * @param deprecatedNames
+     * @param deprecatedNamesOverride
      *            deprecated names to include with the returned
      *            {@link ParseField}
      * @return a new {@link ParseField} using the preferred name from this one
      *         but with the specified deprecated names
      */
-    public ParseField withDeprecation(String... deprecatedNames) {
-        return new ParseField(this.name, this.forRestApiVersion, deprecatedNames, this.fullyDeprecated, this.allReplacedWith);
+    public ParseField withDeprecation(String... deprecatedNamesOverride) {
+        return new ParseField(this.name, this.forRestApiVersion, deprecatedNamesOverride, this.fullyDeprecated, this.allReplacedWith);
     }
 
 
     /**
      * Creates a new field with current name and deprecatedNames, but overrides forRestApiVersion
-     * @param forRestApiVersion - a boolean function indicating for what version a deprecated name is available
+     * @param forRestApiVersionOverride - a boolean function indicating for what version a deprecated name is available
      */
-    public ParseField forRestApiVersion(Function<RestApiVersion, Boolean> forRestApiVersion) {
-        return new ParseField(this.name, forRestApiVersion, this.deprecatedNames,
+    public ParseField forRestApiVersion(Function<RestApiVersion, Boolean> forRestApiVersionOverride) {
+        return new ParseField(this.name, forRestApiVersionOverride, this.deprecatedNames,
             this.fullyDeprecated, this.allReplacedWith);
     }
 
@@ -111,9 +111,9 @@ public class ParseField {
      * Return a new ParseField where all field names are deprecated and replaced
      * with {@code allReplacedWith}.
      */
-    public ParseField withAllDeprecated(String allReplacedWith) {
+    public ParseField withAllDeprecated(String allReplacedWithOverride) {
         return new ParseField(this.name, this.forRestApiVersion, getAllNamesIncludedDeprecated(),
-            this.fullyDeprecated, allReplacedWith);
+            this.fullyDeprecated, allReplacedWithOverride);
     }
 
     /**

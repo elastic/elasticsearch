@@ -184,7 +184,7 @@ line.
 If `true`, the request does *not* return an error if a wildcard expression or
 `_all` value retrieves only missing or closed indices.
 +
-This parameter also applies to <<alias,aliases>> that point to a missing
+This parameter also applies to <<aliases,aliases>> that point to a missing
 or index.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]

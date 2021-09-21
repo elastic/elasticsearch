@@ -786,6 +786,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise(defaultMillis(PUBLISH_TIMEOUT_SETTING));
             assertTrue("expected eventual ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
             assertFalse("expected no ack from " + follower0, ackCollector.hasAcked(follower0));
+
+            follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
         }
     }
 
@@ -1388,6 +1390,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.bootstrapIfNecessary();
             cluster.runFor(10000, "failing join validation");
             assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
+
+            for (ClusterNode clusterNode : cluster.clusterNodes) {
+                clusterNode.extraJoinValidators.clear();
+            }
+
+            cluster.stabilise();
         }
     }
 
@@ -1550,21 +1558,31 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final long delayVariabilityMillis = randomLongBetween(DEFAULT_DELAY_VARIABILITY, TimeValue.timeValueMinutes(10).millis());
             if (randomBoolean()) {
                 cluster.runRandomly(true, false, delayVariabilityMillis);
-            } else {
-                cluster.deterministicTaskQueue.setExecutionDelayVariabilityMillis(delayVariabilityMillis);
             }
 
+            cluster.deterministicTaskQueue.setExecutionDelayVariabilityMillis(delayVariabilityMillis);
+
             final ClusterNode clusterNode = cluster.getAnyNode();
+
+            final long clusterStateUpdateDelay = 7 * delayVariabilityMillis; // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
 
             // cf. DEFAULT_STABILISATION_TIME, but stabilisation is quicker when there's a single node - there's no meaningful fault
             // detection and ongoing publications do not time out
             cluster.runFor(ELECTION_INITIAL_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + delayVariabilityMillis
                 // two round trips for pre-voting and voting
                 + 4 * delayVariabilityMillis
-                // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
-                + 7 * delayVariabilityMillis, "stabilising");
+                // and then the election update
+                + clusterStateUpdateDelay, "stabilising");
 
             assertThat(cluster.getAnyLeader(), sameInstance(clusterNode));
+
+            final int pendingTaskCount = clusterNode.getPendingTaskCount();
+            cluster.runFor((pendingTaskCount + 1) * clusterStateUpdateDelay, "draining task queue");
+
+            assertFalse(clusterNode.coordinator.publicationInProgress());
+            assertThat(clusterNode.coordinator.getLastAcceptedState().version(),
+                equalTo(clusterNode.getLastAppliedClusterState().version()));
+            cluster.deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
         }
     }
 
@@ -1704,6 +1722,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     Loggers.removeAppender(LogManager.getLogger(ClusterFormationFailureHelper.class), mockLogAppender);
                     mockLogAppender.stop();
                 }
+            }
+
+            for (ClusterNode clusterNode : cluster.clusterNodes) {
+                clusterNode.heal();
             }
         }
     }

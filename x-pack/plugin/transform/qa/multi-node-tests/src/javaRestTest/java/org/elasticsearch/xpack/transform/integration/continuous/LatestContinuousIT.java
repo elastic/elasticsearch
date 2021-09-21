@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
@@ -89,7 +87,6 @@ public class LatestContinuousIT extends ContinuousTestCase {
         SearchRequest searchRequestSource =
             new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX)
                 .allowPartialSearchResults(false)
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
                 .source(
                     new SearchSourceBuilder()
                         // runtime mappings are needed in case "event-upper-at-search" is selected as the event field in test constructor
@@ -107,7 +104,6 @@ public class LatestContinuousIT extends ContinuousTestCase {
         SearchRequest searchRequestDest =
             new SearchRequest(NAME)
                 .allowPartialSearchResults(false)
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
                 // In destination index we don't have access to runtime fields from source index, let's use what we have i.e.: event.keyword
                 // and assume the sorting order will be the same (it is true as the runtime field applies "toUpperCase()" which preserves
                 // sorting order)

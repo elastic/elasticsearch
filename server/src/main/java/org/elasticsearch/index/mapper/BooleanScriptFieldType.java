@@ -95,12 +95,8 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     @Override
     public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
-        }
-        if (timeZone != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
-        }
+        checkNoFormat(format);
+        checkNoTimeZone(timeZone);
         return DocValueFormat.BOOLEAN;
     }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -1119,6 +1120,16 @@ public final class InternalTestCluster extends TestCluster {
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
         try {
+            // use waiting via the cluster service first to save on some busy-waiting and sleeping before entering the busy assert below
+            ClusterServiceUtils.awaitClusterState(
+                logger,
+                state -> state.nodes().getMasterNodeId() != null && state.nodes().getSize() == expectedNodes.size(),
+                getInstance(ClusterService.class)
+            );
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        try {
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values().stream()
                     .map(node -> getInstanceFromNode(ClusterService.class, node.node()))
@@ -2162,11 +2173,13 @@ public final class InternalTestCluster extends TestCluster {
             if (indexService != null) {
                 assertThat(indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1),
                         greaterThan(shard));
+                ClusterState clusterState = clusterService.state();
                 OperationRouting operationRouting = clusterService.operationRouting();
+                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
                     final int targetShard = operationRouting
-                            .indexShards(clusterService.state(), index.getName(), null, routing)
+                            .indexShards(clusterState, index.getName(), indexRouting, null, routing)
                             .shardId().getId();
                     if (shard == targetShard) {
                         return routing;

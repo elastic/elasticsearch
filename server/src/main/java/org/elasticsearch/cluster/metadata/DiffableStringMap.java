@@ -48,6 +48,16 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
     }
 
     @Override
+    public String get(Object key) {
+        return innerMap.get(key);
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+        return innerMap.containsKey(key);
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap((Map<String, Object>) (Map) innerMap);

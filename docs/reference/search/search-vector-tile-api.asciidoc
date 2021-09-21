@@ -346,6 +346,9 @@ value that matches the `geo_bounding_box` query.
 `_id`::
 (string) Document `_id` for the feature's document.
 
+`_index`::
+(string) Name of the index for the feature's document.
+
 `<field>`::
 Field value. Only returned for fields in the `fields` parameter.
 ======
@@ -599,6 +602,7 @@ tile contains the following data:
         },
         "properties": {
           "_id": "1",
+          "_index": "museums",
           "name": "NEMO Science Museum",
           "price": 1750
         },
@@ -615,6 +619,7 @@ tile contains the following data:
         },
         "properties": {
           "_id": "3",
+          "_index": "museums",
           "name": "Nederlands Scheepvaartmuseum",
           "price": 1650
         },
@@ -631,6 +636,7 @@ tile contains the following data:
         },
         "properties": {
           "_id": "4",
+          "_index": "museums",
           "name": "Amsterdam Centre for Architecture",
           "price": 0
         },

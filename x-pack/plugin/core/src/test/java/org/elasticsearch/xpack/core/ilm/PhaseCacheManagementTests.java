@@ -188,6 +188,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
     }
 
     public void testReadStepKeys() {
+        assertNull(readStepKeys(REGISTRY, client, null, "phase", null));
         assertNull(readStepKeys(REGISTRY, client, "{}", "phase", null));
         assertNull(readStepKeys(REGISTRY, client, "aoeu", "phase", null));
         assertNull(readStepKeys(REGISTRY, client, "", "phase", null));

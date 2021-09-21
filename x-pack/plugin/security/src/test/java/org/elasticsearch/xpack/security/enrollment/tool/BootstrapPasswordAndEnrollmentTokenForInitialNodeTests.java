@@ -17,9 +17,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.enrollment.EnrollmentTokenGenerator;
-import org.elasticsearch.xpack.security.enrollment.EnrollmentToken;
-import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
-import org.elasticsearch.xpack.security.tool.HttpResponse;
+import org.elasticsearch.xpack.core.security.EnrollmentToken;
+import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
+import org.elasticsearch.xpack.core.security.HttpResponse;
 import org.junit.Before;
 import org.junit.BeforeClass;
 

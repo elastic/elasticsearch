@@ -162,6 +162,8 @@ public class Constants {
         "cluster:admin/xpack/ml/job/validate/detector",
         "cluster:admin/xpack/ml/trained_models/deployment/start",
         "cluster:admin/xpack/ml/trained_models/deployment/stop",
+        "cluster:admin/xpack/ml/trained_models/part/put",
+        "cluster:admin/xpack/ml/trained_models/vocabulary/put",
         "cluster:admin/xpack/ml/upgrade_mode",
         "cluster:admin/xpack/monitoring/bulk",
         "cluster:admin/xpack/monitoring/migrate/alerts",
@@ -460,7 +462,6 @@ public class Constants {
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info",
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info[n]",
         "internal:cluster/nodes/indices/shard/store",
-        "internal:gateway/local/meta_state",
         "internal:gateway/local/started_shards"
     );
 }

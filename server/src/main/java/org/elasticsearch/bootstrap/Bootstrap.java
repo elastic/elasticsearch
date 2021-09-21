@@ -316,7 +316,7 @@ final class Bootstrap {
             final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
-        BootstrapInfo.init();
+        BootstrapInfo.init(getSysOutReference());
 
         INSTANCE = new Bootstrap();
 
@@ -422,6 +422,11 @@ final class Bootstrap {
 
             throw e;
         }
+    }
+
+    @SuppressForbidden(reason = "Retain reference for System.out")
+    private static PrintStream getSysOutReference() {
+        return System.out;
     }
 
     @SuppressForbidden(reason = "System#out")

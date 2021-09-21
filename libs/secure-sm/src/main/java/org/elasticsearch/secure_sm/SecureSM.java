@@ -152,8 +152,13 @@ public class SecureSM extends SecurityManager {
     // thread permission logic
 
     private static final Permission MODIFY_THREAD_PERMISSION = new RuntimePermission("modifyThread");
-    private static final Permission MODIFY_INNOCUOUS_THREAD_PERMISSION = new RuntimePermission("org.elasticsearch.modifyInnocuousThread");
     private static final Permission MODIFY_ARBITRARY_THREAD_PERMISSION = new ThreadPermission("modifyArbitraryThread");
+
+    // Returns true if the given thread is an instance of the JDK's InnocuousThread.
+    private static boolean isInnocuousThread(Thread t) {
+        final Class<?> c = t.getClass();
+        return c.getModule() == Object.class.getModule() && c.getName().equals("jdk.internal.misc.InnocuousThread");
+    }
 
     protected void checkThreadAccess(Thread t) {
         Objects.requireNonNull(t);
@@ -167,13 +172,8 @@ public class SecureSM extends SecurityManager {
 
         if (target == null) {
             return;    // its a dead thread, do nothing.
-        } else if (source.parentOf(target) == false) {
-            // The JDK doesn't consistently wrap this in a doPrivilege call, so we use a special permission instead
-            if (t.getClass().getName().equals("jdk.internal.misc.InnocuousThread")) {
-                checkPermission(MODIFY_INNOCUOUS_THREAD_PERMISSION);
-            } else {
-                checkPermission(MODIFY_ARBITRARY_THREAD_PERMISSION);
-            }
+        } else if (source.parentOf(target) == false && isInnocuousThread(t) == false) {
+            checkPermission(MODIFY_ARBITRARY_THREAD_PERMISSION);
         }
     }
 

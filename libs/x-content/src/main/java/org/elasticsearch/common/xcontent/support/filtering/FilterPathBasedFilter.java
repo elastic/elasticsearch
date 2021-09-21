@@ -21,6 +21,10 @@ public class FilterPathBasedFilter extends TokenFilter {
      * or value matches one of the filter paths.
      */
     private static final TokenFilter MATCHING = new TokenFilter() {
+        @Override
+        public String toString() {
+            return "MATCHING";
+        }
     };
 
     /**
@@ -28,6 +32,10 @@ public class FilterPathBasedFilter extends TokenFilter {
      * property names/values matches one of the filter paths.
      */
     private static final TokenFilter NO_MATCHING = new TokenFilter() {
+        @Override
+        public String toString() {
+            return "NO_MATCHING";
+        }
     };
 
     private final FilterPath[] filters;
@@ -49,11 +57,11 @@ public class FilterPathBasedFilter extends TokenFilter {
     /**
      * Evaluates if a property name matches one of the given filter paths.
      */
-    private TokenFilter evaluate(String name, FilterPath[] filters) {
-        if (filters != null) {
+    private TokenFilter evaluate(String name, FilterPath[] filterPaths) {
+        if (filterPaths != null) {
             List<FilterPath> nextFilters = null;
 
-            for (FilterPath filter : filters) {
+            for (FilterPath filter : filterPaths) {
                 FilterPath next = filter.matchProperty(name);
                 if (next != null) {
                     if (next.matches()) {

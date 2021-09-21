@@ -12,7 +12,7 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
-import org.elasticsearch.core.RestApiVersion;
+
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -21,6 +21,8 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -78,6 +80,24 @@ public class CborXContent implements XContent {
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, InputStream is) throws IOException {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(is));
+    }
+
+    @Override
+    public XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        InputStream is,
+        FilterPath[] includes,
+        FilterPath[] excludes
+    ) throws IOException {
+        return new CborXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            cborFactory.createParser(is),
+            RestApiVersion.current(),
+            includes,
+            excludes
+        );
     }
 
     @Override

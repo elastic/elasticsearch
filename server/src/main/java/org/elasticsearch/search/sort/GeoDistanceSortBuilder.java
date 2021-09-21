@@ -411,7 +411,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
                     NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.compatibleApiWarning("nested_filter",
+                    deprecationLogger.compatibleCritical("nested_filter",
                         "[nested_filter] has been removed in favour of the [nested] parameter");
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -436,7 +436,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             } else if (token.isValue()) {
                 if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
                     NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.compatibleApiWarning("nested_path",
+                    deprecationLogger.compatibleCritical("nested_path",
                         "[nested_path] has been removed in favour of the [nested] parameter");
                     throw new ParsingException(
                         parser.getTokenLocation(),

@@ -45,8 +45,6 @@ The following parameters are accepted by `ip` fields:
 
 [horizontal]
 
-include::keyword.asciidoc[tag=dimension]
-
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it
@@ -94,6 +92,8 @@ include::keyword.asciidoc[tag=dimension]
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
+
+include::keyword.asciidoc[tag=dimension]
 
 [[query-ip-fields]]
 ==== Querying `ip` fields

@@ -54,24 +54,6 @@ include::numeric.asciidoc[tag=map-ids-as-keyword]
 
 The following parameters are accepted by `keyword` fields:
 
-[horizontal]
-
-// tag::dimension[]
-`time_series_dimension`::
-For internal use by Elastic only. Marks the field as a time series dimension.
-Accepts `true` or `false` (default).
-+
-The <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
-index setting limits the number of dimensions in an index.
-+
-Dimension fields have the following constraints:
-+
-* The `doc_values` and `index` mapping parameters must be `true`.
-* Field values cannot be an <<array,array or multi-value>>.
-// end::dimension[]
-* Field values cannot be larger than 1024 bytes.
-* The field cannot use a <<normalizer,`normalizer`>>.
-
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it
@@ -106,6 +88,10 @@ Dimension fields have the following constraints:
     What information should be stored in the index, for scoring purposes.
     Defaults to `docs` but can also be set to `freqs` to take term frequency into account
     when computing scores.
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.
 
 <<norms,`norms`>>::
 
@@ -161,9 +147,21 @@ Dimension fields have the following constraints:
     when building a query for this field.
     Accepts `true` or `false` (default).
 
-<<mapping-field-meta,`meta`>>::
-
-    Metadata about the field.
+// tag::dimension[]
+`time_series_dimension`::
+For internal use by Elastic only. Marks the field as a time series dimension.
+Accepts `true` or `false` (default).
++
+The <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
+index setting limits the number of dimensions in an index.
++
+Dimension fields have the following constraints:
++
+* The `doc_values` and `index` mapping parameters must be `true`.
+* Field values cannot be an <<array,array or multi-value>>.
+// end::dimension[]
+* Field values cannot be larger than 1024 bytes.
+* The field cannot use a <<normalizer,`normalizer`>>.
 
 include::constant-keyword.asciidoc[]
 

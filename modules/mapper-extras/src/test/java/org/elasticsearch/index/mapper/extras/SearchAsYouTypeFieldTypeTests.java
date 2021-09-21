@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -18,10 +18,14 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.Defaults;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.Defaults;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.PrefixFieldType;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.ShingleFieldType;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -6,10 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.extras;
 
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
-import org.elasticsearch.index.query.RankFeatureQueryBuilder;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;

@@ -6,9 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;

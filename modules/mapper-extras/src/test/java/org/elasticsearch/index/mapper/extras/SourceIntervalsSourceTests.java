@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.query;
+package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -30,6 +30,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

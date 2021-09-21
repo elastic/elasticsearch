@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.query;
+package org.elasticsearch.index.mapper.extras;
 
 public final class RankFeatureQueryBuilders {
     private RankFeatureQueryBuilders() {}

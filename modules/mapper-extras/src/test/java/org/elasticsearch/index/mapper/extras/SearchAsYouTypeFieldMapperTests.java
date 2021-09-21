@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
@@ -35,12 +35,21 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldMapper;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeAnalyzer;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldMapper;
-import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.PrefixFieldMapper;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.PrefixFieldType;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.SearchAsYouTypeAnalyzer;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.ShingleFieldMapper;
+import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.ShingleFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -655,13 +664,13 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         assertThat(mapper.prefixField(), notNullValue());
         assertThat(mapper.prefixField().fieldType().parentField, equalTo(mapper.name()));
-        assertPrefixFieldType(mapper.prefixField(), mapper.indexAnalyzers, maxShingleSize, analyzerName);
+        assertPrefixFieldType(mapper.prefixField(), mapper.indexAnalyzers(), maxShingleSize, analyzerName);
 
 
         for (int shingleSize = 2; shingleSize <= maxShingleSize; shingleSize++) {
             final ShingleFieldMapper shingleFieldMapper = mapper.shingleFields()[shingleSize - 2];
             assertThat(shingleFieldMapper, notNullValue());
-            assertShingleFieldType(shingleFieldMapper, mapper.indexAnalyzers, shingleSize,
+            assertShingleFieldType(shingleFieldMapper, mapper.indexAnalyzers(), shingleSize,
                 analyzerName, mapper.prefixField().fieldType());
         }
 

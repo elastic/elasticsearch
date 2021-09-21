@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.Token;
@@ -29,9 +29,11 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
-import org.elasticsearch.index.query.SourceConfirmedTextQuery;
-import org.elasticsearch.index.query.SourceIntervalsSource;
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
+import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
+import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

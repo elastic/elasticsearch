@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.query;
+package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -14,9 +14,11 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.index.mapper.MapperExtrasPlugin;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.RankFeatureQueryBuilder.ScoreFunction;
+import org.elasticsearch.index.mapper.extras.RankFeatureQueryBuilder;
+import org.elasticsearch.index.mapper.extras.RankFeatureQueryBuilder.ScoreFunction;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;

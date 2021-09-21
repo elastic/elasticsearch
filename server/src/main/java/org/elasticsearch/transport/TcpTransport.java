@@ -272,7 +272,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             throw new ConnectTransportException(null, "can't open connection to a null node");
         }
         ConnectionProfile finalProfile = maybeOverrideConnectionProfile(profile);
-        closeLock.readLock().lock(); // ensure we don't open connections while we are closing
+        if (closeLock.readLock().tryLock() == false) {
+            ensureOpen();
+            assert false : "should not get here ever because close-write-lock should only be held on shutdown";
+            throw new ConnectTransportException(node, "failed to acquire close-read-lock");
+        }
         try {
             ensureOpen();
             initiateConnection(node, finalProfile, listener);

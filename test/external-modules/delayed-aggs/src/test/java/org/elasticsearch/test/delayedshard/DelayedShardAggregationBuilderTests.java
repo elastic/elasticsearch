@@ -5,10 +5,11 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.search.aggregations;
+package org.elasticsearch.test.delayedshard;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.util.Arrays;

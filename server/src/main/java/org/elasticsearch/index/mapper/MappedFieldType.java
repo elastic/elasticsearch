@@ -46,6 +46,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -583,7 +584,7 @@ public abstract class MappedFieldType {
                 result = new SimpleTermCountEnum(new TermCount(name(), 1));
             }
         } else {
-            if (name().toLowerCase().contains(string.toLowerCase())) {
+            if (name().toLowerCase(Locale.ROOT).contains(string.toLowerCase(Locale.ROOT))) {
                 result = new SimpleTermCountEnum(new TermCount(name(), 1));
             }
         }

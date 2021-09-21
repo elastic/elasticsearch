@@ -6,11 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.nori;
 
 import org.apache.lucene.analysis.ko.KoreanTokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 import org.elasticsearch.plugin.analysis.nori.AnalysisNoriPlugin;
+import org.elasticsearch.plugin.analysis.nori.NoriNumberFilterFactory;
+import org.elasticsearch.plugin.analysis.nori.NoriPartOfSpeechStopFilterFactory;
+import org.elasticsearch.plugin.analysis.nori.NoriReadingFormFilterFactory;
 
 import java.util.HashMap;
 import java.util.Map;

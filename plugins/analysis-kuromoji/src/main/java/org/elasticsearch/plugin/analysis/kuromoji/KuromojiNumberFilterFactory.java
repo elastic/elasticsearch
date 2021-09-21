@@ -5,26 +5,23 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.kuromoji;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.ja.JapaneseReadingFormFilter;
+import org.apache.lucene.analysis.ja.JapaneseNumberFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
-public class KuromojiReadingFormFilterFactory extends AbstractTokenFilterFactory {
+public class KuromojiNumberFilterFactory extends AbstractTokenFilterFactory {
 
-    private final boolean useRomaji;
-
-    public KuromojiReadingFormFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    public KuromojiNumberFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        useRomaji = settings.getAsBoolean("use_romaji", false);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new JapaneseReadingFormFilter(tokenStream, useRomaji);
+        return new JapaneseNumberFilter(tokenStream);
     }
 }

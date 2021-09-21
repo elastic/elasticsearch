@@ -311,7 +311,7 @@ public class TransportStartTrainedModelDeploymentAction
                 .collect(Collectors.toList());
 
             // No nodes allocated at all!
-            if (nodesAndState.isEmpty() && maxLazyMLNodes < nodes.size()) {
+            if (nodesAndState.isEmpty() && maxLazyMLNodes <= nodes.size()) {
                 String msg = "Could not start deployment because no suitable nodes were found, allocation explanation ["
                     + trainedModelAllocation.getReason()
                     + "]";

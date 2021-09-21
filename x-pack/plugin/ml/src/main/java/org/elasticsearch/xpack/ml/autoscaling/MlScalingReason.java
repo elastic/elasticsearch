@@ -128,7 +128,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
         out.writeStringCollection(this.waitingAnalyticsJobs);
         out.writeStringCollection(this.waitingAnomalyJobs);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeStringCollection(waitingModels);
+            out.writeStringCollection(this.waitingModels);
         }
         Settings.writeSettingsToStream(this.passedConfiguration, out);
         this.currentMlCapacity.writeTo(out);

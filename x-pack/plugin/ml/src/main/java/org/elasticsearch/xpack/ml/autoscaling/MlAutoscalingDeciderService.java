@@ -760,7 +760,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                     .setSimpleReason(
                         "requesting scale up as number of jobs in queues exceeded configured limit "
                             + "or there is at least one trained model waiting for allocation "
-                            + "and current capacity is not large enough for waiting jobs"
+                            + "and current capacity is not large enough for waiting jobs or models"
                     )
                     .build()
             ));

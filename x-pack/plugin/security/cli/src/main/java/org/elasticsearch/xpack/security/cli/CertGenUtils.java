@@ -176,7 +176,7 @@ public class CertGenUtils {
             if (caCert.getBasicConstraints() < 0) {
                 throw new IllegalArgumentException("ca certificate is not a CA!");
             }
-            issuer = X500Name.getInstance(caCert.getIssuerX500Principal().getEncoded());
+            issuer = X500Name.getInstance(caCert.getSubjectX500Principal().getEncoded());
             authorityKeyIdentifier = extUtils.createAuthorityKeyIdentifier(caCert.getPublicKey());
         } else {
             issuer = subject;

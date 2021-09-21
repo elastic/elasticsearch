@@ -129,6 +129,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         );
     }
 
+    /**
+     * Filters the list of repositories that a request will fetch snapshots from in the special case of sorting by repository
+     * name and having a non-null value for {@link GetSnapshotsRequest#fromSortValue()} on the request to exclude repositories outside
+     * the sort value range if possible.
+     */
     private static List<RepositoryMetadata> maybeFilterRepositories(
         List<RepositoryMetadata> repositories,
         GetSnapshotsRequest.SortBy sortBy,
@@ -566,9 +571,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return predicate;
     }
 
-    // Builds a predicate that can be applied to a combination of snapshot id and repository data to filter out snapshots that are not
-    // required to answer the request before loading their SnapshotInfo from the repository
-    // TODO: extend this method to cover the pagination after value as well where possible
+    /**
+     * Builds a predicate that can be applied to a combination of snapshot id and repository data to filter out snapshots that are not
+     * required to answer the request before loading their SnapshotInfo from the repository.
+     * TODO: extend this method to cover the pagination after value as well where possible
+     */
     @Nullable
     private static BiPredicate<SnapshotId, RepositoryData> buildSnapshotPreflightPredicate(
         GetSnapshotsRequest.SortBy sortBy,
@@ -582,17 +589,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             case START_TIME:
                 final long after = Long.parseLong(fromSortValue);
                 return order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
-                    final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
-                    if (details == null) {
-                        return true;
-                    }
-                    return after <= details.getStartTimeMillis();
+                    final long startTime = getStartTime(snapshotId, repositoryData);
+                    return startTime == -1 || after <= startTime;
                 } : (snapshotId, repositoryData) -> {
-                    final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
-                    if (details == null) {
-                        return true;
-                    }
-                    return after >= details.getStartTimeMillis();
+                    final long startTime = getStartTime(snapshotId, repositoryData);
+                    return startTime == -1 || after >= startTime;
                 };
             case NAME:
                 return order == SortOrder.ASC
@@ -601,17 +602,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             case DURATION:
                 final long afterDuration = Long.parseLong(fromSortValue);
                 return order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
-                    final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
-                    if (details == null) {
-                        return true;
-                    }
-                    return afterDuration <= details.getEndTimeMillis() - details.getStartTimeMillis();
+                    final long duration = getDuration(snapshotId, repositoryData);
+                    return duration == -1 || afterDuration <= duration;
                 } : (snapshotId, repositoryData) -> {
-                    final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
-                    if (details == null) {
-                        return true;
-                    }
-                    return afterDuration >= details.getEndTimeMillis() - details.getStartTimeMillis();
+                    final long duration = getDuration(snapshotId, repositoryData);
+                    return duration == -1 || afterDuration >= duration;
                 };
             case INDICES:
                 final int afterIndexCount = Integer.parseInt(fromSortValue);
@@ -621,6 +616,27 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             default:
                 return null;
         }
+    }
+
+    private static long getDuration(SnapshotId snapshotId, RepositoryData repositoryData) {
+        final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
+        if (details == null) {
+            return -1;
+        }
+        final long startTime = details.getStartTimeMillis();
+        if (startTime == -1) {
+            return -1;
+        }
+        final long endTime = details.getEndTimeMillis();
+        if (endTime == -1) {
+            return -1;
+        }
+        return endTime - startTime;
+    }
+
+    private static long getStartTime(SnapshotId snapshotId, RepositoryData repositoryData) {
+        final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
+        return details == null ? -1 : details.getStartTimeMillis();
     }
 
     private static int indexCount(SnapshotId snapshotId, RepositoryData repositoryData) {
@@ -697,6 +713,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return new SnapshotsInRepo(resultSet, snapshotInfos.size(), allSnapshots.size() - resultSet.size());
     }
 
+    @Nullable
     private static Predicate<SnapshotInfo> buildFromSortValuePredicate(
         GetSnapshotsRequest.SortBy sortBy,
         String after,

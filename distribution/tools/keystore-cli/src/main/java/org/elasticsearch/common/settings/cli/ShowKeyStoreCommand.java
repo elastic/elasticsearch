@@ -55,18 +55,26 @@ public class ShowKeyStoreCommand extends BaseKeyStoreCommand {
 
         try (InputStream input = keyStore.getFile(settingName)) {
             final BytesReference bytes = org.elasticsearch.common.io.Streams.readFully(input);
-            final OutputStream output = terminal.getOutputStream();
-            if (output != null) {
-                bytes.writeTo(output);
-            } else {
-                try {
-                    byte[] array = BytesReference.toBytes(bytes);
-                    CharBuffer text = StandardCharsets.UTF_8.newDecoder()
-                        .onMalformedInput(CodingErrorAction.REPORT)
-                        .onUnmappableCharacter(CodingErrorAction.REPORT)
-                        .decode(ByteBuffer.wrap(array));
-                    terminal.println(text);
-                } catch (CharacterCodingException e) {
+            try {
+                byte[] array = BytesReference.toBytes(bytes);
+                CharBuffer text = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(array));
+
+                // This is not strictly true, but it's the best heuristic we have.
+                // Without it we risk appending a newline to a binary file that happens to be valid UTF8
+                final boolean isFileOutput = terminal.getOutputStream() != null;
+                if (isFileOutput) {
+                    terminal.print(Terminal.Verbosity.SILENT, text.toString());
+                } else {
+                    terminal.println(Terminal.Verbosity.SILENT, text);
+                }
+            } catch (CharacterCodingException e) {
+                final OutputStream output = terminal.getOutputStream();
+                if (output != null) {
+                    bytes.writeTo(output);
+                } else {
                     terminal.errorPrintln(Terminal.Verbosity.VERBOSE, e.toString());
                     terminal.errorPrintln(
                         "The value for the setting [" + settingName + "] is not a string and cannot be printed to the console"
@@ -76,4 +84,5 @@ public class ShowKeyStoreCommand extends BaseKeyStoreCommand {
             }
         }
     }
+
 }

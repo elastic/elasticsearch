@@ -6,12 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.kuromoji;
 
 import org.apache.lucene.analysis.ja.JapaneseIterationMarkCharFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractCharFilterFactory;
+import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;
 
 import java.io.Reader;
 

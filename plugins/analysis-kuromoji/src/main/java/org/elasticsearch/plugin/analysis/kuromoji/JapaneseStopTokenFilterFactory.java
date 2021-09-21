@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.kuromoji;
 
 
 import org.apache.lucene.analysis.CharArraySet;
@@ -17,13 +17,15 @@ import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.Analysis;
 
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 
-public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory{
+public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final Map<String, Set<?>> NAMED_STOP_WORDS = singletonMap("_japanese_", JapaneseAnalyzer.getDefaultStopSet());
 
     private final CharArraySet stopWords;

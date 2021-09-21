@@ -6,22 +6,26 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.kuromoji;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.ja.JapaneseBaseFormFilter;
+import org.apache.lucene.analysis.ja.JapaneseKatakanaStemFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
-public class KuromojiBaseFormFilterFactory extends AbstractTokenFilterFactory {
+public class KuromojiKatakanaStemmerFactory extends AbstractTokenFilterFactory {
 
-    public KuromojiBaseFormFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    private final int minimumLength;
+
+    public KuromojiKatakanaStemmerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
+        minimumLength = settings.getAsInt("minimum_length", JapaneseKatakanaStemFilter.DEFAULT_MINIMUM_LENGTH);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new JapaneseBaseFormFilter(tokenStream);
+        return new JapaneseKatakanaStemFilter(tokenStream, minimumLength);
     }
 }

@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+import static org.elasticsearch.indices.recovery.RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
 
 public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
     private final Logger logger = LogManager.getLogger(SnapshotsRecoveryPlannerService.class);
@@ -130,6 +131,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         // if the snapshotVersion == null that means that the snapshot was taken in a version <= 7.15,
         // therefore we can safely use that snapshot.
         if (commitVersion == null) {
+            assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
             return Version.CURRENT.luceneVersion.onOrAfter(snapshot.getCommitLuceneVersion());
         }
         return commitVersion.onOrBefore(Version.CURRENT);

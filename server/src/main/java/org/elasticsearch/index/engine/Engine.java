@@ -95,7 +95,7 @@ public abstract class Engine implements Closeable {
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     // Field name that stores the Elasticsearch version in Lucene commit user data, representing
-    // the version that was used to write those Lucene segments
+    // the version that was used to write the commit (and thus a max version for the underlying segments).
     public static final String ES_VERSION = "es_version";
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";

@@ -595,7 +595,7 @@ public class RecoverySourceHandler {
                             fallbackPlan.getFilesPresentInTargetNames(),
                             fallbackPlan.getFilesPresentInTargetSizes(),
                             fallbackPlan.getTranslogOps(),
-                                recoverSnapshotFilesStep.map(r -> Tuple.tuple(fallbackPlan, Collections.emptyList()))
+                            recoverSnapshotFilesStep.map(r -> Tuple.tuple(fallbackPlan, Collections.emptyList()))
                         );
                     } else {
                         recoverSnapshotFilesStep.onFailure(e);

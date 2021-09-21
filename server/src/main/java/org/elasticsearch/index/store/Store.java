@@ -1508,13 +1508,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // Thus, we need to manually set the userData from the starting commit to the new commit.
                     final Map<String, String> userData = startingIndexCommit.getUserData();
                     writer.setLiveCommitData(() -> {
-                        if (userData.containsKey(ES_VERSION)) {
-                            return userData.entrySet().iterator();
-                        } else {
-                            Map<String, String> userDataWithVersion = new HashMap<>(userData);
-                            userDataWithVersion.put(ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
-                            return userDataWithVersion.entrySet().iterator();
-                        }
+                        Map<String, String> updatedUserData = new HashMap<>(userData);
+                        updatedUserData.put(ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
+                        return updatedUserData.entrySet().iterator();
                     });
                     writer.commit();
                 }

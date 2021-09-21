@@ -10,6 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
@@ -360,8 +363,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         return new RoleDescriptor(name,
             new String[] {
                 "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml", "manage_token", "manage_oidc",
+                // For Fleet package upgrade
+                "manage_pipeline", "manage_ilm",
+                // For the endpoint package that ships a transform
+                "manage_transform",
                 InvalidateApiKeyAction.NAME, "grant_api_key",
-                GetBuiltinPrivilegesAction.NAME, "delegate_pki", GetLifecycleAction.NAME,  PutLifecycleAction.NAME,
+                GetBuiltinPrivilegesAction.NAME, "delegate_pki",
                 // To facilitate ML UI functionality being controlled using Kibana security privileges
                 "manage_ml",
                 // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
@@ -432,7 +439,22 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Endpoint metrics. Kibana requires read access to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics-endpoint.metrics-*")
-                    .privileges("read").build()
+                    .privileges("read").build(),
+                // Fleet package upgrade
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-*", "synthetics-*", "traces-*",
+                        "/metrics-.*&~(metrics-endpoint\\..*)/")
+                    .privileges("create_index", UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
+                    .build(),
+                // For src/dest indices of the Endpoint package that ships a transform
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics-endpoint.metadata*")
+                    .privileges("read", "view_index_metadata")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics-endpoint.metadata_current_default", "metrics-endpoint.metadata_united_default")
+                    .privileges("read", "index")
+                    .build(),
             },
             null,
             new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

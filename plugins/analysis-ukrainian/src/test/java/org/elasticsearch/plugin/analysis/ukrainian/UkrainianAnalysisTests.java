@@ -6,13 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.plugin.analysis.ukrainian;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.uk.XUkrainianMorfologikAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.plugin.analysis.ukrainian.AnalysisUkrainianPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 

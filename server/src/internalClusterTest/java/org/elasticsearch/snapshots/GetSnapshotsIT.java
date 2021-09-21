@@ -177,12 +177,15 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             inProgressSnapshots.add(startFullSnapshot(repoName, snapshotName));
         }
         awaitNumberOfSnapshotsInProgress(inProgressCount);
-        awaitClusterState(state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-            .entries()
-            .stream()
-            .flatMap(s -> s.shards().stream())
-            .allMatch(e -> e.getKey().getIndexName().equals("test-index-1") == false ||
-                e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS)
+        awaitClusterState(
+            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .entries()
+                .stream()
+                .flatMap(s -> s.shards().stream())
+                .allMatch(
+                    e -> e.getKey().getIndexName().equals("test-index-1") == false
+                        || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
+                )
         );
         final String[] repos = { repoName };
         assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);

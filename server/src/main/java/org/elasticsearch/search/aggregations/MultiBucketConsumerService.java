@@ -111,9 +111,7 @@ public class MultiBucketConsumerService {
                     throw new TooManyBucketsException(
                         "Trying to create too many buckets. Must be less than or equal to: ["
                             + limit
-                            + "] but was ["
-                            + count
-                            + "]. This limit can be set by changing the ["
+                            + "] but this number of buckets was exceeded. This limit can be set by changing the ["
                             + MAX_BUCKET_SETTING.getKey()
                             + "] cluster level setting.",
                         limit

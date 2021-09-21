@@ -179,7 +179,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
 
-            this.pointsOnly.setValidator(v -> {
+            this.pointsOnly.addValidator(v -> {
                 if (v == null) {
                     return;
                 }
@@ -283,9 +283,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             ft.defaultPrefixTreeStrategy.setPointsOnly(ft.pointsOnly());
         }
 
-        private GeoShapeFieldType buildFieldType(LegacyGeoShapeParser parser, ContentPath contentPath) {
+        private GeoShapeFieldType buildFieldType(LegacyGeoShapeParser parser, MapperBuilderContext context) {
             GeoShapeFieldType ft =
-                new GeoShapeFieldType(buildFullName(contentPath), indexed.get(), orientation.get().value(), parser, meta.get());
+                new GeoShapeFieldType(context.buildFullName(name), indexed.get(), orientation.get().value(), parser, meta.get());
             setupFieldTypeDeprecatedParameters(ft);
             setupPrefixTrees(ft);
             return ft;
@@ -300,18 +300,31 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public LegacyGeoShapeFieldMapper build(ContentPath contentPath) {
+        public LegacyGeoShapeFieldMapper build(MapperBuilderContext context) {
             if (name.isEmpty()) {
                 // Check for an empty name early so we can throw a consistent error message
                 throw new IllegalArgumentException("name cannot be empty string");
             }
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
-            GeoShapeFieldType ft = buildFieldType(parser, contentPath);
+            GeoShapeFieldType ft = buildFieldType(parser, context);
             return new LegacyGeoShapeFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(),
+                multiFieldsBuilder.build(this, context), copyTo.build(),
                 parser, this);
         }
     }
+
+    @Deprecated
+    public static Mapper.TypeParser PARSER = (name, node, parserContext) -> {
+        boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
+        boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
+        FieldMapper.Builder builder = new LegacyGeoShapeFieldMapper.Builder(
+                name,
+                parserContext.indexVersionCreated(),
+                ignoreMalformedByDefault,
+                coerceByDefault);
+        builder.parse(name, parserContext, node);
+        return builder;
+    };
 
     private static class LegacyGeoShapeParser extends Parser<ShapeBuilder<?, ?, ?>> {
 
@@ -520,9 +533,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     @Override
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        if (mergeWith instanceof GeoShapeFieldMapper) {
+        if (mergeWith instanceof AbstractShapeGeometryFieldMapper<?>
+            && (mergeWith instanceof LegacyGeoShapeFieldMapper) == false) {
             throw new IllegalArgumentException("mapper [" + name()
-                + "] of type [geo_shape] cannot change strategy from [" + strategy() + "] to [BKD]");
+                + "] of type [geo_shape] cannot change strategy from [recursive] to [BKD]");
         }
         super.checkIncomingMergeType(mergeWith);
     }

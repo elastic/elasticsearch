@@ -26,10 +26,10 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -84,39 +84,39 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
-        final ContentPath contentPath = new ContentPath(1);
+        final MapperBuilderContext context = MapperBuilderContext.ROOT;
         if (type.equals("string")) {
             if (docValues) {
-                fieldType = new KeywordFieldMapper.Builder(fieldName).build(contentPath).fieldType();
+                fieldType = new KeywordFieldMapper.Builder(fieldName).build(context).fieldType();
             } else {
                 fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers())
-                    .fielddata(true).build(contentPath).fieldType();
+                    .fielddata(true).build(context).fieldType();
             }
         } else if (type.equals("float")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(contentPath).fieldType();
+                    .docValues(docValues).build(context).fieldType();
         } else if (type.equals("double")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(contentPath).fieldType();
+                    .docValues(docValues).build(context).fieldType();
         } else if (type.equals("long")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(contentPath).fieldType();
+                    .docValues(docValues).build(context).fieldType();
         } else if (type.equals("int")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(contentPath).fieldType();
+                    .docValues(docValues).build(context).fieldType();
         } else if (type.equals("short")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(contentPath).fieldType();
+                    .docValues(docValues).build(context).fieldType();
         } else if (type.equals("byte")) {
             fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(contentPath).fieldType();
+                    .docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
             fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false)
                 .docValues(docValues)
-                .build(contentPath)
+                .build(context)
                 .fieldType();
         } else if (type.equals("binary")) {
-            fieldType = new BinaryFieldMapper.Builder(fieldName, docValues).build(contentPath).fieldType();
+            fieldType = new BinaryFieldMapper.Builder(fieldName, docValues).build(context).fieldType();
         } else {
             throw new UnsupportedOperationException(type);
         }

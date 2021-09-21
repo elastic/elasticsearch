@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.ParseField;
 public interface NlpConfig extends LenientlyParsedInferenceConfig, StrictlyParsedInferenceConfig {
 
     ParseField VOCABULARY = new ParseField("vocabulary");
-    ParseField TOKENIZATION_PARAMS = new ParseField("tokenization_params");
+    ParseField TOKENIZATION = new ParseField("tokenization");
     ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
 
     /**
@@ -23,5 +23,5 @@ public interface NlpConfig extends LenientlyParsedInferenceConfig, StrictlyParse
     /**
      * @return the model tokenization parameters
      */
-    TokenizationParams getTokenizationParams();
+    Tokenization getTokenization();
 }

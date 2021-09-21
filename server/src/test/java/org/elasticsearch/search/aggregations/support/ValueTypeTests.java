@@ -33,7 +33,6 @@ public class ValueTypeTests extends ESTestCase {
         assertTrue(ValueType.DOUBLE.isA(ValueType.DATE));
         assertTrue(ValueType.DOUBLE.isA(ValueType.DOUBLE));
 
-
         assertTrue(ValueType.LONG.isA(ValueType.NUMERIC));
         assertTrue(ValueType.LONG.isA(ValueType.NUMBER));
         assertTrue(ValueType.LONG.isA(ValueType.LONG));

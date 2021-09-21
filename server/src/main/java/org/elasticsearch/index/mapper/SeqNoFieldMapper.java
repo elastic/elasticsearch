@@ -178,7 +178,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public SeqNoFieldMapper() {
+    private SeqNoFieldMapper() {
         super(SeqNoFieldType.INSTANCE);
     }
 

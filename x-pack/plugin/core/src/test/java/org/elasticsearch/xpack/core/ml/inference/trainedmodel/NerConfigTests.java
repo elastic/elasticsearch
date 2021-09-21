@@ -10,23 +10,26 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
-import org.junit.Before;
+import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
-public class NerConfigTests extends AbstractBWCSerializationTestCase<NerConfig> {
+public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
 
-    private boolean lenient;
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
 
-    @Before
-    public void chooseStrictOrLenient() {
-        lenient = randomBoolean();
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.isEmpty() == false;
     }
 
     @Override
     protected NerConfig doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? NerConfig.fromXContentLenient(parser) : NerConfig.fromXContentStrict(parser);
+        return NerConfig.fromXContentLenient(parser);
     }
 
     @Override
@@ -46,8 +49,10 @@ public class NerConfigTests extends AbstractBWCSerializationTestCase<NerConfig> 
 
     public static NerConfig createRandom() {
         return new NerConfig(
-            VocabularyConfigTests.createRandom(),
-            randomBoolean() ? null : TokenizationParamsTests.createRandom(),
+            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
+            randomBoolean() ?
+                null :
+                randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom()),
             randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10))
         );
     }

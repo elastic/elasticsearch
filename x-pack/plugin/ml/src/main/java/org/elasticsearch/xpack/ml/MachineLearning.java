@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -105,7 +106,10 @@ import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAllocationAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
+import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
@@ -195,7 +199,10 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAllocationAction;
 import org.elasticsearch.xpack.ml.action.TransportGetDatafeedRunningStateAction;
+import org.elasticsearch.xpack.ml.action.TransportGetDeploymentStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportInferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelDefinitionPartAction;
+import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.ml.action.TransportStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
@@ -296,6 +303,8 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
+import org.elasticsearch.xpack.ml.job.categorization.FirstLineWithLettersCharFilter;
+import org.elasticsearch.xpack.ml.job.categorization.FirstLineWithLettersCharFilterFactory;
 import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilter;
 import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilterFactory;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
@@ -366,7 +375,10 @@ import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelDeploymentStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelDefinitionPartAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
@@ -431,6 +443,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                                                        ShutdownAwarePlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
+    // Endpoints that were deprecated in 7.x can still be called in 8.x using the REST compatibility layer
+    public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
     public static final String JOB_COMMS_THREAD_POOL_NAME = NAME + "_job_comms";
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";
@@ -442,9 +456,23 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // This is for performance testing.  It's not exposed to the end user.
     // Recompile if you want to compare performance with C++ tokenization.
     public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
+    public static final String ML_FEATURE_FAMILY = "machine-learning";
 
-    public static final LicensedFeature.Persistent ML_JOBS_FEATURE =
-        LicensedFeature.persistent("machine-learning", "anomaly-detection-job", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Persistent ML_ANOMALY_JOBS_FEATURE = LicensedFeature.persistent(
+        ML_FEATURE_FAMILY,
+        "anomaly-detection-job",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Persistent ML_ANALYTICS_JOBS_FEATURE = LicensedFeature.persistent(
+        ML_FEATURE_FAMILY,
+        "data-frame-analytics-job",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Persistent ML_MODEL_INFERENCE_FEATURE = LicensedFeature.persistent(
+        ML_FEATURE_FAMILY,
+        "model-inference",
+        License.OperationMode.PLATINUM
+    );
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
@@ -837,7 +865,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             trainedModelStatsService,
             settings,
             clusterService.getNodeName(),
-            inferenceModelBreaker.get());
+            inferenceModelBreaker.get(),
+            getLicenseState()
+        );
         this.modelLoadingService.set(modelLoadingService);
         this.deploymentManager.set(new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory));
 
@@ -956,13 +986,15 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     dataFrameAnalyticsManager.get(),
                     dataFrameAnalyticsAuditor.get(),
                     memoryTracker.get(),
-                    expressionResolver),
+                    expressionResolver,
+                    getLicenseState()),
                 new SnapshotUpgradeTaskExecutor(settings,
                     clusterService,
                     autodetectProcessManager.get(),
                     memoryTracker.get(),
                     expressionResolver,
-                    client)
+                    client,
+                    getLicenseState())
         );
     }
 
@@ -1039,9 +1071,12 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             new RestPutTrainedModelAliasAction(),
             new RestDeleteTrainedModelAliasAction(),
             new RestPreviewDataFrameAnalyticsAction(),
+            new RestGetTrainedModelDeploymentStatsAction(),
             new RestStartTrainedModelDeploymentAction(),
             new RestStopTrainedModelDeploymentAction(),
             new RestInferTrainedModelDeploymentAction(),
+            new RestPutTrainedModelDefinitionPartAction(),
+            new RestPutTrainedModelVocabularyAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1133,9 +1168,12 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new ActionHandler<>(StartTrainedModelDeploymentAction.INSTANCE, TransportStartTrainedModelDeploymentAction.class),
                 new ActionHandler<>(StopTrainedModelDeploymentAction.INSTANCE, TransportStopTrainedModelDeploymentAction.class),
                 new ActionHandler<>(InferTrainedModelDeploymentAction.INSTANCE, TransportInferTrainedModelDeploymentAction.class),
+                new ActionHandler<>(GetDeploymentStatsAction.INSTANCE, TransportGetDeploymentStatsAction.class),
                 new ActionHandler<>(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class),
                 new ActionHandler<>(CreateTrainedModelAllocationAction.INSTANCE, TransportCreateTrainedModelAllocationAction.class),
                 new ActionHandler<>(DeleteTrainedModelAllocationAction.INSTANCE, TransportDeleteTrainedModelAllocationAction.class),
+                new ActionHandler<>(PutTrainedModelDefinitionPartAction.INSTANCE, TransportPutTrainedModelDefinitionPartAction.class),
+                new ActionHandler<>(PutTrainedModelVocabularyAction.INSTANCE, TransportPutTrainedModelVocabularyAction.class),
                 new ActionHandler<>(
                     UpdateTrainedModelAllocationStateAction.INSTANCE,
                     TransportUpdateTrainedModelAllocationStateAction.class
@@ -1183,7 +1221,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     }
 
     public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
-        return Collections.singletonMap(FirstNonBlankLineCharFilter.NAME, FirstNonBlankLineCharFilterFactory::new);
+        return MapBuilder.<String, AnalysisProvider<CharFilterFactory>>newMapBuilder()
+            .put(FirstNonBlankLineCharFilter.NAME, FirstNonBlankLineCharFilterFactory::new)
+            .put(FirstLineWithLettersCharFilter.NAME, FirstLineWithLettersCharFilterFactory::new)
+            .map();
     }
 
     @Override
@@ -1237,7 +1278,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         OsStats.Cgroup cgroup = stats.getCgroup();
         if (cgroup != null) {
             String containerLimitStr = cgroup.getMemoryLimitInBytes();
-            if (containerLimitStr != null) {
+            if (containerLimitStr != null && containerLimitStr.equals("max") == false) {
                 BigInteger containerLimit = new BigInteger(containerLimitStr);
                 if ((containerLimit.compareTo(BigInteger.valueOf(mem)) < 0 && containerLimit.compareTo(BigInteger.ZERO) > 0)
                         // mem <= 0 means the value couldn't be obtained for some reason
@@ -1485,7 +1526,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 );
             }
         }, unsetResetModeListener::onFailure);
-
 
         ActionListener<CloseJobAction.Response> afterAnomalyDetectionClosed = ActionListener.wrap(closeJobResponse -> {
             // Handle the response

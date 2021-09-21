@@ -42,11 +42,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
@@ -88,6 +90,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
+    private static final long ONE_MEGABYTE = ByteSizeUnit.MB.toBytes(1);
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -154,10 +157,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
-        try {
-            doInternalExecute(task, bulkRequest, executorName, releasingListener);
-        } catch (Exception e) {
-            releasingListener.onFailure(e);
+        ActionRunnable<BulkResponse> internalExecute = new ActionRunnable<>(releasingListener) {
+            @Override
+            protected void doRun() {
+                doInternalExecute(task, bulkRequest, executorName, releasingListener);
+            }
+        };
+        // We dispatch large bulk requests as coordinating these bytes can occur on the transport thread and might involve
+        // compression.
+        if (indexingBytes >= ONE_MEGABYTE) {
+            threadPool.executor(executorName).execute(internalExecute);
+        } else {
+            internalExecute.run();
         }
     }
 
@@ -413,6 +424,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Metadata metadata = clusterState.metadata();
             // Group the requests by ShardId -> Operations mapping
             Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+            Map<Index, IndexRouting> indexRoutings = new HashMap<>();
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
                 //the request can only be null because we set it to null in the previous step, so it gets ignored
@@ -464,8 +476,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             break;
                         default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
-                    ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex.getName(),
-                            docWriteRequest.id(), docWriteRequest.routing()).shardId();
+                    IndexRouting indexRouting = indexRoutings.computeIfAbsent(
+                        concreteIndex,
+                        idx -> IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(idx))
+                    );
+                    ShardId shardId = clusterService.operationRouting()
+                        .indexShards(clusterState, concreteIndex.getName(), indexRouting, docWriteRequest.id(), docWriteRequest.routing())
+                        .shardId();
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
                     shardRequests.add(new BulkItemRequest(i, docWriteRequest));
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException e) {

@@ -1445,6 +1445,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+            map.put(ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
             updateCommitData(writer, map);
         } finally {
             metadataLock.writeLock().unlock();

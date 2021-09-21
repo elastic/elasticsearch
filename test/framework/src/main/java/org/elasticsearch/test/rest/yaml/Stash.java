@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
  * that can be used as input values in following requests and assertions.
  */
 public class Stash implements ToXContentFragment {
-    private static final Pattern EXTENDED_KEY = Pattern.compile("\\$\\{([^}]+)\\}");
+    private static final Pattern EXTENDED_KEY = Pattern.compile("(\\\\)?\\$\\{([^}]+)\\}");
     private static final Pattern PATH = Pattern.compile("\\$_path");
 
     private static final Logger logger = LogManager.getLogger(Stash.class);
@@ -87,7 +87,8 @@ public class Stash implements ToXContentFragment {
         }
         Matcher matcher = EXTENDED_KEY.matcher(key);
         /*
-         * String*Buffer* because that is what the Matcher API takes. In modern versions of java the uncontended synchronization is very,
+         * String*Buffer* because that is what the Matcher API takes. In
+         * modern versions of java the uncontended synchronization is very,
          * very cheap so that should not be a problem.
          */
         StringBuffer result = new StringBuffer(key.length());
@@ -95,7 +96,9 @@ public class Stash implements ToXContentFragment {
             throw new IllegalArgumentException("Doesn't contain any stash keys [" + key + "]");
         }
         do {
-            matcher.appendReplacement(result, Matcher.quoteReplacement(unstash(matcher.group(1)).toString()));
+            boolean unstash = matcher.group(1) == null;
+            String value = unstash ? unstash(matcher.group(2)).toString() : matcher.group(0).substring(1);
+            matcher.appendReplacement(result, Matcher.quoteReplacement(value));
         } while (matcher.find());
         matcher.appendTail(result);
         return result.toString();

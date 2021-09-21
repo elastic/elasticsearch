@@ -213,11 +213,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             public void close() throws IOException {
                 reader.close();
             }
-
-            @Override
-            public long ramBytesUsed() {
-                return reader.ramBytesUsed();
-            }
         }
 
         private class FieldUsageTrackingTerms extends FilterTerms {

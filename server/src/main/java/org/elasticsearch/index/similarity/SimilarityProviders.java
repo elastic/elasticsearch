@@ -37,11 +37,11 @@ import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
-import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -104,7 +104,7 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
                         "please use another model.");
                 } else {
-                    deprecationLogger.deprecate(DeprecationCategory.INDICES, basicModel + "_similarity_model_replaced", "Basic model ["
+                    deprecationLogger.critical(DeprecationCategory.INDICES, basicModel + "_similarity_model_replaced", "Basic model ["
                         + basicModel + "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     model = BASIC_MODELS.get(replacement);
                     assert model != null;
@@ -135,7 +135,7 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("After effect [" + afterEffect +
                         "] isn't supported anymore, please use another effect.");
                 } else {
-                    deprecationLogger.deprecate(DeprecationCategory.INDICES, afterEffect + "_after_effect_replaced", "After effect ["
+                    deprecationLogger.critical(DeprecationCategory.INDICES, afterEffect + "_after_effect_replaced", "After effect ["
                         + afterEffect + "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     effect = AFTER_EFFECTS.get(replacement);
                     assert effect != null;
@@ -225,7 +225,7 @@ final class SimilarityProviders {
             if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
-                deprecationLogger.deprecate(DeprecationCategory.INDICES, "unknown_similarity_setting",
+                deprecationLogger.critical(DeprecationCategory.INDICES, "unknown_similarity_setting",
                     "Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             }
         }
@@ -238,9 +238,7 @@ final class SimilarityProviders {
         float b = settings.getAsFloat("b", 0.75f);
         boolean discountOverlaps = settings.getAsBoolean(DISCOUNT_OVERLAPS, true);
 
-        LegacyBM25Similarity similarity = new LegacyBM25Similarity(k1, b);
-        similarity.setDiscountOverlaps(discountOverlaps);
-        return similarity;
+        return new LegacyBM25Similarity(k1, b, discountOverlaps);
     }
 
     public static BooleanSimilarity createBooleanSimilarity(Settings settings, Version indexCreatedVersion) {

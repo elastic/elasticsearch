@@ -144,7 +144,7 @@ public abstract class Plugin implements Closeable {
      * <p>
      * The order of the template upgrader calls is undefined and can change between runs so, it is expected that
      * plugins will modify only templates owned by them to avoid conflicts.
-     * <p>
+     *
      * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetadata} map.
      * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetadata}
      *                               cannot be upgraded

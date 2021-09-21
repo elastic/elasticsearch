@@ -199,6 +199,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
+        // TODO: provide engineConfig.getLeafSorter() when opening a DirectoryReader from a commit
+        // should be available from Lucene v 8.10
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
         if (lazilyLoadSoftDeletes) {
             return new LazySoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
@@ -318,8 +320,16 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
+        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true, true)) {
+            return snapshot.totalOperations();
+        }
+    }
+
+    @Override
     public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo,
-                                                boolean requiredFullRange, boolean singleConsumer)  {
+                                                boolean requiredFullRange, boolean singleConsumer,
+                                                boolean accessStats) {
         return newEmptySnapshot();
     }
 

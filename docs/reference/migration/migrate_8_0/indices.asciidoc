@@ -116,4 +116,18 @@ index setting].
 Accept the new behaviour, or specify `?wait_for_active_shards=0` to preserve
 the old behaviour if needed.
 ====
+
+.The setting `index.data_path` is not longer allowed on new indices.
+[%collapsible]
+====
+*Details* +
+Creating an index relative to the node level `path.shared_data` setting was
+previously used with shadow replicas prior to their removal in 6.0. The
+per-index data path in `index.data_path` was deprecated in 7.14.0. In 8.0,
+creating new indices with `index.data_path` is no longer supported.
+
+*Impact* +
+Discontinue use of the `index.data_path` setting. Creating new indices with
+this setting will return an error.
+====
 //end::notable-breaking-changes[]

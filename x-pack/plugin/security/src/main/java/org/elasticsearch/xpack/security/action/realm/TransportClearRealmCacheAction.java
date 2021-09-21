@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,7 +56,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     }
 
     @Override
-    protected ClearRealmCacheResponse.Node newNodeResponse(StreamInput in) throws IOException {
+    protected ClearRealmCacheResponse.Node newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new ClearRealmCacheResponse.Node(in);
     }
 

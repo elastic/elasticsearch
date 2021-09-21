@@ -1,5 +1,3 @@
-import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -23,7 +21,7 @@ tasks.named("forbiddenApisMain").configure {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analyzers-icu:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
   api "com.ibm.icu:icu4j:${versions.icu4j}"
 }
 
@@ -36,7 +34,7 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
-tasks.named("yamlRestCompatTest").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
       //marked as not needing compatible api
       'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter' // Cleanup versioned deprecations in analysis #41560

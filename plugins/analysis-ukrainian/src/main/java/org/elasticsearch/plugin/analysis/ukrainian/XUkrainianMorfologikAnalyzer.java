@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.lucene.analysis.uk;
+package org.elasticsearch.plugin.analysis.ukrainian;
 
 import morfologik.stemming.Dictionary;
 import org.apache.lucene.analysis.Analyzer;
@@ -30,6 +30,7 @@ import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
 import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
 import org.apache.lucene.analysis.morfologik.MorfologikFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.uk.UkrainianMorfologikAnalyzer;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 

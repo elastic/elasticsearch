@@ -6,14 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.mapper;
+package org.elasticsearch.index.mapper.annotatedtext;
 
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.fetch.subphase.highlight.AnnotatedTextHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 
 import java.util.Collections;

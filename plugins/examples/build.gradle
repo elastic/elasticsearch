@@ -33,6 +33,10 @@ subprojects {
   }
 }
 
+tasks.register('check') {
+  dependsOn subprojects.collect { it.tasks.named('check') }
+}
+
 tasks.register('precommit') {
   dependsOn subprojects.collect { it.tasks.named('classes') }
 }

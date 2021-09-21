@@ -69,7 +69,7 @@ public class ClusterDeprecationChecks {
         if (pipelinesWithDeprecatedEcsConfig.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "User-Agent ingest plugin will always use ECS-formatted output",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/user-agent-processor.html#user-agent-processor",
+                "https://ela.st/es-deprecation-7-ingest-pipeline-ecs-option",
                 "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig +
                     " uses the [ecs] option which needs to be removed to work in 8.0", false, null);
         }
@@ -97,8 +97,7 @@ public class ClusterDeprecationChecks {
         if (templatesOverLimit.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Fields in index template exceed automatic field expansion limit",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
-                    "#_limiting_the_number_of_auto_expanded_fields",
+                "https://ela.st/es-deprecation-7-number-of-auto-expanded-fields",
                 "Index templates " + templatesOverLimit + " have a number of fields which exceeds the automatic field expansion " +
                     "limit of [" + maxClauseCount + "] and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, " +
                     "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and " +
@@ -133,7 +132,7 @@ public class ClusterDeprecationChecks {
 
         if (templatesContainingFieldNames.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Index templates contain _field_names settings.",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/mapping-field-names-field.html#disable-field-names",
+                    "https://ela.st/es-deprecation-7-field_names-settings",
                     "Index templates " + templatesContainingFieldNames + " use the deprecated `enable` setting for the `"
                             + FieldNamesFieldMapper.NAME + "` field. Using this setting in new index mappings will throw an error "
                                     + "in the next major version and needs to be removed from existing mappings and templates.",
@@ -172,8 +171,7 @@ public class ClusterDeprecationChecks {
         if (pollInterval.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Index Lifecycle Management poll interval is set too low",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
-                    "#ilm-poll-interval-limit",
+                "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
                 "The Index Lifecycle Management poll interval setting [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] is " +
                     "currently set to [" + pollIntervalString + "], but must be 1s or greater", false, null);
         }
@@ -194,7 +192,7 @@ public class ClusterDeprecationChecks {
         }
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Some index templates contain multiple mapping types",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/removal-of-types.html",
+            "https://ela.st/es-deprecation-7-multiple-types",
             "Index templates " + templatesWithMultipleTypes
             + " define multiple types and so will cause errors when used in index creation",
             false,
@@ -204,7 +202,7 @@ public class ClusterDeprecationChecks {
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState) {
         return checkRemovedSetting(clusterState.metadata().settings(),
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.15/modules-cluster.html#disk-based-shard-allocation",
+            "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
             DeprecationIssue.Level.WARNING
         );
     }
@@ -273,8 +271,7 @@ public class ClusterDeprecationChecks {
         String detailsForIndexTemplates = getDetailsMessageForGeoShapeIndexTemplates(clusterState.getMetadata().getTemplates());
         boolean deprecationInComponentTemplates = Strings.isEmpty(detailsForComponentTemplates) == false;
         boolean deprecationInIndexTemplates = Strings.isEmpty(detailsForIndexTemplates) == false;
-        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/6.6/breaking-changes-6.6.html" +
-            "#_deprecated_literal_geo_shape_literal_parameters";
+        String url = "https://ela.st/es-deprecation-7-geo-shape-mappings";
         if (deprecationInComponentTemplates && deprecationInIndexTemplates) {
             String message = "component templates and index templates contain deprecated geo_shape properties that must be removed";
             String details = detailsForComponentTemplates + "; " + detailsForIndexTemplates;
@@ -365,7 +362,7 @@ public class ClusterDeprecationChecks {
         String detailsForIndexTemplates = getDetailsMessageForSparseVectorIndexTemplates(clusterState.getMetadata().getTemplates());
         boolean deprecationInComponentTemplates = Strings.isEmpty(detailsForComponentTemplates) == false;
         boolean deprecationInIndexTemplates = Strings.isEmpty(detailsForIndexTemplates) == false;
-        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_search_changes";
+        String url = "https://ela.st/es-deprecation-7-sparse-vector";
         if (deprecationInComponentTemplates && deprecationInIndexTemplates) {
             String message = "component templates and index templates contain deprecated sparse_vector fields that must be removed";
             String details = detailsForComponentTemplates + "; " + detailsForIndexTemplates;

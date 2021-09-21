@@ -54,16 +54,19 @@ public class HotThreadsTests extends ESTestCase {
     }
 
     public void testIdleThreadsDetection() {
-        for (String threadName : new String[] { "Signal Dispatcher", "Finalizer", "Reference Handler" }) {
+        for (String threadName : new String[] {
+            "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner", "process reaper" }) {
             ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
             when(mockedThreadInfo.getThreadName()).thenReturn(threadName);
+            assertTrue(HotThreads.isKnownJDKThread(mockedThreadInfo));
             assertTrue(HotThreads.isIdleThread(mockedThreadInfo));
         }
 
-        for (String threadName : new String[] { "Notification Thread", "Common-Cleaner" }) {
+        for (String threadName : new String[] { "Text", "", null, "Finalizer".toLowerCase(Locale.ROOT) }) {
             ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
             when(mockedThreadInfo.getThreadName()).thenReturn(threadName);
             when(mockedThreadInfo.getStackTrace()).thenReturn(new StackTraceElement[0]);
+            assertFalse(HotThreads.isKnownJDKThread(mockedThreadInfo));
             assertFalse(HotThreads.isIdleThread(mockedThreadInfo));
         }
 
@@ -74,6 +77,10 @@ public class HotThreadsTests extends ESTestCase {
                 new String[]{"org.elasticsearch.monitor.test", "methodThree"},
                 new String[]{"org.elasticsearch.monitor.testOther", "methodFour"}
             ));
+
+        for (StackTraceElement stackFrame : testJvmStack) {
+            assertFalse(HotThreads.isKnownIdleStackFrame(stackFrame.getClassName(), stackFrame.getMethodName()));
+        }
 
         ThreadInfo notIdleThread = mock(ThreadInfo.class);
         when(notIdleThread.getThreadName()).thenReturn("Not Idle Thread");
@@ -87,13 +94,15 @@ public class HotThreadsTests extends ESTestCase {
                 new String[]{"sun.nio.ch.SelectorImpl", "select"},
                 new String[]{"org.elasticsearch.threadpool.ThreadPool$CachedTimeThread", "run"},
                 new String[]{"org.elasticsearch.indices.ttl.IndicesTTLService$Notifier", "await"},
-                new String[]{"java.util.concurrent.LinkedTransferQueue", "poll"}
+                new String[]{"java.util.concurrent.LinkedTransferQueue", "poll"},
+                new String[]{"com.sun.jmx.remote.internal.ServerCommunicatorAdmin$Timeout", "run"}
             ));
 
         for (StackTraceElement extraFrame : idleThreadStackElements) {
             ThreadInfo idleThread = mock(ThreadInfo.class);
             when(idleThread.getThreadName()).thenReturn("Idle Thread");
             when(idleThread.getStackTrace()).thenReturn(new StackTraceElement[] {extraFrame});
+            assertTrue(HotThreads.isKnownIdleStackFrame(extraFrame.getClassName(), extraFrame.getMethodName()));
             assertTrue(HotThreads.isIdleThread(idleThread));
 
             List<StackTraceElement> topOfStack = new ArrayList<>(testJvmStack);

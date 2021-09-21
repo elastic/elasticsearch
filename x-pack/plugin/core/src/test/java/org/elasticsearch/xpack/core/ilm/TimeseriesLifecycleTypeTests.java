@@ -168,6 +168,17 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
     }
 
+    public void testFreezeActionDeprecationLog() {
+        Map<String, LifecycleAction> actions = randomSubsetOf(VALID_COLD_ACTIONS)
+            .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
+        if (actions.containsKey(FreezeAction.NAME) == false) {
+            actions.put(FreezeAction.NAME, getTestAction(FreezeAction.NAME));
+        }
+        Map<String, Phase> coldPhase = Collections.singletonMap("cold", new Phase("cold", TimeValue.ZERO, actions));
+        TimeseriesLifecycleType.INSTANCE.validate(coldPhase.values());
+        assertSettingDeprecationsAndWarnings(new String[0], TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING);
+    }
+
     public void testValidateDeletePhase() {
         LifecycleAction invalidAction = null;
         Map<String, LifecycleAction> actions = VALID_DELETE_ACTIONS

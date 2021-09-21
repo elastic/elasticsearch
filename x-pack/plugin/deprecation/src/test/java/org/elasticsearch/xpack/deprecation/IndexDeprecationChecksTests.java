@@ -640,20 +640,25 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         settings.put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), 5);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
-        final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_settings_changes";
-        assertThat(issues, contains(
-            new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "setting [index.max_adjacency_matrix_filters] is deprecated and will be removed in the next major version",
-                expectedUrl,
-                "the setting [index.max_adjacency_matrix_filters] is currently set to [5], remove this setting",
-                false, null)));
+        assertThat(
+            issues,
+            contains(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "[index.max_adjacency_matrix_filters] setting will be ignored in 8.0. "
+                        + "Use [indices.query.bool.max_clause_count] instead.",
+                    "https://ela.st/es-deprecation-7-adjacency-matrix-filters-setting",
+                    "the setting [index.max_adjacency_matrix_filters] is currently set to [5], remove this setting",
+                    false,
+                    null
+                )
+            )
+        );
 
-        final String warningTemplate = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.";
-        final String[] expectedWarnings = {
-            String.format(Locale.ROOT, warningTemplate, IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()),
-        };
+        String warningTemplate = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! "
+            + "See the breaking changes documentation for the next major version.";
+        String[] expectedWarnings = {
+            String.format(Locale.ROOT, warningTemplate, IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()) };
 
         assertWarnings(expectedWarnings);
     }

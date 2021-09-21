@@ -191,12 +191,12 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     public VectorValues getVectorValues(String field) throws IOException {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override

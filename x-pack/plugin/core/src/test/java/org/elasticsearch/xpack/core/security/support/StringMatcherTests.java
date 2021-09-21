@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.support;
 import org.elasticsearch.core.List;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collection;
 import java.util.Locale;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -41,8 +42,8 @@ public class StringMatcherTests extends ESTestCase {
                     return "*" + s + "*";
             }
         };
-        final List<String> patterns = Stream.of(randomList(0, 3, randomPattern), List.of("*"), randomList(0, 3, randomPattern))
-            .flatMap(List::stream)
+        final Collection<String> patterns = Stream.of(randomList(0, 3, randomPattern), List.of("*"), randomList(0, 3, randomPattern))
+            .flatMap(Collection::stream)
             .collect(Collectors.toList());
         final StringMatcher matcher = StringMatcher.of(patterns);
         for (int i = 0; i < 10; i++) {

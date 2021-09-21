@@ -53,6 +53,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -139,8 +140,8 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         final NodeEnrollmentResponse response = future.get();
         assertSameCertificate(response.getHttpCaCert(), httpCaPath, "password".toCharArray(), true);
         assertSameCertificate(response.getTransportCert(), transportPath, "password".toCharArray(), false);
-        assertThat(response.getNodesAddresses().size(), equalTo(numberOfNodes));
-        assertThat(nodesInfoRequests.size(), equalTo(1));
+        assertThat(response.getNodesAddresses(), hasSize(numberOfNodes));
+        assertThat(nodesInfoRequests, hasSize(1));
 
         assertWarnings("[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release! " +
             "See the breaking changes documentation for the next major version.");

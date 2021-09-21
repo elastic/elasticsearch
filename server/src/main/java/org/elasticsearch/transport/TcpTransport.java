@@ -383,7 +383,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
-        closeLock.writeLock().lock();
+        if (closeLock.writeLock().tryLock() == false) {
+            throw new IllegalStateException("failed to acquire close-write-lock");
+        }
         try {
             // No need for locking here since Lifecycle objects can't move from STARTED to INITIALIZED
             if (lifecycle.initialized() == false && lifecycle.started() == false) {

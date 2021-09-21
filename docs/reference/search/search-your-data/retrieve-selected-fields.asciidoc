@@ -214,11 +214,11 @@ returning them as a flat list.
         "group" : ["fans"],
         "user": [{
             "first": ["John"],
-            "last": ["Smith"],
+            "last": ["Smith"]
           },
           {
             "first": ["Alice"],
-            "last": ["White"],
+            "last": ["White"]
           }
         ]
       }
@@ -270,10 +270,10 @@ structure of the nested `user` array:
       "_score": 1.0,
       "fields": {
         "user": [{
-            "first": ["John"],
+            "first": ["John"]
           },
           {
-            "first": ["Alice"],
+            "first": ["Alice"]
           }
         ]
       }

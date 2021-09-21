@@ -68,6 +68,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -439,7 +440,10 @@ public class TransportFieldsEnumAction extends HandledTransportAction<FieldsEnum
         XPackLicenseState frozenLicenseState,
         ThreadContext threadContext
     ) throws IOException {
-        if (frozenLicenseState.isSecurityEnabled()) {
+        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        // Check security is enabled on node
+        boolean securityEnabled = XPackSettings.SECURITY_ENABLED.get(indexService.getIndexSettings().getNodeSettings());
+        if (securityEnabled) {
             var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
@@ -451,7 +455,6 @@ public class TransportFieldsEnumAction extends HandledTransportAction<FieldsEnum
                     // Check to see if any of the roles defined for the current user rewrite to match_all
 
                     SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
-                    final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
                     final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
                         shardId.id(),
                         0,

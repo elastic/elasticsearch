@@ -166,11 +166,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
 })
 tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
-      // enable after backporting #77479
-      'indices.freeze/10_basic/Test index options',
-      'indices.freeze/10_basic/Basic',
-      'ml/datafeeds_crud/Test put and update datafeed with indices options in params',
-      'ml/jobs_crud/Test put job with datafeed with indices options in params',
       // to support it, it would require to almost revert back the #48725 and complicate the code
       'vectors/10_dense_vector_basic/Deprecated function signature',
       // not going to be supported

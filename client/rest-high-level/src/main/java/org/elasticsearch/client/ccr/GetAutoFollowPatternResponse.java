@@ -8,13 +8,14 @@
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.AbstractMap;
 import java.util.Collections;
@@ -22,8 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
-import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 public final class GetAutoFollowPatternResponse {
 
@@ -43,8 +42,8 @@ public final class GetAutoFollowPatternResponse {
         "get_auto_follow_pattern_response", true, args -> {
             @SuppressWarnings("unchecked")
             List<Map.Entry<String, Pattern>> entries = (List<Map.Entry<String, Pattern>>) args[0];
-            return new GetAutoFollowPatternResponse(new TreeMap<>(entries.stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
+            return new GetAutoFollowPatternResponse(entries.stream()
+                .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue)));
     });
 
     static {

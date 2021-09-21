@@ -912,7 +912,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("a", "foo").endObject();
 
-        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>(10_000);
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>(8_000);
         for (int i = 0; i < 8000; i++) {
             fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, true));
         }

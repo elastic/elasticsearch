@@ -12,8 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.MinDocQuery;
-import org.apache.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -23,7 +21,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
@@ -32,10 +29,8 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.MinDocQuery;
+import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchService;
@@ -208,11 +203,6 @@ public class QueryPhase {
                 hasFilterCollector = true;
             }
 
-            if (SYS_PROP_REWRITE_SORT) {
-                optimizeNumericSort(searchContext, searcher.getIndexReader());
-                // TODO: sort leaves according to search sort when Lucene supports sharing bottom sort value between collectors
-            }
-
             boolean timeoutSet = scrollContext == null && searchContext.timeout() != null &&
                 searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
 
@@ -299,35 +289,6 @@ public class QueryPhase {
             ctx.postProcess(queryResult);
         }
         return topDocsFactory.shouldRescore();
-    }
-
-
-    // TODO: remove this after Lucene 9.0, as sort optimization is enabled by default there
-    private static void optimizeNumericSort(SearchContext searchContext, IndexReader reader) {
-        if (searchContext.sort() == null) return;
-        // disable this optimization if index sorting matches the query sort since it's already optimized by index searcher
-        if (canEarlyTerminate(reader, searchContext.sort())) return;
-
-        SortField sortField = searchContext.sort().sort.getSort()[0];
-        SortField.Type sortType = IndexSortConfig.getSortFieldType(sortField);
-        //if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false) return null;
-
-        if (sortType != SortField.Type.LONG) return; // for now restrict sort optimization only to long sort
-        String fieldName = sortField.getField();
-        if (fieldName == null) return; // happens when _score or _doc is the 1st sort field
-        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-        final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
-        if (fieldType == null) return; // for unmapped fields, default behaviour depending on "unmapped_type" flag
-        if (fieldType.isSearchable() == false) return;
-        if (fieldType.hasDocValues() == false) return;
-
-        // For now restrict sort optimization only to long and date fields
-        // For sort optimization SortField.Type must match with the type of indexed points (Type.LONG and LongPoint)
-        // Some fields there is no match (e.g. integer field uses SortField.Type.LONG, but indexed as IntegerPoint)
-        if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldMapper.DateFieldType == false)) return;
-
-        sortField.setCanUsePoints();
-        return;
     }
 
     /**

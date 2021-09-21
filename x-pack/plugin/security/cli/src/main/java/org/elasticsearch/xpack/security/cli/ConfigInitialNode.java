@@ -361,7 +361,9 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                     bw.write(XPackSettings.SECURITY_ENABLED.getKey() + ": true");
                     bw.newLine();
                     bw.newLine();
-                    if (false == env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())) {
+                    // Set enrollment mode to true unless user explicitly set it to false themselves
+                    if (false == (env.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())
+                        && false == XPackSettings.ENROLLMENT_ENABLED.get(env.settings()))) {
                         bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
                         bw.newLine();
                         bw.newLine();

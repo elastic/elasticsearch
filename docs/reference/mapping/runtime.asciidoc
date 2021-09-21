@@ -815,6 +815,8 @@ mapping. {es} automatically uses these indexed fields to drive queries,
 resulting in a fast response time. This capability means you can write a 
 script only once, and apply it to any context that supports runtime fields.
 
+NOTE: Indexing a `composite` runtime field is currently not supported.
+
 You can then use runtime fields to limit the number of fields that {es} needs 
 to calculate values for. Using indexed fields in tandem with runtime fields 
 provides flexibility in the data that you index and how you define queries for 

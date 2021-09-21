@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-class PluginSecurity {
+public class PluginSecurity {
 
     /**
      * prints/confirms policy exceptions with the user

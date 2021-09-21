@@ -318,7 +318,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
         ElasticsearchNode firstNode = null;
         for (ElasticsearchNode node : nodes) {
-            if (node.getVersion().onOrAfter("8.0.0") && node.getTestDistribution().equals(TestDistribution.INTEG_TEST)) {
+            if (node.getTestDistribution().equals(TestDistribution.INTEG_TEST)) {
                 node.defaultConfig.put("xpack.security.enabled", "false");
             }
             // Can only configure master nodes if we have node names defined

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.test.ESTestCase;
 

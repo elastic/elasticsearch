@@ -686,12 +686,24 @@ public abstract class Engine implements Closeable {
      */
     public abstract Closeable acquireHistoryRetentionLock();
 
+
+    /**
+     * Counts the number of operations in the range of the given sequence numbers.
+     *
+     * @param source    the source of the request
+     * @param fromSeqNo the start sequence number (inclusive)
+     * @param toSeqNo   the end sequence number (inclusive)
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean)
+     */
+    public abstract int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException;
+
     /**
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
      * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
      */
     public abstract Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo,
-                                                         boolean requiredFullRange, boolean singleConsumer) throws IOException;
+                                                         boolean requiredFullRange, boolean singleConsumer,
+                                                         boolean accessStats) throws IOException;
 
     /**
      * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)

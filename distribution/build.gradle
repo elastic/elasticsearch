@@ -84,7 +84,7 @@ tasks.withType(NoticeTask).configureEach {
  *****************************************************************************/
 String defaultOutputs = 'build/outputs/default'
 String systemdOutputs = 'build/outputs/systemd'
-String transportOutputs = 'build/outputs/transport-only'
+String integTestOutputs = 'build/outputs/integ-test-only'
 String externalTestOutputs = 'build/outputs/external-test'
 
 def processDefaultOutputsTaskProvider = tasks.register("processDefaultOutputs", Sync) {
@@ -101,8 +101,8 @@ def processExternalTestOutputsTaskProvider = tasks.register("processExternalTest
 
 // Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
 // All transport modules are included so that they may be randomized for testing
-def processTransportOutputsTaskProvider = tasks.register("processTransportOutputs", Sync) {
-  into transportOutputs
+def processIntegTestOutputsTaskProvider = tasks.register("processIntegTestOutputs", Sync) {
+  into integTestOutputs
 }
 
 def defaultModulesFiles = fileTree("${defaultOutputs}/modules") {
@@ -120,10 +120,11 @@ def systemdModuleFiles = fileTree("${systemdOutputs}/modules") {
   builtBy processSystemdOutputsTaskProvider
 }
 
-def buildTransportModulesTaskProvider = tasks.register("buildTransportModules") {
-  dependsOn processTransportOutputsTaskProvider
-  outputs.dir "${transportOutputs}/modules"
+def buildIntegTestModulesTaskProvider = tasks.register("buildIntegTestModules") {
+  dependsOn processIntegTestOutputsTaskProvider
+  outputs.dir "${integTestOutputs}/modules"
 }
+
 def buildExternalTestModulesTaskProvider = tasks.register("buildExternalTestModules") {
   dependsOn "processExternalTestOutputs"
   outputs.dir "${externalTestOutputs}/modules"
@@ -211,7 +212,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 
   copyModule(processDefaultOutputsTaskProvider, module)
   if (module.name.startsWith('transport-')) {
-    copyModule(processTransportOutputsTaskProvider, module)
+    copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
   restTestExpansions['expected.modules.count'] += 1
@@ -220,12 +221,6 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 // use licenses from each of the bundled xpack plugins
 Project xpack = project(':x-pack:plugin')
 xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
-// Ugly hacks to see what is missing from integ test. We need core and security because we need to call to ConfigInitialNode on Startup to
-// determine whether we need to configure security.
-// rollup,shutdown are needed for EsRestTestCase node cleanup
-if (xpackModule.name.equals('core') || xpackModule.name.equals('security') || xpackModule.name.equals('rollup') || xpackModule.name.equals('shutdown')) {
-  copyModule(processTransportOutputsTaskProvider, xpackModule)
-}
   File licenses = new File(xpackModule.projectDir, 'licenses')
   if (licenses.exists()) {
     buildDefaultNoticeTaskProvider.configure {
@@ -234,6 +229,9 @@ if (xpackModule.name.equals('core') || xpackModule.name.equals('security') || xp
     }
   }
   copyModule(processDefaultOutputsTaskProvider, xpackModule)
+  if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
+    copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+  }
 }
 
 copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
@@ -295,7 +293,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles = {
+    libFiles =
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
@@ -312,7 +310,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from(configurations.libsSecurityCli)
         }
       }
-    }
+
 
     modulesFiles = { platform ->
       copySpec {
@@ -349,8 +347,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    transportModulesFiles = copySpec {
-      from buildTransportModulesTaskProvider
+    integTestModulesFiles = copySpec {
+      from buildIntegTestModulesTaskProvider
     }
 
     configFiles = { distributionType, isTestDistro ->
@@ -392,7 +390,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          from(defaultBinFiles)
+          if (testDistro == false) {
+            from(defaultBinFiles)
+          } else {
+            from(defaultBinFiles)
+              include 'x-pack-env', 'x-pack-security-env'
+          }
           if (distributionType != 'zip') {
             exclude '*.bat'
           }

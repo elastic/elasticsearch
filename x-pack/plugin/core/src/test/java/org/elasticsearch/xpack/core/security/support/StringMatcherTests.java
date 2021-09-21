@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class StringMatcherTests extends ESTestCase {
 
@@ -47,6 +49,8 @@ public class StringMatcherTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             assertMatch(matcher, randomAlphaOfLengthBetween(i, 20));
         }
+
+        assertThat(matcher.getPredicate(), sameInstance(StringMatcher.ALWAYS_TRUE_PREDICATE));
     }
 
     public void testSingleWildcard() throws Exception {

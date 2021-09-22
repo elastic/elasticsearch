@@ -49,7 +49,10 @@ public class DiscoveryNodeFilters {
     };
 
     public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
-        Map<String, String[]> bFilters = new HashMap<>();
+        if (filters.isEmpty()) {
+            return null;
+        }
+        Map<String, String[]> bFilters = new HashMap<>(filters.size());
         for (Map.Entry<String, String> entry : filters.entrySet()) {
             String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
             if (values.length > 0) {
@@ -68,7 +71,7 @@ public class DiscoveryNodeFilters {
 
     DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
         this.opType = opType;
-        this.filters = filters;
+        this.filters = Map.copyOf(filters);
     }
 
     private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {

@@ -5,7 +5,11 @@
  * 2.0.
  */
 
-package org.apache.lucene.search;
+package org.elasticsearch.xpack.searchbusinessrules;
+
+import org.apache.lucene.search.FilterScorer;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 

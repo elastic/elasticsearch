@@ -65,17 +65,17 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
 
     @Override
     public Diff<DiffableStringMap> diff(DiffableStringMap previousState) {
-        if (this.equals(previousState)) {
+        if (equals(previousState)) {
             return DiffableStringMapDiff.EMPTY;
         }
         final List<String> tempDeletes = new ArrayList<>();
-        final Map<String, String> tempUpserts = new HashMap<>();
         for (String key : previousState.keySet()) {
             if (containsKey(key) == false) {
                 tempDeletes.add(key);
             }
         }
 
+        final Map<String, String> tempUpserts = new HashMap<>();
         for (Map.Entry<String, String> partIter : entrySet()) {
             String beforePart = previousState.get(partIter.getKey());
             if (beforePart == null) {
@@ -105,7 +105,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
      */
     public static class DiffableStringMapDiff implements Diff<DiffableStringMap> {
 
-        public static final DiffableStringMapDiff EMPTY = new DiffableStringMapDiff(Collections.emptyList(), Collections.emptyMap()) {
+        public static final DiffableStringMapDiff EMPTY = new DiffableStringMapDiff(List.of(), Map.of()) {
             @Override
             public DiffableStringMap apply(DiffableStringMap part) {
                 return part;
@@ -115,7 +115,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
         private final List<String> deletes;
         private final Map<String, String> upserts; // diffs also become upserts
 
-        private DiffableStringMapDiff(final List<String> deletes, final Map<String, String> upserts) {
+        private DiffableStringMapDiff(List<String> deletes, Map<String, String> upserts) {
             this.deletes = deletes;
             this.upserts = upserts;
         }

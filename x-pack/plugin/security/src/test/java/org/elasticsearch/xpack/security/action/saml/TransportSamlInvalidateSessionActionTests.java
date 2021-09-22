@@ -98,6 +98,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -272,7 +273,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         storeToken(userTokenId2, refreshToken2, logoutRequest.getNameId(), logoutRequest.getSession());
         storeToken(new SamlNameId(NameID.PERSISTENT, randomAlphaOfLength(16), null, null, null), logoutRequest.getSession());
 
-        assertThat(indexRequests.size(), equalTo(4));
+        assertThat(indexRequests, hasSize(4));
 
         final AtomicInteger counter = new AtomicInteger();
         final SearchHit[] searchHits = indexRequests.stream()
@@ -303,7 +304,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         // 1 to find the tokens for the realm
         // 2 more to find the UserTokens from the 2 matching refresh tokens
-        assertThat(searchRequests.size(), equalTo(3));
+        assertThat(searchRequests, hasSize(3));
 
         assertThat(searchRequests.get(0).source().query(), instanceOf(BoolQueryBuilder.class));
         final List<QueryBuilder> filter0 = ((BoolQueryBuilder) searchRequests.get(0).source().query()).filter();
@@ -336,7 +337,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(tokenToInvalidate1.getAuthentication(), equalTo(new Authentication(new User("bob"),
             new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null)));
 
-        assertThat(bulkRequests.size(), equalTo(4)); // 4 updates (refresh-token + access-token)
+        assertThat(bulkRequests, hasSize(4)); // 4 updates (refresh-token + access-token)
         // Invalidate refresh token 1
         assertThat(bulkRequests.get(0).requests().get(0), instanceOf(UpdateRequest.class));
         assertThat(bulkRequests.get(0).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId1)));

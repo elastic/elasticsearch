@@ -58,6 +58,15 @@ public class BoxedQueryRequest implements QueryRequest {
         timestampRange = rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");
         keys = keyNames;
         RuntimeUtils.addFilter(timestampRange, searchSource);
+        // do not join on null values
+        if (keyNames.isEmpty() == false) {
+            BoolQueryBuilder nullValuesFilter = boolQuery();
+            for (int keyIndex = 0; keyIndex < keyNames.size(); keyIndex++) {
+                // add an "exists" query for each join key to filter out any non-existent values
+                nullValuesFilter.must(existsQuery(keyNames.get(keyIndex)));
+            }
+            RuntimeUtils.addFilter(nullValuesFilter, searchSource);
+        }
     }
 
     @Override
@@ -112,18 +121,9 @@ public class BoxedQueryRequest implements QueryRequest {
             // iterate on all possible values for a given key
             newFilters = new ArrayList<>(values.size());
             for (int keyIndex = 0; keyIndex < keys.size(); keyIndex++) {
-
-                boolean hasNullValue = false;
                 Set<Object> keyValues = new HashSet<>(BoxedQueryRequest.MAX_TERMS);
-                // check the given keys but make sure to double check for
-                // null as it translates to a different query (missing/not exists)
                 for (List<Object> value : values) {
-                    Object keyValue = value.get(keyIndex);
-                    if (keyValue == null) {
-                        hasNullValue = true;
-                    } else {
-                        keyValues.add(keyValue);
-                    }
+                    keyValues.add(value.get(keyIndex));
                 }
 
                 // too many unique terms, don't filter on the keys
@@ -140,21 +140,6 @@ public class BoxedQueryRequest implements QueryRequest {
                     query = termQuery(key, keyValues.iterator().next());
                 } else if (keyValues.size() > 1) {
                     query = termsQuery(key, keyValues);
-                }
-
-                // if null values are present
-                // make an OR call - either terms or null/missing values
-                if (hasNullValue) {
-                    BoolQueryBuilder isMissing = boolQuery().mustNot(existsQuery(key));
-                    if (query != null) {
-                        query = boolQuery()
-                            // terms query
-                            .should(query)
-                            // is missing
-                            .should(isMissing);
-                    } else {
-                        query = isMissing;
-                    }
                 }
                 newFilters.add(query);
             }

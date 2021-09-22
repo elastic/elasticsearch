@@ -414,3 +414,30 @@ query = '''
 process where substring(command_line, 5) regex (".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
 '''
 
+
+[[queries]]
+name = "sequenceOnOneNullKey"
+query = '''
+sequence
+  [process where parent_process_path == null] by parent_process_path
+  [any where true] by parent_process_path
+'''
+expected_event_ids = []
+
+[[queries]]
+name = "sequenceOnTwoNullKeys"
+query = '''
+sequence by ppid 
+  [process where parent_process_path == null] by parent_process_path
+  [any where true] by parent_process_path
+'''
+expected_event_ids = []
+
+[[queries]]
+name = "sequenceOnImplicitNullKeys"
+query = '''
+sequence by ppid, parent_process_path
+  [process where parent_process_path == null]
+  [any where true]
+'''
+expected_event_ids = []

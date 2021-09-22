@@ -137,9 +137,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 case "16":
                     artifactPattern = "zulu"
                         + zuluPathSuffix
-                        + "/bin/zulu"
-                        + jdk.getMajor()
-                        + ".32.15-ca-jdk16.0.2-"
+                        + "/bin/zulu16.32.15-ca-jdk16.0.2-"
                         + azulPlatform(jdk)
                         + "_[classifier].[ext]";
                     break;

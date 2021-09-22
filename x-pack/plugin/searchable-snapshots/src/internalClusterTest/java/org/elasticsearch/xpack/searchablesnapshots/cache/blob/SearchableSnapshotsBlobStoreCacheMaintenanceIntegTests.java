@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -28,15 +27,19 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -57,10 +60,11 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         final String repositoryName = "repository";
         createRepository(repositoryName, FsRepository.TYPE);
 
-        final int nbIndices = randomIntBetween(1, 3);
+        final int nbIndices = randomIntBetween(3, 10);
 
         logger.info("--> generating [{}] indices with cached entries in system index...", nbIndices);
         final Map<String, Long> mountedIndices = new HashMap<>();
+        final Map<String, Settings> mountedIndicesSettings = new HashMap<>();
 
         int i = 0;
         long previousNumberOfCachedEntries = 0;
@@ -100,6 +104,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                 final long nbEntries = numberOfEntriesInCache - previousNumberOfCachedEntries;
                 logger.info("--> mounted index [{}] has [{}] entries in cache", mountedIndex, nbEntries);
                 mountedIndices.put(mountedIndex, nbEntries);
+                mountedIndicesSettings.put(mountedIndex, getIndexSettings(mountedIndex));
 
             } else {
                 logger.info("--> mounted index [{}] did not generate any entry in cache, skipping", mountedIndex);
@@ -113,8 +118,6 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         ensureYellow(SNAPSHOT_BLOB_CACHE_INDEX);
         refreshSystemIndex(true);
 
-        final GetSettingsResponse mountedIndicesSettings = client().admin().indices().prepareGetSettings("mounted-*").get();
-
         final long numberOfEntriesInCache = numberOfEntriesInCache();
         logger.info("--> found [{}] entries in snapshot blob cache", numberOfEntriesInCache);
         assertThat(numberOfEntriesInCache, equalTo(mountedIndices.values().stream().mapToLong(l -> l).sum()));
@@ -127,14 +130,14 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             .filter(e -> indicesToDelete.contains(e.getKey()))
             .mapToLong(Map.Entry::getValue)
             .sum();
-        logger.info("--> expect [{}] deletions in snapshot blob cache", expectedDeletedEntriesInCache);
+        logger.info("--> deleting indices [{}] with [{}] entries in snapshot blob cache", indicesToDelete, expectedDeletedEntriesInCache);
 
         assertBusy(() -> {
             refreshSystemIndex(true);
             assertThat(numberOfEntriesInCache(), equalTo(numberOfEntriesInCache - expectedDeletedEntriesInCache));
 
             for (String mountedIndex : mountedIndices.keySet()) {
-                final Settings indexSettings = mountedIndicesSettings.getIndexToSettings().get(mountedIndex);
+                final Settings indexSettings = mountedIndicesSettings.get(mountedIndex);
                 assertHitCount(
                     systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
                         .setQuery(
@@ -149,6 +152,84 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                     indicesToDelete.contains(mountedIndex) ? 0L : mountedIndices.get(mountedIndex)
                 );
             }
+        });
+
+        final Set<String> remainingIndices = new HashSet<>(mountedIndices.keySet());
+        indicesToDelete.forEach(remainingIndices::remove);
+
+        if (remainingIndices.isEmpty() == false) {
+            final List<String> moreIndicesToDelete = randomSubsetOf(randomIntBetween(1, remainingIndices.size()), remainingIndices);
+
+            final String randomMountedIndex = randomFrom(moreIndicesToDelete);
+            final Settings randomIndexSettings = getIndexSettings(randomMountedIndex);
+            final String snapshotId = SNAPSHOT_SNAPSHOT_ID_SETTING.get(randomIndexSettings);
+            final String snapshotName = SNAPSHOT_SNAPSHOT_NAME_SETTING.get(randomIndexSettings);
+            final String snapshotIndexName = SNAPSHOT_INDEX_NAME_SETTING.get(randomIndexSettings);
+
+            final String remainingMountedIndex = "mounted-remaining-index";
+            mountSnapshot(
+                repositoryName,
+                snapshotName,
+                snapshotIndexName,
+                remainingMountedIndex,
+                Settings.EMPTY,
+                randomFrom(Storage.values())
+            );
+
+            ensureGreen(remainingMountedIndex);
+            mountedIndicesSettings.put(remainingMountedIndex, getIndexSettings(remainingMountedIndex));
+
+            assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+            assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
+            waitForBlobCacheFillsToComplete();
+
+            logger.info(
+                "--> deleting more mounted indices [{}] with snapshot [{}/{}] of index [{}] is still mounted as index [{}]",
+                moreIndicesToDelete,
+                snapshotId,
+                snapshotIndexName,
+                snapshotIndexName,
+                remainingMountedIndex
+            );
+            assertAcked(client().admin().indices().prepareDelete(moreIndicesToDelete.toArray(String[]::new)));
+
+            assertBusy(() -> {
+                refreshSystemIndex(true);
+
+                for (String mountedIndex : mountedIndices.keySet()) {
+                    final Settings indexSettings = mountedIndicesSettings.get(mountedIndex);
+
+                    final long remainingEntriesInCache = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
+                        .setQuery(
+                            BlobStoreCacheMaintenanceService.buildDeleteByQuery(
+                                INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings),
+                                SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings),
+                                SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
+                            )
+                        )
+                        .setSize(0)
+                        .get()
+                        .getHits()
+                        .getTotalHits().value;
+
+                    if (indicesToDelete.contains(mountedIndex)) {
+                        assertThat(remainingEntriesInCache, equalTo(0L));
+                    } else if (snapshotId.equals(SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))) {
+                        assertThat(remainingEntriesInCache, greaterThanOrEqualTo(mountedIndices.get(randomMountedIndex)));
+                    } else if (moreIndicesToDelete.contains(mountedIndex)) {
+                        assertThat(remainingEntriesInCache, equalTo(0L));
+                    } else {
+                        assertThat(remainingEntriesInCache, equalTo(mountedIndices.get(mountedIndex)));
+                    }
+                }
+            });
+        }
+
+        logger.info("--> deleting indices, maintenance service should clean up snapshot blob cache index");
+        assertAcked(client().admin().indices().prepareDelete("mounted-*"));
+        assertBusy(() -> {
+            refreshSystemIndex(true);
+            assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get(), 0L);
         });
     }
 
@@ -181,5 +262,9 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         } catch (IndexNotFoundException indexNotFoundException) {
             throw new AssertionError("unexpected", indexNotFoundException);
         }
+    }
+
+    private Settings getIndexSettings(String indexName) {
+        return client().admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName);
     }
 }

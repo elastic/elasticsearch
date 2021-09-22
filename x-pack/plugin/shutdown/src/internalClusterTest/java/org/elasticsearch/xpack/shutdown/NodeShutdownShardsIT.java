@@ -47,6 +47,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.REMOVE,
             this.getTestName(),
+            null,
             null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
@@ -84,6 +85,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                     nodeToRestartId,
                     SingleNodeShutdownMetadata.Type.REMOVE,
                     "testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline",
+                    null,
                     null
                 );
                 AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
@@ -121,6 +123,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.REMOVE,
             this.getTestName(),
+            null,
             null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();

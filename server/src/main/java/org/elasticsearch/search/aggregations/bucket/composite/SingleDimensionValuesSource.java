@@ -30,6 +30,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     @Nullable
     protected final MappedFieldType fieldType;
     protected final boolean missingBucket;
+    protected final MissingOrder missingOrder;
 
     protected final int size;
     protected final int reverseMul;
@@ -43,16 +44,24 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * @param format The format of the source.
      * @param fieldType The field type or null if the source is a script.
      * @param missingBucket If true, an explicit `null bucket represents documents with missing values.
+     * @param missingOrder How to order missing buckets if missingBucket is <code>true</code>.
      * @param size The number of values to record.
      * @param reverseMul -1 if the natural order ({@link SortOrder#ASC} should be reversed.
      */
-    SingleDimensionValuesSource(BigArrays bigArrays, DocValueFormat format,
-                                @Nullable MappedFieldType fieldType, boolean missingBucket,
-                                int size, int reverseMul) {
+    SingleDimensionValuesSource(
+        BigArrays bigArrays,
+        DocValueFormat format,
+        @Nullable MappedFieldType fieldType,
+        boolean missingBucket,
+        MissingOrder missingOrder,
+        int size,
+        int reverseMul
+    ) {
         this.bigArrays = bigArrays;
         this.format = format;
         this.fieldType = fieldType;
         this.missingBucket = missingBucket;
+        this.missingOrder = missingOrder;
         this.size = size;
         this.reverseMul = reverseMul;
         this.afterValue = null;
@@ -127,8 +136,8 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * Creates a {@link LeafBucketCollector} that sets the current value for each document to the provided
      * <code>value</code> and invokes {@link LeafBucketCollector#collect} on the provided <code>next</code> collector.
      */
-    abstract LeafBucketCollector getLeafCollector(Comparable<T> value,
-                                                  LeafReaderContext context, LeafBucketCollector next) throws IOException;
+    abstract LeafBucketCollector getLeafCollector(Comparable<T> value, LeafReaderContext context, LeafBucketCollector next)
+        throws IOException;
 
     /**
      * Returns a {@link SortedDocsProducer} or null if this source cannot produce sorted docs.
@@ -139,16 +148,13 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * Returns true if a {@link SortedDocsProducer} should be used to optimize the execution.
      */
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
-        if (fieldType == null ||
-                (missingBucket && afterValue == null) ||
-                fieldType.isSearchable() == false ||
-                // inverse of the natural order
-                reverseMul == -1) {
+        if (fieldType == null || (missingBucket && afterValue == null) || fieldType.isSearchable() == false ||
+        // inverse of the natural order
+            reverseMul == -1) {
             return false;
         }
 
-        if (reader.hasDeletions() &&
-                (reader.numDocs() == 0 || (double) reader.numDocs() / (double) reader.maxDoc() < 0.5)) {
+        if (reader.hasDeletions() && (reader.numDocs() == 0 || (double) reader.numDocs() / (double) reader.maxDoc() < 0.5)) {
             // do not use the index if it has more than 50% of deleted docs
             return false;
         }

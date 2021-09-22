@@ -52,10 +52,7 @@ public class ValuesSourceRegistryTests extends ESTestCase {
             "bogus",
             HistogramAggregatorSupplier.class
         );
-        ValuesSourceRegistry registry = new ValuesSourceRegistry(
-            Map.of(key, List.of()),
-            null
-        );
+        ValuesSourceRegistry registry = new ValuesSourceRegistry(Map.of(key, List.of()), null);
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(key, fieldOnly));
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(key, scriptOnly));
     }

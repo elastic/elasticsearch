@@ -1641,7 +1641,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
                         @Override
                         protected void connectToNodesAndWait(ClusterState newClusterState) {
-                            // don't do anything, and don't block
+                            connectToNodesAsync(newClusterState, () -> {
+                                // no need to block waiting for handshakes etc. to complete, it's enough to let the NodeConnectionsService
+                                // take charge of these connections
+                            });
                         }
                     }
                 );
@@ -1964,10 +1967,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector()
                 );
-                SearchPhaseController searchPhaseController = new SearchPhaseController(
-                    writableRegistry(),
-                    searchService::aggReduceContextBuilder
-                );
+                SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
                 actions.put(
                     SearchAction.INSTANCE,
                     new TransportSearchAction(
@@ -2152,6 +2152,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     node.getName(),
                     clusterService.getSettings(),
                     clusterService.getClusterSettings(),
+                    bigArrays,
                     transportService,
                     namedWriteableRegistry,
                     allocationService,

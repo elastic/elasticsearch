@@ -215,8 +215,9 @@ public class ReconfiguratorTests extends ESTestCase {
 
         // update to "false"
         clusterSettings.applySettings(Settings.builder().put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), "false").build());
+        // no quorum
         assertThat(reconfigurator.reconfigure(twoNodes, retired(), randomFrom(twoNodes), initialConfig),
-            sameInstance(initialConfig)); // no quorum
+            sameInstance(initialConfig));
         assertThat(reconfigurator.reconfigure(threeNodes, retired(), randomFrom(threeNodes), initialConfig),
             equalTo(conf("a", "b", "c", "d", "e")));
         assertThat(reconfigurator.reconfigure(threeNodes, retired("d"), randomFrom(threeNodes), initialConfig),

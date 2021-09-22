@@ -201,7 +201,6 @@ public class SSLDriverTests extends ESTestCase {
                 serverDriver.getSSLEngine().closeInbound();
                 serverDriver.getSSLEngine().closeOutbound();
                 serverDriver.close();
-                ;
                 assertTrue(serverDriver.isClosed());
                 clientDriver.close();
                 assertTrue(clientDriver.isClosed());

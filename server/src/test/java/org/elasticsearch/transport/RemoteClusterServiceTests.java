@@ -832,7 +832,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public static void updateSkipUnavailable(RemoteClusterService service, String clusterAlias, boolean skipUnavailable) {
         RemoteClusterConnection connection = service.getRemoteClusterConnection(clusterAlias);
-        connection.updateSkipUnavailable(skipUnavailable);
+        connection.setSkipUnavailable(skipUnavailable);
     }
 
     public static void addConnectionListener(RemoteClusterService service, TransportConnectionListener listener) {

@@ -23,11 +23,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -42,7 +39,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -341,7 +337,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testAddComponentTemplate() throws Exception{
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
-        Template template = new Template(Settings.builder().build(), null, ComponentTemplateTests.randomAliases());
+        Template template = new Template(
+            Settings.builder().build(),
+            new CompressedXContent("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}"),
+            ComponentTemplateTests.randomAliases()
+        );
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
 
@@ -617,8 +617,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
         assertWarnings("legacy template [v1-template] has index patterns [*, baz] matching patterns from existing " +
-            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
-            "be ignored in favor of a composable template at index creation time");
+            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template " +
+            "[v1-template] may be ignored in favor of a composable template at index creation time");
 
         assertNotNull(state.metadata().templates().get("v1-template"));
         assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("*", "baz"));
@@ -681,8 +681,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
         assertWarnings("legacy template [v1-template] has index patterns [fo*, baz] matching patterns from existing " +
-            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
-            "be ignored in favor of a composable template at index creation time");
+            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template " +
+            "[v1-template] may be ignored in favor of a composable template at index creation time");
 
         assertNotNull(state.metadata().templates().get("v1-template"));
         assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("fo*", "baz"));
@@ -724,8 +724,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             () -> MetadataIndexTemplateService.innerPutTemplate(finalState, req, IndexTemplateMetadata.builder("v1-template")));
 
         assertThat(e.getMessage(), equalTo("legacy template [v1-template] has index patterns [egg*, baz] matching patterns " +
-            "from existing composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), use composable " +
-            "templates (/_index_template) instead"));
+            "from existing composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), " +
+            "use composable templates (/_index_template) instead"));
     }
 
     public void testPuttingOverlappingV2Template() throws Exception {
@@ -739,8 +739,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
             assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
-                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [1], multiple index templates may not " +
-                "match during index creation, please use a different priority"));
+                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [1], multiple " +
+                "index templates may not match during index creation, please use a different priority"));
         }
 
         {
@@ -753,8 +753,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
             assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
-                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [0], multiple index templates may not " +
-                "match during index creation, please use a different priority"));
+                "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [0], multiple " +
+                "index templates may not match during index creation, please use a different priority"));
         }
     }
 
@@ -1587,55 +1587,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
     }
 
-    @SuppressWarnings("unchecked")
     public static void assertTemplatesEqual(ComposableIndexTemplate actual, ComposableIndexTemplate expected) {
-        ComposableIndexTemplate actualNoTemplate = new ComposableIndexTemplate(actual.indexPatterns(), null,
-            actual.composedOf(), actual.priority(), actual.version(), actual.metadata(), actual.getDataStreamTemplate(), null);
-        ComposableIndexTemplate expectedNoTemplate = new ComposableIndexTemplate(expected.indexPatterns(), null,
-            expected.composedOf(), expected.priority(), expected.version(), expected.metadata(), expected.getDataStreamTemplate(), null);
-
-        assertThat(actualNoTemplate, equalTo(expectedNoTemplate));
-        Template actualTemplate = actual.template();
-        Template expectedTemplate = expected.template();
-
-        assertThat("expected both templates to have either a template or no template",
-            Objects.nonNull(actualTemplate), equalTo(Objects.nonNull(expectedTemplate)));
-
-        if (actualTemplate != null) {
-            assertThat(actualTemplate.settings(), equalTo(expectedTemplate.settings()));
-            assertThat(actualTemplate.aliases(), equalTo(expectedTemplate.aliases()));
-            assertThat("expected both templates to have either mappings or no mappings",
-                Objects.nonNull(actualTemplate.mappings()), equalTo(Objects.nonNull(expectedTemplate.mappings())));
-
-            if (actualTemplate.mappings() != null) {
-                Map<String, Object> actualMappings;
-                Map<String, Object> expectedMappings;
-                try (XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(new NamedXContentRegistry(List.of()), LoggingDeprecationHandler.INSTANCE,
-                        actualTemplate.mappings().string())) {
-                    actualMappings = parser.map();
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-                try (XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(new NamedXContentRegistry(List.of()), LoggingDeprecationHandler.INSTANCE,
-                        expectedTemplate.mappings().string())) {
-                    expectedMappings = parser.map();
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-
-                if (actualMappings.size() == 1 && actualMappings.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
-                    actualMappings = (Map<String, Object>) actualMappings.get(MapperService.SINGLE_MAPPING_NAME);
-                }
-
-                if (expectedMappings.size() == 1 && expectedMappings.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
-                    expectedMappings = (Map<String, Object>) expectedMappings.get(MapperService.SINGLE_MAPPING_NAME);
-                }
-
-                assertThat(actualMappings, equalTo(expectedMappings));
-            }
-        }
+        assertTrue(Objects.equals(actual, expected));
     }
 
     // Composable index template with data_stream definition need _timestamp meta field mapper,

@@ -27,6 +27,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Collections;
 import java.util.List;

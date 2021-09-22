@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -25,6 +26,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,6 +48,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
 
 /**
  * Class for transporting stop trained model deloyment requests.
@@ -57,18 +62,20 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
     private static final Logger logger = LogManager.getLogger(TransportStopTrainedModelDeploymentAction.class);
 
     private final Client client;
+    private final IngestService ingestService;
     private final TrainedModelAllocationService trainedModelAllocationService;
     private final TrainedModelAllocationClusterService trainedModelAllocationClusterService;
 
     @Inject
     public TransportStopTrainedModelDeploymentAction(ClusterService clusterService, TransportService transportService,
-                                                     ActionFilters actionFilters, Client client,
+                                                     ActionFilters actionFilters, Client client, IngestService ingestService,
                                                      TrainedModelAllocationService trainedModelAllocationService,
                                                      TrainedModelAllocationClusterService trainedModelAllocationClusterService) {
         super(StopTrainedModelDeploymentAction.NAME, clusterService, transportService, actionFilters,
             StopTrainedModelDeploymentAction.Request::new, StopTrainedModelDeploymentAction.Response::new,
             StopTrainedModelDeploymentAction.Response::new, ThreadPool.Names.SAME);
         this.client = new OriginSettingClient(client, ML_ORIGIN);
+        this.ingestService = ingestService;
         this.trainedModelAllocationService = trainedModelAllocationService;
         this.trainedModelAllocationClusterService = trainedModelAllocationClusterService;
     }
@@ -108,6 +115,18 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                     return;
                 }
                 final String modelId = models.get(0).getModelId();
+
+                IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+                Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
+
+                if (referencedModels.contains(modelId)) {
+                    listener.onFailure(new ElasticsearchStatusException(
+                        "Cannot stop allocation for model [{}] as it is still referenced by ingest processors",
+                        RestStatus.CONFLICT, modelId)
+                    );
+                    return;
+                }
+
                 // NOTE, should only run on Master node
                 trainedModelAllocationClusterService.setModelAllocationToStopping(
                     modelId,

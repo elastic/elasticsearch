@@ -227,7 +227,6 @@ import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountToken
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -337,8 +336,10 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_AUTOCONFIGURATION_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
+import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_TOKENS_INDEX_FORMAT;
@@ -351,17 +352,17 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     // TODO: ip filtering does not actually track license usage yet
     public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
-        LicensedFeature.momentaryLenient("security_ip_filtering", License.OperationMode.GOLD);
+        LicensedFeature.momentaryLenient(null, "security_ip_filtering", License.OperationMode.GOLD);
     public static final LicensedFeature.Momentary AUDITING_FEATURE =
-        LicensedFeature.momentaryLenient("security_auditing", License.OperationMode.GOLD);
+        LicensedFeature.momentaryLenient(null, "security_auditing", License.OperationMode.GOLD);
 
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
     // Standard realms (LDAP, AD, PKI, etc) are Gold+
     // SSO realms are Platinum+
     public static final LicensedFeature.Persistent STANDARD_REALMS_FEATURE =
-        LicensedFeature.persistentLenient("security_standard_realms", License.OperationMode.GOLD);
+        LicensedFeature.persistentLenient(null, "security_standard_realms", License.OperationMode.GOLD);
     public static final LicensedFeature.Persistent ALL_REALMS_FEATURE =
-        LicensedFeature.persistentLenient("security_all_realms", License.OperationMode.PLATINUM);
+        LicensedFeature.persistentLenient(null, "security_all_realms", License.OperationMode.PLATINUM);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -453,12 +454,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
 
         scriptServiceReference.set(scriptService);
-
         // We need to construct the checks here while the secure settings are still available.
         // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
         final List<BootstrapCheck> checks = new ArrayList<>();
         checks.addAll(Arrays.asList(
-            new ApiKeySSLBootstrapCheck(),
             new TokenSSLBootstrapCheck(),
             new PkiRealmBootstrapCheck(getSslService()),
             new TLSLicenseBootstrapCheck()));
@@ -495,6 +494,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
+        GenerateInitialBuiltinUsersPasswordListener generateInitialBuiltinUsersPasswordListener =
+            new GenerateInitialBuiltinUsersPasswordListener(nativeUsersStore, securityIndex.get());
+        if (BOOTSTRAP_ELASTIC_PASSWORD.exists(settings) == false && SECURITY_AUTOCONFIGURATION_ENABLED.get(settings)) {
+            securityIndex.get().addStateListener(generateInitialBuiltinUsersPasswordListener);
+        }
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
@@ -546,9 +550,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             clusterService, cacheInvalidatorRegistry, threadPool);
         components.add(apiKeyService);
 
-        final HttpTlsRuntimeCheck httpTlsRuntimeCheck = new HttpTlsRuntimeCheck(settings, transportReference);
-        components.add(httpTlsRuntimeCheck);
-
         final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
             settings, threadPool, getClock(), client, securityIndex.get(), clusterService, cacheInvalidatorRegistry);
         components.add(indexServiceAccountTokenStore);
@@ -557,13 +558,17 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new FileServiceAccountTokenStore(environment, resourceWatcherService, threadPool, clusterService, cacheInvalidatorRegistry);
         components.add(fileServiceAccountTokenStore);
 
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(client,
-            fileServiceAccountTokenStore, indexServiceAccountTokenStore, httpTlsRuntimeCheck);
+        final ServiceAccountService serviceAccountService = new ServiceAccountService(
+            client,
+            fileServiceAccountTokenStore,
+            indexServiceAccountTokenStore
+        );
         components.add(serviceAccountService);
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
             privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
-            serviceAccountService, dlsBitsetCache.get(), new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
+            serviceAccountService, dlsBitsetCache.get(), expressionResolver,
+            new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
         securityIndex.get().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be

@@ -12,10 +12,10 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -55,10 +55,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SparseVectorFieldMapper build(ContentPath contentPath) {
+        public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
-                    name, new SparseVectorFieldType(buildFullName(contentPath), meta.getValue()),
-                    multiFieldsBuilder.build(this, contentPath), copyTo.build());
+                    name, new SparseVectorFieldType(context.buildFullName(name), meta.getValue()),
+                    multiFieldsBuilder.build(this, context), copyTo.build());
         }
     }
 
@@ -66,7 +66,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         if (c.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
             throw new IllegalArgumentException(ERROR_MESSAGE);
         } else {
-            deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
+            deprecationLogger.critical(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
             return new Builder(n);
         }
     });

@@ -116,6 +116,8 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
              SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()) {
             Loggers.addAppender(diagnosticLogger, mockAppender);
 
+            String fileName = "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt"
+                .replace('/', platformFileSeparator());
             mockAppender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
                 "ssl diagnostic",
                 DiagnosticTrustManager.class.getName(),
@@ -131,9 +133,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
                     " is trusted in this ssl context " +
                     Pattern.quote("([" + HTTP_CLIENT_SSL + " (with trust configuration: PEM-trust{") +
                     "\\S+" +
-                    Pattern.quote(
-                        "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt" +
-                            "})])")
+                    Pattern.quote(fileName + "})])")
             ));
 
             enableHttpsHostnameChecking(clientSocket);
@@ -204,6 +204,11 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             builder.putList(prefix + ".certificate_authorities", getPath(caPath));
         }
         return builder;
+    }
+
+    @SuppressForbidden(reason = "Checking error message that outputs platform file separator")
+    private static char platformFileSeparator() {
+        return java.io.File.separatorChar;
     }
 
     private static String randomCapitalization(Enum<?> enumValue) {

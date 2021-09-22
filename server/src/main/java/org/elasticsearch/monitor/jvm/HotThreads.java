@@ -19,6 +19,7 @@ import java.lang.management.ThreadMXBean;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -31,14 +32,55 @@ public class HotThreads {
 
     private static final Object mutex = new Object();
 
+    private static final StackTraceElement[] EMPTY = new StackTraceElement[0];
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time");
 
     private int busiestThreads = 3;
     private TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);
-    private TimeValue threadElementsSnapshotDelay = new TimeValue(10);
+    private TimeValue threadElementsSnapshotDelay = new TimeValue(10, TimeUnit.MILLISECONDS);
     private int threadElementsSnapshotCount = 10;
-    private String type = "cpu";
+    private ReportType type = ReportType.CPU;
     private boolean ignoreIdleThreads = true;
+
+    private static final List<String[]> knownIdleStackFrames = Arrays.asList(
+        new String[] {"java.util.concurrent.ThreadPoolExecutor", "getTask"},
+        new String[] {"sun.nio.ch.SelectorImpl", "select"},
+        new String[] {"org.elasticsearch.threadpool.ThreadPool$CachedTimeThread", "run"},
+        new String[] {"org.elasticsearch.indices.ttl.IndicesTTLService$Notifier", "await"},
+        new String[] {"java.util.concurrent.LinkedTransferQueue", "poll"},
+        new String[] {"com.sun.jmx.remote.internal.ServerCommunicatorAdmin$Timeout", "run"}
+    );
+
+    // NOTE: these are JVM dependent and JVM version dependent
+    private static final List<String> knownJDKInternalThreads = Arrays.asList(
+        "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner", "process reaper"
+    );
+
+    public enum ReportType {
+
+        CPU("cpu"),
+        WAIT("wait"),
+        BLOCK("block");
+
+        private final String type;
+
+        ReportType(String type) {
+            this.type = type;
+        }
+
+        public String getTypeValue() {
+            return type;
+        }
+
+        public static ReportType of(String type) {
+            for (var report : values()) {
+                if (report.type.equals(type)) {
+                    return report;
+                }
+            }
+            throw new IllegalArgumentException("type not supported [" + type + "]");
+        }
+    }
 
     public HotThreads interval(TimeValue interval) {
         this.interval = interval;
@@ -65,52 +107,34 @@ public class HotThreads {
         return this;
     }
 
-    public HotThreads type(String type) {
-        if ("cpu".equals(type) || "wait".equals(type) || "block".equals(type)) {
-            this.type = type;
-        } else {
-            throw new IllegalArgumentException("type not supported [" + type + "]");
-        }
+    public HotThreads type(ReportType type) {
+        this.type = type;
         return this;
     }
 
     public String detect() throws Exception {
         synchronized (mutex) {
-            return innerDetect();
+            return innerDetect(ManagementFactory.getThreadMXBean(), Thread.currentThread().getId());
         }
     }
 
-    private static boolean isIdleThread(ThreadInfo threadInfo) {
-        String threadName = threadInfo.getThreadName();
+    static boolean isKnownJDKThread(ThreadInfo threadInfo) {
+        return (knownJDKInternalThreads.stream().anyMatch(jvmThread ->
+            threadInfo.getThreadName() != null && threadInfo.getThreadName().equals(jvmThread)));
+    }
 
-        // NOTE: these are likely JVM dependent
-        if (threadName.equals("Signal Dispatcher") ||
-            threadName.equals("Finalizer") ||
-            threadName.equals("Reference Handler")) {
+    static boolean isKnownIdleStackFrame(String className, String methodName) {
+        return (knownIdleStackFrames.stream().anyMatch(pair ->
+            pair[0].equals(className) && pair[1].equals(methodName)));
+    }
+
+    static boolean isIdleThread(ThreadInfo threadInfo) {
+        if (isKnownJDKThread(threadInfo)) {
             return true;
         }
 
         for (StackTraceElement frame : threadInfo.getStackTrace()) {
-            String className = frame.getClassName();
-            String methodName = frame.getMethodName();
-            if (className.equals("java.util.concurrent.ThreadPoolExecutor") &&
-                methodName.equals("getTask")) {
-                return true;
-            }
-            if (className.equals("sun.nio.ch.SelectorImpl") &&
-                methodName.equals("select")) {
-                return true;
-            }
-            if (className.equals("org.elasticsearch.threadpool.ThreadPool$CachedTimeThread") &&
-                methodName.equals("run")) {
-                return true;
-            }
-            if (className.equals("org.elasticsearch.indices.ttl.IndicesTTLService$Notifier") &&
-                methodName.equals("await")) {
-                return true;
-            }
-            if (className.equals("java.util.concurrent.LinkedTransferQueue") &&
-                methodName.equals("poll")) {
+            if (isKnownIdleStackFrame(frame.getClassName(), frame.getMethodName())) {
                 return true;
             }
         }
@@ -118,8 +142,7 @@ public class HotThreads {
         return false;
     }
 
-    private String innerDetect() throws Exception {
-        ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+    String innerDetect(ThreadMXBean threadBean, long currentThreadId) throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
@@ -135,10 +158,10 @@ public class HotThreads {
         sb.append(ignoreIdleThreads);
         sb.append(":\n");
 
-        Map<Long, MyThreadInfo> threadInfos = new HashMap<>();
+        Map<Long, ThreadTimeAccumulator> threadInfos = new HashMap<>();
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (currentThreadId == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);
@@ -149,12 +172,12 @@ public class HotThreads {
             if (info == null) {
                 continue;
             }
-            threadInfos.put(threadId, new MyThreadInfo(cpu, info));
+            threadInfos.put(threadId, new ThreadTimeAccumulator(info, cpu));
         }
         Thread.sleep(interval.millis());
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (currentThreadId == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);
@@ -167,43 +190,25 @@ public class HotThreads {
                 threadInfos.remove(threadId);
                 continue;
             }
-            MyThreadInfo data = threadInfos.get(threadId);
+            ThreadTimeAccumulator data = threadInfos.get(threadId);
             if (data != null) {
-                data.setDelta(cpu, info);
+                data.setDelta(info, cpu);
             } else {
                 threadInfos.remove(threadId);
             }
         }
         // sort by delta CPU time on thread.
-        List<MyThreadInfo> hotties = new ArrayList<>(threadInfos.values());
+        List<ThreadTimeAccumulator> hotties = new ArrayList<>(threadInfos.values());
         final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
         // skip that for now
-        final ToLongFunction<MyThreadInfo> getter;
-        if ("cpu".equals(type)) {
-            getter = o -> {
-                assert o.cpuTime >= -1 : "cpu time should not be negative, but was " + o.cpuTime + ", thread info: " + o.info;
-                return o.cpuTime;
-            };
-        } else if ("wait".equals(type)) {
-            getter = o -> {
-                assert o.waitedTime >= -1 : "waited time should not be negative, but was " + o.waitedTime + ", thread info: " + o.info;
-                return o.waitedTime;
-            };
-        } else if ("block".equals(type)) {
-            getter = o -> {
-                assert o.blockedTime >= -1 : "blocked time should not be negative, but was " + o.blockedTime + ", thread info: " + o.info;
-                return o.blockedTime;
-            };
-        } else {
-            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
-        }
+        final ToLongFunction<ThreadTimeAccumulator> getter = ThreadTimeAccumulator.valueGetterForReportType(type);
 
         CollectionUtil.introSort(hotties, Comparator.comparingLong(getter).reversed());
 
         // analyse N stack traces for M busiest threads
         long[] ids = new long[busiestThreads];
         for (int i = 0; i < busiestThreads; i++) {
-            MyThreadInfo info = hotties.get(i);
+            ThreadTimeAccumulator info = hotties.get(i);
             ids[i] = info.info.getThreadId();
         }
         ThreadInfo[][] allInfos = new ThreadInfo[threadElementsSnapshotCount][];
@@ -232,7 +237,7 @@ public class HotThreads {
             }
             double percent = (((double) time) / interval.nanos()) * 100;
             sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
-                percent, TimeValue.timeValueNanos(time), interval, type, threadName));
+                percent, TimeValue.timeValueNanos(time), interval, type.getTypeValue(), threadName));
             // for each snapshot (2nd array index) find later snapshot for same thread with max number of
             // identical StackTraceElements (starting from end of each)
             boolean[] done = new boolean[threadElementsSnapshotCount];
@@ -277,9 +282,7 @@ public class HotThreads {
         return sb.toString();
     }
 
-    private static final StackTraceElement[] EMPTY = new StackTraceElement[0];
-
-    private int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
+    int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
         StackTraceElement[] s1 = threadInfo == null ? EMPTY : threadInfo.getStackTrace();
         StackTraceElement[] s2 = threadInfo0 == null ? EMPTY : threadInfo0.getStackTrace();
         int i = s1.length - 1;
@@ -294,7 +297,7 @@ public class HotThreads {
     }
 
 
-    class MyThreadInfo {
+    static class ThreadTimeAccumulator {
         long cpuTime;
         long blockedCount;
         long blockedTime;
@@ -303,7 +306,7 @@ public class HotThreads {
         boolean deltaDone;
         ThreadInfo info;
 
-        MyThreadInfo(long cpuTime, ThreadInfo info) {
+        ThreadTimeAccumulator(ThreadInfo info, long cpuTime) {
             blockedCount = info.getBlockedCount();
             blockedTime = info.getBlockedTime();
             waitedCount = info.getWaitedCount();
@@ -312,7 +315,7 @@ public class HotThreads {
             this.info = info;
         }
 
-        void setDelta(long cpuTime, ThreadInfo info) {
+        void setDelta(ThreadInfo info, long cpuTime) {
             if (deltaDone) throw new IllegalStateException("setDelta already called once");
             blockedCount = info.getBlockedCount() - blockedCount;
             blockedTime = info.getBlockedTime() - blockedTime;
@@ -321,6 +324,30 @@ public class HotThreads {
             this.cpuTime = cpuTime - this.cpuTime;
             deltaDone = true;
             this.info = info;
+        }
+
+        static ToLongFunction<ThreadTimeAccumulator> valueGetterForReportType(ReportType type) {
+            switch (type) {
+                case CPU:
+                    return o -> {
+                        assert o.cpuTime >= -1 :
+                            "cpu time should not be negative, but was " + o.cpuTime + ", thread info: " + o.info;
+                        return o.cpuTime;
+                    };
+                case WAIT:
+                    return o -> {
+                        assert o.waitedTime >= -1 :
+                            "waited time should not be negative, but was " + o.waitedTime + ", thread info: " + o.info;
+                        return o.waitedTime;
+                    };
+                case BLOCK:
+                    return o -> {
+                        assert o.blockedTime >= -1 :
+                            "blocked time should not be negative, but was " + o.blockedTime + ", thread info: " + o.info;
+                        return o.blockedTime;
+                    };
+            }
+            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
         }
     }
 }

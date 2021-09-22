@@ -35,13 +35,16 @@ import org.elasticsearch.client.ml.job.results.Influencer;
 import org.elasticsearch.client.ml.job.results.OverallBucket;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.XContentTestUtils;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -138,62 +141,140 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    private void addModelSnapshotIndexRequests(BulkRequest bulkRequest) {
+    private void addModelSnapshotIndexRequests(BulkRequest bulkRequest) throws IOException {
         // Index a number of model snapshots, one of which contains the new model_size_stats fields
         // 'model_bytes_exceeded' and 'model_bytes_memory_limit' that were introduced in 7.2.0.
         // We want to verify that we can parse the snapshots whether or not these fields are present.
         {
             IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
-            indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"timestamp\":1541587919000, " +
-                "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", \"snapshot_id\":\"1541587919\"," +
-                "\"snapshot_doc_count\":1, \"model_size_stats\":{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"model_size_stats\"," +
-                "\"model_bytes\":51722, \"peak_model_bytes\":61322, \"model_bytes_exceeded\":10762, \"model_bytes_memory_limit\":40960," +
-                "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
-                "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000," +
-                " \"timestamp\":1519930800000},\"latest_record_time_stamp\":1519931700000, \"latest_result_time_stamp\":1519930800000," +
-                " \"retain\":false }", XContentType.JSON);
+            Map<String, Object> modelSizeStats = new HashMap<>();
+            modelSizeStats.put("job_id", JOB_ID);
+            modelSizeStats.put("result_type", "model_size_stats");
+            modelSizeStats.put("model_bytes", 51722);
+            modelSizeStats.put("peak_model_bytes", 61322);
+            modelSizeStats.put("model_bytes_exceeded", 10762);
+            modelSizeStats.put("model_bytes_memory_limit", 40960);
+            modelSizeStats.put("total_by_field_count", 3);
+            modelSizeStats.put("total_over_field_count", 0);
+            modelSizeStats.put("total_partition_field_count", 2);
+            modelSizeStats.put("bucket_allocation_failures_count", 0);
+            modelSizeStats.put("memory_status", "ok");
+            modelSizeStats.put("log_time", 1541587919000L);
+            modelSizeStats.put("timestamp", 1519930800000L);
+
+            Map<String, Object> source = new HashMap<>();
+            source.put("job_id", JOB_ID);
+            source.put("timestamp", 1541587919000L);
+            source.put("description", "State persisted due to job close at 2018-11-07T10:51:59+0000");
+            source.put("snapshot_id", "1541587919");
+            source.put("snapshot_doc_count", 1);
+            source.put("latest_record_time_stamp", 1519931700000L);
+            source.put("latest_result_time_stamp", 1519930800000L);
+            source.put("retain", false);
+            source.put("model_size_stats", modelSizeStats);
+
+            indexRequest.source(XContentTestUtils.convertToXContent(source, XContentType.JSON), XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
         // Also index one that contains 'memory_assignment_basis', which was added in 7.11
         {
             IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
-            indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"timestamp\":1541587929000, " +
-                "\"description\":\"State persisted due to job close at 2018-11-07T10:52:09+0000\", \"snapshot_id\":\"1541587929\"," +
-                "\"snapshot_doc_count\":1, \"model_size_stats\":{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"model_size_stats\"," +
-                "\"model_bytes\":51722, \"peak_model_bytes\":61322, \"model_bytes_exceeded\":10762, \"model_bytes_memory_limit\":40960," +
-                "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
-                "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"assignment_memory_basis\":\"model_memory_limit\"," +
-                " \"log_time\":1541587929000, \"timestamp\":1519930800000},\"latest_record_time_stamp\":1519931700000," +
-                "\"latest_result_time_stamp\":1519930800000, \"retain\":false }", XContentType.JSON);
+
+            Map<String, Object> modelSizeStats = new HashMap<>();
+            modelSizeStats.put("job_id", JOB_ID);
+            modelSizeStats.put("result_type", "model_size_stats");
+            modelSizeStats.put("model_bytes", 51722);
+            modelSizeStats.put("peak_model_bytes", 61322);
+            modelSizeStats.put("model_bytes_exceeded", 10762);
+            modelSizeStats.put("model_bytes_memory_limit", 40960);
+            modelSizeStats.put("total_by_field_count", 3);
+            modelSizeStats.put("total_over_field_count", 0);
+            modelSizeStats.put("total_partition_field_count", 2);
+            modelSizeStats.put("bucket_allocation_failures_count", 0);
+            modelSizeStats.put("memory_status", "ok");
+            modelSizeStats.put("assignment_memory_basis", "model_memory_limit");
+            modelSizeStats.put("log_time", 1541587929000L);
+            modelSizeStats.put("timestamp", 1519930800000L);
+
+            Map<String, Object> source = new HashMap<>();
+            source.put("job_id", JOB_ID);
+            source.put("timestamp", 1541587929000L);
+            source.put("description", "State persisted due to job close at 2018-11-07T10:52:09+0000");
+            source.put("snapshot_id", "1541587929");
+            source.put("snapshot_doc_count", 1);
+            source.put("latest_record_time_stamp", 1519931700000L);
+            source.put("latest_result_time_stamp", 1519930800000L);
+            source.put("retain", false);
+            source.put("model_size_stats", modelSizeStats);
+
+            indexRequest.source(XContentTestUtils.convertToXContent(source, XContentType.JSON), XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
         {
             IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
-            indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"timestamp\":1541588919000, " +
-                "\"description\":\"State persisted due to job close at 2018-11-07T11:08:39+0000\", \"snapshot_id\":\"1541588919\"," +
-                "\"snapshot_doc_count\":1, \"model_size_stats\":{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"model_size_stats\"," +
-                "\"model_bytes\":51722, \"peak_model_bytes\":61322, \"total_by_field_count\":3, \"total_over_field_count\":0," +
-                "\"total_partition_field_count\":2,\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\"," +
-                "\"log_time\":1541588919000,\"timestamp\":1519930800000},\"latest_record_time_stamp\":1519931700000," +
-                "\"latest_result_time_stamp\":1519930800000, \"retain\":false }", XContentType.JSON);
+
+            Map<String, Object> modelSizeStats = new HashMap<>();
+            modelSizeStats.put("job_id", JOB_ID);
+            modelSizeStats.put("result_type", "model_size_stats");
+            modelSizeStats.put("model_bytes", 51722);
+            modelSizeStats.put("peak_model_bytes", 61322);
+            modelSizeStats.put("total_by_field_count", 3);
+            modelSizeStats.put("total_over_field_count", 0);
+            modelSizeStats.put("total_partition_field_count", 2);
+            modelSizeStats.put("bucket_allocation_failures_count", 0);
+            modelSizeStats.put("memory_status", "ok");
+            modelSizeStats.put("log_time", 1541588919000L);
+            modelSizeStats.put("timestamp", 1519930800000L);
+
+            Map<String, Object> source = new HashMap<>();
+            source.put("job_id", JOB_ID);
+            source.put("timestamp", 1541588919000L);
+            source.put("description", "State persisted due to job close at 2018-11-07T11:08:39+0000");
+            source.put("snapshot_id", "1541588919");
+            source.put("snapshot_doc_count", 1);
+            source.put("latest_record_time_stamp", 1519931700000L);
+            source.put("latest_result_time_stamp", 1519930800000L);
+            source.put("retain", false);
+            source.put("model_size_stats", modelSizeStats);
+
+            indexRequest.source(XContentTestUtils.convertToXContent(source, XContentType.JSON), XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
         {
             IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
-            indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"timestamp\":1541589919000, " +
-                "\"description\":\"State persisted due to job close at 2018-11-07T11:25:19+0000\", \"snapshot_id\":\"1541589919\"," +
-                "\"snapshot_doc_count\":1, \"model_size_stats\":{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"model_size_stats\"," +
-                "\"model_bytes\":51722, \"peak_model_bytes\":61322, \"total_by_field_count\":3, \"total_over_field_count\":0," +
-                "\"total_partition_field_count\":2,\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\"," +
-                "\"log_time\":1541589919000,\"timestamp\":1519930800000},\"latest_record_time_stamp\":1519931700000," +
-                "\"latest_result_time_stamp\":1519930800000, \"retain\":false }", XContentType.JSON);
+
+            Map<String, Object> modelSizeStats = new HashMap<>();
+            modelSizeStats.put("job_id", JOB_ID);
+            modelSizeStats.put("result_type", "model_size_stats");
+            modelSizeStats.put("model_bytes", 51722);
+            modelSizeStats.put("peak_model_bytes", 61322);
+            modelSizeStats.put("total_by_field_count", 3);
+            modelSizeStats.put("total_over_field_count", 0);
+            modelSizeStats.put("total_partition_field_count", 2);
+            modelSizeStats.put("bucket_allocation_failures_count", 0);
+            modelSizeStats.put("memory_status", "ok");
+            modelSizeStats.put("log_time", 1541589919000L);
+            modelSizeStats.put("timestamp", 1519930800000L);
+
+            Map<String, Object> source = new HashMap<>();
+            source.put("job_id", JOB_ID);
+            source.put("timestamp", 1541589919000L);
+            source.put("description", "State persisted due to job close at 2018-11-07T11:25:19+0000");
+            source.put("snapshot_id", "1541589919");
+            source.put("snapshot_doc_count", 1);
+            source.put("latest_record_time_stamp", 1519931700000L);
+            source.put("latest_result_time_stamp", 1519930800000L);
+            source.put("retain", false);
+            source.put("model_size_stats", modelSizeStats);
+
+            indexRequest.source(XContentTestUtils.convertToXContent(source, XContentType.JSON), XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
     }
 
     @After
     public void deleteJob() throws IOException {
-        new MlTestStateCleaner(logger, highLevelClient()).clearMlMetadata();
+        new MlTestStateCleaner(logger, adminHighLevelClient()).clearMlMetadata();
     }
 
     public void testGetModelSnapshots() throws IOException {

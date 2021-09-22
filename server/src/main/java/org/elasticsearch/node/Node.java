@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -82,7 +83,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -173,6 +173,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import javax.net.ssl.SNIHostName;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -197,7 +198,6 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.core.Types.forciblyCast;
@@ -306,7 +306,7 @@ public class Node implements Closeable {
                 logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             } else {
                 logger.info("JVM home [{}]", System.getProperty("java.home"));
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.OTHER,
                     "no-jdk",
                     "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
@@ -320,7 +320,7 @@ public class Node implements Closeable {
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
                 // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
                 // cause ES to fail to start since logging is not yet initialized on first read of the setting
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,
                     "shared-data-path",
                     "setting [path.shared_data] is deprecated and will be removed in a future release"
@@ -611,12 +611,23 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(), client, threadPool::relativeTimeInMillis, rerouteService);
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-            final DiscoveryModule discoveryModule = new DiscoveryModule(settings, transportService, namedWriteableRegistry,
-                networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
-                clusterService.getClusterSettings(), pluginsService.filterPlugins(DiscoveryPlugin.class),
-                clusterModule.getAllocationService(), environment.configFile(), gatewayMetaState, rerouteService,
-                fsHealthService);
-            this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
+            final DiscoveryModule discoveryModule = new DiscoveryModule(
+                settings,
+                bigArrays,
+                transportService,
+                namedWriteableRegistry,
+                networkService,
+                clusterService.getMasterService(),
+                clusterService.getClusterApplierService(),
+                clusterService.getClusterSettings(),
+                pluginsService.filterPlugins(DiscoveryPlugin.class),
+                clusterModule.getAllocationService(),
+                environment.configFile(),
+                gatewayMetaState,
+                rerouteService,
+                fsHealthService
+            );
+            this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getCoordinator(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptService,
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,
                 searchTransportService, indexingLimits, searchModule.getValuesSourceRegistry().getUsageService());
@@ -672,8 +683,7 @@ public class Node implements Closeable {
                     b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
-                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(
-                        namedWriteableRegistry, searchService::aggReduceContextBuilder));
+                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
                     b.bind(Transport.class).toInstance(transport);
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);
@@ -682,7 +692,7 @@ public class Node implements Closeable {
                     b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
                     b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
                     b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
-                    b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
+                    b.bind(Coordinator.class).toInstance(discoveryModule.getCoordinator());
                     {
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                         final ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client,
@@ -834,8 +844,8 @@ public class Node implements Closeable {
         clusterService.setNodeConnectionsService(nodeConnectionsService);
 
         injector.getInstance(GatewayService.class).start();
-        Discovery discovery = injector.getInstance(Discovery.class);
-        clusterService.getMasterService().setClusterStatePublisher(discovery::publish);
+        final Coordinator coordinator = injector.getInstance(Coordinator.class);
+        clusterService.getMasterService().setClusterStatePublisher(coordinator);
 
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
@@ -874,12 +884,12 @@ public class Node implements Closeable {
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
-        discovery.start(); // start before cluster service so that it can set initial state on ClusterApplierService
+        coordinator.start(); // start before cluster service so that it can set initial state on ClusterApplierService
         clusterService.start();
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
-        discovery.startInitialJoin();
+        coordinator.startInitialJoin();
         final TimeValue initialStateTimeout = INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
 
@@ -954,9 +964,9 @@ public class Node implements Closeable {
         injector.getInstance(RepositoriesService.class).stop();
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
-        // close discovery early to not react to pings anymore.
+        // close cluster coordinator early to not react to pings anymore.
         // This can confuse other nodes and delay things - mostly if we're the master and we're running tests.
-        injector.getInstance(Discovery.class).stop();
+        injector.getInstance(Coordinator.class).stop();
         // we close indices first, so operations won't be allowed on it
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(NodeConnectionsService.class).stop();
@@ -1014,8 +1024,8 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(ClusterService.class));
         toClose.add(() -> stopWatch.stop().start("node_connections_service"));
         toClose.add(injector.getInstance(NodeConnectionsService.class));
-        toClose.add(() -> stopWatch.stop().start("discovery"));
-        toClose.add(injector.getInstance(Discovery.class));
+        toClose.add(() -> stopWatch.stop().start("cluster_coordinator"));
+        toClose.add(injector.getInstance(Coordinator.class));
         toClose.add(() -> stopWatch.stop().start("monitor"));
         toClose.add(nodeService.getMonitorService());
         toClose.add(() -> stopWatch.stop().start("fsHealth"));

@@ -22,7 +22,7 @@ tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, Boolean)
 If `false`, the request returns an error if any wildcard expression,
-<<alias,index alias>>, or `_all` value targets only missing or closed indices.
+<<aliases,index alias>>, or `_all` value targets only missing or closed indices.
 This behavior applies even if the request targets other open indices. For
 example, a request targeting `foo*,bar*` returns an error if an index starts
 with `foo` but no index starts with `bar`.
@@ -432,7 +432,7 @@ The amount of time spent indexing, in milliseconds.
 end::index-time-ms[]
 
 tag::index-total[]
-The number of indices created.
+The number of index operations.
 end::index-total[]
 
 tag::bulk-index[]
@@ -588,13 +588,13 @@ end::memory[]
 tag::bulk-require-alias[]
 `require_alias`::
 (Optional, Boolean)
-If `true`, the action must target an <<alias,index alias>>. Defaults to
+If `true`, the action must target an <<aliases,index alias>>. Defaults to
 `false`.
 end::bulk-require-alias[]
 
 tag::require-alias[]
 `require_alias`::
-(Optional, Boolean) If `true`, the destination must be an <<alias,index alias>>.
+(Optional, Boolean) If `true`, the destination must be an <<aliases,index alias>>.
 Defaults to `false`.
 end::require-alias[]
 
@@ -1004,6 +1004,14 @@ Specifies a limit on the number of input documents per second. This setting
 throttles the {transform} by adding a wait time between search requests. The
 default value is `null`, which disables throttling.
 end::transform-settings-docs-per-second[]
+
+tag::transform-settings-align-checkpoints[]
+Specifies whether the transform checkpoint ranges should be optimized for performance.
+Such optimization can align checkpoint ranges with date histogram interval when date histogram
+is specified as a group source in the transform config. As an effect, less document updates in the
+destination index will be performed thus improving overall performance.
+The default value is `true`, which means the checkpoint ranges will be optimized if possible.
+end::transform-settings-align-checkpoints[]
 
 tag::transform-settings-max-page-search-size[]
 Defines the initial page size to use for the composite aggregation for each

@@ -16,9 +16,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -47,7 +47,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValueFetcherIsNotSupported() {
         SparseVectorFieldMapper.Builder builder = new SparseVectorFieldMapper.Builder("field");
-        MappedFieldType fieldMapper = builder.build(new ContentPath()).fieldType();
+        MappedFieldType fieldMapper = builder.build(MapperBuilderContext.ROOT).fieldType();
         UnsupportedOperationException exc = expectThrows(UnsupportedOperationException.class,
             () -> fieldMapper.valueFetcher(null, null));
         assertEquals(SparseVectorFieldMapper.ERROR_MESSAGE_7X, exc.getMessage());

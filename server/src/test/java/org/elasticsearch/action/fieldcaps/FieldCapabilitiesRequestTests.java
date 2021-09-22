@@ -30,6 +30,13 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCase<FieldCapabilitiesRequest> {
 
@@ -138,4 +145,54 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         ActionRequestValidationException exception = request.validate();
         assertNotNull(exception);
     }
+
+    public void testGetDescription() {
+        final FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        assertThat(request.getDescription(), equalTo("indices[], fields[]"));
+
+        request.fields("a", "b");
+        assertThat(request.getDescription(), anyOf(
+            equalTo("indices[], fields[a,b]"),
+            equalTo("indices[], fields[b,a]")));
+
+        request.indices("x", "y", "z");
+        request.fields("a");
+        assertThat(request.getDescription(), equalTo("indices[x,y,z], fields[a]"));
+
+        final String[] lots = new String[between(1024, 2048)];
+        for (int i = 0; i < lots.length; i++) {
+            lots[i] = "s" + i;
+        }
+
+        request.indices("x","y","z");
+        request.fields(lots);
+        assertThat(request.getDescription(), allOf(
+            startsWith("indices[x,y,z], fields["),
+            containsString("..."),
+            containsString(lots.length + " in total"),
+            containsString("omitted")));
+        assertThat(request.getDescription().length(), lessThanOrEqualTo(
+            1024 + ("indices[x,y,z], fields[" + "s9999,... (9999 in total, 9999 omitted)]").length()));
+
+        request.fields("a");
+        request.indices(lots);
+        assertThat(request.getDescription(), allOf(
+            startsWith("indices[s0,s1,s2,s3"),
+            containsString("..."),
+            containsString(lots.length + " in total"),
+            containsString("omitted"),
+            endsWith("], fields[a]")));
+        assertThat(request.getDescription().length(), lessThanOrEqualTo(
+            1024 + ("indices[" + "s9999,... (9999 in total, 9999 omitted)], fields[a]").length()));
+
+        final FieldCapabilitiesRequest randomRequest = createTestInstance();
+        final String description = randomRequest.getDescription();
+        for (String index : randomRequest.indices()) {
+            assertThat(description, containsString(index));
+        }
+        for (String field : randomRequest.fields()) {
+            assertThat(description, containsString(field));
+        }
+    }
+
 }

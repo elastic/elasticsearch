@@ -35,7 +35,7 @@ public class SettingsConfigTests extends AbstractResponseTestCase<
         assertEquals(serverTestInstance.getMaxPageSearchSize(), clientInstance.getMaxPageSearchSize());
         assertEquals(serverTestInstance.getDocsPerSecond(), clientInstance.getDocsPerSecond());
         assertEquals(serverTestInstance.getDatesAsEpochMillis(), clientInstance.getDatesAsEpochMillis());
-        assertEquals(serverTestInstance.getInterimResults(), clientInstance.getInterimResults());
+        assertEquals(serverTestInstance.getAlignCheckpoints(), clientInstance.getAlignCheckpoints());
     }
 
     @Override

@@ -41,6 +41,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -107,11 +108,18 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         final PlainActionFuture<KibanaEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         final KibanaEnrollmentResponse response = future.actionGet();
-        assertThat(response.getHttpCa(), startsWith("MIIDSjCCAjKgAwIBAgIVALCgZXvbceUrjJaQMheDCX0kXnRJMA0GCSqGSIb3DQEBCwUAMDQxMjAw" +
-            "BgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMB4XDTIxMDQyODEyNTY0MVoXDTI0MDQyNzEyNTY0MVowNDEyMDAGA1UEA" +
-            "xMpRWxhc3RpYyBDZXJ0aWZpY2F0ZSBUb29sIEF1dG9nZW5lcmF0ZWQgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCCJbOU4JvxDD/F"));
+        assertThat(
+            response.getHttpCa(),
+            startsWith(
+                "MIIDSjCCAjKgAwIBAgIVALCgZXvbceUrjJaQMheDCX0kXnRJMA0GCSqGSIb3DQEBCwUAMDQxMjAw" +
+                    "BgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMB4XDTIx" +
+                    "MDQyODEyNTY0MVoXDTI0MDQyNzEyNTY0MVowNDEyMDAGA1UEAxMpRWxhc3RpYyBDZXJ0aWZp" +
+                    "Y2F0ZSBUb29sIEF1dG9nZW5lcmF0ZWQgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK" +
+                    "AoIBAQCCJbOU4JvxDD/F"
+            )
+        );
         assertThat(response.getTokenValue(), equalTo(TOKEN_VALUE));
-        assertThat(createServiceAccountTokenRequests.size(), equalTo(1));
+        assertThat(createServiceAccountTokenRequests, hasSize(1));
     }
 
     public void testKibanaEnrollmentFailedTokenCreation() {

@@ -83,6 +83,11 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
     }
 
     @Override
+    public boolean isAllocateOnly() {
+        return false;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME.getPreferredName();
     }

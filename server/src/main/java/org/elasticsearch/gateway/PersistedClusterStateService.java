@@ -321,8 +321,12 @@ public class PersistedClusterStateService {
                             if (logger.isErrorEnabled()) {
                                 outputStream.bytes().utf8ToString().lines().forEach(l -> logger.error("checkIndex: {}", l));
                             }
-                            throw new IllegalStateException("the index containing the cluster metadata under the data path [" + dataPath +
-                                "] has been changed by an external force after it was last written by Elasticsearch and is now unreadable");
+                            throw new IllegalStateException(
+                                "the index containing the cluster metadata under the data path ["
+                                    + dataPath
+                                    + "] has been changed by an external force after it was last written by Elasticsearch and is "
+                                    + "now unreadable"
+                            );
                         }
                     }
                 }

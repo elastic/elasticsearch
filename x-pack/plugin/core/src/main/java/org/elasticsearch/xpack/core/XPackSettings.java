@@ -93,9 +93,9 @@ public class XPackSettings {
     public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING =
         Setting.boolSetting("xpack.security.authc.token.enabled", XPackSettings.HTTP_SSL_ENABLED, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling the api key service. Defaults to the value of https being enabled */
+    /** Setting for enabling or disabling the api key service. Defaults to true */
     public static final Setting<Boolean> API_KEY_SERVICE_ENABLED_SETTING =
-        Setting.boolSetting("xpack.security.authc.api_key.enabled", XPackSettings.HTTP_SSL_ENABLED, Setting.Property.NodeScope);
+        Setting.boolSetting("xpack.security.authc.api_key.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling FIPS mode. Defaults to false */
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
@@ -104,6 +104,9 @@ public class XPackSettings {
     /** Setting for enabling enrollment process; set-up by the es start-up script */
     public static final Setting<Boolean> ENROLLMENT_ENABLED =
         Setting.boolSetting("xpack.security.enrollment.enabled", false, Property.NodeScope);
+
+    public static final Setting<Boolean> SECURITY_AUTOCONFIGURATION_ENABLED =
+        Setting.boolSetting("xpack.security.autoconfiguration.enabled", true, Property.NodeScope);
 
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
@@ -232,6 +235,7 @@ public class XPackSettings {
         settings.add(USER_SETTING);
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(ENROLLMENT_ENABLED);
+        settings.add(SECURITY_AUTOCONFIGURATION_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

@@ -62,34 +62,34 @@ public class JsonXContentGenerator implements XContentGenerator {
     private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
     private boolean prettyPrint = false;
 
-    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
+    public JsonXContentGenerator(JsonGenerator baseJsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
         Objects.requireNonNull(includes, "Including filters must not be null");
         Objects.requireNonNull(excludes, "Excluding filters must not be null");
         this.os = os;
-        if (jsonGenerator instanceof GeneratorBase) {
-            this.base = (GeneratorBase) jsonGenerator;
+        if (baseJsonGenerator instanceof GeneratorBase) {
+            this.base = (GeneratorBase) baseJsonGenerator;
         } else {
             this.base = null;
         }
 
-        JsonGenerator generator = jsonGenerator;
+        JsonGenerator jsonGenerator = baseJsonGenerator;
 
         boolean hasExcludes = excludes.isEmpty() == false;
         if (hasExcludes) {
-            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(excludes, false), true, true);
+            jsonGenerator = new FilteringGeneratorDelegate(jsonGenerator, new FilterPathBasedFilter(excludes, false), true, true);
         }
 
         boolean hasIncludes = includes.isEmpty() == false;
         if (hasIncludes) {
-            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(includes, true), true, true);
+            jsonGenerator = new FilteringGeneratorDelegate(jsonGenerator, new FilterPathBasedFilter(includes, true), true, true);
         }
 
         if (hasExcludes || hasIncludes) {
-            this.filter = (FilteringGeneratorDelegate) generator;
+            this.filter = (FilteringGeneratorDelegate) jsonGenerator;
         } else {
             this.filter = null;
         }
-        this.generator = generator;
+        this.generator = jsonGenerator;
     }
 
     @Override

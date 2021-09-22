@@ -39,8 +39,10 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest>
         implements IndicesRequest.Replaceable, ToXContentObject {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, true);
+
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private Settings settings = EMPTY_SETTINGS;
     private boolean preserveExisting = false;
     private String origin = "";

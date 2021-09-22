@@ -80,12 +80,16 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertThat(fromString("{\"dates_as_epoch_millis\" : null}").getDatesAsEpochMillisForUpdate(), equalTo(-1));
         assertNull(fromString("{}").getDatesAsEpochMillisForUpdate());
 
-        assertThat(fromString("{\"interim_results\" : null}").getInterimResultsForUpdate(), equalTo(-1));
-        assertNull(fromString("{}").getInterimResultsForUpdate());
+        assertThat(fromString("{\"align_checkpoints\" : null}").getAlignCheckpointsForUpdate(), equalTo(-1));
+        assertNull(fromString("{}").getAlignCheckpointsForUpdate());
     }
 
     public void testUpdateUsingBuilder() throws IOException {
-        SettingsConfig config = fromString("{\"max_page_search_size\" : 10000, \"docs_per_second\" :42, \"dates_as_epoch_millis\": true}");
+        SettingsConfig config =
+            fromString("{\"max_page_search_size\" : 10000, "
+                + "\"docs_per_second\" :42, "
+                + "\"dates_as_epoch_millis\": true, "
+                + "\"align_checkpoints\": false}");
 
         SettingsConfig.Builder builder = new SettingsConfig.Builder(config);
         builder.update(fromString("{\"max_page_search_size\" : 100}"));
@@ -93,16 +97,23 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertThat(builder.build().getMaxPageSearchSize(), equalTo(100));
         assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
         assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
+        assertThat(builder.build().getAlignCheckpointsForUpdate(), equalTo(0));
 
         builder.update(fromString("{\"max_page_search_size\" : null}"));
         assertNull(builder.build().getMaxPageSearchSize());
         assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
         assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
+        assertThat(builder.build().getAlignCheckpointsForUpdate(), equalTo(0));
 
-        builder.update(fromString("{\"max_page_search_size\" : 77, \"docs_per_second\" :null, \"dates_as_epoch_millis\": null}"));
+        builder.update(
+            fromString("{\"max_page_search_size\" : 77, "
+                + "\"docs_per_second\" :null, "
+                + "\"dates_as_epoch_millis\": null, "
+                + "\"align_checkpoints\": null}"));
         assertThat(builder.build().getMaxPageSearchSize(), equalTo(77));
         assertNull(builder.build().getDocsPerSecond());
         assertNull(builder.build().getDatesAsEpochMillisForUpdate());
+        assertNull(builder.build().getAlignCheckpointsForUpdate());
     }
 
     public void testOmmitDefaultsOnWriteParser() throws IOException {
@@ -130,6 +141,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
+
+        config = fromString("{\"align_checkpoints\" : null}");
+        assertThat(config.getAlignCheckpointsForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
     }
 
     public void testOmmitDefaultsOnWriteBuilder() throws IOException {
@@ -154,6 +171,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         config = new SettingsConfig.Builder().setDatesAsEpochMillis(null).build();
         assertThat(config.getDatesAsEpochMillisForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
+
+        config = new SettingsConfig.Builder().setAlignCheckpoints(null).build();
+        assertThat(config.getAlignCheckpointsForUpdate(), equalTo(-1));
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());

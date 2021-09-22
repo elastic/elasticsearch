@@ -2413,7 +2413,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(shard.indexSettings.getNodeSettings(),
             new IndexFieldDataCache.Listener() {});
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(shard.indexSettings, indicesFieldDataCache,
-            new NoneCircuitBreakerService(), shard.mapperService());
+            new NoneCircuitBreakerService());
         IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(foo, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");
         });
@@ -3093,12 +3093,15 @@ public class IndexShardTests extends IndexShardTestCase {
         appender.start();
         Loggers.addAppender(LogManager.getLogger(IndexShard.class), appender);
         try {
-            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
-                "expensive checks warning",
-                "org.elasticsearch.index.shard.IndexShard",
-                Level.WARN,
-                "performing expensive diagnostic checks during shard startup [index.shard.check_on_startup=*]; these checks should only " +
-                    "be enabled temporarily, you must remove this index setting as soon as possible"));
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expensive checks warning",
+                    "org.elasticsearch.index.shard.IndexShard",
+                    Level.WARN,
+                    "performing expensive diagnostic checks during shard startup [index.shard.check_on_startup=*]; these checks "
+                        + "should only be enabled temporarily, you must remove this index setting as soon as possible"
+                )
+            );
 
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
                 "failure message",
@@ -3921,11 +3924,11 @@ public class IndexShardTests extends IndexShardTestCase {
             };
             EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getThreadPool(),
                 config.getIndexSettings(), warmer, config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
-                config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
+                config.getSimilarity(), new CodecService(null), config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                config.getPrimaryTermSupplier(), IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER, config.getLeafSorter());
             return new InternalEngine(configWithWarmer);
         });
         Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));

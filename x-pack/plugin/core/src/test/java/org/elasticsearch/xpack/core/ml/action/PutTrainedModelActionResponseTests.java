@@ -20,7 +20,7 @@ public class PutTrainedModelActionResponseTests extends AbstractWireSerializingT
     @Override
     protected Response createTestInstance() {
         String modelId = randomAlphaOfLength(10);
-        return new Response(TrainedModelConfigTests.createTestInstance(modelId)
+        return new Response(TrainedModelConfigTests.createTestInstance(modelId, randomBoolean())
             .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
             .build());
     }

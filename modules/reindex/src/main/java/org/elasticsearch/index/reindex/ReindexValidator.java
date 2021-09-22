@@ -56,7 +56,7 @@ public class ReindexValidator {
             state);
         SearchSourceBuilder searchSource = request.getSearchRequest().source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
         }
     }
 
@@ -81,7 +81,7 @@ public class ReindexValidator {
             return new CharacterRunAutomaton(Automata.makeEmpty());
         }
         Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(Strings.EMPTY_ARRAY));
-        automaton = MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        automaton = MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         if (Operations.isTotal(automaton)) {
             throw new IllegalArgumentException("Refusing to start because whitelist " + whitelist + " accepts all addresses. "
                 + "This would allow users to reindex-from-remote any URL they like effectively having Elasticsearch make HTTP GETs "

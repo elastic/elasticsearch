@@ -662,7 +662,6 @@ public class FrozenCacheService implements Releasable {
         volatile int sharedBytesPos = -1;
 
         CacheFileRegion(RegionKey regionKey, long regionSize) {
-            super("CacheFileRegion");
             this.regionKey = regionKey;
             assert regionSize > 0L;
             tracker = new SparseFileTracker("file", regionSize);

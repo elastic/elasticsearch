@@ -475,12 +475,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
             String targetNode = internalCluster().startDataOnlyNode();
-            assertAcked(
-                client().admin().indices().prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder()
-                        .put("index.routing.allocation.require._name", targetNode)).get()
-            );
-
             MockTransportService targetMockTransportService =
                 (MockTransportService) internalCluster().getInstance(TransportService.class, targetNode);
 
@@ -494,6 +488,12 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     respondToRecoverSnapshotFile.await();
                     handler.messageReceived(request, channel, task);
                 }
+            );
+
+            assertAcked(
+                client().admin().indices().prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder()
+                        .put("index.routing.allocation.require._name", targetNode)).get()
             );
 
             recoverSnapshotFileRequestReceived.await();

@@ -79,3 +79,6 @@ the case sensitivity of matching depends on the underlying field's mapping.
 ===== Allow expensive queries
 Wildcard queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
 is set to false.
+===== Search strings for `value` for `field` has inbuilt support for escape characters. User has to manually escape the
+special character in the search string, for example "*\\foo*". No extra query-field-param is required to ask for special
+handling of the escape characters in a search string.

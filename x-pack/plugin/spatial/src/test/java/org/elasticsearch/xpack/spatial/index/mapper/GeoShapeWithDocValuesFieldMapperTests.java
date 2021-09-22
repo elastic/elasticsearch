@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -389,6 +390,17 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
         assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
+    }
+
+    public void testRandomVersionMapping() throws Exception {
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        DocumentMapper defaultMapper = createDocumentMapper(version, fieldMapping(this::minimalMapping));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
+        if (version.before(Version.V_6_6_0)) {
+            assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
+        } else {
+            assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
+        }
     }
 
     public String toXContentString(GeoShapeWithDocValuesFieldMapper mapper, boolean includeDefaults) {

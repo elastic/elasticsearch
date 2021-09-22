@@ -15,8 +15,8 @@ buildscript {
 subprojects {
   apply plugin: 'java'
 
-  sourceCompatibility = 11
-  targetCompatibility = 11
+  sourceCompatibility = 8
+  targetCompatibility = 8
 
   repositories {
     if (gradle.includedBuilds == false) {

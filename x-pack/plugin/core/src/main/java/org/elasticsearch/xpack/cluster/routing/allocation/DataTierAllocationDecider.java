@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConst
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -208,29 +207,19 @@ public class DataTierAllocationDecider extends AllocationDecider {
     }
 
 
-    private static boolean allocationAllowed(String tierSetting, Set<DiscoveryNodeRole> roles) {
-        String[] values = parseTierList(tierSetting);
-        if (values.length == 0) {
-            return true;
-        }
+    private static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {
+        assert Strings.hasLength(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
+
         if (roles.contains(DiscoveryNodeRole.DATA_ROLE)) {
             // generic "data" roles are considered to have all tiers
             return true;
-        }
-        if (values.length == 1) {
-            final String value = values[0];
+        } else {
             for (DiscoveryNodeRole role : roles) {
-                if (value.equals(role.roleName())) {
+                if (tierName.equals(role.roleName())) {
                     return true;
                 }
             }
             return false;
-        } else {
-            final Set<String> roleNames = new HashSet<>(roles.size());
-            for (DiscoveryNodeRole role : roles) {
-                roleNames.add(role.roleName());
-            }
-            return roleNames.containsAll(Arrays.asList(values));
         }
     }
 }

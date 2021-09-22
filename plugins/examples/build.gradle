@@ -1,50 +1,47 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-// Subprojects aren't published so do not assemble
-subprojects { p ->
-  p.tasks.matching { it.name.equals('assemble') }.configureEach {
-    enabled = false
+import org.elasticsearch.gradle.VersionProperties
+
+buildscript {
+  repositories {
+    maven {
+      url = 'https://snapshots.elastic.co/maven/'
+    }
+    mavenCentral()
   }
-  if (BuildParams.inFipsJvm) {
-    p.tasks.configureEach {
-      enabled = false
-    }
-  }
-
-  // configure project dependencies for yaml rest test plugin.
-  // plugin defaults to external available artifacts
-  p.getPluginManager().withPlugin("elasticsearch.yaml-rest-test", new Action<AppliedPlugin>() {
-    @Override
-    void execute(AppliedPlugin appliedPlugin) {
-        p.dependencies.add("yamlRestTestImplementation", project(":test:framework"))
-        p.dependencies.add("restTestSpecs", p.dependencies.project(path:':rest-api-spec', configuration:'basicRestSpecs'))
-    }
-  })
-
-  // configure project dependencies for java rest test plugin.
-  // plugin defaults to external available artifacts
-  p.getPluginManager().withPlugin("elasticsearch.java-rest-test", new Action<AppliedPlugin>() {
-    @Override
-    void execute(AppliedPlugin appliedPlugin) {
-      p.dependencies.add("javaRestTestImplementation", project(":test:framework"))
-    }
-  })
-}
-
-configure(project('painless-whitelist')) {
-  configurations.all {
-    resolutionStrategy.dependencySubstitution {
-      substitute module('org.elasticsearch.plugin:elasticsearch-scripting-painless-spi') with project(':modules:lang-painless:spi')
-      substitute module('org.elasticsearch.test:logger-usage') with project(':test:logger-usage')
-    }
+  dependencies {
+    classpath "org.elasticsearch.gradle:build-tools:${elasticsearchVersion}"
   }
 }
 
-configure(project('security-authorization-engine')) {
-  configurations.all {
-    resolutionStrategy.dependencySubstitution {
-      substitute module('org.elasticsearch.plugin:x-pack-core') with project(':x-pack:plugin:core')
-      substitute module('org.elasticsearch.client:elasticsearch-rest-high-level-client') with project(':client:rest-high-level')
-      substitute module('org.elasticsearch.test:logger-usage') with project(':test:logger-usage')
+subprojects {
+  apply plugin: 'java'
+
+  sourceCompatibility = 11
+  targetCompatibility = 11
+
+  repositories {
+    // Only necessary when building plugins against SNAPSHOT versions of Elasticsearch
+    maven {
+      url = 'https://snapshots.elastic.co/maven/'
     }
+
+    // Same for Lucene, add the snapshot repo based on the currently used Lucene version
+    def luceneVersion = VersionProperties.getLucene()
+    if (luceneVersion.contains('-snapshot')) {
+      def matcher = luceneVersion =~ /[0-9\.]+-snapshot-([a-z0-9]+)/
+      assert matcher.matches() : "Invalid Lucene snapshot version '${luceneVersion}'"
+      maven {
+        url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${matcher.group(1)}"
+      }
+    }
+
+    mavenCentral()
   }
+}
+
+tasks.register('check') {
+  dependsOn subprojects.collect { it.tasks.named('check') }
+}
+
+tasks.register('precommit') {
+  dependsOn subprojects.collect { it.tasks.named('classes') }
 }

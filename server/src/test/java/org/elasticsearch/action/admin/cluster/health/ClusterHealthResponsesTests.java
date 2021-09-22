@@ -46,11 +46,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         ClusterHealthResponse res = new ClusterHealthResponse();
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
-            if (res.isTimedOut()) {
-                assertEquals(RestStatus.REQUEST_TIMEOUT, res.status());
-            } else {
-                assertEquals(RestStatus.OK, res.status());
-            }
+            assertEquals(RestStatus.OK, res.status());
         }
     }
 

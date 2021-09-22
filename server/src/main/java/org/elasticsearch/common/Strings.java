@@ -444,6 +444,7 @@ public class Strings {
      */
     public static String[] splitStringByCommaToArray(final String s) {
         if (s == null || s.isEmpty()) return Strings.EMPTY_ARRAY;
+        else if (s.matches("^([,])\\1*$")) return new String[]{s};
         else return s.split(",");
     }
 

@@ -324,7 +324,7 @@ public class HotThreads {
             // In that case the absolute thread timings are the delta.
             if (previous != null) {
                 if (previous.getThreadId() != getThreadId()) {
-                    throw new IllegalArgumentException("Thread timing accumulation must be done on the same thread");
+                    throw new IllegalStateException("Thread timing accumulation must be done on the same thread");
                 }
                 this.blockedTime -= previous.blockedTime;
                 this.waitedTime -= previous.waitedTime;

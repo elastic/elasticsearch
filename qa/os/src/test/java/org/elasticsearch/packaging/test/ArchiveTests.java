@@ -182,9 +182,11 @@ public class ArchiveTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         final String password = "some-keystore-password";
         Platforms.onLinux(() -> bin.keystoreTool.run("passwd", password + "\n" + password + "\n"));
-        Platforms.onWindows(() -> {
-            sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
-        });
+        Platforms.onWindows(
+            () -> {
+                sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
+            }
+        );
         Shell.Result result = runElasticsearchStartCommand("", false, false);
         assertElasticsearchFailure(result, "Provided keystore password was incorrect", null);
         verifySecurityNotAutoConfigured(installation);

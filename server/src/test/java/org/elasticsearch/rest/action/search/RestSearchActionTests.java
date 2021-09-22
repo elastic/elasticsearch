@@ -63,11 +63,12 @@ public class RestSearchActionTests extends RestActionTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("search_type", "some_search_type");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
-            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/some_index/_search")
+            .withParams(params)
+            .build();
 
-        Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> new RestSearchAction().prepareRequest(request, verifyingClient));
         assertEquals("No search type for [some_search_type]", ex.getMessage());
     }
 }

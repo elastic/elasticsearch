@@ -147,6 +147,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78158")
     public void testValidateColdPhase() {
         LifecycleAction invalidAction = null;
         Map<String, LifecycleAction> actions = randomSubsetOf(VALID_COLD_ACTIONS)

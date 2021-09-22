@@ -93,9 +93,9 @@ public class XPackSettings {
     public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING =
         Setting.boolSetting("xpack.security.authc.token.enabled", XPackSettings.HTTP_SSL_ENABLED, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling the api key service. Defaults to the value of https being enabled */
+    /** Setting for enabling or disabling the api key service. Defaults to true */
     public static final Setting<Boolean> API_KEY_SERVICE_ENABLED_SETTING =
-        Setting.boolSetting("xpack.security.authc.api_key.enabled", XPackSettings.HTTP_SSL_ENABLED, Setting.Property.NodeScope);
+        Setting.boolSetting("xpack.security.authc.api_key.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling FIPS mode. Defaults to false */
     public static final Setting<Boolean> FIPS_MODE_ENABLED =

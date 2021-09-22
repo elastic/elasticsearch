@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -25,10 +27,12 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.OutputStream;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -36,7 +40,26 @@ import static org.mockito.Mockito.when;
 
 public class PutPipelineTransportActionTests extends ESTestCase {
 
+    public void testUpdatingRandomPipelineWithoutChangesIsNoOp() throws Exception {
+        var randomMap = randomMap(10, 50, PutPipelineTransportActionTests::randomMapEntry);
+
+        XContentBuilder x = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .field("processors", randomMap)
+            .endObject();
+
+        OutputStream os = x.getOutputStream();
+        x.generator().close();
+        testUpdatingPipeline(os.toString());
+    }
+
     public void testUpdatingPipelineWithoutChangesIsNoOp() throws Exception {
+        var value = randomAlphaOfLength(5);
+        var pipelineString = "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"" + value + "\"}}]}";
+        testUpdatingPipeline(pipelineString);
+    }
+
+    private void testUpdatingPipeline(String pipelineString) throws Exception {
         var threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -52,7 +75,6 @@ public class PutPipelineTransportActionTests extends ESTestCase {
 
         var pipelineId = randomAlphaOfLength(5);
         var value = randomAlphaOfLength(5);
-        var pipelineString = "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"" + value + "\"}}]}";
         var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
         var clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(
@@ -94,5 +116,21 @@ public class PutPipelineTransportActionTests extends ESTestCase {
         assertThat(client.getExecutionCount(), equalTo(0L));
         assertThat(listener.getSuccessCount(), equalTo(1L));
         assertThat(listener.getFailureCount(), equalTo(0L));
+    }
+
+    private static Tuple<String, Object> randomMapEntry() {
+        return tuple(randomAlphaOfLength(5), randomObject());
+    }
+
+    private static Object randomObject() {
+        return randomFrom(
+            random(),
+            ESTestCase::randomLong,
+            () -> generateRandomStringArray(10, 5, true),
+            () -> randomMap(3, 5, PutPipelineTransportActionTests::randomMapEntry),
+            () -> randomAlphaOfLength(5),
+            ESTestCase::randomTimeValue,
+            ESTestCase::randomDouble
+        );
     }
 }

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ListenableActionFuture;
@@ -571,27 +570,23 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void sendJoinPing(DiscoveryNode discoveryNode, TransportRequestOptions.Type channelType, ActionListener<Empty> listener) {
-        if (discoveryNode.getVersion().onOrAfter(Version.V_8_0_0)) {
-            transportService.sendRequest(
-                discoveryNode,
-                JoinHelper.JOIN_PING_ACTION_NAME,
-                TransportRequest.Empty.INSTANCE,
-                TransportRequestOptions.of(null, channelType),
-                new ActionListenerResponseHandler<>(
-                    listener.delegateResponse((l, e) -> {
-                        logger.warn(
-                            () -> new ParameterizedMessage(
-                                "failed to ping joining node [{}] on channel type [{}]",
-                                discoveryNode,
-                                channelType),
-                            e);
-                        listener.onFailure(new IllegalStateException("failure when sending a join ping request to node", e));
-                    }),
-                    i -> Empty.INSTANCE,
-                    Names.GENERIC));
-        } else {
-            listener.onResponse(Empty.INSTANCE);
-        }
+        transportService.sendRequest(
+            discoveryNode,
+            JoinHelper.JOIN_PING_ACTION_NAME,
+            TransportRequest.Empty.INSTANCE,
+            TransportRequestOptions.of(null, channelType),
+            new ActionListenerResponseHandler<>(
+                listener.delegateResponse((l, e) -> {
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "failed to ping joining node [{}] on channel type [{}]",
+                            discoveryNode,
+                            channelType),
+                        e);
+                    listener.onFailure(new IllegalStateException("failure when sending a join ping request to node", e));
+                }),
+                i -> Empty.INSTANCE,
+                Names.GENERIC));
     }
 
     private void processJoinRequest(JoinRequest joinRequest, ActionListener<Void> joinListener) {

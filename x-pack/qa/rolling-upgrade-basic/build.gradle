@@ -31,8 +31,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     mustRunAfter("precommit")
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> baseCluster.get().getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
   }
 
   String oldVersion = bwcVersionString.replace('-SNAPSHOT', '')
@@ -42,8 +42,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     doFirst {
       baseCluster.get().nextNodeToNextVersion()
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> baseCluster.get().getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
     systemProperty 'tests.upgrade_from_version', oldVersion
@@ -55,8 +55,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     doFirst {
       baseCluster.get().nextNodeToNextVersion()
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
     systemProperty 'tests.upgrade_from_version', oldVersion
@@ -68,8 +68,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     doFirst {
       baseCluster.get().nextNodeToNextVersion()
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> baseCluster.get().getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
   }

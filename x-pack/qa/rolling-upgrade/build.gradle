@@ -106,8 +106,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> baseCluster.get().getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
   }
 
   tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
@@ -116,8 +116,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     doFirst {
       baseCluster.get().nextNodeToNextVersion()
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> baseCluster.get().getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
     systemProperty 'tests.upgrade_from_version', oldVersion
@@ -145,7 +145,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       baseCluster.get().nextNodeToNextVersion()
     }
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> baseCluster.get().getName()}")
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
     systemProperty 'tests.upgrade_from_version', oldVersion
@@ -159,7 +159,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       baseCluster.get().nextNodeToNextVersion()
     }
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> baseCluster.get().getName()}")
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository

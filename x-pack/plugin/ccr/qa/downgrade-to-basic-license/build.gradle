@@ -53,8 +53,8 @@ tasks.register("follow-cluster", RestIntegTestTask) {
     useCluster leaderCluster
     systemProperty 'java.security.policy', "file://${policyFile}"
     systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderCluster.get().getAllHttpSocketURI().get(0)}"
-    nonInputProperties.systemProperty 'log', "${-> followCluster.get().getFirstNode().getServerLog()}"
+    nonInputProperties.systemProperty 'tests.leader_host', leaderCluster.map(c -> c.allHttpSocketURI.join(","))
+    nonInputProperties.systemProperty 'log', followCluster.map(c -> c.getFirstNode().getServerLog())
 }
 
 tasks.named("check").configure { dependsOn "follow-cluster" }

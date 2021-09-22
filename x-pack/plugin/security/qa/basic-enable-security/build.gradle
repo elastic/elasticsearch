@@ -66,7 +66,7 @@ tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
 
       restart()
     }
-    nonInputProperties.systemProperty 'tests.rest.cluster', "${-> cluster.get().getAllHttpSocketURI().join(",")}"
+    nonInputProperties.systemProperty 'tests.rest.cluster', cluster.map(c->c.getAllHttpSocketURI().join(","))
   }
 }
 tasks.named("check").configure { dependsOn("javaRestTestWithSecurityEnabled") }

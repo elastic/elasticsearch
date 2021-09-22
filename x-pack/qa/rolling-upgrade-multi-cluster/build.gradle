@@ -42,12 +42,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
         println "Upgrade node $it"
         baseCluster.nextNodeToNextVersion()
       }
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}-${kindExt}".getName()}")
-      nonInputProperties.systemProperty('tests.leader_host', "${-> baseLeaderCluster.get().allHttpSocketURI.last()}")
-      nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', "${-> baseLeaderCluster.get().allTransportPortURI.last()}")
-      nonInputProperties.systemProperty('tests.follower_host', "${-> baseFollowerCluster.get().allHttpSocketURI.last()}")
-      nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', "${-> baseFollowerCluster.get().allTransportPortURI.last()}")
+      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.clustername', baseCluster.map(c->c.getName()))
+      nonInputProperties.systemProperty('tests.leader_host', baseLeaderCluster.map(c->c.allHttpSocketURI.last()))
+      nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', baseLeaderCluster.map(c -> c.allTransportPortURI.last()))
+      nonInputProperties.systemProperty('tests.follower_host', baseFollowerCluster.map(c -> c.allHttpSocketURI.last()))
+      nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', baseFollowerCluster.map(c -> c.allTransportPortURI.last()))
     }
   }
 

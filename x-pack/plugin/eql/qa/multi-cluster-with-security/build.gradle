@@ -45,7 +45,7 @@ tasks.named("integTest").configure {
   dependsOn 'startRemoteCluster'
   useCluster remoteClusterReg
   doFirst {
-    nonInputProperties.systemProperty 'tests.rest.cluster.remote.host', "${-> remoteClusterReg.get().getAllHttpSocketURI().get(0)}"
+    nonInputProperties.systemProperty 'tests.rest.cluster.remote.host', remoteClusterReg.map(c->c.getAllHttpSocketURI().get(0))
     nonInputProperties.systemProperty 'tests.rest.cluster.remote.user', "test_user"
     nonInputProperties.systemProperty 'tests.rest.cluster.remote.password', "x-pack-test-password"
   }

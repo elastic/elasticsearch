@@ -53,8 +53,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
       cluster.nextNodeToNextVersion()
 
       println "Upgrade complete, endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.clustername', "${-> cluster.getName()}")
+      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.clustername', baseName)
     }
     onlyIf { project.bwc_tests_enabled }
   }

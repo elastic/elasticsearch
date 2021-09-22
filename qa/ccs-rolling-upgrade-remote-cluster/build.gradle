@@ -51,8 +51,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     systemProperty 'tests.upgrade_from_version', bwcVersionStr.replace('-SNAPSHOT', '')
 
     doFirst {
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> localCluster.get().allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.rest.remote_cluster', "${-> remoteCluster.get().allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
     }
   }
 

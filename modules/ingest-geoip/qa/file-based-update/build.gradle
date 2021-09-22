@@ -18,7 +18,7 @@ testClusters.configureEach {
 
 tasks.named("integTest").configure {
   systemProperty 'tests.security.manager', 'false' // Allows the test the add databases to config directory.
-  nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
+  nonInputProperties.systemProperty 'tests.config.dir', testClusters.named("integTest").map(c -> c.singleNode().getConfigDir())
 }
 
 tasks.named("forbiddenPatterns").configure {

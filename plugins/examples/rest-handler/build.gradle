@@ -31,5 +31,5 @@ def fixture = tasks.register("exampleFixture", org.elasticsearch.gradle.internal
 
 tasks.named("javaRestTest").configure {
   dependsOn fixture
-  nonInputProperties.systemProperty 'external.address', "${-> fixture.get().addressAndPort}"
+  nonInputProperties.systemProperty 'external.address', fixture.map(f -> f.addressAndPort)
 }

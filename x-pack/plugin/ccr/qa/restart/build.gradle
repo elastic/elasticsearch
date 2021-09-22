@@ -48,9 +48,9 @@ tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
   systemProperty 'tests.rest.load_packaged', 'false'
   systemProperty 'tests.target_cluster', 'follow-restart'
   doFirst {
-    testClusters.'follow-cluster'.restart()
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderCluster.get().getAllHttpSocketURI().get(0)}"
-    nonInputProperties.systemProperty 'tests.rest.cluster', "${-> followCluster.get().getAllHttpSocketURI().join(",")}"
+    followCluster.get().restart()
+    nonInputProperties.systemProperty 'tests.leader_host', leaderCluster.map(c-> c.getAllHttpSocketURI().get(0))
+    nonInputProperties.systemProperty 'tests.rest.cluster', followCluster.map(c -> c.getAllHttpSocketURI().join(","))
   }
 }
 

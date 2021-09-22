@@ -68,8 +68,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     def clusterName = it.name.contains("Step2") || it.name.contains("Step4") ? "${newClusterName}" : "${oldClusterName}"
-    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters.named(clusterName).get().allHttpSocketURI.join(",")}")
-    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters.named(clusterName).get().getName()}")
+    it.nonInputProperties.systemProperty('tests.rest.cluster', testClusters.named(clusterName).map(c -> c.allHttpSocketURI.join(",")))
+    it.nonInputProperties.systemProperty('tests.clustername', testClusters.named(clusterName).map(c -> c.getName()))
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

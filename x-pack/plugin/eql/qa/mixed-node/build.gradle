@@ -47,9 +47,9 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
       println "Upgrading one node to create a mixed cluster"
       cluster.get().nextNodeToNextVersion()
 
-      println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.get().allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.clustername', "${-> cluster.get().getName()}")
+      println "Upgrade complete, endpoints are: ${-> testClusters.named(baseName).get().allHttpSocketURI.join(",")}"
+      nonInputProperties.systemProperty('tests.rest.cluster', cluster.map(c->c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.clustername', baseName)
     }
     onlyIf { project.bwc_tests_enabled }
   }

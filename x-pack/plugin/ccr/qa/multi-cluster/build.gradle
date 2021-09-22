@@ -37,8 +37,7 @@ tasks.register("middle-cluster", RestIntegTestTask) {
   useCluster testClusters.named("leader-cluster")
   systemProperty 'tests.target_cluster', 'middle'
   systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
-  nonInputProperties.systemProperty 'tests.leader_host',
-    "${-> leaderCluster.get().getAllHttpSocketURI().get(0)}"
+  nonInputProperties.systemProperty 'tests.leader_host',leaderCluster.map(c -> c.allHttpSocketURI.get(0))
 }
 
 
@@ -48,10 +47,8 @@ tasks.register('follow-cluster', RestIntegTestTask) {
     useCluster middleCluster
     systemProperty 'tests.target_cluster', 'follow'
     systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
-    nonInputProperties.systemProperty 'tests.leader_host',
-      "${-> leaderCluster.get().getAllHttpSocketURI().get(0)}"
-    nonInputProperties.systemProperty 'tests.middle_host',
-      "${-> middleCluster.get().getAllHttpSocketURI().get(0)}"
+    nonInputProperties.systemProperty 'tests.leader_host', leaderCluster.map(c -> c.allHttpSocketURI.get(0))
+    nonInputProperties.systemProperty 'tests.middle_host', middleCluster.map(c -> c.allHttpSocketURI.get(0))
 }
 
 testClusters.matching {it.name == "follow-cluster" }.configureEach {

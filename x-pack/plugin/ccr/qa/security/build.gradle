@@ -49,7 +49,7 @@ tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn 'leader-cluster'
   useCluster leadCluster
   systemProperty 'tests.target_cluster', 'follow'
-  nonInputProperties.systemProperty 'tests.leader_host', "${-> leadCluster.get().getAllHttpSocketURI().get(0)}"
+  nonInputProperties.systemProperty 'tests.leader_host', leadCluster.map(c-> c.getAllHttpSocketURI().get(0))
 }
 
 tasks.named("check").configure { dependsOn('follow-cluster') }

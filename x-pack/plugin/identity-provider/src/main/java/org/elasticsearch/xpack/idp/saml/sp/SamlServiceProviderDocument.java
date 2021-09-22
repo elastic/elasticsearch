@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,12 +15,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.joda.time.Duration;
-import org.joda.time.ReadableDuration;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -33,6 +31,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Collection;
@@ -351,12 +350,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         this.authenticationExpiryMillis = authenticationExpiryMillis;
     }
 
-    public void setAuthenticationExpiry(ReadableDuration authnExpiry) {
-        this.authenticationExpiryMillis = authnExpiry == null ? null : authnExpiry.getMillis();
+    public void setAuthenticationExpiry(Duration authnExpiry) {
+        this.authenticationExpiryMillis = authnExpiry == null ? null : authnExpiry.toMillis();
     }
 
-    public ReadableDuration getAuthenticationExpiry() {
-        return authenticationExpiryMillis == null ? null : Duration.millis(this.authenticationExpiryMillis);
+    public Duration getAuthenticationExpiry() {
+        return authenticationExpiryMillis == null ? null : Duration.ofMillis(this.authenticationExpiryMillis);
     }
 
     @Override

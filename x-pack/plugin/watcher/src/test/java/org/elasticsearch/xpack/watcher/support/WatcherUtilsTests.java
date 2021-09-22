@@ -94,7 +94,6 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(result, equalTo(expected));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78035")
     public void testSerializeSearchRequest() throws Exception {
         String[] expectedIndices = generateRandomStringArray(5, 5, true);
         IndicesOptions expectedIndicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
@@ -155,7 +154,6 @@ public class WatcherUtilsTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78035")
     public void testDeserializeSearchRequest() throws Exception {
 
         XContentBuilder builder = jsonBuilder().startObject();
@@ -175,9 +173,11 @@ public class WatcherUtilsTests extends ESTestCase {
             indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), randomBoolean(), indicesOptions.allowAliasesToMultipleIndices(),
                 indicesOptions.forbidClosedIndices(), indicesOptions.ignoreAliases(), indicesOptions.ignoreThrottled());
-            builder.startObject("indices_options");
-            indicesOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
+            if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+                builder.startObject("indices_options");
+                indicesOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+            }
         }
 
         SearchType searchType = SearchType.DEFAULT;

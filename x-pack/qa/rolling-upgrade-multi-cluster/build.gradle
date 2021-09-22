@@ -42,7 +42,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
         println "Upgrade node $it"
         baseCluster.nextNodeToNextVersion()
       }
-      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.allHttpSocketURI.join(","))
       nonInputProperties.systemProperty('tests.clustername', baseName)
       nonInputProperties.systemProperty('tests.leader_host', baseLeaderCluster.map(c->c.allHttpSocketURI.last()))
       nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', baseLeaderCluster.map(c -> c.allTransportPortURI.last()))

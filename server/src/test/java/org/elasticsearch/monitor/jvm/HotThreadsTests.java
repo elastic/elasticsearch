@@ -543,7 +543,7 @@ public class HotThreadsTests extends ESTestCase {
         HotThreads.ThreadTimeAccumulator accOne = new HotThreads.ThreadTimeAccumulator(threadOne, 250L);
         HotThreads.ThreadTimeAccumulator accTwo = new HotThreads.ThreadTimeAccumulator(threadTwo, 350L);
 
-        expectThrows(IllegalArgumentException.class, () -> accTwo.subtractPrevious(accOne));
+        expectThrows(IllegalStateException.class, () -> accTwo.subtractPrevious(accOne));
     }
 
     public void testWaitBlockTimeMonitoringEnabled() throws Exception {

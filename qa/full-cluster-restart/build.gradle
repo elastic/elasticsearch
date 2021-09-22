@@ -53,7 +53,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     it.systemProperty 'tests.old_cluster_version', oldVersion
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     it.nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
-    it.nonInputProperties.systemProperty('tests.clustername', baseCluster.map(c -> c.getName()))
+    it.nonInputProperties.systemProperty('tests.clustername', baseName)
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

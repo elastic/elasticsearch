@@ -1,19 +1,25 @@
 ---
+setup:
+  - do:
+      snapshot.create_repository:
+        repository: test_repo
+        body:
+          type: fs
+          settings:
+            location: test_repo
+
+---
+teardown:
+  - do:
+      snapshot.delete_repository:
+        repository: test_repo
+
+---
 "Create a snapshot and then restore it":
   - skip:
       version: " - 7.99.99"
       reason: introduced in 8.0.0 to be backported to 7.16.0
       features: ["allowed_warnings"]
-
-  # Create repository
-  - do:
-      snapshot.create_repository:
-        repository: test_restore_repository
-        body:
-          type: hdfs
-          settings:
-            uri: "hdfs://localhost:9999"
-            path: "test/restore"
 
   # Create index
   - do:
@@ -88,7 +94,7 @@
   # Take snapshot
   - do:
       snapshot.create:
-        repository: test_restore_repository
+        repository: test_repo
         snapshot: test_restore_tsdb
         wait_for_completion: true
 
@@ -109,7 +115,7 @@
   # Restore index
   - do:
       snapshot.restore:
-        repository: test_restore_repository
+        repository: test_repo
         snapshot: test_restore_tsdb
         wait_for_completion: true
 
@@ -123,17 +129,6 @@
   - match: { test_index.shards.0.index.files.recovered: 1}
   - gt:    { test_index.shards.0.index.size.recovered_in_bytes: 0}
 
-  # Remove our snapshot
-  - do:
-      snapshot.delete:
-        repository: test_restore_repository
-        snapshot: test_restore_tsdb
-
-  # Remove our repository
-  - do:
-     snapshot.delete_repository:
-       repository: test_restore_repository
-
   - do:
       search:
         index: test_index
@@ -144,4 +139,4 @@
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507}
-  # TODO assert that the _tsid is correct after restore.
+  # TODO assert the _tsid once we generate it

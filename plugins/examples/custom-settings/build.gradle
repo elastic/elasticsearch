@@ -12,7 +12,7 @@ esplugin {
   name 'custom-settings'
   description 'An example plugin showing how to register custom settings'
   classname 'org.elasticsearch.example.customsettings.ExampleCustomSettingsPlugin'
-  licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
+  licenseFile rootProject.file('SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
 

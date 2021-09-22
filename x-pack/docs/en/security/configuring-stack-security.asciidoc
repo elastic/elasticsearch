@@ -3,18 +3,62 @@
 
 beta::[This functionality is in alpha and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Alpha features are not subject to the support SLA of official GA features.]
 
-Before you start {es} for the first time, run the `elasticsearch-security-config`
-tool. This tool generates certificates and keys for the transport and HTTP
-layers of {es}, and writes the TLS configuration settings to `elasticsearch.yml`.
+When you start {es} for the first time, passwords are automatically generated
+for the `elastic` and `kibana_system` users. Use these passwords to securely
+connect {es} and {kib}.
 
 [discrete]
 === Prerequisites
 
-https://www.elastic.co/downloads/elasticsearch#preview-release[Download] the `elasticsearch 8.0.0-alpha1` package distribution for your
+* https://www.elastic.co/downloads/elasticsearch#preview-release[Download] the `elasticsearch 8.0.0-alpha2` package distribution for your
+environment.
+* https://www.elastic.co/downloads/kibana#preview-release[Download] the
+`kibana 8.0.0-alpha2` package distribution for your
 environment.
 
 [discrete]
-=== Start {es} with security enabled
+=== Start {es} and {kib} with security enabled
+. Start {es}.
++
+[source,bash]
+----
+/bin/elasticsearch
+----
++
+Passwords for the for the `elastic` and `kibana_system` users
+are output to the terminal. You might need to scroll back a bit to view the
+generated passwords.
+
+. From the directory where you downloaded {kib}, edit `kibana.yml` to uncomment
+the `elasticsearch` username and password. Add the generated password for the
+`kibana_system` user.
++
+[source,yml]
+----
+elasticsearch.username: "kibana_system"
+elasticsearch.password: "<generated-password>"
+----
+
+. Start {kib}.
++
+[source,bash]
+----
+bin/kibana
+----
+
+. Open a browser and navigate to http://localhost:5601/[http://localhost:5601/].
+
+. Log in to {kib} as the `elastic` user with the generated password. 
+
+If you need to reset the password for the `elastic` user, run the
+<<reset-elastic-password,`elasticsearch-reset-elastic-password`>> tool. To
+reset the password for the `kibana_system` user, run the 
+`elasticsearch-reset-kibana-system-password` tool. Both of these tools are
+available in the {es} `/bin` directory.
+
+
+////
+Close to GA behavior to add later
 
 . Before starting {es} for the first time, run the
 `elasticsearch-security-config` tool from the directory where you downloaded
@@ -189,3 +233,4 @@ NOTE: You must create a separate `elasticsearch-ca.pem` security file for the
 monitoring cluster. Refer to
 <<encrypt-http-communication,Encrypt HTTP client communications for {es}>>.
 ****
+////

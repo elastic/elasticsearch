@@ -299,7 +299,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public RestStatus status() {
-        return isTimedOut() ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
+        return RestStatus.OK;
     }
 
     @Override

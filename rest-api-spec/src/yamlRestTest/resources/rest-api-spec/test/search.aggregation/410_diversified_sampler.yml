@@ -142,3 +142,88 @@ run on number:
   - match: { aggregations.diversified.doc_count: 2 }
   - match: { aggregations.diversified.min_number.value: 3.0 }
   - match: { aggregations.diversified.max_number.value: 4.0 }
+
+---
+force map mode:
+  - do:
+      search:
+        body:
+          size: 0
+          query:
+            query_string:
+              query: 'tags:kibana OR tags:javascript'
+          aggs:
+            diversified:
+              diversified_sampler:
+                field: author
+                execution_hint: map
+              aggs:
+                min_number:
+                  min:
+                    field: number
+                max_number:
+                  max:
+                    field: number
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.diversified.doc_count: 2 }
+  - match: { aggregations.diversified.min_number.value: 2.0 }
+  - match: { aggregations.diversified.max_number.value: 4.0 }
+
+---
+force global ordinals mode:
+  - do:
+      search:
+        body:
+          size: 0
+          query:
+            query_string:
+              query: 'tags:kibana OR tags:javascript'
+          aggs:
+            diversified:
+              diversified_sampler:
+                field: author
+                execution_hint: global_ordinals
+              aggs:
+                min_number:
+                  min:
+                    field: number
+                max_number:
+                  max:
+                    field: number
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.diversified.doc_count: 2 }
+  - match: { aggregations.diversified.min_number.value: 2.0 }
+  - match: { aggregations.diversified.max_number.value: 4.0 }
+
+---
+enable hash mode mode:
+  - do:
+      search:
+        body:
+          size: 0
+          query:
+            query_string:
+              query: 'tags:kibana OR tags:javascript'
+          aggs:
+            diversified:
+              diversified_sampler:
+                field: author
+                execution_hint: bytes_hash
+              aggs:
+                min_number:
+                  min:
+                    field: number
+                max_number:
+                  max:
+                    field: number
+
+  # This mode can have hash collisions. The hash is seeded with tests.seed
+  # so we have to have weaker constraints on these hits
+  - match: { hits.total.value: 4 }
+  - lte: { aggregations.diversified.doc_count: 2 }
+  - gte: { aggregations.diversified.doc_count: 1 }
+  - gte: { aggregations.diversified.min_number.value: 2.0 }
+  - lte: { aggregations.diversified.min_number.value: 4.0 }
+  - match: { aggregations.diversified.max_number.value: 4.0 }

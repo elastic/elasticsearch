@@ -152,7 +152,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         }
     }
 
-    protected void getAsync(
+    final void getAsync(
         final String repository,
         final SnapshotId snapshotId,
         final IndexId indexId,
@@ -234,7 +234,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         return cause instanceof NodeClosedException || cause instanceof ConnectTransportException;
     }
 
-    public void putAsync(
+    public final void putAsync(
         final String repository,
         final SnapshotId snapshotId,
         final IndexId indexId,

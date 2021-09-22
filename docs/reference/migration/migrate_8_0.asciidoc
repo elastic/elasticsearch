@@ -104,9 +104,9 @@ the `SysV init` process.
 
 *Details* +
 Ensure your nodes use a
-https://www.elastic.co/support/matrix#matrix_os[supported operating system] for
-8.0. Running {es} on an unsupported operating system can result in unexpected
-errors or failures.
+https://www.elastic.co/support/matrix#matrix_os[supported operating system].
+Running {es} on an unsupported operating system can result in unexpected errors
+or failures.
 ====
 
 // end::notable-breaking-changes[]

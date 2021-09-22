@@ -172,8 +172,10 @@ The following parameters are accepted by numeric types:
 
 include::keyword.asciidoc[tag=dimension]
 +
-Of the numeric field types, only `byte`, `short`, `integer`, and `long` fields
-support this parameter.
+Of the numeric field types, only `byte`, `short`, `integer`, `long`, and
+`unsigned_long` fields support this parameter.
++
+A numeric field can't be both a time series dimension and a time series metric.
 
 // tag::time_series_metric[]
 `time_series_metric`::
@@ -184,6 +186,8 @@ series metric).
 +
 For numeric fields, this parameter accepts `gauge` and `counter`. You can't
 update this parameter for existing fields.
++
+A numeric field can't be both a time series dimension and a time series metric.
 
 [[scaled-float-params]]
 ==== Parameters for `scaled_float`

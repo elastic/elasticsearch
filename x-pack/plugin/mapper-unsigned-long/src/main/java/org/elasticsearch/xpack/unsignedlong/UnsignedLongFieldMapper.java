@@ -126,7 +126,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                         "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
                     );
                 }
-            });
+            }).precludesParameters(dimension);
         }
 
         private String parseNullValueAsString(Object o) {

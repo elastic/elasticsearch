@@ -150,7 +150,7 @@ public class NumberFieldMapper extends FieldMapper {
                         "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
                     );
                 }
-            });
+            }).precludesParameters(dimension);
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);

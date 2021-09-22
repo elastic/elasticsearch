@@ -342,6 +342,17 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
     }
 
+    public void testMetricAndDimension() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "counter").field("time_series_dimension", true);
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field [time_series_dimension] cannot be set in conjunction with field [time_series_metric]")
+        );
+    }
+
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         Number n = randomNumericValue();

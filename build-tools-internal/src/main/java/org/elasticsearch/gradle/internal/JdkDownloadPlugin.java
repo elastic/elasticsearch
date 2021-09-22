@@ -133,6 +133,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             // The following is an absolute hack until Adoptium provides Apple aarch64 builds
             String zuluPathSuffix = jdk.getPlatform().equals("linux") ? "-embedded" : "";
             switch (jdk.getMajor()) {
+                case "17": // More hack until adoptium builds are out
                 case "16":
                     artifactPattern = "zulu"
                         + zuluPathSuffix

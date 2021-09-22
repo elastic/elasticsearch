@@ -1,11 +1,11 @@
 [[modules-cross-cluster-search]]
 == Search across clusters
 
-*{ccs-cap}* lets you run a single search request against one or more
-<<modules-remote-clusters,remote clusters>>. For example, you can use a {ccs} to
-filter and analyze log data stored on clusters in different data centers.
+*{ccs-cap}* lets you run a single search request against one or more remote
+clusters. For example, you can use a {ccs} to filter and analyze log data stored
+on clusters in different data centers.
 
-IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
+IMPORTANT: {ccs-cap} requires <<remote-clusters,remote clusters>>.
 
 [discrete]
 [[ccs-supported-apis]]
@@ -29,11 +29,12 @@ The following APIs support {ccs}:
 [[ccs-remote-cluster-setup]]
 ==== Remote cluster setup
 
-To perform a {ccs}, you must have at least one remote cluster configured.
+To perform a {ccs}, you must have at least one
+<<remote-clusters-connect,remote cluster configured>>.
 
 TIP: If you want to search across clusters in the cloud, you can
 link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
-can search across clusters and <<ccr-getting-started,set up {ccr}>>.
+can search across clusters and <<ccr-getting-started-tutorial,set up {ccr}>>.
 
 The following <<cluster-update-settings,cluster update settings>> API request
 adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`.

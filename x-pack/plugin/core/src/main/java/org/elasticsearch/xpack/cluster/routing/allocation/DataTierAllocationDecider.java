@@ -185,7 +185,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
     }
 
     public static String[] parseTierList(String tiers) {
-        if (Strings.hasLength(tiers) == false) {
+        if (Strings.hasText(tiers) == false) {
             // avoid parsing overhead in the null/empty string case
             return Strings.EMPTY_ARRAY;
         } else {
@@ -208,7 +208,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
 
     private static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {
-        assert Strings.hasLength(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
+        assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
 
         if (roles.contains(DiscoveryNodeRole.DATA_ROLE)) {
             // generic "data" roles are considered to have all tiers

@@ -12,7 +12,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializingTestCase<GetFeatureUpgradeStatusResponse> {
 
@@ -24,7 +27,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     @Override
     protected GetFeatureUpgradeStatusResponse createTestInstance() {
         return new GetFeatureUpgradeStatusResponse(
-            List.of(),
+            randomList(8, GetFeatureUpgradeStatusResponseTests::createFeatureStatus),
             randomAlphaOfLengthBetween(4, 16)
         );
     }
@@ -32,9 +35,17 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     @Override
     protected GetFeatureUpgradeStatusResponse mutateInstance(GetFeatureUpgradeStatusResponse instance) throws IOException {
         return new GetFeatureUpgradeStatusResponse(
-            randomList(8, GetFeatureUpgradeStatusResponseTests::createFeatureStatus),
+            randomList(8,
+                () -> randomValueOtherThanMany(instance.getFeatureUpgradeStatuses()::contains,
+                    GetFeatureUpgradeStatusResponseTests::createFeatureStatus)),
             randomValueOtherThan(instance.getUpgradeStatus(), () -> randomAlphaOfLengthBetween(4, 16))
         );
+    }
+
+    public void testConstructorHandlesNullLists() {
+        GetFeatureUpgradeStatusResponse response = new GetFeatureUpgradeStatusResponse(null, "status");
+        assertThat(response.getFeatureUpgradeStatuses(), notNullValue());
+        assertThat(response.getFeatureUpgradeStatuses(), equalTo(Collections.emptyList()));
     }
 
     private static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus createFeatureStatus() {

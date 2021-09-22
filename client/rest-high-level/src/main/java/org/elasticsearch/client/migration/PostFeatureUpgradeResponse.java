@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.List;
@@ -22,13 +23,14 @@ public class PostFeatureUpgradeResponse {
 
     private final boolean accepted;
     private final List<Feature> features;
-    private final String reason;
-    private final ElasticsearchException elasticsearchException;
+
+    @Nullable private final String reason;
+    @Nullable private final ElasticsearchException elasticsearchException;
 
     private static final ParseField ACCEPTED = new ParseField("accepted");
     private static final ParseField FEATURES = new ParseField("features");
     private static final ParseField REASON = new ParseField("reason");
-    private static final ParseField ELASTICSEARCH_EXCEPTION = new ParseField("elasticsearch_exception");
+    private static final ParseField ELASTICSEARCH_EXCEPTION = new ParseField("exception");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PostFeatureUpgradeResponse, Void> PARSER = new ConstructingObjectParser<>(
@@ -57,11 +59,11 @@ public class PostFeatureUpgradeResponse {
     public PostFeatureUpgradeResponse(
         boolean accepted,
         List<Feature> features,
-        String reason,
-        ElasticsearchException elasticsearchException
+        @Nullable String reason,
+        @Nullable ElasticsearchException elasticsearchException
     ) {
         this.accepted = accepted;
-        this.features = features;
+        this.features = Objects.nonNull(features) ? features : Collections.emptyList();
         this.reason = reason;
         this.elasticsearchException = elasticsearchException;
     }
@@ -74,14 +76,19 @@ public class PostFeatureUpgradeResponse {
         return Objects.isNull(features) ? Collections.emptyList() : features;
     }
 
+    @Nullable
     public String getReason() {
         return reason;
     }
 
+    @Nullable
     public ElasticsearchException getElasticsearchException() {
         return elasticsearchException;
     }
 
+    /**
+     * We disregard exceptions when determining response equality
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -90,6 +97,9 @@ public class PostFeatureUpgradeResponse {
         return accepted == that.accepted && Objects.equals(features, that.features) && Objects.equals(reason, that.reason);
     }
 
+    /**
+     * We disregard exceptions when calculating hash code
+     */
     @Override
     public int hashCode() {
         return Objects.hash(accepted, features, reason);

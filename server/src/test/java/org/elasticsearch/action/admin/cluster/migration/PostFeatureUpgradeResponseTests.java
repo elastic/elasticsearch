@@ -14,6 +14,10 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class PostFeatureUpgradeResponseTests extends AbstractWireSerializingTestCase<PostFeatureUpgradeResponse> {
 
@@ -27,7 +31,7 @@ public class PostFeatureUpgradeResponseTests extends AbstractWireSerializingTest
         if (randomBoolean()) {
             return new PostFeatureUpgradeResponse(
                 true,
-                randomList(1, 9, PostFeatureUpgradeResponseTests::createFeature),
+                randomList(9, PostFeatureUpgradeResponseTests::createFeature),
                 null,
                 null);
         }
@@ -51,6 +55,12 @@ public class PostFeatureUpgradeResponseTests extends AbstractWireSerializingTest
             new ArrayList<>(),
             randomValueOtherThan(instance.getReason(), () -> randomAlphaOfLengthBetween(10, 30)),
             instance.getElasticsearchException());
+    }
+
+    public void testConstructorHandlesNullLists() {
+        PostFeatureUpgradeResponse response = new PostFeatureUpgradeResponse(true, null, null, null);
+        assertThat(response.getFeatures(), notNullValue());
+        assertThat(response.getFeatures(), equalTo(Collections.emptyList()));
     }
 
     private static PostFeatureUpgradeResponse.Feature createFeature() {

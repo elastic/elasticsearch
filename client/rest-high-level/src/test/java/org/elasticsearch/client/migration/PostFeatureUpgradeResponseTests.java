@@ -15,12 +15,22 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Objects;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PostFeatureUpgradeResponseTests extends AbstractResponseTestCase<
     org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse, PostFeatureUpgradeResponse> {
+
+    public void testConstructorHandlesNullLists() {
+        PostFeatureUpgradeResponse response = new PostFeatureUpgradeResponse(true, null, null, null);
+        assertThat(response.getFeatures(), notNullValue());
+        assertThat(response.getFeatures(), equalTo(Collections.emptyList()));
+    }
 
     @Override
     protected org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse createServerTestInstance(
@@ -38,7 +48,7 @@ public class PostFeatureUpgradeResponseTests extends AbstractResponseTestCase<
         } else {
             return new org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse(
                 false,
-                Collections.emptyList(),
+                randomBoolean() ? null : Collections.emptyList(),
                 randomAlphaOfLengthBetween(10, 20),
                 new ElasticsearchException(randomAlphaOfLengthBetween(10, 20)));
         }
@@ -57,5 +67,23 @@ public class PostFeatureUpgradeResponseTests extends AbstractResponseTestCase<
         assertThat(clientInstance.isAccepted(), equalTo(serverTestInstance.isAccepted()));
 
         assertThat(clientInstance.getFeatures(), hasSize(serverTestInstance.getFeatures().size()));
+
+        for (int i = 0; i < clientInstance.getFeatures().size(); i++) {
+            org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse.Feature serverFeature
+                = serverTestInstance.getFeatures().get(i);
+            PostFeatureUpgradeResponse.Feature clientFeature = clientInstance.getFeatures().get(i);
+
+            assertThat(clientFeature.getFeatureName(), equalTo(serverFeature.getFeatureName()));
+        }
+
+        assertThat(clientInstance.getReason(), equalTo(serverTestInstance.getReason()));
+
+        if (Objects.isNull(serverTestInstance.getElasticsearchException())) {
+            assertThat(clientInstance.getElasticsearchException(), nullValue());
+        } else {
+            assertThat(clientInstance.getElasticsearchException(), notNullValue());
+            assertThat(clientInstance.getElasticsearchException().getMessage(),
+                containsString(serverTestInstance.getElasticsearchException().getMessage()));
+        }
     }
 }

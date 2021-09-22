@@ -13,18 +13,27 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCase<
     org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse, GetFeatureUpgradeStatusResponse> {
+
+    public void testConstructorHandlesNullLists() {
+        GetFeatureUpgradeStatusResponse response = new GetFeatureUpgradeStatusResponse(null, "status");
+        assertThat(response.getFeatureUpgradeStatuses(), notNullValue());
+        assertThat(response.getFeatureUpgradeStatuses(), equalTo(Collections.emptyList()));
+
+    }
 
     @Override
     protected org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse createServerTestInstance(
         XContentType xContentType) {
         return new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse(
-            randomList(0, 5,
+            randomList(5,
                 () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
                     randomAlphaOfLengthBetween(3, 20),
                     randomAlphaOfLengthBetween(5, 9),
@@ -71,6 +80,8 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
                     = serverTestStatus.getIndexVersions().get(j);
                 GetFeatureUpgradeStatusResponse.IndexVersion clientIndexVersion = clientStatus.getIndexVersions().get(j);
 
+                assertThat(clientIndexVersion.getIndexName(), equalTo(serverIndexVersion.getIndexName()));
+                assertThat(clientIndexVersion.getVersion(), equalTo(serverIndexVersion.getVersion()));
             }
         }
     }

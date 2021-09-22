@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -39,7 +40,7 @@ public class GetFeatureUpgradeStatusResponse {
     }
 
     public GetFeatureUpgradeStatusResponse(List<FeatureUpgradeStatus> featureUpgradeStatuses, String upgradeStatus) {
-        this.featureUpgradeStatuses = featureUpgradeStatuses;
+        this.featureUpgradeStatuses = Objects.nonNull(featureUpgradeStatuses) ? featureUpgradeStatuses : Collections.emptyList();
         this.upgradeStatus = upgradeStatus;
     }
 

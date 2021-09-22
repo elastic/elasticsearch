@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,12 +26,13 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
 
     private final boolean accepted;
     private final List<Feature> features;
-    private final String reason;
-    private final ElasticsearchException elasticsearchException;
+    @Nullable private final String reason;
+    @Nullable private final ElasticsearchException elasticsearchException;
 
-    public PostFeatureUpgradeResponse(boolean accepted, List<Feature> features, String reason, ElasticsearchException exception) {
+    public PostFeatureUpgradeResponse(boolean accepted, List<Feature> features,
+                                      @Nullable String reason, @Nullable ElasticsearchException exception) {
         this.accepted = accepted;
-        this.features = features;
+        this.features = Objects.nonNull(features) ? features : Collections.emptyList();
         this.reason = reason;
         this.elasticsearchException = exception;
     }
@@ -83,10 +85,12 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
         return Objects.isNull(features) ? Collections.emptyList() : features;
     }
 
+    @Nullable
     public String getReason() {
         return reason;
     }
 
+    @Nullable
     public ElasticsearchException getElasticsearchException() {
         return elasticsearchException;
     }

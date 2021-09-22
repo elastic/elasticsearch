@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -25,7 +26,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
     private final String upgradeStatus;
 
     public GetFeatureUpgradeStatusResponse(List<FeatureUpgradeStatus> statuses, String upgradeStatus) {
-        this.featureUpgradeStatuses = statuses;
+        this.featureUpgradeStatuses = Objects.nonNull(statuses) ? statuses : Collections.emptyList();
         this.upgradeStatus = upgradeStatus;
     }
 

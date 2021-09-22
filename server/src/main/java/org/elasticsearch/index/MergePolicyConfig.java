@@ -130,6 +130,7 @@ public final class MergePolicyConfig {
     public static final Setting<Integer> INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING =
         Setting.intSetting("index.merge.policy.max_merge_at_once", DEFAULT_MAX_MERGE_AT_ONCE, 2,
             Property.Dynamic, Property.IndexScope);
+    // TODO deprecate this as it no longer has any effect
     public static final Setting<Integer> INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING =
         Setting.intSetting("index.merge.policy.max_merge_at_once_explicit", DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT, 2,
             Property.Dynamic, Property.IndexScope);
@@ -150,6 +151,7 @@ public final class MergePolicyConfig {
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         int maxMergeAtOnce = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
+        // TODO this is removed from lucene 9 - do we need to emit a warning if it is set?
         int maxMergeAtOnceExplicit = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING);
         // TODO is this really a good default number for max_merge_segment, what happens for large indices,
         // won't they end up with many segments?
@@ -166,7 +168,6 @@ public final class MergePolicyConfig {
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.getMbFrac());
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
-        mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
         mergePolicy.setDeletesPctAllowed(deletesPctAllowed);
@@ -188,7 +189,7 @@ public final class MergePolicyConfig {
     }
 
     void setMaxMergesAtOnceExplicit(Integer maxMergeAtOnceExplicit) {
-        mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
+
     }
 
     void setMaxMergesAtOnce(Integer maxMergeAtOnce) {

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -184,7 +183,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
     }
 
     private ImmutableOpenMap<String, IndexMetadata> getIndicesMetadataOnNode(String nodeName) {
-        final Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, nodeName);
+        final Coordinator coordinator = internalCluster().getInstance(Coordinator.class, nodeName);
         return coordinator.getApplierState().getMetadata().getIndices();
     }
 }

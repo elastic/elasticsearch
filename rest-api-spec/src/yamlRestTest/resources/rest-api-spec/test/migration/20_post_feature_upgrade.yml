@@ -1,0 +1,7 @@
+"Get feature upgrade status":
+
+  - do:
+      migration.get_feature_upgrade_status: {}
+
+  - is_false: accepted
+  - is_true: features

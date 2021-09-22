@@ -615,7 +615,9 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
             generalNameSet.add(new GeneralName(GeneralName.iPAddress, ipString));
         }
         generalNameSet.add(new GeneralName(GeneralName.dNSName, "localhost"));
-        generalNameSet.add(new GeneralName(GeneralName.dNSName, System.getenv("HOSTNAME")));
+        if (null != System.getenv("HOSTNAME")) {
+            generalNameSet.add(new GeneralName(GeneralName.dNSName, System.getenv("HOSTNAME")));
+        }
         return new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
     }
 

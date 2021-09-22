@@ -24,6 +24,7 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.packaging.test.PackagingTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,7 +48,9 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.dockerShell;
+import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 
@@ -165,7 +168,19 @@ public class ServerUtils {
     }
 
     public static Path getCaCert(Installation installation) throws IOException {
-        return getCaCert(installation.config);
+        if (installation.distribution.isDocker()) {
+            final Path tempDir = PackagingTestCase.createTempDir("docker-ssl");
+            final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
+            if (autoConfigurationDir != null) {
+                final Path hostHttpCaCert = tempDir.resolve("http_ca.crt");
+                copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), hostHttpCaCert);
+                return hostHttpCaCert;
+            } else {
+                return null;
+            }
+        } else {
+            return getCaCert(installation.config);
+        }
     }
 
     public static Path getCaCert(Path configPath) throws IOException {

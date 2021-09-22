@@ -31,6 +31,8 @@ import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.Archives.verifySecurityAutoConfigured;
+import static org.elasticsearch.packaging.util.Archives.verifySecurityNotAutoConfigured;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
@@ -120,6 +122,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test40AutoconfigurationNotTriggered() throws Exception {
+        FileUtils.assertPathsDoNotExist(installation.data);
         ServerUtils.addSettingToExistingConfiguration(installation, "discovery.seed_hosts", "[\"127.0.0.1:9300\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
@@ -161,9 +164,11 @@ public class ArchiveTests extends PackagingTestCase {
         stopElasticsearch();
         sh.getEnv().remove("ES_PATH_CONF");
         IOUtils.rm(tempDir);
+        FileUtils.rm(installation.data);
     }
 
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
+        FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
         Files.move(installation.lib.resolve("tools/security-cli/bcprov-jdk15on-1.64.jar"), tempDir.resolve("bcprov-jdk15on-1.64.jar"));
         Shell.Result result = runElasticsearchStartCommand(null, false, false);
@@ -172,9 +177,34 @@ public class ArchiveTests extends PackagingTestCase {
         IOUtils.rm(tempDir);
     }
 
+    public void test51AutoConfigurationWithPasswordProtectedKeystore() throws Exception {
+        FileUtils.assertPathsDoNotExist(installation.data);
+        final Installation.Executables bin = installation.executables();
+        final String password = "some-keystore-password";
+        bin.keystoreTool.run("create");
+        Platforms.onLinux(() -> bin.keystoreTool.run("passwd", password + "\n" + password + "\n"));
+        Platforms.onWindows(() -> {
+            Path keystore = installation.config("elasticsearch.keystore");
+            sh.chown(keystore);
+            sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
+        });
+        Shell.Result result = runElasticsearchStartCommand("", false, false);
+        assertElasticsearchFailure(result, "Provided keystore password was incorrect", null);
+        verifySecurityNotAutoConfigured(installation);
+
+        awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
+        verifySecurityAutoConfigured(installation);
+
+        stopElasticsearch();
+
+        // Revert to an empty password for the rest of the tests
+        Platforms.onLinux(() -> bin.keystoreTool.run("passwd", password + "\n" + "" + "\n"));
+        Platforms.onWindows(
+            () -> sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + "" + "'} | " + bin.keystoreTool + " passwd")
+        );
+    }
+
     public void test60StartAndStop() throws Exception {
-        // cleanup from previous test
-        rm(installation.config("elasticsearch.keystore"));
 
         startElasticsearch();
 
@@ -184,6 +214,7 @@ public class ArchiveTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
+    @AwaitsFix(bugUrl = "Change host OS JDK version to 17")
     public void test61EsJavaHomeOverride() throws Exception {
         Platforms.onLinux(() -> {
             String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
@@ -202,6 +233,7 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
     }
 
+    @AwaitsFix(bugUrl = "Change host OS JDK version to 17")
     public void test62JavaHomeIgnored() throws Exception {
         assumeTrue(distribution().hasJdk);
         Platforms.onLinux(() -> {
@@ -230,6 +262,7 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(bundledJdk));
     }
 
+    @AwaitsFix(bugUrl = "Change host OS JDK version to 17")
     public void test63BundledJdkRemoved() throws Exception {
         assumeThat(distribution().hasJdk, is(true));
 
@@ -256,6 +289,7 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Change host OS JDK version to 17")
     public void test64JavaHomeWithSpecialCharacters() throws Exception {
         Platforms.onWindows(() -> {
             String javaPath = "C:\\Program Files (x86)\\java";
@@ -304,6 +338,7 @@ public class ArchiveTests extends PackagingTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "Change host OS JDK version to 17")
     public void test65ForceBundledJdkEmptyJavaHome() throws Exception {
         assumeThat(distribution().hasJdk, is(true));
 

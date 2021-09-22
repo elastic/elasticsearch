@@ -87,7 +87,6 @@ import static org.junit.Assume.assumeTrue;
  */
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;
-    private Path hostHttpCaCert;
     private static final String USERNAME = "elastic";
     private static final String PASSWORD = "nothunter2";
 
@@ -103,10 +102,6 @@ public class DockerTests extends PackagingTestCase {
             builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
         );
         tempDir = createTempDir(DockerTests.class.getSimpleName());
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
-        assert autoConfigurationDir != null : "Unable to find the auto-configured HTTP CA cert in the container";
-        hostHttpCaCert = tempDir.resolve("http_ca.crt");
-        copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), hostHttpCaCert);
     }
 
     @After
@@ -126,12 +121,12 @@ public class DockerTests extends PackagingTestCase {
      * Check that security is enabled
      */
     public void test011SecurityEnabledStatus() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
         final int statusCode = ServerUtils.makeRequestAndGetStatus(
             Request.Get("https://localhost:9200"),
             USERNAME,
             "wrong_password",
-            hostHttpCaCert
+            ServerUtils.getCaCert(installation)
         );
         assertThat(statusCode, equalTo(401));
     }
@@ -227,7 +222,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when the keystore is created on startup, it is created with the correct permissions.
      */
     public void test042KeystorePermissionsAreCorrect() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
 
         assertThat(installation.config("elasticsearch.keystore"), file(p660));
     }
@@ -237,11 +232,11 @@ public class DockerTests extends PackagingTestCase {
      * is minimally functional.
      */
     public void test050BasicApiTests() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
 
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
-        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, hostHttpCaCert);
+        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
     }
 
     /**
@@ -286,9 +281,9 @@ public class DockerTests extends PackagingTestCase {
                 )
         );
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
 
-        final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD, hostHttpCaCert).get("nodes");
+        final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD, ServerUtils.getCaCert(installation)).get("nodes");
         final String nodeId = nodes.fieldNames().next();
 
         final int heapSize = nodes.at("/" + nodeId + "/jvm/mem/heap_init_in_bytes").intValue();
@@ -316,13 +311,9 @@ public class DockerTests extends PackagingTestCase {
                 distribution(),
                 builder().volumes(volumes).envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
             );
-            final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
-            assert autoConfigurationDir != null : "Unable to find the auto-configured HTTP CA cert in the container";
-            final Path newHostHttpCaCert = tempDir.resolve("http_ca_2.crt");
-            copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), newHostHttpCaCert);
-            waitForElasticsearch(installation, USERNAME, PASSWORD, newHostHttpCaCert);
+            waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
 
-            final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD, newHostHttpCaCert);
+            final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
 
             assertThat(nodes.at("/_nodes/total").intValue(), equalTo(1));
             assertThat(nodes.at("/_nodes/successful").intValue(), equalTo(1));
@@ -380,7 +371,10 @@ public class DockerTests extends PackagingTestCase {
                 .uid(501, 501)
         );
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
+        rmDirWithPrivilegeEscalation(tempEsConfigDir);
+        rmDirWithPrivilegeEscalation(tempEsDataDir);
+        rmDirWithPrivilegeEscalation(tempEsLogsDir);
     }
 
     /**
@@ -574,12 +568,9 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test085EnvironmentVariablesAreRespectedUnderDockerExec() throws Exception {
         installation = runContainer(distribution(), builder().envVars(Map.of("ELASTIC_PASSWORD", "hunter2")));
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
-        assert autoConfigurationDir != null : "Unable to find the auto-configured HTTP CA cert in the container";
-        hostHttpCaCert = tempDir.resolve("http_ca_3.crt");
-        copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), hostHttpCaCert);
+
         // The tool below requires a keystore, so ensure that ES is fully initialised before proceeding.
-        waitForElasticsearch(installation, "elastic", "hunter2", hostHttpCaCert);
+        waitForElasticsearch(installation, "elastic", "hunter2", ServerUtils.getCaCert(installation));
 
         sh.getEnv().put("http.host", "this.is.not.valid");
 
@@ -602,10 +593,6 @@ public class DockerTests extends PackagingTestCase {
     public void test086EnvironmentVariablesInSnakeCaseAreTranslated() {
         // Note the double-underscore in the var name here, which retains the underscore in translation
         installation = runContainer(distribution(), builder().envVars(Map.of("ES_SETTING_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")));
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
-        assert autoConfigurationDir != null : "Unable to find the auto-configured HTTP CA cert in the container";
-        hostHttpCaCert = tempDir.resolve("http_ca_3.crt");
-        copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), hostHttpCaCert);
         final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
             .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
             .findFirst();
@@ -629,10 +616,6 @@ public class DockerTests extends PackagingTestCase {
         // Not uppercase
         envVars.put("es_xpack_security_fips__mode_enabled", "false");
         installation = runContainer(distribution(), builder().envVars(envVars));
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
-        assert autoConfigurationDir != null : "Unable to find the auto-configured HTTP CA cert in the container";
-        hostHttpCaCert = tempDir.resolve("http_ca_3.crt");
-        copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), hostHttpCaCert);
         final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
             .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
             .findFirst();
@@ -784,7 +767,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the container logs contain the expected content for Elasticsearch itself.
      */
     public void test120DockerLogsIncludeElasticsearchLogs() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
         final Result containerLogs = getContainerLogs();
 
         assertThat("Container logs should contain full class names", containerLogs.stdout, containsString("org.elasticsearch.node.Node"));
@@ -799,11 +782,7 @@ public class DockerTests extends PackagingTestCase {
             distribution(),
             builder().envVars(Map.of("ES_LOG_STYLE", "file", "ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
         );
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
-        assert autoConfigurationDir != null : "Unable to find the auto-configured HTTP CA cert in the container";
-        hostHttpCaCert = tempDir.resolve("http_ca_3.crt");
-        copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), hostHttpCaCert);
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
 
         final Result containerLogs = getContainerLogs();
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
@@ -824,11 +803,7 @@ public class DockerTests extends PackagingTestCase {
             distribution(),
             builder().envVars(Map.of("ES_LOG_STYLE", "console", "ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
         );
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
-        assert autoConfigurationDir != null : "Unable to find the auto-configured HTTP CA cert in the container";
-        hostHttpCaCert = tempDir.resolve("http_ca_3.crt");
-        copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), hostHttpCaCert);
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
 
         final Result containerLogs = getContainerLogs();
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
@@ -851,16 +826,12 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test124CanRestartContainerWithStackLoggingConfig() throws Exception {
         runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file", "ELASTIC_PASSWORD", PASSWORD)));
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
-        assert autoConfigurationDir != null : "Unable to find the auto-configured HTTP CA cert in the container";
-        hostHttpCaCert = tempDir.resolve("http_ca_3.crt");
-        copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), hostHttpCaCert);
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
 
         restartContainer();
 
         // If something went wrong running Elasticsearch the second time, this will fail.
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
     }
 
     /**
@@ -896,9 +867,9 @@ public class DockerTests extends PackagingTestCase {
      * Check that Elasticsearch reports per-node cgroup information.
      */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
 
-        final JsonNode nodes = getJson("/_nodes/stats/os", USERNAME, PASSWORD, hostHttpCaCert).get("nodes");
+        final JsonNode nodes = getJson("/_nodes/stats/os", USERNAME, PASSWORD, ServerUtils.getCaCert(installation)).get("nodes");
 
         final String nodeId = nodes.fieldNames().next();
 
@@ -933,11 +904,8 @@ public class DockerTests extends PackagingTestCase {
                 .volumes(Map.of(jvmOptionsPath, containerJvmOptionsPath))
                 .envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
         );
-        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
-        assert autoConfigurationDir != null : "Unable to find the auto-configured HTTP CA cert in the container";
-        hostHttpCaCert = tempDir.resolve("http_ca_3.crt");
-        copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), hostHttpCaCert);
-        waitForElasticsearch(installation, USERNAME, PASSWORD, hostHttpCaCert);
+
+        waitForElasticsearch(installation, USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
 
         // Grab the container output and find the line where it print the JVM arguments. This will
         // let us see what the automatic heap sizing calculated.

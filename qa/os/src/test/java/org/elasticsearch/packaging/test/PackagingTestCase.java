@@ -559,5 +559,4 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
-
 }

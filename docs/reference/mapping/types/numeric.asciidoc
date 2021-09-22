@@ -187,8 +187,8 @@ series metric).
 For numeric fields, this parameter accepts `gauge` and `counter`. You can't
 update this parameter for existing fields.
 +
-For numeric time series metrics, the `doc_values` parameter must be `true`.
-A numeric field can't be both a time series dimension and a time series metric.
+For a numeric time series metric, the `doc_values` parameter must be `true`. A
+numeric field can't be both a time series dimension and a time series metric.
 
 [[scaled-float-params]]
 ==== Parameters for `scaled_float`

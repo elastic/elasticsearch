@@ -85,6 +85,29 @@ Use the replacement REST API endpoints. Requests submitted to the `_xpack`
 API endpoints will return an error.
 ====
 
+.Several EOL operating systems are no longer supported.
+[%collapsible]
+====
+*Details* +
+The following operating systems have reached their end of life and are no longer
+supported by {es}:
+
+* Amazon Linux
+* CentOS 6
+* Debian 8
+* openSUSE Leap 42
+* Oracle Enterprise Linux 6
+* Ubuntu 16.04
+
+We've also removed support for `SysV init`. No supported operating systems use
+the `SysV init` process.
+
+*Details* +
+Ensure your nodes use a
+https://www.elastic.co/support/matrix#matrix_os[supported operating system] for
+8.0. Running {es} on an unsupported operating system can result in unexpected
+errors or failures.
+====
 
 // end::notable-breaking-changes[]
 

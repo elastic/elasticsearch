@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -81,13 +82,19 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         this.similarityThreshold = similarityThreshold;
         this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), CardinalityUpperBound.MANY);
         this.bucketCountThresholds = bucketCountThresholds;
-        this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(1000, bigArrays()));
+        this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, bigArrays()));
     }
 
     @Override
     protected void doClose() {
         super.doClose();
         this.analyzer.close();
+        try {
+            this.bytesRefHash.close();
+        } catch (IOException ex) {
+            //TODO Should we just eat the exception?
+            throw new UncheckedIOException(ex);
+        }
     }
 
     @Override
@@ -95,10 +102,14 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         InternalCategorizationAggregation.Bucket[][] topBucketsPerOrd =
             new InternalCategorizationAggregation.Bucket[ordsToCollect.length][];
         for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
+            final CategorizationTokenTree categorizationTokenTree = categorizers.get(ordsToCollect[ordIdx]);
+            if (categorizationTokenTree == null) {
+                topBucketsPerOrd[ordIdx] = new InternalCategorizationAggregation.Bucket[0];
+                continue;
+            }
             int size = (int) Math.min(bucketOrds.bucketsInOrd(ordIdx), bucketCountThresholds.getShardSize());
             PriorityQueue<InternalCategorizationAggregation.Bucket> ordered =
                 new InternalCategorizationAggregation.BucketCountPriorityQueue(size);
-            CategorizationTokenTree categorizationTokenTree = categorizers.get(ordsToCollect[ordIdx]);
             for (InternalCategorizationAggregation.Bucket bucket : categorizationTokenTree.toIntermediateBuckets(bytesRefHash)) {
                 if (bucket.docCount < bucketCountThresholds.getShardMinDocCount()) {
                     continue;
@@ -190,7 +201,10 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                     categorizers.set(owningBucketOrd, categorizer);
                 }
                 long previousSize = categorizer.ramBytesUsed();
-                TextCategorization lg = categorizer.parseLogLine(tokens.toArray(Long[]::new), docCountProvider.getDocCount(doc));
+                TextCategorization lg = categorizer.parseLogLine(
+                    tokens.stream().mapToLong(Long::valueOf).toArray(),
+                    docCountProvider.getDocCount(doc)
+                );
                 long newSize = categorizer.ramBytesUsed();
                 if (newSize - previousSize > 0) {
                     addRequestCircuitBreakerBytes(newSize - previousSize);

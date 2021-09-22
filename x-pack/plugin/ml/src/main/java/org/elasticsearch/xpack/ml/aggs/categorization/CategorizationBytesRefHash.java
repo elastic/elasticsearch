@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BytesRefHash;
 
@@ -15,6 +17,7 @@ import java.io.IOException;
 
 class CategorizationBytesRefHash implements Closeable {
 
+    private static final Logger logger = LogManager.getLogger(CategorizationBytesRefHash.class);
     static final BytesRef WILD_CARD_REF = new BytesRef("*");
     static final long WILD_CARD_ID = -1;
     private final BytesRefHash bytesRefHash;
@@ -30,15 +33,15 @@ class CategorizationBytesRefHash implements Closeable {
         return bytesRefHash.get(id, new BytesRef());
     }
 
-    Long[] getIds(BytesRef[] tokens) {
-        Long[] ids = new Long[tokens.length];
+    long[] getIds(BytesRef[] tokens) {
+        long[] ids = new long[tokens.length];
         for (int i = 0; i < tokens.length; i++) {
             ids[i] = put(tokens[i]);
         }
         return ids;
     }
 
-    BytesRef[] getShallows(Long[] ids) {
+    BytesRef[] getShallows(long[] ids) {
         BytesRef[] tokens = new BytesRef[ids.length];
         for (int i = 0; i < tokens.length; i++) {
             tokens[i] = getShallow(ids[i]);
@@ -62,6 +65,9 @@ class CategorizationBytesRefHash implements Closeable {
         if (hash < 0) {
             return -1 - hash;
         } else {
+            if (hash > Integer.MAX_VALUE) {
+                logger.error("More than Integer.MAX_VALUE unique terms");
+            }
             return hash;
         }
     }

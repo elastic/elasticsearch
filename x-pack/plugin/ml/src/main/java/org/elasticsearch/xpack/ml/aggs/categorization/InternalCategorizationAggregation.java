@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -339,77 +340,84 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()));
-        CategorizationTokenTree categorizationTokenTree = new CategorizationTokenTree(maxChildren, maxDepth, similarityThreshold);
-        // TODO: Could we do a merge sort similar to terms?
-        //  It would require us returning partial reductions sorted by key, not by doc_count
-        // First, make sure we have all the counts for equal log groups
-        Map<BucketKey, DelayedCategorizationBucket> reduced = new HashMap<>();
-        for (InternalAggregation aggregation : aggregations) {
-            InternalCategorizationAggregation categorizationAggregation = (InternalCategorizationAggregation) aggregation;
-            for (Bucket bucket : categorizationAggregation.buckets) {
-                reduced.computeIfAbsent(bucket.key, key -> new DelayedCategorizationBucket(key, new ArrayList<>(1), 0L)).add(bucket);
-            }
-        }
-
-        for (DelayedCategorizationBucket bucket : reduced.values()) {
-            // Parse log line takes document count into account and merging on smallest groups
-            categorizationTokenTree.parseLogLine(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount);
-        }
-        // Collapse tiny groups together, this may result in new bucket keys for already known buckets
-        categorizationTokenTree.mergeSmallestChildren();
-        Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>();
-        for (DelayedCategorizationBucket delayedBucket : reduced.values()) {
-            TextCategorization group = categorizationTokenTree.parseLogLineConst(hash.getIds(delayedBucket.key.keyAsTokens()));
-            if (group == null) {
-                throw new AggregationExecutionException(
-                    "Unexpected null categorization group for bucket [" + delayedBucket.key.asString() + "]"
-                );
-            }
-            BytesRef[] categoryTokens = hash.getShallows(group.getCategorization());
-
-            BucketKey key = reduceContext.isFinalReduce() ?
-                BucketKey.withCollapsedWildcards(categoryTokens) :
-                new BucketKey(categoryTokens);
-            mergedBuckets.computeIfAbsent(key, k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L))
-                .add(delayedBucket);
-        }
-
-        final int size = reduceContext.isFinalReduce() == false ? mergedBuckets.size() : Math.min(requiredSize, mergedBuckets.size());
-        final PriorityQueue<Bucket> pq = new BucketCountPriorityQueue(size);
-        for (Map.Entry<BucketKey, DelayedCategorizationBucket> keyAndBuckets : mergedBuckets.entrySet()) {
-            final BucketKey key = keyAndBuckets.getKey();
-            DelayedCategorizationBucket bucket = keyAndBuckets.getValue();
-            Bucket newBucket = bucket.reduce(key, reduceContext);
-            if ((newBucket.docCount >= minDocCount) || reduceContext.isFinalReduce() == false) {
-                Bucket removed = pq.insertWithOverflow(newBucket);
-                if (removed == null) {
-                    reduceContext.consumeBucketsAndMaybeBreak(1);
-                } else {
-                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+        try (CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()))) {
+            CategorizationTokenTree categorizationTokenTree = new CategorizationTokenTree(maxChildren, maxDepth, similarityThreshold);
+            // TODO: Could we do a merge sort similar to terms?
+            //  It would require us returning partial reductions sorted by key, not by doc_count
+            // First, make sure we have all the counts for equal log groups
+            Map<BucketKey, DelayedCategorizationBucket> reduced = new HashMap<>();
+            for (InternalAggregation aggregation : aggregations) {
+                InternalCategorizationAggregation categorizationAggregation = (InternalCategorizationAggregation) aggregation;
+                for (Bucket bucket : categorizationAggregation.buckets) {
+                    reduced.computeIfAbsent(bucket.key, key -> new DelayedCategorizationBucket(key, new ArrayList<>(1), 0L)).add(bucket);
                 }
-            } else {
-                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(newBucket));
             }
+
+            reduced.values()
+                .stream()
+                .sorted(Comparator.comparing(DelayedCategorizationBucket::getDocCount).reversed())
+                .forEach(bucket ->
+                    // Parse log line takes document count into account and merging on smallest groups
+                    categorizationTokenTree.parseLogLine(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount)
+                );
+            categorizationTokenTree.mergeSmallestChildren();
+            Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>();
+            for (DelayedCategorizationBucket delayedBucket : reduced.values()) {
+                TextCategorization group = categorizationTokenTree.parseLogLineConst(hash.getIds(delayedBucket.key.keyAsTokens()));
+                if (group == null) {
+                    throw new AggregationExecutionException(
+                        "Unexpected null categorization group for bucket [" + delayedBucket.key.asString() + "]"
+                    );
+                }
+                BytesRef[] categoryTokens = hash.getShallows(group.getCategorization());
+
+                BucketKey key = reduceContext.isFinalReduce() ?
+                    BucketKey.withCollapsedWildcards(categoryTokens) :
+                    new BucketKey(categoryTokens);
+                mergedBuckets.computeIfAbsent(
+                        key,
+                        k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L)
+                    ).add(delayedBucket);
+            }
+
+            final int size = reduceContext.isFinalReduce() == false ? mergedBuckets.size() : Math.min(requiredSize, mergedBuckets.size());
+            final PriorityQueue<Bucket> pq = new BucketCountPriorityQueue(size);
+            for (Map.Entry<BucketKey, DelayedCategorizationBucket> keyAndBuckets : mergedBuckets.entrySet()) {
+                final BucketKey key = keyAndBuckets.getKey();
+                DelayedCategorizationBucket bucket = keyAndBuckets.getValue();
+                Bucket newBucket = bucket.reduce(key, reduceContext);
+                if ((newBucket.docCount >= minDocCount) || reduceContext.isFinalReduce() == false) {
+                    Bucket removed = pq.insertWithOverflow(newBucket);
+                    if (removed == null) {
+                        reduceContext.consumeBucketsAndMaybeBreak(1);
+                    } else {
+                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                    }
+                } else {
+                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(newBucket));
+                }
+            }
+            Bucket[] bucketList = new Bucket[pq.size()];
+            for (int i = pq.size() - 1; i >= 0; i--) {
+                bucketList[i] = pq.pop();
+            }
+            // Keep the top categories top, but then sort by the key for those with duplicate counts
+            if (reduceContext.isFinalReduce()) {
+                Arrays.sort(bucketList, Comparator.comparing(Bucket::getDocCount).reversed().thenComparing(Bucket::getRawKey));
+            }
+            return new InternalCategorizationAggregation(
+                name,
+                requiredSize,
+                minDocCount,
+                maxChildren,
+                maxDepth,
+                similarityThreshold,
+                metadata,
+                Arrays.asList(bucketList)
+            );
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
         }
-        Bucket[] bucketList = new Bucket[pq.size()];
-        for (int i = pq.size() - 1; i >= 0; i--) {
-            bucketList[i] = pq.pop();
-        }
-        // Keep the top categories top, but then sort by the key for those with duplicate counts
-        if (reduceContext.isFinalReduce()) {
-            Arrays.sort(bucketList, Comparator.comparing(Bucket::getDocCount).reversed().thenComparing(Bucket::getRawKey));
-        }
-        return new InternalCategorizationAggregation(
-            name,
-            requiredSize,
-            minDocCount,
-            maxChildren,
-            maxDepth,
-            similarityThreshold,
-            metadata,
-            Arrays.asList(bucketList)
-        );
     }
 
     @Override

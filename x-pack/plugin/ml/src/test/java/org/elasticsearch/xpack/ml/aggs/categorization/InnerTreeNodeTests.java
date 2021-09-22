@@ -18,7 +18,6 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash.WILD_CARD_ID;
 import static org.elasticsearch.xpack.ml.aggs.categorization.TextCategorizationTests.getTokens;
 import static org.elasticsearch.xpack.ml.aggs.categorization.TextCategorizationTests.mockBigArrays;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -40,42 +39,42 @@ public class InnerTreeNodeTests extends ESTestCase {
     public void testAddLog() {
         TreeNode.InnerTreeNode innerTreeNode = new TreeNode.InnerTreeNode(1, 0, 3);
         TextCategorization group = innerTreeNode.addLog(getTokens(bytesRefHash, "foo", "bar", "baz", "biz"), 1, factory);
-        assertThat(group.getCategorization(), arrayContaining(getTokens(bytesRefHash, "foo", "bar", "baz", "biz")));
+        assertArrayEquals(group.getCategorization(), getTokens(bytesRefHash, "foo", "bar", "baz", "biz"));
 
-        assertThat(
+        assertArrayEquals(
             innerTreeNode.addLog(getTokens(bytesRefHash, "foo2", "bar", "baz", "biz"), 1, factory).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "foo2", "bar", "baz", "biz"))
+            getTokens(bytesRefHash, "foo2", "bar", "baz", "biz")
         );
-        assertThat(
+        assertArrayEquals(
             innerTreeNode.addLog(getTokens(bytesRefHash, "foo3", "bar", "baz", "biz"), 1, factory).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "foo3", "bar", "baz", "biz"))
+            getTokens(bytesRefHash, "foo3", "bar", "baz", "biz")
         );
-        assertThat(
+        assertArrayEquals(
             innerTreeNode.addLog(getTokens(bytesRefHash, "foo4", "bar", "baz", "biz"), 1, factory).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "*", "bar", "baz", "biz"))
+            getTokens(bytesRefHash, "*", "bar", "baz", "biz")
         );
-        assertThat(
+        assertArrayEquals(
             innerTreeNode.addLog(getTokens(bytesRefHash, "foo", "bar", "baz", "bizzy"), 1, factory).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "foo", "bar", "baz", "*"))
+            getTokens(bytesRefHash, "foo", "bar", "baz", "*")
         );
     }
 
     public void testAddLogWithLargerIncoming() {
         TreeNode.InnerTreeNode innerTreeNode = new TreeNode.InnerTreeNode(1, 0, 3);
         TextCategorization group = innerTreeNode.addLog(getTokens(bytesRefHash, "foo", "bar", "baz", "biz"), 100, factory);
-        assertThat(group.getCategorization(), arrayContaining(getTokens(bytesRefHash, "foo", "bar", "baz", "biz")));
+        assertArrayEquals(group.getCategorization(), getTokens(bytesRefHash, "foo", "bar", "baz", "biz"));
 
-        assertThat(
+        assertArrayEquals(
             innerTreeNode.addLog(getTokens(bytesRefHash, "foo2", "bar", "baz", "biz"), 100, factory).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "foo2", "bar", "baz", "biz"))
+            getTokens(bytesRefHash, "foo2", "bar", "baz", "biz")
         );
-        assertThat(
+        assertArrayEquals(
             innerTreeNode.addLog(getTokens(bytesRefHash, "foosmall", "bar", "baz", "biz"), 1, factory).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "foosmall", "bar", "baz", "biz"))
+            getTokens(bytesRefHash, "foosmall", "bar", "baz", "biz")
         );
-        assertThat(
+        assertArrayEquals(
             innerTreeNode.addLog(getTokens(bytesRefHash, "foobigun", "bar", "baz", "biz"), 1000, factory).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "foobigun", "bar", "baz", "biz"))
+            getTokens(bytesRefHash, "foobigun", "bar", "baz", "biz")
         );
         assertThat(
             innerTreeNode.getLogGroup(getTokens(bytesRefHash, "foosmall", "bar", "baz", "biz")).getCategorization(),
@@ -86,16 +85,16 @@ public class InnerTreeNodeTests extends ESTestCase {
     public void testCollapseTinyChildren() {
         TreeNode.InnerTreeNode innerTreeNode = new TreeNode.InnerTreeNode(1000, 0, 4);
         TextCategorization group = innerTreeNode.addLog(getTokens(bytesRefHash, "foo", "bar", "baz", "biz"), 1000, factory);
-        assertThat(group.getCategorization(), arrayContaining(getTokens(bytesRefHash, "foo", "bar", "baz", "biz")));
+        assertArrayEquals(group.getCategorization(), getTokens(bytesRefHash, "foo", "bar", "baz", "biz"));
 
-        assertThat(
+        assertArrayEquals(
             innerTreeNode.addLog(getTokens(bytesRefHash, "foo2", "bar", "baz", "biz"), 1000, factory).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "foo2", "bar", "baz", "biz"))
+            getTokens(bytesRefHash, "foo2", "bar", "baz", "biz")
         );
         innerTreeNode.incCount(1000);
-        assertThat(
+        assertArrayEquals(
             innerTreeNode.addLog(getTokens(bytesRefHash, "foosmall", "bar", "baz", "biz"), 1, factory).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "foosmall", "bar", "baz", "biz"))
+            getTokens(bytesRefHash, "foosmall", "bar", "baz", "biz")
         );
         innerTreeNode.incCount(1);
         innerTreeNode.collapseTinyChildren();
@@ -111,7 +110,6 @@ public class InnerTreeNodeTests extends ESTestCase {
 
         expectThrows(UnsupportedOperationException.class, () -> innerTreeNode.mergeWith(new TreeNode.LeafTreeNode(1, 60)));
 
-
         TreeNode.InnerTreeNode mergeWith = new TreeNode.InnerTreeNode(1, 0, 3);
         innerTreeNode.addLog(getTokens(bytesRefHash, "foosmall", "bar", "baz", "biz"), 1, factory);
         innerTreeNode.incCount(1);
@@ -119,9 +117,9 @@ public class InnerTreeNodeTests extends ESTestCase {
 
         innerTreeNode.mergeWith(mergeWith);
         assertThat(innerTreeNode.hasChild(WILD_CARD_ID), is(true));
-        assertThat(
+        assertArrayEquals(
             innerTreeNode.getLogGroup(getTokens(bytesRefHash, "footiny", "bar", "baz", "biz")).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "*", "bar", "baz", "biz"))
+            getTokens(bytesRefHash, "*", "bar", "baz", "biz")
         );
     }
 }

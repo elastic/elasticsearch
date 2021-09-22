@@ -76,10 +76,10 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
 
     public List<InternalCategorizationAggregation.Bucket> toIntermediateBuckets(CategorizationBytesRefHash hash) {
         return root.values().stream().flatMap(c -> c.getAllChildrenLogGroups().stream()).map(lg -> {
-            Long[] categoryTokenIds = lg.getCategorization();
+            long[] categoryTokenIds = lg.getCategorization();
             BytesRef[] bytesRefs = new BytesRef[categoryTokenIds.length];
             for (int i = 0; i < categoryTokenIds.length; i++) {
-                bytesRefs[i] = hash.getShallow(categoryTokenIds[i]);
+                bytesRefs[i] = hash.getDeep(categoryTokenIds[i]);
             }
             InternalCategorizationAggregation.Bucket bucket = new InternalCategorizationAggregation.Bucket(
                 new InternalCategorizationAggregation.BucketKey(bytesRefs),
@@ -95,11 +95,11 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
         root.values().forEach(TreeNode::collapseTinyChildren);
     }
 
-    public TextCategorization parseLogLine(final Long[] logTokenIds) {
+    public TextCategorization parseLogLine(final long[] logTokenIds) {
         return parseLogLine(logTokenIds, 1);
     }
 
-    public TextCategorization parseLogLineConst(final Long[] logTokenIds) {
+    public TextCategorization parseLogLineConst(final long[] logTokenIds) {
         TreeNode currentNode = this.root.get(logTokenIds.length);
         if (currentNode == null) { // we are missing an entire sub tree. New log length found
             return null;
@@ -107,7 +107,7 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
         return currentNode.getLogGroup(logTokenIds);
     }
 
-    public TextCategorization parseLogLine(final Long[] logTokenIds, long docCount) {
+    public TextCategorization parseLogLine(final long[] logTokenIds, long docCount) {
         TreeNode currentNode = this.root.get(logTokenIds.length);
         if (currentNode == null) { // we are missing an entire sub tree. New log length found
             currentNode = newNode(docCount, 0, logTokenIds);
@@ -119,7 +119,7 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
     }
 
     @Override
-    public TreeNode newNode(long docCount, int tokenPos, Long[] logTokenIds) {
+    public TreeNode newNode(long docCount, int tokenPos, long[] logTokenIds) {
         TreeNode node = tokenPos < maxDepth - 1 && tokenPos < logTokenIds.length
             ? new TreeNode.InnerTreeNode(docCount, tokenPos, maxChildren)
             : new TreeNode.LeafTreeNode(docCount, similarityThreshold);
@@ -129,7 +129,7 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
     }
 
     @Override
-    public TextCategorization newGroup(long docCount, Long[] logTokenIds) {
+    public TextCategorization newGroup(long docCount, long[] logTokenIds) {
         TextCategorization group = new TextCategorization(logTokenIds, docCount, idGen.incrementAndGet());
         // Get the regular size bytes from the LogGroup and how much it costs to reference it
         sizeInBytes += group.ramBytesUsed() + RamUsageEstimator.NUM_BYTES_OBJECT_REF;

@@ -16,7 +16,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.ml.aggs.categorization.TextCategorizationTests.getTokens;
 import static org.elasticsearch.xpack.ml.aggs.categorization.TextCategorizationTests.mockBigArrays;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -41,21 +40,20 @@ public class LeafTreeNodeTests extends ESTestCase {
         TreeNode.LeafTreeNode leafTreeNode = new TreeNode.LeafTreeNode(0, 60);
         TextCategorization group = leafTreeNode.addLog(getTokens(bytesRefHash, "foo", "bar", "baz", "biz"), 1, factory);
 
-        assertThat(group.getCategorization(), arrayContaining(getTokens(bytesRefHash, "foo", "bar", "baz", "biz")));
+        assertArrayEquals(group.getCategorization(), getTokens(bytesRefHash, "foo", "bar", "baz", "biz"));
         assertThat(group.getCount(), equalTo(1L));
         assertThat(leafTreeNode.getAllChildrenLogGroups(), hasSize(1));
         long previousBytesUsed = leafTreeNode.ramBytesUsed();
 
         group = leafTreeNode.addLog(getTokens(bytesRefHash, "foo", "bar", "bozo", "bizzy"), 1, factory);
-        assertThat(group.getCategorization(), arrayContaining(getTokens(bytesRefHash, "foo", "bar", "bozo", "bizzy")));
+        assertArrayEquals(group.getCategorization(), getTokens(bytesRefHash, "foo", "bar", "bozo", "bizzy"));
         assertThat(group.getCount(), equalTo(1L));
         assertThat(leafTreeNode.getAllChildrenLogGroups(), hasSize(2));
         assertThat(leafTreeNode.ramBytesUsed(), greaterThan(previousBytesUsed));
         previousBytesUsed = leafTreeNode.ramBytesUsed();
 
-
         group = leafTreeNode.addLog(getTokens(bytesRefHash, "foo", "bar", "baz", "different"), 3, factory);
-        assertThat(group.getCategorization(), arrayContaining(getTokens(bytesRefHash, "foo", "bar", "baz", "*")));
+        assertArrayEquals(group.getCategorization(), getTokens(bytesRefHash, "foo", "bar", "baz", "*"));
         assertThat(group.getCount(), equalTo(4L));
         assertThat(leafTreeNode.getAllChildrenLogGroups(), hasSize(2));
         assertThat(previousBytesUsed, equalTo(leafTreeNode.ramBytesUsed()));
@@ -80,13 +78,13 @@ public class LeafTreeNodeTests extends ESTestCase {
 
         assertThat(leafTreeNode.getAllChildrenLogGroups(), hasSize(2));
         assertThat(leafTreeNode.getCount(), equalTo(7L));
-        assertThat(
+        assertArrayEquals(
             leafTreeNode.getAllChildrenLogGroups().get(0).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "foo", "bar", "baz", "*"))
+            getTokens(bytesRefHash, "foo", "bar", "baz", "*")
         );
-        assertThat(
+        assertArrayEquals(
             leafTreeNode.getAllChildrenLogGroups().get(1).getCategorization(),
-            arrayContaining(getTokens(bytesRefHash, "foo", "bart", "bat", "built"))
+            getTokens(bytesRefHash, "foo", "bart", "bat", "built")
         );
     }
 }

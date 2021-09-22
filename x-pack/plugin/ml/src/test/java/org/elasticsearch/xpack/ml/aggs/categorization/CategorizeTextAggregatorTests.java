@@ -178,8 +178,9 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(NUMERIC_FIELD_NAME)
                 .interval(2)
                 .subAggregation(
-                    new CategorizeTextAggregationBuilder("my_agg", TEXT_FIELD_NAME)
-                        .subAggregation(new MaxAggregationBuilder("max").field(NUMERIC_FIELD_NAME))
+                    new CategorizeTextAggregationBuilder("my_agg", TEXT_FIELD_NAME).subAggregation(
+                        new MaxAggregationBuilder("max").field(NUMERIC_FIELD_NAME)
+                    )
                         .subAggregation(new AvgAggregationBuilder("avg").field(NUMERIC_FIELD_NAME))
                         .subAggregation(new MinAggregationBuilder("min").field(NUMERIC_FIELD_NAME))
                 );

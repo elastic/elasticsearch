@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 
 
 interface TreeNodeFactory {
-    TreeNode newNode(long docCount, int tokenPos, Long[] logTokenIds);
+    TreeNode newNode(long docCount, int tokenPos, long[] logTokenIds);
 
-    TextCategorization newGroup(long docCount, Long[] logTokenIds);
+    TextCategorization newGroup(long docCount, long[] logTokenIds);
 }

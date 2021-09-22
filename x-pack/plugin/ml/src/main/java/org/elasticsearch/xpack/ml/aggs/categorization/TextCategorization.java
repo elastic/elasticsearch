@@ -23,14 +23,14 @@ class TextCategorization implements Accountable {
 
     private final long id;
     // TODO Do we want to just make this native arrays?
-    private final Long[] categorization;
+    private final long[] categorization;
     private final long[] tokenCounts;
     private long count;
 
     // Used at the shard level for tracking the bucket ordinal for collecting sub aggregations
     long bucketOrd;
 
-    TextCategorization(Long[] logTokenIds, long count, long id) {
+    TextCategorization(long[] logTokenIds, long count, long id) {
         this.id = id;
         this.categorization = logTokenIds;
         this.count = count;
@@ -42,7 +42,7 @@ class TextCategorization implements Accountable {
         return id;
     }
 
-    Long[] getCategorization() {
+    long[] getCategorization() {
         return categorization;
     }
 
@@ -50,16 +50,16 @@ class TextCategorization implements Accountable {
         return count;
     }
 
-    Similarity calculateSimilarity(Long[] logEvent) {
+    Similarity calculateSimilarity(long[] logEvent) {
         assert logEvent.length == this.categorization.length;
         int eqParams = 0;
         long tokenCount = 0;
         long tokensKept = 0;
         for (int i = 0; i < logEvent.length; i++) {
-            if (logEvent[i].equals(this.categorization[i])) {
+            if (logEvent[i] == this.categorization[i]) {
                 tokensKept += tokenCounts[i];
                 tokenCount += tokenCounts[i];
-            } else if (this.categorization[i].equals(WILD_CARD_ID)) {
+            } else if (this.categorization[i] == WILD_CARD_ID) {
                 eqParams++;
             } else {
                 tokenCount += tokenCounts[i];
@@ -68,10 +68,10 @@ class TextCategorization implements Accountable {
         return new Similarity((double) tokensKept / tokenCount, eqParams);
     }
 
-    void addLog(Long[] logEvent, long docCount) {
+    void addLog(long[] logEvent, long docCount) {
         assert logEvent.length == this.categorization.length;
         for (int i = 0; i < logEvent.length; i++) {
-            if (logEvent[i].equals(this.categorization[i]) == false) {
+            if (logEvent[i] != this.categorization[i]) {
                 this.categorization[i] = WILD_CARD_ID;
             } else {
                 tokenCounts[i] += docCount;
@@ -84,7 +84,7 @@ class TextCategorization implements Accountable {
     public long ramBytesUsed() {
         return Long.BYTES // id
             + RamUsageEstimator.NUM_BYTES_OBJECT_REF // categorization reference
-            + RamUsageEstimator.shallowSizeOf(categorization) // categorization we don't deep copy the token ids
+            + RamUsageEstimator.sizeOf(categorization) // categorization token Ids
             + RamUsageEstimator.NUM_BYTES_OBJECT_REF // tokenCounts reference
             + RamUsageEstimator.sizeOf(tokenCounts) // tokenCounts
             + Long.BYTES; // count

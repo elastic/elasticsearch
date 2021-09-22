@@ -170,6 +170,7 @@ public class RestVectorTileAction extends BaseRestHandler {
         final SearchRequestBuilder searchRequestBuilder = client.prepareSearch(request.getIndexes());
         searchRequestBuilder.setSize(request.getSize());
         searchRequestBuilder.setFetchSource(false);
+        searchRequestBuilder.setTrackTotalHitsUpTo(request.getTrackTotalHitsUpTo());
         searchRequestBuilder.addFetchField(
             new FieldAndFormat(
                 request.getField(),

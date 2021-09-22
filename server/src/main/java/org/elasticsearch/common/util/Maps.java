@@ -81,12 +81,27 @@ public class Maps {
      * @param <V>   the type of the values in the map
      * @return an immutable map that contains the items from the specified map with the provided key removed
      */
+    @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> copyMapWithRemovedEntry(final Map<K, V> map, final K key) {
         Objects.requireNonNull(map);
         Objects.requireNonNull(key);
         assert checkIsImmutableMap(map, key, map.get(key));
-        return map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false)
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        if (map.containsKey(key) == false) {
+            return map;
+        }
+        final int size = map.size();
+        if (size == 1) {
+            return Map.of();
+        }
+        @SuppressWarnings("rawtypes")
+        final Map.Entry<K, V>[] entries = new Map.Entry[size - 1];
+        int i = 0;
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            if (key.equals(entry.getKey()) == false) {
+                entries[i++] = entry;
+            }
+        }
+        return Map.ofEntries(entries);
     }
 
     // map classes that are known to be immutable, used to speed up immutability check in #assertImmutableMap
@@ -154,7 +169,6 @@ public class Maps {
      * @param map - input to be flattened
      * @param flattenArrays - if false, arrays will be ignored
      * @param ordered - if true the resulted map will be sorted
-     * @return
      */
     public static Map<String, Object> flatten(Map<String, Object> map, boolean flattenArrays, boolean ordered) {
         return flatten(map, flattenArrays, ordered, null);

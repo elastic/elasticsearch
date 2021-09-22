@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static java.util.stream.Collectors.toMap;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -188,6 +189,16 @@ public class MapsTests extends ESTestCase {
         for (Map.Entry<String, Object> entry : flatten.entrySet()) {
             assertThat(entry.getKey(), entry.getValue(), equalTo(deepGet(entry.getKey(), map)));
         }
+    }
+
+    public void testCopyMapWithAddedOrReplacedEntry() {
+        final Map<String, String> start = Map.of("foo", "bar", "blub", "bla");
+        final Map<String, String> removeMissing = Maps.copyMapWithRemovedEntry(start, "missing");
+        assertSame(start, removeMissing);
+        final Map<String, String> removeFoo = Maps.copyMapWithRemovedEntry(start, "foo");
+        assertThat(removeFoo, equalTo(Map.of("blub", "bla")));
+        final Map<String, String> removeBlub = Maps.copyMapWithRemovedEntry(removeFoo, "blub");
+        assertThat(removeBlub, anEmptyMap());
     }
 
     @SuppressWarnings("unchecked")

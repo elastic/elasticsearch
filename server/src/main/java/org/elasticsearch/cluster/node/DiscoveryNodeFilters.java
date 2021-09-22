@@ -14,13 +14,13 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 public class DiscoveryNodeFilters {
 
@@ -82,6 +82,8 @@ public class DiscoveryNodeFilters {
         return false;
     }
 
+    private static final String TIER_PREFERENCE = "_tier_preference";
+
     /**
      * Removes any filters that should not be considered, returning a new
      * {@link DiscoveryNodeFilters} object. If the filtered object has no
@@ -92,20 +94,13 @@ public class DiscoveryNodeFilters {
         if (original == null) {
             return null;
         }
-
-        Map<String, String[]> newFilters = original.filters.entrySet().stream()
-            // Remove all entries that use "_tier_preference", as these will be handled elsewhere
-            .filter(entry -> {
-                String attr = entry.getKey();
-                return attr != null && attr.equals("_tier_preference") == false;
-            })
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        if (newFilters.size() == 0) {
-            return null;
-        } else {
-            return new DiscoveryNodeFilters(original.opType, newFilters);
+        if (original.filters.containsKey(TIER_PREFERENCE)) {
+            if (original.filters.size() == 1) {
+                return null;
+            }
+            return new DiscoveryNodeFilters(original.opType, Maps.copyMapWithRemovedEntry(original.filters, TIER_PREFERENCE));
         }
+        return original;
     }
 
     public boolean match(DiscoveryNode node) {

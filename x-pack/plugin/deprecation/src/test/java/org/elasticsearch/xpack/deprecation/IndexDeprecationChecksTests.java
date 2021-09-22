@@ -626,4 +626,32 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     "[strategy] in field [location]]]", false, null)
         ));
     }
+
+    public void testAdjacencyMatrixSetting() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        settings.put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), 5);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        assertThat(
+            issues,
+            contains(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "[index.max_adjacency_matrix_filters] setting will be ignored in 8.0. "
+                        + "Use [indices.query.bool.max_clause_count] instead.",
+                    "https://ela.st/es-deprecation-7-adjacency-matrix-filters-setting",
+                    "the setting [index.max_adjacency_matrix_filters] is currently set to [5], remove this setting",
+                    false,
+                    null
+                )
+            )
+        );
+
+        String warningTemplate = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! "
+            + "See the breaking changes documentation for the next major version.";
+        String[] expectedWarnings = {
+            String.format(Locale.ROOT, warningTemplate, IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()) };
+
+        assertWarnings(expectedWarnings);
+    }
 }

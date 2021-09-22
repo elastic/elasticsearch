@@ -8,10 +8,12 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +37,11 @@ public class RestGetFeatureUpgradeStatusAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
 
-        return restChannel -> client.execute(null, new GetFeatureUpgradeStatusRequest());
+        final GetFeatureUpgradeStatusRequest req = new GetFeatureUpgradeStatusRequest();
+        req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
+
+        return restChannel -> {
+            client.execute(GetFeatureUpgradeStatusAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
+        };
     }
 }

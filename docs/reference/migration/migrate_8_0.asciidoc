@@ -22,6 +22,7 @@ coming[8.0.0]
 * <<breaking_80_http_changes>>
 * <<breaking_80_ilm_changes>>
 * <<breaking_80_indices_changes>>
+* <<breaking_80_ingest_changes>>
 * <<breaking_80_java_changes>>
 * <<breaking_80_mappings_changes>>
 * <<breaking_80_network_changes>>
@@ -98,6 +99,7 @@ include::migrate_8_0/eql.asciidoc[]
 include::migrate_8_0/http.asciidoc[]
 include::migrate_8_0/ilm.asciidoc[]
 include::migrate_8_0/indices.asciidoc[]
+include::migrate_8_0/ingest.asciidoc[]
 include::migrate_8_0/java.asciidoc[]
 include::migrate_8_0/mappings.asciidoc[]
 include::migrate_8_0/network.asciidoc[]

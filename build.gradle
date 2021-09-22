@@ -369,6 +369,7 @@ tasks.register("branchConsistency") {
 }
 
 tasks.named("wrapper").configure {
+  dependsOn gradle.includedBuild('example-plugins').task(':wrapper')
   distributionType = 'ALL'
   doLast {
     final DistributionLocator locator = new DistributionLocator()

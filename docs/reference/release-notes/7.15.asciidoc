@@ -3,8 +3,6 @@
 
 Also see <<breaking-changes-7.15,Breaking changes in 7.15>>.
 
-coming::[7.15.0]
-
 [[breaking-7.15.0]]
 [float]
 === Breaking changes

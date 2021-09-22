@@ -15,20 +15,20 @@ that have to be upgraded before a cluster can be migrated to the next major vers
 and to trigger an automated system upgrade that might potentially involve downtime for
 {es} system features.
 
-[[migration-api-request]]
+[[feature-upgrade-api-request]]
 ==== {api-request-title}
 
 `GET /_migration/deprecations` +
 
 `GET /<target>/_migration/deprecations`
 
-[[migration-api-prereqs]]
+[[feature-upgrade-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API. (TODO: true?)
 
-[[migration-api-example]]
+[[feature-upgrade-api-example]]
 ==== {api-examples-title}
 
 To see the list of system features needing upgrades, submit a GET request to the

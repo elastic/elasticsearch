@@ -108,7 +108,7 @@ public class KeyStoreWrapper implements SecureSettings {
     public static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
-    static final int FORMAT_VERSION = 4;
+    public static final int FORMAT_VERSION = 4;
 
     /** The oldest metadata format version that can be read. */
     private static final int MIN_FORMAT_VERSION = 1;
@@ -668,7 +668,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * Set a file setting.
      */
-    synchronized void setFile(String setting, byte[] bytes) {
+    public synchronized void setFile(String setting, byte[] bytes) {
         ensureOpen();
         validateSettingName(setting);
 
@@ -681,7 +681,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * Remove the given setting from the keystore.
      */
-    void remove(String setting) {
+    public void remove(String setting) {
         ensureOpen();
         Entry oldEntry = entries.get().remove(setting);
         if (oldEntry != null) {

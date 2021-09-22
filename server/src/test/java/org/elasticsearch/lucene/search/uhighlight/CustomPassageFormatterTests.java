@@ -10,9 +10,7 @@ package org.elasticsearch.lucene.search.uhighlight;
 
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
-import org.apache.lucene.search.uhighlight.CustomPassageFormatter;
 import org.apache.lucene.search.uhighlight.Passage;
-import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 

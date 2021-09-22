@@ -1,0 +1,21 @@
+[discrete]
+[[breaking_80_ingest_changes]]
+==== Ingest pipeline changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+.The `user_agent` ingest processor's `ecs` parameter has no effect.
+[%collapsible]
+====
+*Details* +
+In 7.2, we deprecated the `ecs` parameter for the `user_agent` ingest processor.
+In 8.x, the `user_agent` ingest processor will only return {ecs-ref}[Elastic
+Common Schema (ECS)] fields, regardless of the `ecs` value.
+
+*Impact* +
+To avoid deprecation warnings, remove the parameter from your ingest pipelines.
+If a pipeline specifies an `ecs` value, the value is ignored.
+====
+//end::notable-breaking-changes[]

@@ -85,6 +85,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore.SERVICE_ACCOUNT_TOKEN_DOC_TYPE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
@@ -191,7 +192,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final PlainActionFuture<CreateServiceAccountTokenResponse> future1 = new PlainActionFuture<>();
         store.createToken(authentication, request, future1);
         final BulkRequest bulkRequest = (BulkRequest) requestHolder.get();
-        assertThat(bulkRequest.requests().size(), equalTo(1));
+        assertThat(bulkRequest.requests(), hasSize(1));
         final IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
         final Map<String, Object> sourceMap = indexRequest.sourceAsMap();
         assertThat(sourceMap.get("username"), equalTo("elastic/fleet-server"));

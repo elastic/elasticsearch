@@ -179,7 +179,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             assertThat(input.getFilePointer(), is(0L));
             input.seek(input.length() - 8); // one long is the checksum... 8 bytes
             checksumAfterCorruption = input.getChecksum();
-            actualChecksumAfterCorruption = input.readLong();
+            actualChecksumAfterCorruption = CodecUtil.readBELong(input);
         }
         StringBuilder msg = new StringBuilder();
         msg.append("Checksum before: [").append(checksumBeforeCorruption).append("]");

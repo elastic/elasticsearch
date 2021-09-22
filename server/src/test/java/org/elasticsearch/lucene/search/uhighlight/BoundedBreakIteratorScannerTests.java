@@ -8,7 +8,6 @@
 
 package org.elasticsearch.lucene.search.uhighlight;
 
-import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.BreakIterator;

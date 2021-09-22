@@ -129,7 +129,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (randomBoolean()) {
             update.setAllowLazyOpen(randomBoolean());
         }
-        if (useInternalParser && randomBoolean()) {
+        if (useInternalParser && randomBoolean() && (job == null || job.isDeleting() == false)) {
             update.setBlocked(BlockedTests.createRandom());
         }
 

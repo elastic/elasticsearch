@@ -368,6 +368,86 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         );
     }
 
+    public void testAddRemoveAllocationNodesPrioritizesAllocationsWithFewerNodes() {
+        ClusterState currentState = ClusterState.builder(new ClusterName("testAddRemoveAllocationNodes"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes()))
+                    .add(buildNode("new-ml-node-with-just-enough-room", true, ByteSizeValue.ofGb(8).getBytes()))
+                    .add(buildNode("ml-node-without-room", true, 1000L))
+                    .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes()))
+                    .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes()))
+                    .add(buildOldNode("old-versioned-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes()))
+                    .build()
+            )
+            .metadata(
+                Metadata.builder()
+                    .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down"))
+                    .putCustom(
+                        TrainedModelAllocationMetadata.NAME,
+                        TrainedModelAllocationMetadata.Builder.empty()
+                            .addNewAllocation(
+                                "model-1",
+                                TrainedModelAllocation.Builder.empty(newParams("model-1", ByteSizeValue.ofGb(1).getBytes()))
+                                    .addNewRoutingEntry("ml-node-with-room")
+                                    .updateExistingRoutingEntry("ml-node-with-room", started())
+                                    .addNewRoutingEntry("old-ml-node-with-room")
+                                    .updateExistingRoutingEntry("old-ml-node-with-room", started())
+                                    .addNewRoutingEntry("ml-node-shutting-down")
+                            )
+                            .addNewAllocation(
+                                "model-2",
+                                TrainedModelAllocation.Builder.empty(newParams("model-2", ByteSizeValue.ofGb(1).getBytes()))
+                                    .addNewRoutingEntry("ml-node-with-room")
+                            ).addNewAllocation(
+                                "model-3",
+                                TrainedModelAllocation.Builder.empty(newParams("model-3", ByteSizeValue.ofGb(1).getBytes()))
+                            )
+                            .build()
+                    )
+            )
+            .build();
+        TrainedModelAllocationClusterService trainedModelAllocationClusterService = createClusterService();
+
+        ClusterState modified = trainedModelAllocationClusterService.addRemoveAllocationNodes(currentState);
+        TrainedModelAllocationMetadata trainedModelAllocationMetadata = TrainedModelAllocationMetadata.fromState(modified);
+        assertThat(trainedModelAllocationMetadata.modelAllocations(), allOf(hasKey("model-1"), hasKey("model-2"), hasKey("model-3")));
+
+        assertThat(trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable().keySet(), hasSize(1));
+        assertThat(
+            trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable(),
+            allOf(hasKey("ml-node-with-room"))
+        );
+        assertNodeState(trainedModelAllocationMetadata, "model-1", "ml-node-with-room", RoutingState.STARTED);
+        assertThat(
+            trainedModelAllocationMetadata.modelAllocations().get("model-1").getAllocationState(),
+            equalTo(AllocationState.STARTED)
+        );
+
+        assertThat(trainedModelAllocationMetadata.getModelAllocation("model-2").getNodeRoutingTable().keySet(), hasSize(1));
+        assertThat(
+            trainedModelAllocationMetadata.getModelAllocation("model-2").getNodeRoutingTable(),
+            allOf(hasKey("ml-node-with-room"))
+        );
+        assertNodeState(trainedModelAllocationMetadata, "model-2", "ml-node-with-room", RoutingState.STARTING);
+        assertThat(
+            trainedModelAllocationMetadata.modelAllocations().get("model-2").getAllocationState(),
+            equalTo(AllocationState.STARTING)
+        );
+
+        assertThat(trainedModelAllocationMetadata.getModelAllocation("model-3").getNodeRoutingTable().keySet(), hasSize(1));
+        assertThat(
+            trainedModelAllocationMetadata.getModelAllocation("model-3").getNodeRoutingTable(),
+            allOf(hasKey("new-ml-node-with-just-enough-room"))
+        );
+        assertNodeState(trainedModelAllocationMetadata, "model-3", "new-ml-node-with-just-enough-room", RoutingState.STARTING);
+        assertThat(
+            trainedModelAllocationMetadata.modelAllocations().get("model-3").getAllocationState(),
+            equalTo(AllocationState.STARTING)
+        );
+    }
+
+
     public void testShouldAllocateModels() {
         String model1 = "model-1";
         String model2 = "model-2";

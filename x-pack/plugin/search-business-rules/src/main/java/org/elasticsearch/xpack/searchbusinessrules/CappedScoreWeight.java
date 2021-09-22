@@ -5,10 +5,9 @@
  * 2.0.
  */
 
-package org.apache.lucene.search;
+package org.elasticsearch.xpack.searchbusinessrules;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 
 import java.io.IOException;
 import java.util.Set;

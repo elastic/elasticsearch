@@ -4,13 +4,29 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.apache.lucene.search;
+package org.elasticsearch.xpack.searchbusinessrules;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FilterLeafCollector;
+import org.apache.lucene.search.FilterScorable;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Matches;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 
 /**

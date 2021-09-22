@@ -283,11 +283,6 @@ tasks.named('splitPackagesAudit').configure {
     'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
     'org.apache.lucene.search.grouping.CollapsingDocValuesSource',
     'org.apache.lucene.search.grouping.CollapsingTopDocsCollector',
-    'org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner',
-    'org.apache.lucene.search.uhighlight.CustomFieldHighlighter',
-    'org.apache.lucene.search.uhighlight.CustomPassageFormatter',
-    'org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter',
-    'org.apache.lucene.search.uhighlight.Snippet',
     'org.apache.lucene.util.CombinedBitSet',
     'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
 

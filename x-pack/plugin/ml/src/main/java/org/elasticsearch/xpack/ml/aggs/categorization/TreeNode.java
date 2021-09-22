@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
@@ -28,7 +26,7 @@ import java.util.stream.Collectors;
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
 import static org.apache.lucene.util.RamUsageEstimator.sizeOfMap;
-import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationTokenTree.WILD_CARD;
+import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash.WILD_CARD_ID;
 
 /**
  * Tree node classes for the categorization token tree.
@@ -60,9 +58,9 @@ abstract class TreeNode implements Accountable {
     }
 
     // TODO add option for calculating the cost of adding the new group
-    abstract TextCategorization addLog(BytesRef[] logTokens, long docCount, TreeNodeFactory treeNodeFactory);
+    abstract TextCategorization addLog(Long[] logTokenIds, long docCount, TreeNodeFactory treeNodeFactory);
 
-    abstract TextCategorization getLogGroup(BytesRef[] logTokens);
+    abstract TextCategorization getLogGroup(Long[] logTokens);
 
     abstract List<TextCategorization> getAllChildrenLogGroups();
 
@@ -113,12 +111,10 @@ abstract class TreeNode implements Accountable {
         }
 
         @Override
-        public TextCategorization addLog(BytesRef[] logTokens, long docCount, TreeNodeFactory treeNodeFactory) {
-            return getAndUpdateLogGroup(logTokens, docCount).orElseGet(() -> {
+        public TextCategorization addLog(Long[] logTokenIds, long docCount, TreeNodeFactory treeNodeFactory) {
+            return getAndUpdateLogGroup(logTokenIds, docCount).orElseGet(() -> {
                 // Need to update the tree if possible
-                TextCategorization group = treeNodeFactory.newGroup(docCount, logTokens);
-                LOGGER.trace(() -> new ParameterizedMessage("created group! [{}]", group));
-                return putNewLogGroup(group);
+                return putNewLogGroup(treeNodeFactory.newGroup(docCount, logTokenIds));
             });
         }
 
@@ -130,10 +126,10 @@ abstract class TreeNode implements Accountable {
         @Override
         void collapseTinyChildren() {}
 
-        private Optional<TextCategorization> getAndUpdateLogGroup(BytesRef[] logTokens, long docCount) {
-            return getBestLogGroup(logTokens).map(bestGroupAndSimilarity -> {
+        private Optional<TextCategorization> getAndUpdateLogGroup(Long[] logTokenIds, long docCount) {
+            return getBestLogGroup(logTokenIds).map(bestGroupAndSimilarity -> {
                 if ((bestGroupAndSimilarity.v2() * 100) >= similarityThreshold) {
-                    bestGroupAndSimilarity.v1().addLog(logTokens, docCount);
+                    bestGroupAndSimilarity.v1().addLog(logTokenIds, docCount);
                     return bestGroupAndSimilarity.v1();
                 }
                 return null;
@@ -145,19 +141,19 @@ abstract class TreeNode implements Accountable {
             return group;
         }
 
-        private Optional<Tuple<TextCategorization, Double>> getBestLogGroup(BytesRef[] logTokens) {
+        private Optional<Tuple<TextCategorization, Double>> getBestLogGroup(Long[] logTokenIds) {
             if (textCategorizations.isEmpty()) {
                 return Optional.empty();
             }
             if (textCategorizations.size() == 1) {
                 return Optional.of(
-                    new Tuple<>(textCategorizations.get(0), textCategorizations.get(0).calculateSimilarity(logTokens).getSimilarity())
+                    new Tuple<>(textCategorizations.get(0), textCategorizations.get(0).calculateSimilarity(logTokenIds).getSimilarity())
                 );
             }
             TextCategorization.Similarity maxSimilarity = null;
             TextCategorization bestGroup = null;
             for (TextCategorization textCategorization : this.textCategorizations) {
-                TextCategorization.Similarity groupSimilarity = textCategorization.calculateSimilarity(logTokens);
+                TextCategorization.Similarity groupSimilarity = textCategorization.calculateSimilarity(logTokenIds);
                 if (maxSimilarity == null || groupSimilarity.compareTo(maxSimilarity) > 0) {
                     maxSimilarity = groupSimilarity;
                     bestGroup = textCategorization;
@@ -167,8 +163,8 @@ abstract class TreeNode implements Accountable {
         }
 
         @Override
-        public TextCategorization getLogGroup(final BytesRef[] logTokens) {
-            return getBestLogGroup(logTokens).map(Tuple::v1).orElse(null);
+        public TextCategorization getLogGroup(final Long[] logTokenIds) {
+            return getBestLogGroup(logTokenIds).map(Tuple::v1).orElse(null);
         }
 
         @Override
@@ -188,10 +184,11 @@ abstract class TreeNode implements Accountable {
 
     static class InnerTreeNode extends TreeNode {
 
-        private final Map<BytesRef, TreeNode> children;
+        // TODO: Change to LongObjectMap?
+        private final Map<Long, TreeNode> children;
         private final int childrenTokenPos;
         private final int maxChildren;
-        private final PriorityQueue<Tuple<BytesRef, Long>> smallestChild;
+        private final PriorityQueue<Tuple<Long, Long>> smallestChild;
 
         InnerTreeNode(long count, int childrenTokenPos, int maxChildren) {
             super(count);
@@ -206,9 +203,9 @@ abstract class TreeNode implements Accountable {
         }
 
         @Override
-        public TextCategorization getLogGroup(final BytesRef[] logTokens) {
-            return getChild(logTokens[childrenTokenPos]).or(() -> getChild(WILD_CARD))
-                .map(node -> node.getLogGroup(logTokens))
+        public TextCategorization getLogGroup(final Long[] logTokenIds) {
+            return getChild(logTokenIds[childrenTokenPos]).or(() -> getChild(WILD_CARD_ID))
+                .map(node -> node.getLogGroup(logTokenIds))
                 .orElse(null);
         }
 
@@ -219,14 +216,14 @@ abstract class TreeNode implements Accountable {
                 + Integer.BYTES // childrenTokenPos
                 + Integer.BYTES // maxChildren
                 + NUM_BYTES_OBJECT_REF // smallestChildReference
-                + sizeOfMap(children, 0)
+                + sizeOfMap(children, NUM_BYTES_OBJECT_REF) // children,
                 // Number of items in the queue, reference to tuple, and then the tuple references
                 + (long) smallestChild.size() * (NUM_BYTES_OBJECT_REF + NUM_BYTES_OBJECT_REF + NUM_BYTES_OBJECT_REF + Long.BYTES);
         }
 
         @Override
-        public TextCategorization addLog(final BytesRef[] logTokens, final long docCount, final TreeNodeFactory treeNodeFactory) {
-            BytesRef currentToken = logTokens[childrenTokenPos];
+        public TextCategorization addLog(final Long[] logTokenIds, final long docCount, final TreeNodeFactory treeNodeFactory) {
+            Long currentToken = logTokenIds[childrenTokenPos];
             TreeNode child = getChild(currentToken).map(node -> {
                 node.incCount(docCount);
                 if (smallestChild.isEmpty() == false && smallestChild.peek().v1().equals(currentToken)) {
@@ -234,20 +231,10 @@ abstract class TreeNode implements Accountable {
                 }
                 return node;
             }).orElseGet(() -> {
-                if (docCount > 1) {
-                    LOGGER.trace(
-                        () -> new ParameterizedMessage(
-                            "got a token [{}] with doc_count [{}] percentage [{}]",
-                            logTokens[childrenTokenPos].utf8ToString(),
-                            docCount,
-                            (double) docCount / docCount
-                        )
-                    );
-                }
-                TreeNode newNode = treeNodeFactory.newNode(docCount, childrenTokenPos + 1, logTokens);
+                TreeNode newNode = treeNodeFactory.newNode(docCount, childrenTokenPos + 1, logTokenIds);
                 return addChild(currentToken, newNode);
             });
-            return child.addLog(logTokens, docCount, treeNodeFactory);
+            return child.addLog(logTokenIds, docCount, treeNodeFactory);
         }
 
         @Override
@@ -258,16 +245,16 @@ abstract class TreeNode implements Accountable {
             if (children.size() <= 1) {
                 return;
             }
-            Optional<TreeNode> maybeWildChild = getChild(WILD_CARD).or(() -> {
+            Optional<TreeNode> maybeWildChild = getChild(WILD_CARD_ID).or(() -> {
                 if ((double) smallestChild.peek().v2() / this.getCount() <= 1.0 / maxChildren) {
                     TreeNode tinyChild = children.remove(smallestChild.poll().v1());
-                    return Optional.of(addChild(WILD_CARD, tinyChild));
+                    return Optional.of(addChild(WILD_CARD_ID, tinyChild));
                 }
                 return Optional.empty();
             });
             if (maybeWildChild.isPresent()) {
                 TreeNode wildChild = maybeWildChild.get();
-                Tuple<BytesRef, Long> tinyNode;
+                Tuple<Long, Long> tinyNode;
                 while ((tinyNode = smallestChild.poll()) != null) {
                     // If we have no more tiny nodes, stop iterating over them
                     if ((double) tinyNode.v2() / this.getCount() > 1.0 / maxChildren) {
@@ -293,24 +280,24 @@ abstract class TreeNode implements Accountable {
                 );
             }
             InnerTreeNode innerTreeNode = (InnerTreeNode) treeNode;
-            TreeNode siblingWildChild = innerTreeNode.children.remove(WILD_CARD);
-            addChild(WILD_CARD, siblingWildChild);
-            Tuple<BytesRef, Long> siblingChild;
+            TreeNode siblingWildChild = innerTreeNode.children.remove(WILD_CARD_ID);
+            addChild(WILD_CARD_ID, siblingWildChild);
+            Tuple<Long, Long> siblingChild;
             while ((siblingChild = innerTreeNode.smallestChild.poll()) != null) {
                 TreeNode nephewNode = innerTreeNode.children.remove(siblingChild.v1());
                 addChild(siblingChild.v1(), nephewNode);
             }
         }
 
-        private TreeNode addChild(BytesRef token, TreeNode node) {
-            if (node == null || token == null) {
+        private TreeNode addChild(Long tokenId, TreeNode node) {
+            if (node == null || tokenId == null) {
                 return null;
             }
-            Optional<TreeNode> existingChild = getChild(token).map(existingNode -> {
+            Optional<TreeNode> existingChild = getChild(tokenId).map(existingNode -> {
                 existingNode.mergeWith(node);
-                if (smallestChild.isEmpty() == false && smallestChild.peek().v1().equals(token)) {
+                if (smallestChild.isEmpty() == false && smallestChild.peek().v1().equals(tokenId)) {
                     smallestChild.poll();
-                    smallestChild.add(Tuple.tuple(token, existingNode.getCount()));
+                    smallestChild.add(Tuple.tuple(tokenId, existingNode.getCount()));
                 }
                 return existingNode;
             });
@@ -318,12 +305,12 @@ abstract class TreeNode implements Accountable {
                 return existingChild.get();
             }
             if (children.size() == maxChildren) {
-                return getChild(WILD_CARD).map(wildChild -> {
+                return getChild(WILD_CARD_ID).map(wildChild -> {
                     final TreeNode toMerge;
                     final TreeNode toReturn;
                     if (smallestChild.isEmpty() == false && node.getCount() > smallestChild.peek().v2()) {
                         toMerge = children.remove(smallestChild.poll().v1());
-                        addChildAndUpdateSmallest(token, node);
+                        addChildAndUpdateSmallest(tokenId, node);
                         toReturn = node;
                     } else {
                         toMerge = node;
@@ -336,44 +323,43 @@ abstract class TreeNode implements Accountable {
             // we are about to hit the limit, add a wild card if we need to and then add the new child as appropriate
             if (children.size() == maxChildren - 1) {
                 // If we already have a wild token, simply adding the new token is acceptable as we won't breach our limit
-                if (children.containsKey(WILD_CARD)) {
-                    addChildAndUpdateSmallest(token, node);
+                if (children.containsKey(WILD_CARD_ID)) {
+                    addChildAndUpdateSmallest(tokenId, node);
                 } else { // if we don't have a wild card child, we need to add one now
-                    if (token.equals(WILD_CARD)) {
-                        addChildAndUpdateSmallest(token, node);
+                    if (tokenId.equals(WILD_CARD_ID)) {
+                        addChildAndUpdateSmallest(tokenId, node);
                     } else {
                         if (smallestChild.isEmpty() == false && node.count > smallestChild.peek().v2()) {
-                            addChildAndUpdateSmallest(WILD_CARD, children.remove(smallestChild.poll().v1()));
-                            addChildAndUpdateSmallest(token, node);
+                            addChildAndUpdateSmallest(WILD_CARD_ID, children.remove(smallestChild.poll().v1()));
+                            addChildAndUpdateSmallest(tokenId, node);
                         } else {
-                            addChildAndUpdateSmallest(WILD_CARD, node);
+                            addChildAndUpdateSmallest(WILD_CARD_ID, node);
                         }
                     }
                 }
             } else {
-                addChildAndUpdateSmallest(token, node);
+                addChildAndUpdateSmallest(tokenId, node);
             }
             return node;
         }
 
-        private void addChildAndUpdateSmallest(BytesRef token, TreeNode node) {
-            children.put(token, node);
-            if (token.equals(WILD_CARD) == false) {
-                smallestChild.add(Tuple.tuple(token, node.count));
+        private void addChildAndUpdateSmallest(Long tokenId, TreeNode node) {
+            children.put(tokenId, node);
+            if (tokenId.equals(WILD_CARD_ID) == false) {
+                smallestChild.add(Tuple.tuple(tokenId, node.count));
             }
         }
 
-        private Optional<TreeNode> getChild(BytesRef token) {
-            TreeNode node = children.get(token);
-            return node == null ? Optional.empty() : Optional.of(node);
+        private Optional<TreeNode> getChild(Long tokenId) {
+            return Optional.ofNullable(children.get(tokenId));
         }
 
         public List<TextCategorization> getAllChildrenLogGroups() {
             return children.values().stream().flatMap(c -> c.getAllChildrenLogGroups().stream()).collect(Collectors.toList());
         }
 
-        boolean hasChild(BytesRef value) {
-            return children.containsKey(value);
+        boolean hasChild(Long tokenId) {
+            return children.containsKey(tokenId);
         }
 
         @Override

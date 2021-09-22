@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -49,6 +50,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     private final int maxDepth;
     private final int similarityThreshold;
     private final LongKeyedBucketOrds bucketOrds;
+    private final CategorizationBytesRefHash bytesRefHash;
 
     protected CategorizeTextAggregator(
         String name,
@@ -79,6 +81,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         this.similarityThreshold = similarityThreshold;
         this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), CardinalityUpperBound.MANY);
         this.bucketCountThresholds = bucketCountThresholds;
+        this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(1000, bigArrays()));
     }
 
     @Override
@@ -96,7 +99,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             PriorityQueue<InternalCategorizationAggregation.Bucket> ordered =
                 new InternalCategorizationAggregation.BucketCountPriorityQueue(size);
             CategorizationTokenTree categorizationTokenTree = categorizers.get(ordsToCollect[ordIdx]);
-            for (InternalCategorizationAggregation.Bucket bucket : categorizationTokenTree.toIntermediateBuckets()) {
+            for (InternalCategorizationAggregation.Bucket bucket : categorizationTokenTree.toIntermediateBuckets(bytesRefHash)) {
                 if (bucket.docCount < bucketCountThresholds.getShardMinDocCount()) {
                     continue;
                 }
@@ -166,12 +169,12 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             }
 
             private void processTokenStream(long owningBucketOrd, TokenStream ts, int doc) throws IOException {
-                ArrayList<BytesRef> tokens = new ArrayList<>();
+                ArrayList<Long> tokens = new ArrayList<>();
                 try {
                     CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
                     ts.reset();
                     while (ts.incrementToken()) {
-                        tokens.add(new BytesRef(termAtt));
+                        tokens.add(bytesRefHash.put(new BytesRef(termAtt)));
                     }
                     if (tokens.isEmpty()) {
                         return;
@@ -187,7 +190,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                     categorizers.set(owningBucketOrd, categorizer);
                 }
                 long previousSize = categorizer.ramBytesUsed();
-                TextCategorization lg = categorizer.parseLogLine(tokens.toArray(BytesRef[]::new), docCountProvider.getDocCount(doc));
+                TextCategorization lg = categorizer.parseLogLine(tokens.toArray(Long[]::new), docCountProvider.getDocCount(doc));
                 long newSize = categorizer.ramBytesUsed();
                 if (newSize - previousSize > 0) {
                     addRequestCircuitBreakerBytes(newSize - previousSize);

@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
-import org.apache.lucene.util.BytesRef;
 
 interface TreeNodeFactory {
-    TreeNode newNode(long docCount, int tokenPos, BytesRef[] logTokens);
+    TreeNode newNode(long docCount, int tokenPos, Long[] logTokenIds);
 
-    TextCategorization newGroup(long docCount, BytesRef[] logTokens);
+    TextCategorization newGroup(long docCount, Long[] logTokenIds);
 }

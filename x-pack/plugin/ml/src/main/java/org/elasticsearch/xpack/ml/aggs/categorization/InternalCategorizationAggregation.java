@@ -12,6 +12,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -29,7 +30,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationTokenTree.WILD_CARD;
+import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash.WILD_CARD_REF;
+
 
 public class InternalCategorizationAggregation extends InternalMultiBucketAggregation<
     InternalCategorizationAggregation,
@@ -97,10 +99,10 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             List<BytesRef> collapsedWildCards = new ArrayList<>();
             boolean previousTokenWildCard = false;
             for (BytesRef token : key) {
-                if (token.equals(WILD_CARD)) {
+                if (token.equals(WILD_CARD_REF)) {
                     if (previousTokenWildCard == false) {
                         previousTokenWildCard = true;
-                        collapsedWildCards.add(WILD_CARD);
+                        collapsedWildCards.add(WILD_CARD_REF);
                     }
                 } else {
                     previousTokenWildCard = false;
@@ -244,9 +246,9 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     private final List<Bucket> buckets;
-    private final int maxChildren;
-    private final int similarityThreshold;
-    private final int maxDepth;
+    protected final int maxChildren;
+    protected final int similarityThreshold;
+    protected final int maxDepth;
     protected final int requiredSize;
     protected final long minDocCount;
 
@@ -337,6 +339,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()));
         CategorizationTokenTree categorizationTokenTree = new CategorizationTokenTree(maxChildren, maxDepth, similarityThreshold);
         // TODO: Could we do a merge sort similar to terms?
         //  It would require us returning partial reductions sorted by key, not by doc_count
@@ -351,22 +354,23 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
         for (DelayedCategorizationBucket bucket : reduced.values()) {
             // Parse log line takes document count into account and merging on smallest groups
-            categorizationTokenTree.parseLogLine(bucket.key.keyAsTokens(), bucket.docCount);
+            categorizationTokenTree.parseLogLine(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount);
         }
         // Collapse tiny groups together, this may result in new bucket keys for already known buckets
         categorizationTokenTree.mergeSmallestChildren();
         Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>();
         for (DelayedCategorizationBucket delayedBucket : reduced.values()) {
-            TextCategorization group = categorizationTokenTree.parseLogLineConst(delayedBucket.key.keyAsTokens());
+            TextCategorization group = categorizationTokenTree.parseLogLineConst(hash.getIds(delayedBucket.key.keyAsTokens()));
             if (group == null) {
                 throw new AggregationExecutionException(
                     "Unexpected null categorization group for bucket [" + delayedBucket.key.asString() + "]"
                 );
             }
+            BytesRef[] categoryTokens = hash.getShallows(group.getCategorization());
 
             BucketKey key = reduceContext.isFinalReduce() ?
-                BucketKey.withCollapsedWildcards(group.getCategorization()) :
-                new BucketKey(group.getCategorization());
+                BucketKey.withCollapsedWildcards(categoryTokens) :
+                new BucketKey(categoryTokens);
             mergedBuckets.computeIfAbsent(key, k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L))
                 .add(delayedBucket);
         }

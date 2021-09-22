@@ -12,6 +12,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -48,7 +50,7 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         if (fieldType != null) {
             this.indexedFieldName = fieldType.name();
         } else {
-            throw new IllegalArgumentException("Only works on indexed fields, cannot find field [" + fieldName + "]");
+            this.indexedFieldName = null;
         }
         this.maxChildren = maxChildren;
         this.maxDepth = maxDepth;
@@ -57,9 +59,30 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         this.bucketCountThresholds = bucketCountThresholds;
     }
 
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        final InternalAggregation aggregation = new UnmappedCategorizationAggregation(
+            name,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
+            maxChildren,
+            maxDepth,
+            similarityThreshold,
+            metadata
+        );
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return aggregation;
+            }
+        };
+    }
+
     @Override
     protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
+        if (fieldType == null) {
+            return createUnmapped(parent, metadata);
+        }
         TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == CategorizeTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection. Use default

@@ -95,6 +95,7 @@ public class DiscoveryNodeFilters {
             return null;
         }
         if (original.filters.containsKey(TIER_PREFERENCE)) {
+            // Remove all entries that use "_tier_preference", as these will be handled elsewhere
             if (original.filters.size() == 1) {
                 return null;
             }

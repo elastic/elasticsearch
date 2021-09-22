@@ -64,6 +64,22 @@ public class ArchiveTests extends PackagingTestCase {
             installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
         );
         assumeTrue(result.isSuccess());
+        // See https://bugs.openjdk.java.net/browse/JDK-8267701. In short, when generating PKCS#12 keystores in JDK 12 and later
+        // the MAC algorithm used for integrity protection is incompatible with any previous JDK version. This affects us as we generate
+        // PKCS12 keystores on startup ( with the bundled JDK ) but we also need to run certain tests with a JDK other than the bundled
+        // one, and we still use JDK11 for that.
+        // We're manually setting the HMAC algorithm to something that is compatible with previous versions here. Moving forward, when
+        // min compat JDK is JDK17, we can remove this hack and use the standard security properties file.
+        final Path jdkSecurityProperties = installation.bundledJdk.resolve("conf").resolve("security").resolve("java.security");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(jdkSecurityProperties).stream()) {
+            lines = allLines.filter(s -> s.startsWith("#keystore.pkcs12.macAlgorithm") == false)
+                .filter(s -> s.startsWith("#keystore.pkcs12.macIterationCount") == false)
+                .collect(Collectors.toList());
+        }
+        lines.add("keystore.pkcs12.macAlgorithm = HmacPBESHA1");
+        lines.add("keystore.pkcs12.macIterationCount = 100000");
+        Files.write(jdkSecurityProperties, lines, TRUNCATE_EXISTING);
     }
 
     public void test20PluginsListWithNoPlugins() throws Exception {
@@ -213,7 +229,6 @@ public class ArchiveTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
-    @AwaitsFix(bugUrl = "Change host OS JDK version to 17")
     public void test61EsJavaHomeOverride() throws Exception {
         Platforms.onLinux(() -> {
             String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
@@ -232,7 +247,6 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
     }
 
-    @AwaitsFix(bugUrl = "Change host OS JDK version to 17")
     public void test62JavaHomeIgnored() throws Exception {
         assumeTrue(distribution().hasJdk);
         Platforms.onLinux(() -> {
@@ -261,7 +275,6 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(bundledJdk));
     }
 
-    @AwaitsFix(bugUrl = "Change host OS JDK version to 17")
     public void test63BundledJdkRemoved() throws Exception {
         assumeThat(distribution().hasJdk, is(true));
 
@@ -288,7 +301,6 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "Change host OS JDK version to 17")
     public void test64JavaHomeWithSpecialCharacters() throws Exception {
         Platforms.onWindows(() -> {
             String javaPath = "C:\\Program Files (x86)\\java";
@@ -337,7 +349,6 @@ public class ArchiveTests extends PackagingTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "Change host OS JDK version to 17")
     public void test65ForceBundledJdkEmptyJavaHome() throws Exception {
         assumeThat(distribution().hasJdk, is(true));
 

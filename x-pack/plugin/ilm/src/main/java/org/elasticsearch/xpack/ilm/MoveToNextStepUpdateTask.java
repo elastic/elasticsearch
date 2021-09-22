@@ -44,22 +44,6 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
         this.stateChangeConsumer = stateChangeConsumer;
     }
 
-    Index getIndex() {
-        return index;
-    }
-
-    String getPolicy() {
-        return policy;
-    }
-
-    Step.StepKey getCurrentStepKey() {
-        return currentStepKey;
-    }
-
-    Step.StepKey getNextStepKey() {
-        return nextStepKey;
-    }
-
     @Override
     public ClusterState execute(ClusterState currentState) {
         IndexMetadata indexMetadata = currentState.getMetadata().index(index);
@@ -84,13 +68,20 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     @Override
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
         if (oldState.equals(newState) == false) {
-            stateChangeConsumer.accept(newState);
+            IndexMetadata indexMetadata = newState.metadata().index(index);
+            if (indexMetadata != null) {
+                LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+                Step.StepKey newStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+                if (currentStepKey.equals(newStepKey) == false) {
+                    stateChangeConsumer.accept(newState);
+                }
+            }
         }
     }
 
     @Override
     public void onFailure(String source, Exception e) {
         throw new ElasticsearchException("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step ["
-                + currentStepKey + "] to step [" + nextStepKey + "].", e);
+            + currentStepKey + "] to step [" + nextStepKey + "].", e);
     }
 }

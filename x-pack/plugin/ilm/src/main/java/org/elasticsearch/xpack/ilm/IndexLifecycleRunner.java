@@ -47,6 +47,7 @@ class IndexLifecycleRunner {
     private final PolicyStepsRegistry stepRegistry;
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
+    private final TaskExecutor taskExecutor = new TaskExecutor();
 
     IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ILMHistoryStore ilmHistoryStore, ClusterService clusterService,
                          ThreadPool threadPool, LongSupplier nowSupplier) {
@@ -225,36 +226,40 @@ class IndexLifecycleRunner {
             // we can afford to drop these requests if they timeout as on the next {@link
             // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
             // to move it back into the failed step, so we'll try again
-            clusterService.submitStateUpdateTask(
-                String.format(Locale.ROOT, "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}", policy, index,
-                    failedStep.getKey()), new ClusterStateUpdateTask(TimeValue.MAX_VALUE) {
+            String source = String.format(Locale.ROOT, "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}", policy, index,
+                failedStep.getKey());
+            StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+            ClusterStateUpdateTask task = new ClusterStateUpdateTask(TimeValue.MAX_VALUE) {
 
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(currentState, index,
-                            nowSupplier, stepRegistry, true);
-                    }
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(currentState, index,
+                        nowSupplier, stepRegistry, true);
+                }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.error(new ParameterizedMessage("retry execution of step [{}] for index [{}] failed",
-                            failedStep.getKey().getName(), index), e);
-                    }
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error(new ParameterizedMessage("retry execution of step [{}] for index [{}] failed",
+                        failedStep.getKey().getName(), index), e);
+                }
 
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        if (oldState.equals(newState) == false) {
-                            IndexMetadata newIndexMeta = newState.metadata().index(index);
-                            Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);
-                            StepKey stepKey = indexMetaCurrentStep.getKey();
-                            if (stepKey != null && stepKey != TerminalPolicyStep.KEY && newIndexMeta != null) {
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    if (oldState.equals(newState) == false) {
+                        IndexMetadata newIndexMeta = newState.metadata().index(index);
+                        if (newIndexMeta != null) {
+                            LifecycleExecutionState state = LifecycleExecutionState.fromIndexMetadata(newIndexMeta);
+                            StepKey stepKey = LifecycleExecutionState.getCurrentStepKey(state);
+                            if (stepKey != null && stepKey.equals(currentStepKey) == false && stepKey != TerminalPolicyStep.KEY) {
                                 logger.trace("policy [{}] for index [{}] was moved back on the failed step for as part of an automatic " +
                                     "retry. Attempting to execute the failed step [{}] if it's an async action", policy, index, stepKey);
                                 maybeRunAsyncAction(newState, newIndexMeta, policy, stepKey);
                             }
                         }
                     }
-                });
+                }
+            };
+            clusterService.submitStateUpdateTask(source, task, task, taskExecutor, task);
         } else {
             logger.debug("policy [{}] for index [{}] on an error step after a terminal error, skipping execution", policy, index);
         }
@@ -374,8 +379,10 @@ class IndexLifecycleRunner {
             }
         } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             logger.debug("[{}] running policy with current-step [{}]", indexMetadata.getIndex().getName(), currentStep.getKey());
-            clusterService.submitStateUpdateTask(String.format(Locale.ROOT, "ilm-execute-cluster-state-steps [%s]", currentStep),
-                new ExecuteStepsUpdateTask(policy, indexMetadata.getIndex(), currentStep, stepRegistry, this, nowSupplier));
+            ExecuteStepsUpdateTask updateTask = new ExecuteStepsUpdateTask(policy, indexMetadata.getIndex(), currentStep, stepRegistry,
+                this, nowSupplier);
+            String source = String.format(Locale.ROOT, "ilm-execute-cluster-state-steps [%s]", currentStep);
+            clusterService.submitStateUpdateTask(source, updateTask, updateTask, taskExecutor, updateTask);
         } else {
             logger.trace("[{}] ignoring step execution from cluster state change event [{}]", index, currentStep.getKey());
         }
@@ -387,17 +394,18 @@ class IndexLifecycleRunner {
      */
     private void moveToStep(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey newStepKey) {
         logger.debug("[{}] moving to step [{}] {} -> {}", index.getName(), policy, currentStepKey, newStepKey);
-        clusterService.submitStateUpdateTask(
-            String.format(Locale.ROOT, "ilm-move-to-step {policy [%s], index [%s], currentStep [%s], nextStep [%s]}", policy,
-                index.getName(), currentStepKey, newStepKey),
-            new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState ->
-            {
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
-                registerSuccessfulOperation(indexMetadata);
-                if (newStepKey != null && newStepKey != TerminalPolicyStep.KEY && indexMetadata != null) {
-                    maybeRunAsyncAction(clusterState, indexMetadata, policy, newStepKey);
-                }
-            }));
+        String source = String.format(Locale.ROOT, "ilm-move-to-step {policy [%s], index [%s], currentStep [%s], nextStep [%s]}", policy,
+            index.getName(), currentStepKey, newStepKey);
+        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier,
+            stepRegistry, clusterState ->
+        {
+            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            registerSuccessfulOperation(indexMetadata);
+            if (newStepKey != null && newStepKey != TerminalPolicyStep.KEY && indexMetadata != null) {
+                maybeRunAsyncAction(clusterState, indexMetadata, policy, newStepKey);
+            }
+        });
+        clusterService.submitStateUpdateTask(source, task, task, taskExecutor, task);
     }
 
     /**
@@ -406,13 +414,15 @@ class IndexLifecycleRunner {
     private void moveToErrorStep(Index index, String policy, Step.StepKey currentStepKey, Exception e) {
         logger.error(new ParameterizedMessage("policy [{}] for index [{}] failed on step [{}]. Moving to ERROR step",
             policy, index.getName(), currentStepKey), e);
-        clusterService.submitStateUpdateTask(
-            String.format(Locale.ROOT, "ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(),
-                currentStepKey),
-            new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
-                registerFailedOperation(indexMetadata, e);
-            }));
+        String source = String.format(Locale.ROOT, "ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}", policy,
+            index.getName(),
+            currentStepKey);
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier,
+            stepRegistry::getStep, clusterState -> {
+            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            registerFailedOperation(indexMetadata, e);
+        });
+        clusterService.submitStateUpdateTask(source, task, task, taskExecutor, task);
     }
 
     /**
@@ -420,10 +430,10 @@ class IndexLifecycleRunner {
      * changing other execution state.
      */
     private void setStepInfo(Index index, String policy, @Nullable Step.StepKey currentStepKey, ToXContentObject stepInfo) {
-        clusterService.submitStateUpdateTask(
-            String.format(Locale.ROOT, "ilm-set-step-info {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(),
-                currentStepKey),
-            new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
+        String source = String.format(Locale.ROOT, "ilm-set-step-info {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(),
+            currentStepKey);
+        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
+        clusterService.submitStateUpdateTask(source, task, task, taskExecutor, task);
     }
 
     /**

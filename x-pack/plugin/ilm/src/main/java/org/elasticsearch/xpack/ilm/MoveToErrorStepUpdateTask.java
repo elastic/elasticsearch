@@ -73,16 +73,21 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        if (newState.equals(oldState) == false) {
-            stateChangeConsumer.accept(newState);
+        IndexMetadata indexMetadata = newState.metadata().index(index);
+        if (indexMetadata != null) {
+            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+            Step.StepKey newStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+            if (currentStepKey.equals(newStepKey) == false) {
+                stateChangeConsumer.accept(newState);
+            }
         }
     }
 
     @Override
     public void onFailure(String source, Exception e) {
         final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
-                "policy [{}] for index [{}] failed trying to move from step [{}] to the ERROR step.", policy, index.getName(),
-                currentStepKey);
+            "policy [{}] for index [{}] failed trying to move from step [{}] to the ERROR step.", policy, index.getName(),
+            currentStepKey);
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
             logger.debug(messageSupplier, e);
         } else {

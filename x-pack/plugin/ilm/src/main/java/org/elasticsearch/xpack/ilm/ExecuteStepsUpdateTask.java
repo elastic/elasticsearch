@@ -135,7 +135,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                             return state;
                         } else {
                             state = IndexLifecycleTransition.moveClusterStateToStep(index, state,
-                                nextStepKey, nowSupplier, policyStepsRegistry,false);
+                                nextStepKey, nowSupplier, policyStepsRegistry, false);
                         }
                     } else {
                         final ToXContentObject stepInfo = result.getInfomationContext();
@@ -179,21 +179,23 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
         if (oldState.equals(newState) == false) {
             IndexMetadata indexMetadata = newState.metadata().index(index);
             if (indexMetadata != null) {
-
                 LifecycleExecutionState exState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-                if (ErrorStep.NAME.equals(exState.getStep()) && this.failure != null) {
-                    lifecycleRunner.registerFailedOperation(indexMetadata, failure);
-                } else {
-                    lifecycleRunner.registerSuccessfulOperation(indexMetadata);
-                }
+                Step.StepKey newStepKey = LifecycleExecutionState.getCurrentStepKey(exState);
+                if (startStep.getKey().equals(newStepKey) == false) {
+                    if (ErrorStep.NAME.equals(exState.getStep()) && this.failure != null) {
+                        lifecycleRunner.registerFailedOperation(indexMetadata, failure);
+                    } else {
+                        lifecycleRunner.registerSuccessfulOperation(indexMetadata);
+                    }
 
-                if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY) {
-                    logger.trace("[{}] step sequence starting with {} has completed, running next step {} if it is an async action",
-                        index.getName(), startStep.getKey(), nextStepKey);
-                    // After the cluster state has been processed and we have moved
-                    // to a new step, we need to conditionally execute the step iff
-                    // it is an `AsyncAction` so that it is executed exactly once.
-                    lifecycleRunner.maybeRunAsyncAction(newState, indexMetadata, policy, nextStepKey);
+                    if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY) {
+                        logger.trace("[{}] step sequence starting with {} has completed, running next step {} if it is an async action",
+                            index.getName(), startStep.getKey(), nextStepKey);
+                        // After the cluster state has been processed and we have moved
+                        // to a new step, we need to conditionally execute the step iff
+                        // it is an `AsyncAction` so that it is executed exactly once.
+                        lifecycleRunner.maybeRunAsyncAction(newState, indexMetadata, policy, nextStepKey);
+                    }
                 }
             }
         }
@@ -202,7 +204,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     @Override
     public void onFailure(String source, Exception e) {
         throw new ElasticsearchException(
-                "policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].", e);
+            "policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].", e);
     }
 
     private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) throws IOException {

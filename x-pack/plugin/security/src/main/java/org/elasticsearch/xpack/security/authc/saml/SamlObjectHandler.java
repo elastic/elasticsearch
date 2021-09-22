@@ -10,14 +10,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
-import org.joda.time.DateTime;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.io.Unmarshaller;
 import org.opensaml.core.xml.io.UnmarshallerFactory;
@@ -48,7 +47,6 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
-import javax.xml.parsers.DocumentBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -71,6 +69,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
+import javax.xml.parsers.DocumentBuilder;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
@@ -252,16 +251,6 @@ public class SamlObjectHandler {
         return clock.instant();
     }
 
-    /**
-     * Converts a Joda DateTime into a Java Instant
-     */
-    protected Instant toInstant(DateTime dateTime) {
-        if (dateTime == null) {
-            return null;
-        }
-        return Instant.ofEpochMilli(dateTime.getMillis());
-    }
-
     // Package private for testing
     <T extends XMLObject> T buildXmlObject(Element element, Class<T> type) {
         try {
@@ -322,13 +311,13 @@ public class SamlObjectHandler {
         return root;
     }
 
-    protected void validateNotOnOrAfter(DateTime notOnOrAfter) {
+    protected void validateNotOnOrAfter(Instant notOnOrAfter) {
         if (notOnOrAfter == null) {
             return;
         }
         final Instant now = now();
         final Instant pastNow = now.minusMillis(this.maxSkew.millis());
-        if (pastNow.isBefore(toInstant(notOnOrAfter)) == false) {
+        if (pastNow.isBefore(notOnOrAfter) == false) {
             throw samlException("Rejecting SAML assertion because [{}] is on/after [{}]", pastNow, notOnOrAfter);
         }
     }

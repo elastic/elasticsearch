@@ -125,24 +125,28 @@ public class ArchiveTests extends PackagingTestCase {
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "discovery.seed_hosts");
+        FileUtils.rm(installation.data);
 
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"voting_only\", \"master\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
+        FileUtils.rm(installation.data);
 
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"ingest\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
+        FileUtils.rm(installation.data);
 
         ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.http.ssl.enabled", "false");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "xpack.security.http.ssl.enabled");
+        FileUtils.rm(installation.data);
     }
 
     public void test41AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {

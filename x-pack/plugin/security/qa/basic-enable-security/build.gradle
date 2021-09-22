@@ -37,7 +37,7 @@ tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
   mustRunAfter("javaRestTest")
   description = "Run tests against a cluster that has security enabled"
   dependsOn "javaRestTest"
-  useCluster cluster.get()
+  useCluster cluster
   systemProperty 'tests.has_security', 'true'
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath

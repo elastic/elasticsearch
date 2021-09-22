@@ -30,7 +30,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
   String bwcVersionString = bwcVersion.toString()
   String baseName = "v" + bwcVersion
 
-  testClusters.register(baseName) {
+  def baseCluster = testClusters.register(baseName) {
       versions = [bwcVersionString, project.version]
       numberOfNodes = 3
       testDistribution = 'DEFAULT'
@@ -43,13 +43,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
   }
 
   tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
-    def cluster = testClusters.named(baseName).get()
-
-    useCluster cluster
+    useCluster baseCluster
     mustRunAfter("precommit")
     doFirst {
+      def cluster = baseCluster.get()
       // Getting the endpoints causes a wait for the cluster
-      println "Endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
+      println "Endpoints are: ${-> cluster.get().allHttpSocketURI.join(",")}"
       println "Upgrading one node to create a mixed cluster"
       cluster.nextNodeToNextVersion()
 

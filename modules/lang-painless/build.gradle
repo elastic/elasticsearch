@@ -115,7 +115,7 @@ def generateContextCluster = testClusters.register("generateContextCluster") {
 
 tasks.register("generateContextDoc", DefaultTestClustersTask) {
   dependsOn sourceSets.doc.runtimeClasspath
-  useCluster generateContextCluster.get()
+  useCluster generateContextCluster
   doFirst {
     project.javaexec {
       mainClass = 'org.elasticsearch.painless.ContextDocGenerator'
@@ -133,7 +133,7 @@ def generateContextApiSpecCluster = testClusters.register("generateContextApiSpe
 
 tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
   dependsOn sourceSets.doc.runtimeClasspath
-  useCluster generateContextApiSpecCluster.get()
+  useCluster generateContextApiSpecCluster
   doFirst {
     project.javaexec {
       mainClass = 'org.elasticsearch.painless.ContextApiSpecGenerator'

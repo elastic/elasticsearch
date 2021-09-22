@@ -115,11 +115,11 @@ public class YamlRestTestPlugin implements Plugin<Project> {
             NamedDomainObjectProvider<ElasticsearchCluster> clusterProvider
     ) {
         return project.getTasks().register(YAML_REST_TEST, StandaloneRestIntegTestTask.class, task -> {
-            var cluster = clusterProvider.get();
-            task.useCluster(cluster);
+            task.useCluster(clusterProvider.get());
             task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
             task.setClasspath(testSourceSet.getRuntimeClasspath());
 
+            var cluster = clusterProvider.get();
             var nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
             nonInputProperties.systemProperty("tests.rest.cluster", () -> String.join(",", cluster.getAllHttpSocketURI()));
             nonInputProperties.systemProperty("tests.cluster", () -> String.join(",", cluster.getAllTransportPortURI()));

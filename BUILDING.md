@@ -91,7 +91,7 @@ doing less.
 To wire this registered cluster into a `TestClusterAware` task (e.g. `RestIntegTest`) you can resolve the actual cluster from the provider instance:
 
     tasks.register('someClusterTest', RestIntegTestTask) {
-        useCluster someClusterProvider.get()
+        useCluster someClusterProvider
         nonInputProperties.systemProperty 'tests.leader_host', "${-> someClusterProvider.get().getAllHttpSocketURI().get(0)}"
     }
 

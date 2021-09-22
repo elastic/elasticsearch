@@ -34,7 +34,7 @@ tasks.register("leader-cluster", RestIntegTestTask) {
 
 tasks.register("middle-cluster", RestIntegTestTask) {
   dependsOn "leader-cluster"
-  useCluster testClusters."leader-cluster"
+  useCluster testClusters.named("leader-cluster")
   systemProperty 'tests.target_cluster', 'middle'
   systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
   nonInputProperties.systemProperty 'tests.leader_host',
@@ -44,8 +44,8 @@ tasks.register("middle-cluster", RestIntegTestTask) {
 
 tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn "leader-cluster", "middle-cluster"
-    useCluster leaderCluster.get()
-    useCluster middleCluster.get()
+    useCluster leaderCluster
+    useCluster middleCluster
     systemProperty 'tests.target_cluster', 'follow'
     systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
     nonInputProperties.systemProperty 'tests.leader_host',

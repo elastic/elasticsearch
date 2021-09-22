@@ -30,7 +30,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
-    useCluster baseCluster.get()
+    useCluster baseCluster
     mustRunAfter("precommit")
     doFirst {
       delete("${buildDir}/cluster/shared/repo/${baseName}")
@@ -40,11 +40,10 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   }
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
-    def cluster = baseCluster.get()
-    useCluster cluster
+    useCluster baseCluster
     dependsOn "${baseName}#oldClusterTest"
     doFirst {
-      cluster.goToNextVersion()
+      baseCluster.get().goToNextVersion()
     }
     systemProperty 'tests.is_old_cluster', 'false'
   }

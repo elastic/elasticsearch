@@ -50,7 +50,7 @@ tasks.register("writeJavaPolicy") {
 
 tasks.register("follow-cluster", RestIntegTestTask) {
   dependsOn 'writeJavaPolicy', "leader-cluster"
-    useCluster leaderCluster.get()
+    useCluster leaderCluster
     systemProperty 'java.security.policy', "file://${policyFile}"
     systemProperty 'tests.target_cluster', 'follow'
     nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderCluster.get().getAllHttpSocketURI().get(0)}"

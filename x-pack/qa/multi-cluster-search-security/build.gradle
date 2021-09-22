@@ -59,7 +59,7 @@ def mixedCluster = testClusters.register('mixed-cluster') {
 
 tasks.register('mixed-cluster', RestIntegTestTask) {
   dependsOn 'remote-cluster'
-  useCluster remoteCluster.get()
+  useCluster remoteCluster
   systemProperty 'tests.rest.suite', 'multi_cluster'
   if (proxyMode) {
     systemProperty 'tests.rest.blacklist', [

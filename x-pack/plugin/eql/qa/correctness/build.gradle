@@ -57,6 +57,6 @@ tasks.named('javaRestTest').configure {
 }
 
 tasks.register("runEqlCorrectnessNode", RunTask) {
-  useCluster testClusters.named('runTask').get()
+  useCluster testClusters.named('runTask')
   description = 'Runs elasticsearch in the foreground with gcs plugin and keystore credentials'
 }

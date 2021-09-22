@@ -32,7 +32,7 @@ testClusters.register("runTask") {
 }
 
 tasks.register("run", RunTask) {
-  useCluster testClusters.named("runTask").get()
+  useCluster testClusters.named("runTask")
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
 

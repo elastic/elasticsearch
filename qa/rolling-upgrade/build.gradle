@@ -46,7 +46,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "processTestResources"
-    useCluster baseCluster.get()
+    useCluster baseCluster
     mustRunAfter("precommit")
     doFirst {
       delete("${buildDir}/cluster/shared/repo/${baseName}")
@@ -59,7 +59,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
-    useCluster baseCluster.get()
+    useCluster baseCluster
     doFirst {
       baseCluster.get().nextNodeToNextVersion()
     }
@@ -72,7 +72,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgradedTest"
-    useCluster baseCluster.get()
+    useCluster baseCluster
     doFirst {
       baseCluster.get().nextNodeToNextVersion()
     }
@@ -88,7 +88,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     doFirst {
       baseCluster.get().nextNodeToNextVersion()
     }
-    useCluster testClusters."${baseName}"
+    useCluster testClusters.named(baseName)
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")

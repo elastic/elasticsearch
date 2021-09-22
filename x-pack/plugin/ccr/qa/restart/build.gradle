@@ -34,7 +34,7 @@ tasks.register('leader-cluster', RestIntegTestTask) {
 
 tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn 'leader-cluster'
-  useCluster leaderCluster.get()
+  useCluster leaderCluster
   systemProperty 'tests.target_cluster', 'follow'
   nonInputProperties.systemProperty 'tests.leader_host',
           "${-> leaderCluster.get().getAllHttpSocketURI().get(0)}"
@@ -42,8 +42,8 @@ tasks.register('follow-cluster', RestIntegTestTask) {
 
 tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
   dependsOn 'follow-cluster'
-  useCluster leaderCluster.get()
-  useCluster followCluster.get()
+  useCluster leaderCluster
+  useCluster followCluster
 
   systemProperty 'tests.rest.load_packaged', 'false'
   systemProperty 'tests.target_cluster', 'follow-restart'

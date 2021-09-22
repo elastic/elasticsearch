@@ -31,7 +31,7 @@ tasks.register('leader-cluster', RestIntegTestTask) {
 
 tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn 'leader-cluster'
-  useCluster leaderCluster.get()
+  useCluster leaderCluster
   systemProperty 'tests.target_cluster', 'follow'
   nonInputProperties.systemProperty 'tests.leader_host',
     { "${followerCluster.get().getAllHttpSocketURI().get(0)}" }

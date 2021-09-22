@@ -35,7 +35,7 @@ def integTestClusterReg = testClusters.register('integTest')  {
 }
 
 tasks.register("startRemoteCluster", DefaultTestClustersTask.class) {
-  useCluster remoteClusterReg.get()
+  useCluster remoteClusterReg
   doLast {
     "Starting remote cluster before integ tests and integTest cluster is started"
   }
@@ -43,7 +43,7 @@ tasks.register("startRemoteCluster", DefaultTestClustersTask.class) {
 
 tasks.named("integTest").configure {
   dependsOn 'startRemoteCluster'
-  useCluster remoteClusterReg.get()
+  useCluster remoteClusterReg
   doFirst {
     nonInputProperties.systemProperty 'tests.rest.cluster.remote.host', "${-> remoteClusterReg.get().getAllHttpSocketURI().get(0)}"
     nonInputProperties.systemProperty 'tests.rest.cluster.remote.user', "test_user"

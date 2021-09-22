@@ -28,7 +28,7 @@ testClusters.matching{ it.name == 'remote-cluster' }.configureEach {
 }
 
 tasks.register("mixedClusterTest", RestIntegTestTask) {
-    useCluster testClusters.named('remote-cluster').get()
+    useCluster testClusters.named('remote-cluster')
     dependsOn 'remote-cluster'
     systemProperty 'tests.rest.suite', 'multi_cluster'
 }

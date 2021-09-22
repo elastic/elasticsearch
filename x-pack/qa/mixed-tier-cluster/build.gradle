@@ -41,11 +41,11 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
   }
 
   tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
-    useCluster baseCluster.get()
+    useCluster baseCluster
     mustRunAfter("precommit")
     doFirst {
       // Getting the endpoints causes a wait for the cluster
-      println "Endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      println "Endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
       baseCluster.get().nextNodeToNextVersion()
 
       nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
@@ -58,7 +58,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
     dependsOn "${baseName}#mixedClusterTest"
   }
 }
-
 
 // Security is explicitly disabled, do not run tests in FIPS mode
 tasks.withType(Test).configureEach {

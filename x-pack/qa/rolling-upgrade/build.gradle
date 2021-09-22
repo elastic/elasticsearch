@@ -95,7 +95,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   String oldVersion = bwcVersionString
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
-    useCluster baseCluster.get()
+    useCluster baseCluster
     mustRunAfter("precommit")
     dependsOn "copyTestNodeKeyMaterial"
     doFirst {
@@ -112,7 +112,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
-    useCluster baseCluster.get()
+    useCluster baseCluster
     doFirst {
       baseCluster.get().nextNodeToNextVersion()
     }
@@ -140,7 +140,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgradedTest"
-    useCluster baseCluster.get()
+    useCluster baseCluster
     doFirst {
       baseCluster.get().nextNodeToNextVersion()
     }
@@ -154,9 +154,9 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdsUpgradedTest"
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+      baseCluster.get().nextNodeToNextVersion()
     }
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> baseCluster.get().getName()}")

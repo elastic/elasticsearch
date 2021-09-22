@@ -1,0 +1,49 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+includeBuild '../../'
+
+// Include all subdirectories as example projects
+rootDir.listFiles().findAll { it.directory && new File(it, 'build.gradle').exists() }.each { subDir ->
+  include ":${subDir.name}"
+}
+
+gradle.rootProject {
+  ext {
+    // Fetch Elasticsearch version from outer build
+    if (gradle.includedBuilds) {
+      new File(rootDir.parentFile.parentFile, 'build-tools-internal/version.properties').withInputStream { is ->
+        def props = new Properties()
+        props.load(is)
+        elasticsearchVersion = "${props.get('elasticsearch')}-SNAPSHOT"
+      }
+    } else {
+        // In a composite we substitute these dependencies so the version doesn't matter
+        elasticsearchVersion = '0.0.1-SNAPSHOT'
+    }
+  }
+}
+
+gradle.projectsEvaluated {
+  if (gradle.includedBuilds) {
+    gradle.allprojects {
+      configurations.all {
+        resolutionStrategy.dependencySubstitution {
+          // When using composite builds we need to tell Gradle to use the project names since we rename the published artifacts
+          substitute module('org.elasticsearch:elasticsearch') using module("org.elasticsearch:server:${elasticsearchVersion}")
+          substitute module('org.elasticsearch.client:elasticsearch-rest-client') using module("org.elasticsearch.client:rest:${elasticsearchVersion}")
+          substitute module('org.elasticsearch.distribution.integ-test-zip:elasticsearch') using variant(module("org.elasticsearch.distribution.integ-test-zip:integ-test-zip:${elasticsearchVersion}")) {
+            attributes {
+              attribute(Attribute.of("composite", Boolean.class), true)
+            }
+          }
+        }
+      }
+    }
+  }
+}

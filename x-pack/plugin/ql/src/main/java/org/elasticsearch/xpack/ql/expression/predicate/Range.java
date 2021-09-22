@@ -85,11 +85,7 @@ public class Range extends ScalarFunction {
 
     @Override
     public boolean foldable() {
-        if (lower.foldable() && upper.foldable()) {
-            return areBoundariesInvalid() || value.foldable();
-        }
-
-        return false;
+        return lower.foldable() && upper.foldable() && value.foldable();
     }
 
     @Override

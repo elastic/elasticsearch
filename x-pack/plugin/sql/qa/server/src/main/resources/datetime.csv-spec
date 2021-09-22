@@ -1570,3 +1570,16 @@ SELECT CAST (CAST (birth_date AS VARCHAR) AS TIMESTAMP) a FROM test_emp WHERE YE
 ---------------
 1965-01-03T00:00:00Z
 ;
+
+// datetime in range
+dateInRangeFilter
+select hire_date from test_emp where hire_date > 'now-100y' and hire_date < 'now+2y' limit 5;
+    hire_date
+---------------
+1986-06-26T00:00:00.000Z
+1985-11-21T00:00:00.000Z
+1986-08-28T00:00:00.000Z
+1986-12-01T00:00:00.000Z
+1989-09-12T00:00:00.000Z
+;
+

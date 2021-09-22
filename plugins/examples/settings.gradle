@@ -13,6 +13,22 @@ rootDir.listFiles().findAll { it.directory && new File(it, 'build.gradle').exist
   include ":${subDir.name}"
 }
 
+gradle.rootProject {
+  ext {
+    // Fetch Elasticsearch version from outer build
+    if (gradle.includedBuilds) {
+      new File(rootDir.parentFile.parentFile, 'build-tools-internal/version.properties').withInputStream { is ->
+        def props = new Properties()
+        props.load(is)
+        elasticsearchVersion = "${props.get('elasticsearch')}-SNAPSHOT"
+      }
+    } else {
+        // In a composite we substitute these dependencies so the version doesn't matter
+        elasticsearchVersion = '0.0.1-SNAPSHOT'
+    }
+  }
+}
+
 gradle.projectsEvaluated {
   if (gradle.includedBuilds) {
     gradle.allprojects {

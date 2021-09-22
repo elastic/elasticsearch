@@ -23,6 +23,7 @@ import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.RandomApproximationQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -44,7 +45,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -165,9 +165,11 @@ public class QueryProfilerTests extends ESTestCase {
         QueryProfiler profiler = new QueryProfiler();
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
-        searcher.count(query); // will use index stats
+        searcher.count(query); // will use index stats - builds weight but never builds scorer
         List<ProfileResult> results = profiler.getTree();
-        assertEquals(0, results.size());
+        assertEquals(1, results.size());
+        ProfileResult result = results.get(0);
+        assertEquals(0, (long) result.getTimeBreakdown().get("build_scorer_count"));
 
         long rewriteTime = profiler.getRewriteTime();
         assertThat(rewriteTime, greaterThan(0L));
@@ -231,13 +233,13 @@ public class QueryProfilerTests extends ESTestCase {
         }
 
         @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new Weight(this) {
-                @Override
-                public void extractTerms(Set<Term> terms) {
-                    throw new UnsupportedOperationException();
-                }
-
                 @Override
                 public Explanation explain(LeafReaderContext context, int doc) throws IOException {
                     throw new UnsupportedOperationException();

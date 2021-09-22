@@ -86,7 +86,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-import static org.apache.lucene.store.BufferedIndexInput.bufferSize;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
@@ -120,7 +119,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final Supplier<BlobContainer> blobContainerSupplier;
     private final Supplier<BlobStoreIndexShardSnapshot> snapshotSupplier;
     private final BlobStoreCacheService blobStoreCacheService;
-    private final String blobStoreCachePath;
     private final String repository;
     private final SnapshotId snapshotId;
     private final IndexId indexId;
@@ -181,7 +179,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.prewarmCache = partial == false && useCache ? SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.get(indexSettings) : false;
         this.excludedFileTypes = new HashSet<>(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.get(indexSettings));
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
-        this.blobStoreCachePath = String.join("/", snapshotId.getUUID(), indexId.getId(), String.valueOf(shardId.id()));
         this.blobStoreCacheMaxLength = SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING.get(indexSettings);
         this.threadPool = threadPool;
         this.loaded = false;
@@ -429,15 +426,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 );
             }
         } else {
-            return new DirectBlobContainerIndexInput(
-                name,
-                this,
-                fileInfo,
-                context,
-                inputStats,
-                getUncachedChunkSize(),
-                bufferSize(context)
-            );
+            return new DirectBlobContainerIndexInput(name, this, fileInfo, context, inputStats, getUncachedChunkSize());
         }
     }
 
@@ -706,19 +695,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public CachedBlob getCachedBlob(String name, ByteRange range) {
-        final CachedBlob cachedBlob = blobStoreCacheService.get(repository, name, blobStoreCachePath, range.start());
-        if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
-            return cachedBlob;
-        } else if (cachedBlob.from() != range.start() || cachedBlob.to() != range.end()) {
-            // expected range in cache might differ with the returned cached blob; this can happen if the range to put in cache is changed
-            // between versions or through the index setting. In this case we assume it is a cache miss to force the blob to be cached again
-            return CachedBlob.CACHE_MISS;
-        }
-        return cachedBlob;
+        return blobStoreCacheService.get(repository, snapshotId, indexId, shardId, name, range);
     }
 
-    public void putCachedBlob(String name, long offset, BytesReference content, ActionListener<Void> listener) {
-        blobStoreCacheService.putAsync(repository, name, blobStoreCachePath, offset, content, listener);
+    public void putCachedBlob(String name, ByteRange range, BytesReference content, ActionListener<Void> listener) {
+        blobStoreCacheService.putAsync(repository, snapshotId, indexId, shardId, name, range, content, listener);
     }
 
     public FrozenCacheFile getFrozenCacheFile(String fileName, long length) {

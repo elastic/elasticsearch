@@ -22,10 +22,9 @@ import java.util.Collections;
 import java.util.List;
 
 public final class ScriptFieldsPhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
-        if (context.scriptFields() == null) {
+        if (context.scriptFields() == null || context.scriptFields().fields().isEmpty()) {
             return null;
         }
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();

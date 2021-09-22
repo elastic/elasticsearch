@@ -7,8 +7,9 @@
 <titleabbrev>Create part of a trained model</titleabbrev>
 ++++
 
-Creates part of a trained model definition.
 experimental::[]
+
+Creates part of a trained model definition.
 
 [[ml-put-trained-model-definition-part-request]]
 == {api-request-title}

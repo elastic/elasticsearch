@@ -126,9 +126,6 @@ Ingest::
 License::
 * Add persistent licensed feature tracking {es-pull}76476[#76476]
 
-MULTIPLE AREA LABELS::
-* QL: Introduce `ParserUtils` to consolidate code {es-pull}76399[#76399]
-
 Machine Learning::
 * Add `datafeed_config` field to anomaly detection job configs {es-pull}74265[#74265]
 * Adding `datafeed_config` to job in high level rest client {es-pull}75338[#75338]
@@ -154,6 +151,9 @@ Packaging::
 * Change env var prefix in Docker settings support {es-pull}76192[#76192] (issues: {es-issue}74327[#74327], {es-issue}76148[#76148])
 * Reduce default Docker image size in 7.x {es-pull}75079[#75079]
 * Tighten up write permissions in Docker image {es-pull}70635[#70635]
+
+Query Languages::
+* Introduce `ParserUtils` to consolidate code {es-pull}76399[#76399]
 
 Recovery::
 * Add peer recoveries using snapshot files when possible {es-pull}76237[#76237] (issue: {es-issue}73496[#73496])
@@ -248,9 +248,6 @@ Infra/Scripting::
 Ingest::
 * Execute `EnrichPolicyRunner` on a non dedicated master node {es-pull}76881[#76881] (issue: {es-issue}70436[#70436])
 
-MULTIPLE AREA LABELS::
-* Fix memory/breaker leaks for outbound responses (#76474) {es-pull}76536[#76536] (issues: {es-issue}65921[#65921], {es-issue}76474[#76474])
-
 Machine Learning::
 * Allow for larger models in the inference step for data frame analytics {es-pull}76116[#76116] (issue: {es-issue}76093[#76093])
 * Ignore exceptions while opening job after SIGTERM to JVM {es-pull}75850[#75850]
@@ -259,6 +256,7 @@ Machine Learning::
 
 Network::
 * Ensure replica requests are marked as `index_data` (#75008) {es-pull}75014[#75014] (issue: {es-issue}73497[#73497])
+* Fix memory/breaker leaks for outbound responses (#76474) {es-pull}76536[#76536] (issues: {es-issue}65921[#65921], {es-issue}76474[#76474])
 
 Search::
 * Remove invalid path from Open PIT rest spec {es-pull}77609[#77609]
@@ -285,11 +283,11 @@ Transform::
 Ingest::
 * Upgrade Tika to 1.27 for ingest {es-pull}75191[#75191]
 
-MULTIPLE AREA LABELS::
-* QL: Upgrade ANTLR and move it into QL {es-pull}76358[#76358] (issues: {es-issue}74448[#74448], {es-issue}76288[#76288], {es-issue}76354[#76354])
-
 Network::
 * Upgrade to Netty 4.1.66 {es-pull}76135[#76135]
+
+Query Languages::
+* Upgrade ANTLR and move it into QL {es-pull}76358[#76358] (issues: {es-issue}74448[#74448], {es-issue}76288[#76288], {es-issue}76354[#76354])
 
 Snapshot/Restore::
 * Upgrade GCS SDK to 1.117.1 {es-pull}74938[#74938]

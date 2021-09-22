@@ -294,7 +294,12 @@ public class DataTierAllocationDecider extends AllocationDecider {
     }
 
     public static String[] parseTierList(String tiers) {
-        return Strings.tokenizeToStringArray(tiers, ",");
+        if (Strings.hasText(tiers) == false) {
+            // avoid parsing overhead in the null/empty string case
+            return Strings.EMPTY_ARRAY;
+        } else {
+            return Strings.tokenizeToStringArray(tiers, ",");
+        }
     }
 
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
@@ -312,24 +317,29 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
 
     private static boolean allocationAllowed(OpType opType, String tierSetting, Set<DiscoveryNodeRole> roles) {
-        String[] values = parseTierList(tierSetting);
-        for (String value : values) {
+        assert Strings.hasText(tierSetting) : "tierName must be not null and non-empty, but was [" + tierSetting + "]";
+
+        if (roles.contains(DiscoveryNodeRole.DATA_ROLE)) {
             // generic "data" roles are considered to have all tiers
-            if (roles.contains(DiscoveryNodeRole.DATA_ROLE) ||
-                roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toSet()).contains(value)) {
+            return true;
+        }
+        String[] values = parseTierList(tierSetting);
+        for (String tierName : values) {
+            boolean containsName = false;
+            for (DiscoveryNodeRole role : roles) {
+                if (tierName.equals(role.roleName())) {
+                    containsName = true;
+                    break;
+                }
+            }
+            if (containsName) {
                 if (opType == OpType.OR) {
                     return true;
                 }
-            } else {
-                if (opType == OpType.AND) {
-                    return false;
-                }
+            } else if (opType == OpType.AND) {
+                return false;
             }
         }
-        if (opType == OpType.OR) {
-            return false;
-        } else {
-            return true;
-        }
+        return opType == OpType.AND;
     }
 }

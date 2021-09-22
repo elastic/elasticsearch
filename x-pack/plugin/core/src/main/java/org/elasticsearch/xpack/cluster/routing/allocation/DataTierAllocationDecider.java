@@ -158,9 +158,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
             Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes());
             if (tier.isPresent()) {
                 String tierName = tier.get();
-                // The OpType doesn't actually matter here, because we have
-                // selected only a single tier as our "preferred" tier
-                if (allocationAllowed(OpType.AND, tierName, roles)) {
+                if (allocationAllowed(tierName, roles)) {
                     return allocation.decision(Decision.YES, NAME,
                         "index has a preference for tiers [%s] and node has tier [%s]", tierPreference, tierName);
                 } else {
@@ -175,11 +173,6 @@ public class DataTierAllocationDecider extends AllocationDecider {
         return null;
     }
 
-    private enum OpType {
-        AND,
-        OR
-    }
-
     /**
      * Given a string of comma-separated prioritized tiers (highest priority
      * first) and an allocation, find the highest priority tier for which nodes
@@ -192,7 +185,12 @@ public class DataTierAllocationDecider extends AllocationDecider {
     }
 
     public static String[] parseTierList(String tiers) {
-        return Strings.tokenizeToStringArray(tiers, ",");
+        if (Strings.hasText(tiers) == false) {
+            // avoid parsing overhead in the null/empty string case
+            return Strings.EMPTY_ARRAY;
+        } else {
+            return Strings.tokenizeToStringArray(tiers, ",");
+        }
     }
 
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
@@ -209,25 +207,19 @@ public class DataTierAllocationDecider extends AllocationDecider {
     }
 
 
-    private static boolean allocationAllowed(OpType opType, String tierSetting, Set<DiscoveryNodeRole> roles) {
-        String[] values = parseTierList(tierSetting);
-        for (String value : values) {
+    private static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {
+        assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
+
+        if (roles.contains(DiscoveryNodeRole.DATA_ROLE)) {
             // generic "data" roles are considered to have all tiers
-            if (roles.contains(DiscoveryNodeRole.DATA_ROLE) ||
-                roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toSet()).contains(value)) {
-                if (opType == OpType.OR) {
+            return true;
+        } else {
+            for (DiscoveryNodeRole role : roles) {
+                if (tierName.equals(role.roleName())) {
                     return true;
                 }
-            } else {
-                if (opType == OpType.AND) {
-                    return false;
-                }
             }
-        }
-        if (opType == OpType.OR) {
             return false;
-        } else {
-            return true;
         }
     }
 }

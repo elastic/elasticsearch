@@ -142,6 +142,7 @@ public class DeprecationChecks {
             IndexDeprecationChecks::checkIndexRoutingRequireSetting,
             IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
             IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
+            IndexDeprecationChecks::checkIndexMatrixFiltersSetting,
             IndexDeprecationChecks::checkGeoShapeMappings
         ));
 

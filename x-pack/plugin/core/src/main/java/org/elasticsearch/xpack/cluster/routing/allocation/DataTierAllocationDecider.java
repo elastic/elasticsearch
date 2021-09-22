@@ -159,8 +159,6 @@ public class DataTierAllocationDecider extends AllocationDecider {
             Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes());
             if (tier.isPresent()) {
                 String tierName = tier.get();
-                // The OpType doesn't actually matter here, because we have
-                // selected only a single tier as our "preferred" tier
                 if (allocationAllowed(tierName, roles)) {
                     return allocation.decision(Decision.YES, NAME,
                         "index has a preference for tiers [%s] and node has tier [%s]", tierPreference, tierName);

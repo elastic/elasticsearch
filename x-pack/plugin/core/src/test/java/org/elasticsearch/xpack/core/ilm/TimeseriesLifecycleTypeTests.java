@@ -166,6 +166,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         } else {
             TimeseriesLifecycleType.INSTANCE.validate(coldPhase.values());
         }
+        if (actions.containsKey(FreezeAction.NAME)) {
+            assertSettingDeprecationsAndWarnings(new String[0], TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING);
+        }
     }
 
     public void testFreezeActionDeprecationLog() {

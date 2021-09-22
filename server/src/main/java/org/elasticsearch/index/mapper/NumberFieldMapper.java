@@ -144,14 +144,13 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             });
 
-            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter)
-                .addValidator(v -> {
-                    if (v != null && hasDocValues.getValue() == false) {
-                        throw new IllegalArgumentException(
-                            "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
-                        );
-                    }
-                });
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter).addValidator(v -> {
+                if (v != null && hasDocValues.getValue() == false) {
+                    throw new IllegalArgumentException(
+                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
+                    );
+                }
+            });
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);

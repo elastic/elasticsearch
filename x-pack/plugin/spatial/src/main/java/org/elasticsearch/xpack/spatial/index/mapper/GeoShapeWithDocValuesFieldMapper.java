@@ -201,7 +201,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             FieldMapper.Builder builder;
             boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
             boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
-            if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
+            if (parserContext.indexVersionCreated().before(Version.V_6_6_0) ||
+                LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
                 builder = new LegacyGeoShapeFieldMapper.Builder(
                     name,
                     parserContext.indexVersionCreated(),

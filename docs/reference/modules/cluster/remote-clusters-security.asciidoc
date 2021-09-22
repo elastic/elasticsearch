@@ -7,16 +7,16 @@ remote clusters. For additional security, configure TLS at the
 <<security-basic-setup-https,HTTP level>> as well.
 
 All connected clusters must trust one another and be mutually authenticated at
-the TLS level on at least the transport layer. This means that the local cluster
+with TLS on the transport interface. This means that the local cluster
 trusts the certificate  authority (CA) of the remote cluster, and the remote
 cluster trusts the CA of the local cluster. When establishing a connection, all
-nodes will verify certificates from the nodes they are connecting to. This 
+nodes will verify certificates from the nodes on the other side. This 
 mutual trust is required to securely connect a remote cluster, because all 
 connected nodes effectively form a single security domain.
 
 User authentication is performed on the local cluster and the user and user’s 
 roles names are passed to the remote clusters. A remote cluster checks the user’s
-roles against its local role definitions to determine which indices the user is 
+role names against its local role definitions to determine which indices the user is 
 allowed to access.
 
 Before using {ccr} or {ccs} with secured {es} clusters, complete the following 
@@ -42,7 +42,7 @@ After enabling and configuring security, you can
 <<remote-clusters-connect,connect remote clusters>> from a local cluster.
 
 With your clusters connected, you'll need to 
-<<remote-clusters-privileges,configure cluster privileges>> on both the local
+<<remote-clusters-privileges,configure users and privileges>> on both the local
 and remote clusters.
 
 If you're configuring a remote cluster for {ccr}, you need to 

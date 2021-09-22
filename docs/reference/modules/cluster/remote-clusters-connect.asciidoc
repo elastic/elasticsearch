@@ -1,6 +1,6 @@
 [[remote-clusters-connect]]
 === Connect to remote clusters
-Your local cluster uses the <<modules-network,transport layer>> to establish
+Your local cluster uses the <<modules-network,transport interface>> to establish
 communication with remote clusters. The coordinating nodes in the local cluster
 establish <<long-lived-connections,long-lived>> TCP connections with specific
 nodes in the remote cluster. {es} requires these connections to remain open,
@@ -133,8 +133,7 @@ PUT _cluster/settings
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 
-You can dynamically update other cluster settings for a cluster, such as
-<<transport-settings,transport settings>>. The following request updates the
+You can dynamically update settings for a remote cluster after the initial configuration. The following request updates the
 compression settings for `cluster_two`, and the compression and ping schedule
 settings for `cluster_three`.
 

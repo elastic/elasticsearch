@@ -17,7 +17,7 @@ a local cluster and return results from all connected remote clusters.
 
 Enabling and configuring security is important on both local and remote
 clusters. When connecting a local cluster to remote clusters, an {es} 
-superuser (such as the `elastic` user) gains total read access to the remote 
+superuser (such as the `elastic` user) on the local cluster gains total read access to the remote 
 clusters. Furthermore, a local user with administrative privileges at the 
 operating system level can alter `elasticsearch.yml`. A malicious user with
 these privileges has potential access to private keys that could give them the 

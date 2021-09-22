@@ -20,7 +20,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.transport;
+package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.util.internal.SocketUtils;

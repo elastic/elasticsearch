@@ -6,11 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.transport;
+package org.elasticsearch.transport.netty4;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 
 public final class SharedGroupFactoryTests extends ESTestCase {
 

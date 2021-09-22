@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -25,11 +28,10 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 
 import java.io.ByteArrayInputStream;
@@ -43,7 +45,6 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -57,8 +58,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.synchronizedNavigableSet;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -312,7 +316,7 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, mock(Client.class), null, () -> 0L);
+            super(null, mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX, () -> 0L);
         }
 
         @Override
@@ -321,44 +325,27 @@ public final class TestUtils {
         }
 
         @Override
-        protected void getAsync(
-            String repository,
-            SnapshotId snapshotId,
-            IndexId indexId,
-            ShardId shardId,
-            String name,
-            ByteRange range,
-            ActionListener<CachedBlob> listener
-        ) {
-            listener.onResponse(CachedBlob.CACHE_NOT_READY);
+        protected void innerGet(GetRequest request, ActionListener<GetResponse> listener) {
+            listener.onFailure(new IndexNotFoundException(request.index()));
+        }
+
+        @Override
+        protected void innerPut(IndexRequest request, ActionListener<IndexResponse> listener) {
+            listener.onFailure(new IndexNotFoundException(request.index()));
         }
 
         @Override
         public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
             return ByteRange.EMPTY;
         }
-
-        @Override
-        public void putAsync(
-            String repository,
-            SnapshotId snapshotId,
-            IndexId indexId,
-            ShardId shardId,
-            String name,
-            ByteRange range,
-            BytesReference bytes,
-            ActionListener<Void> listener
-        ) {
-            listener.onResponse(null);
-        }
     }
 
     public static class SimpleBlobStoreCacheService extends BlobStoreCacheService {
 
-        private final ConcurrentHashMap<String, CachedBlob> blobs = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, BytesArray> blobs = new ConcurrentHashMap<>();
 
         public SimpleBlobStoreCacheService() {
-            super(null, mock(Client.class), null, () -> 0L);
+            super(null, mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX, System::currentTimeMillis);
         }
 
         @Override
@@ -367,45 +354,38 @@ public final class TestUtils {
         }
 
         @Override
-        protected void getAsync(
-            String repository,
-            SnapshotId snapshotId,
-            IndexId indexId,
-            ShardId shardId,
-            String name,
-            ByteRange range,
-            ActionListener<CachedBlob> listener
-        ) {
-            CachedBlob blob = blobs.get(generateId(repository, snapshotId, indexId, shardId, name, range));
-            if (blob != null) {
-                listener.onResponse(blob);
-            } else {
-                listener.onResponse(CachedBlob.CACHE_MISS);
-            }
+        protected void innerGet(GetRequest request, ActionListener<GetResponse> listener) {
+            final BytesArray bytes = blobs.get(request.id());
+            listener.onResponse(
+                new GetResponse(
+                    new GetResult(
+                        request.index(),
+                        request.id(),
+                        UNASSIGNED_SEQ_NO,
+                        UNASSIGNED_PRIMARY_TERM,
+                        0L,
+                        bytes != null,
+                        bytes,
+                        null,
+                        null
+                    )
+                )
+            );
         }
 
         @Override
-        public void putAsync(
-            String repository,
-            SnapshotId snapshotId,
-            IndexId indexId,
-            ShardId shardId,
-            String name,
-            ByteRange range,
-            BytesReference bytes,
-            ActionListener<Void> listener
-        ) {
-            final CachedBlob cachedBlob = new CachedBlob(
-                Instant.ofEpochMilli(0),
-                Version.CURRENT,
-                repository,
-                name,
-                generatePath(snapshotId, indexId, shardId),
-                new BytesArray(bytes.toBytesRef(), true),
-                range.start()
+        protected void innerPut(IndexRequest request, ActionListener<IndexResponse> listener) {
+            final BytesArray bytesArray = blobs.put(request.id(), new BytesArray(request.source().toBytesRef(), true));
+            listener.onResponse(
+                new IndexResponse(
+                    new ShardId(request.index(), "_na", 0),
+                    request.id(),
+                    UNASSIGNED_SEQ_NO,
+                    UNASSIGNED_PRIMARY_TERM,
+                    0L,
+                    bytesArray == null
+                )
             );
-            blobs.put(generateId(repository, snapshotId, indexId, shardId, name, range), cachedBlob);
-            listener.onResponse(null);
         }
     }
 

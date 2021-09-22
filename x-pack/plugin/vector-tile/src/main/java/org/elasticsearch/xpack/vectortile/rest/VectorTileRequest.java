@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -40,6 +41,9 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
  * Transforms a rest request in a vector tile request
@@ -83,6 +87,7 @@ class VectorTileRequest {
         public static final GRID_TYPE GRID_TYPE = VectorTileRequest.GRID_TYPE.GRID;
         public static final int EXTENT = 4096;
         public static final boolean EXACT_BOUNDS = false;
+        public static final int TRACK_TOTAL_HITS_UP_TO = DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     }
 
     private static final ObjectParser<VectorTileRequest, RestRequest> PARSER;
@@ -126,6 +131,15 @@ class VectorTileRequest {
         PARSER.declareString(VectorTileRequest::setGridType, GRID_TYPE_FIELD);
         PARSER.declareInt(VectorTileRequest::setExtent, EXTENT_FIELD);
         PARSER.declareBoolean(VectorTileRequest::setExactBounds, EXACT_BOUNDS_FIELD);
+        PARSER.declareField(VectorTileRequest::setTrackTotalHitsUpTo, (p) -> {
+            XContentParser.Token token = p.currentToken();
+            if (token == XContentParser.Token.VALUE_BOOLEAN
+                || (token == XContentParser.Token.VALUE_STRING && Booleans.isBoolean(p.text()))) {
+                return p.booleanValue() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
+            } else {
+                return p.intValue();
+            }
+        }, SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD, ObjectParser.ValueType.VALUE);
     }
 
     static VectorTileRequest parseRestRequest(RestRequest restRequest) throws IOException {
@@ -158,6 +172,19 @@ class VectorTileRequest {
         if (restRequest.hasParam(EXACT_BOUNDS_FIELD.getPreferredName())) {
             request.setExactBounds(restRequest.paramAsBoolean(EXACT_BOUNDS_FIELD.getPreferredName(), Defaults.EXACT_BOUNDS));
         }
+        if (restRequest.hasParam(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName())) {
+            if (Booleans.isBoolean(restRequest.param(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName()))) {
+                if (restRequest.paramAsBoolean(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), true)) {
+                    request.setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE);
+                } else {
+                    request.setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_DISABLED);
+                }
+            } else {
+                request.setTrackTotalHitsUpTo(
+                    restRequest.paramAsInt(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), DEFAULT_TRACK_TOTAL_HITS_UP_TO)
+                );
+            }
+        }
         return request;
     }
 
@@ -185,6 +212,7 @@ class VectorTileRequest {
     private List<FieldAndFormat> fields = Defaults.FETCH;
     private List<SortBuilder<?>> sortBuilders;
     private boolean exact_bounds = Defaults.EXACT_BOUNDS;
+    private int trackTotalHitsUpTo = Defaults.TRACK_TOTAL_HITS_UP_TO;
 
     private VectorTileRequest(String[] indexes, String field, int z, int x, int y) {
         this.indexes = indexes;
@@ -343,5 +371,13 @@ class VectorTileRequest {
 
     private void setSortBuilders(List<SortBuilder<?>> sortBuilders) {
         this.sortBuilders = sortBuilders;
+    }
+
+    public int getTrackTotalHitsUpTo() {
+        return trackTotalHitsUpTo;
+    }
+
+    private void setTrackTotalHitsUpTo(int trackTotalHitsUpTo) {
+        this.trackTotalHitsUpTo = trackTotalHitsUpTo;
     }
 }

@@ -233,6 +233,15 @@ Accepts `0`-`10000`. Defaults to `10000`. If `0`, results don't include the
 `hits` layer.
 // end::size[]
 
+// tag::track_total_hits[]
+`track_total_hits`::
+(Optional, integer or Boolean)
+Number of hits matching the query to count accurately. Defaults to `10000`.
++
+If `true`, the exact number of hits is returned at the cost of some performance.
+If `false`, the response does not include the total number of hits matching the query.
+// end::track_total_hits[]
+
 [role="child_attributes"]
 [[search-vector-tile-api-request-body]]
 ==== {api-request-body-title}
@@ -285,6 +294,8 @@ include::search-vector-tile-api.asciidoc[tag=size]
 +
 By default, the API calculates a bounding box for each feature. It sorts
 features based on this box's diagonal length, from longest to shortest.
+
+include::search-vector-tile-api.asciidoc[tag=track_total_hits]
 
 [role="child_attributes"]
 [[search-vector-tile-api-response]]

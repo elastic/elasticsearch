@@ -1,5 +1,5 @@
 [[remote-clusters-privileges]]
-=== Configure remote cluster privileges
+=== Configure roles and users for remote clusters
 After <<remote-clusters-connect,connecting remote clusters>>, you create a
 user role on both the local and remote clusters and assign necessary privileges.
 These roles are required to use {ccr} and {ccs}.
@@ -23,8 +23,9 @@ The following requests use the
 //tag::configure-ccr-privileges[]
 ==== Configure privileges for {ccr}
 The {ccr} user requires different cluster and index privileges on the remote
-cluster and local cluster. The following requests create separate roles on the
-local and remote clusters, and then create a user with the required roles.
+cluster and local cluster. Use the following requests to create separate roles
+on the local and remote clusters, and then create a user with the required
+roles.
 
 [discrete]
 ===== Remote cluster
@@ -72,11 +73,6 @@ DELETE /_security/role/remote-replication
 On the local cluster that contains the follower index, the `remote-replication`
 role requires the `manage_ccr` cluster privilege, and `monitor`, `read`, `write`,
 and `manage_follow_index` privileges on the follower index.
-
-NOTE: If you are managing
-<<remote-clusters-connect,connecting to the remote cluster>> using
-the cluster update settings API, you will also need a user with the `all`
-cluster privilege.
 
 The following request creates a `remote-replication` role on the local cluster:
 
@@ -229,7 +225,9 @@ and periodically offload older time-based indices to an archive on your remote
 cluster. You want to search across both clusters, so you must enable {kib}
 users on both clusters.
 
-On the *local* cluster, create a `logstash-reader` role that grants
+[discrete]
+===== Local cluster
+On the local cluster, create a `logstash-reader` role that grants
 `read` and `view_index_metadata` privileges on the local `logstash-*` indices.
 
 NOTE: If you configure the local cluster as another remote in {es}, the
@@ -272,7 +270,9 @@ PUT /_security/user/cross-cluster-kibana
 }
 ----
 
-On the *remote* cluster, create a `logstash-reader` role that grants the
+[discrete]
+===== Remote cluster
+On the remote cluster, create a `logstash-reader` role that grants the
 `read_cross_cluster` privilege and `read` and `view_index_metadata` privileges
 for the `logstash-*` indices.
 

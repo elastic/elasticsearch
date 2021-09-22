@@ -8,7 +8,7 @@ even if the connections are idle for an extended period.
 
 NOTE: You must have the `manage` cluster privilege to connect remote clusters.
 
-To configure a remote cluster from Stack Management in {kib}:
+To add a remote cluster from Stack Management in {kib}:
 
 . Select *Remote Clusters* from the side navigation.
 . Specify the {es} endpoint URL, or the IP address or host name of the remote
@@ -16,16 +16,19 @@ cluster followed by the transport port (defaults to `9300`). For example,
 `cluster.es.eastus2.staging.azure.foundit.no:9400` or `192.168.1.1:9300`.
 
 Alternatively, use the <<cluster-update-settings,cluster update settings API>>
-to add a remote cluster. You can also use this API to
-<<configure-remote-clusters-dynamic,apply and update>> settings across the
-entire remote cluster. To configure settings on individual nodes in a remote
-cluster, define
-<<configure-remote-clusters-static,static settings>> in `elasticsearch.yml`.
+to add a remote cluster. You can also use this API to 
+<<configure-remote-clusters-dynamic,dynamically configure>> remote clusters for
+_every_ node in the local cluster. To configure remote clusters on individual
+nodes in the local cluster, define 
+<<configure-remote-clusters-static,static settings>> in `elasticsearch.yml` for
+each node.
+
+After connecting remote clusters, 
+<<remote-clusters-privileges,configure roles and users for remote clusters>>.
 
 The following request adds a remote cluster with an alias of `cluster_one`. This
 _cluster alias_ is a unique identifier that represents the connection to the 
-remote cluster and is used subsequently to distinguish between local and remote 
-indices.
+remote cluster and is used to distinguish between local and remote indices.
 
 [source,console]
 ----
@@ -192,6 +195,10 @@ PUT _cluster/settings
 If you specify settings in `elasticsearch.yml`, only the nodes with
 those settings can connect to the remote cluster and serve remote cluster 
 requests.
+
+NOTE: Remote cluster settings that are specified using the 
+<<cluster-update-settings,cluster update settings API>> take precedence over
+settings that you specify in `elasticsearch.yml` for individual nodes.
 
 In the following example, `cluster_one`, `cluster_two`, and `cluster_three` are 
 arbitrary cluster aliases representing the connection to each cluster. These 

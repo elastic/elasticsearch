@@ -181,11 +181,8 @@ public class ArchiveTests extends PackagingTestCase {
         FileUtils.assertPathsDoNotExist(installation.data);
         final Installation.Executables bin = installation.executables();
         final String password = "some-keystore-password";
-        bin.keystoreTool.run("create");
         Platforms.onLinux(() -> bin.keystoreTool.run("passwd", password + "\n" + password + "\n"));
         Platforms.onWindows(() -> {
-            Path keystore = installation.config("elasticsearch.keystore");
-            sh.chown(keystore);
             sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
         });
         Shell.Result result = runElasticsearchStartCommand("", false, false);

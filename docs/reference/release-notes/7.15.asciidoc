@@ -7,16 +7,9 @@
 [[enhancement-7.15.0]]
 === Enhancements
 
-Machine Learning::
-* Speed up training of regression and classification models on very large data sets {ml-pull}1941[#1941]
-* Improve regression and classification training accuracy for small data sets {ml-pull}1960[#1960]
-* Prune models for split fields (by, partition) that haven't seen data updates for
-a given period of time {ml-pull}1962[#1962]
 
 [discrete]
 [[bug-7.15.0]]
 === Bug fixes
 
 Machine Learning::
-* Fix potential "process stopped unexpectedly: Fatal error" for training regression
-and classification models  {ml-pull}1997[#1997] (issue: {ml-issue}1956[#1956])

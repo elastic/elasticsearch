@@ -131,6 +131,9 @@ Machine Learning::
 * Deleting a job now deletes the datafeed if necessary {es-pull}76010[#76010]
 * Integrating ML with the node shutdown API {es-pull}75188[#75188]
 * Throttle job audit msgs if delayed data occurs for consecutive buckets {es-pull}75815[#75815] (issue: {es-issue}73679[#73679])
+* Speed up training of regression and classification models on very large data sets {ml-pull}1941[#1941]
+* Improve regression and classification training accuracy for small data sets {ml-pull}1960[#1960]
+* Prune models for split fields (by, partition) that haven't seen data updates for a given period of time {ml-pull}1962[#1962]
 
 Mapping::
 * Handle runtime subfields when shadowing dynamic mappings {es-pull}75595[#75595] (issue: {es-issue}75454[#75454])
@@ -250,6 +253,7 @@ Machine Learning::
 * Ignore exceptions while opening job after SIGTERM to JVM {es-pull}75850[#75850]
 * Prevent accidentally asking for more resources when scaling down and improve scaling size estimations {es-pull}74691[#74691] (issue: {es-issue}74709[#74709])
 * When setting upgrade mode ensure that internal actions don't throw unnecessary permissions errors {es-pull}75880[#75880]
+* Fix potential "process stopped unexpectedly: Fatal error" for training regression and classification models  {ml-pull}1997[#1997] (issue: {ml-issue}1956[#1956])
 
 Network::
 * Ensure replica requests are marked as `index_data` (#75008) {es-pull}75014[#75014] (issue: {es-issue}73497[#73497])

@@ -48,7 +48,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
     doFirst {
       def cluster = baseCluster.get()
       // Getting the endpoints causes a wait for the cluster
-      println "Endpoints are: ${-> cluster.get().allHttpSocketURI.join(",")}"
+      println "Endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
       println "Upgrading one node to create a mixed cluster"
       cluster.nextNodeToNextVersion()
 

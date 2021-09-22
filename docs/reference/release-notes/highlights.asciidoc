@@ -31,21 +31,21 @@ Other versions:
 There's a new API that supports analyzing the disk usage of each field of an
 index, including the entire index itself. The the API estimates the disk usage
 of a field by iterating over its content and tracking the number of bytes read.
-Refer to <<indices-disk-usage,analyze index disk usage API>>.
+Refer to {ref}/indices-disk-usage.html[analyze index disk usage API].
 
 [discrete]
 === Search vector tile API
 There's a new endpoint for generating vector tiles from geospatial data stored
 in {es}. This capability is useful for any application that wants to render
 geospatial information stored in {es} on a map.
-Refer to <<search-vector-tile-api,search vector tile API>>.
+Refer to {ref}/search-vector-tile-api.html[search vector tile API].
 
 [discrete]
 === Composite runtime fields
 Runtime fields support both grok and dissect patterns, but previously emitted
 values for a single field only. You can now emit multiple values from a single
 field using `composite` runtime fields. 
-Refer to <<runtime-examples-grok-composite,define a composite runtime field>>.
+Refer to {ref}/runtime-examples.html#runtime-examples-grok-composite[define a composite runtime field].
 
 // end::notable-highlights[]
 

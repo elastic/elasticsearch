@@ -84,7 +84,7 @@ public class SamlResponseHandler extends SamlObjectHandler {
 
     private String getMessage(Status status) {
         final StatusMessage sm = status.getStatusMessage();
-        return sm == null ? null : sm.getMessage();
+        return sm == null ? null : sm.getValue();
     }
 
     private String getDetail(Status status) {

@@ -6,9 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.apache.lucene.util;
+package org.elasticsearch.lucene.util;
 
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
 
 /**
  * A {@link BitSet} implementation that combines two instances of {@link BitSet} and {@link Bits}

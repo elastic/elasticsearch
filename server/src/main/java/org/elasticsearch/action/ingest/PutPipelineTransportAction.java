@@ -62,7 +62,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
 
         Map<String, Object> pipelineConfig = null;
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        if (currentIngestMetadata.getPipelines().containsKey(request.getId())) {
+        if (currentIngestMetadata != null && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
             pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
             var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
             if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {

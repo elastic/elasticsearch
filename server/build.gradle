@@ -275,7 +275,6 @@ tasks.named('splitPackagesAudit').configure {
     'org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter',
     'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttribute',
     'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttributeImpl',
-    'org.apache.lucene.document.BinaryRange',
     'org.apache.lucene.queryparser.classic.XQueryParser',
     'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
     'org.apache.lucene.queries.BlendedTermQuery',

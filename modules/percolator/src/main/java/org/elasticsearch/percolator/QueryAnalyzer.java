@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.document.BinaryRange;
+import org.elasticsearch.lucene.document.BinaryRange;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;

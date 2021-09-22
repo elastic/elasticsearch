@@ -5,8 +5,12 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.apache.lucene.document;
+package org.elasticsearch.lucene.document;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.RangeFieldQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 

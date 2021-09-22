@@ -36,16 +36,16 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_COLD_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_DELETE_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_HOT_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_PHASES;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_COLD_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_HOT_ACTIONS;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_PHASES;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateAllSearchableSnapshotActionsUseSameRepository;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateFrozenPhaseHasSearchableSnapshotAction;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -147,6 +147,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/78158")
     public void testValidateColdPhase() {
         LifecycleAction invalidAction = null;
         Map<String, LifecycleAction> actions = randomSubsetOf(VALID_COLD_ACTIONS)

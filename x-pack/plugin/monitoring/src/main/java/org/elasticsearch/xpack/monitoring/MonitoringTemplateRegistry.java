@@ -109,7 +109,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     // Logstash template (for matching ".monitoring-logstash-${version}-*" indices)
     //////////////////////////////////////////////////////////
-    public static final String LOGSTASH_INDEX_TEMPLATE_NAME = "monitoring-logstash";
+    public static final String LOGSTASH_INDEX_TEMPLATE_NAME = ".monitoring-logstash";
     public static final IndexTemplateConfig LOGSTASH_INDEX_TEMPLATE = new IndexTemplateConfig(
         LOGSTASH_INDEX_TEMPLATE_NAME,
         "/monitoring-logstash.json",

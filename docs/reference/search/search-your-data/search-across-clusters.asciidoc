@@ -336,6 +336,9 @@ low latency.
 +
 See <<ccs-unmin-roundtrips>> to learn how this option works.
 
+NOTE: The <<search-vector-tile-api,vector tile search API>> always minimizes
+network roundtrips and doesn't include the `ccs_minimize_roundtrips` parameter.
+
 [discrete]
 [[ccs-min-roundtrips]]
 ==== Minimize network roundtrips

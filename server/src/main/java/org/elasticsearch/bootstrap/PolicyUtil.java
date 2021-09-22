@@ -104,6 +104,7 @@ public class PolicyUtil {
             new RuntimePermission("loadLibrary.*"),
             new RuntimePermission("accessClassInPackage.*"),
             new RuntimePermission("accessDeclaredMembers"),
+            new RuntimePermission("org.elasticsearch.modifyInnocuousThread"),
             new NetPermission("requestPasswordAuthentication"),
             new NetPermission("getProxySelector"),
             new NetPermission("getCookieHandler"),
@@ -112,7 +113,7 @@ public class PolicyUtil {
             new SecurityPermission("createAccessControlContext"),
             new SecurityPermission("insertProvider"),
             new SecurityPermission("putProviderProperty.*"),
-            // apache abuses the SecurityPermission class for it's own purposes
+            // apache abuses the SecurityPermission class for its own purposes
             new SecurityPermission("org.apache.*"),
             // write is needed because of HdfsPlugin
             new PropertyPermission("*", "read,write"),

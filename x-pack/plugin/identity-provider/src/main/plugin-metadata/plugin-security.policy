@@ -3,6 +3,7 @@ grant {
 
   // ApacheXMLSecurityInitializer
   permission java.util.PropertyPermission "org.apache.xml.security.ignoreLineBreaks", "read,write";
+  permission java.security.SecurityPermission "org.apache.xml.security.register";
 
   // needed during initialization of OpenSAML library where xml security algorithms are registered
   // see https://github.com/apache/santuario-java/blob/e79f1fe4192de73a975bc7246aee58ed0703343d/src/main/java/org/apache/xml/security/utils/JavaUtils.java#L205-L220
@@ -12,4 +13,7 @@ grant {
 
   // needed for multiple server implementations used in tests
   permission java.net.SocketPermission "*", "accept,connect";
+
+  // Needed for OpenSAML to start a java.lang.ref.Cleaner
+  permission java.lang.RuntimePermission "org.elasticsearch.modifyInnocuousThread";
 };

@@ -81,7 +81,8 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
             }
         }
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-        nodesInfoRequest.clear().addMetric(NodesInfoRequest.Metric.INGEST.metricName());
+        nodesInfoRequest.clear();
+        nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
         client.admin().cluster().nodesInfo(
             nodesInfoRequest,
             ActionListener.wrap(
@@ -92,7 +93,8 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
                     }
                     ingestService.putPipeline(ingestInfos, request, listener);
                 },
-                listener::onFailure)
+                listener::onFailure
+            )
         );
     }
 

@@ -38,7 +38,7 @@ public class PostFeatureUpgradeResponseTests extends AbstractResponseTestCase<
         if (randomBoolean()) {
             return new org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse(
                 true,
-                randomList(0, 5,
+                randomList(5,
                     () -> new org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse.Feature(
                         randomAlphaOfLengthBetween(5, 15)
                     )),
@@ -48,7 +48,7 @@ public class PostFeatureUpgradeResponseTests extends AbstractResponseTestCase<
         } else {
             return new org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse(
                 false,
-                randomBoolean() ? null : Collections.emptyList(),
+                Collections.emptyList(),
                 randomAlphaOfLengthBetween(10, 20),
                 new ElasticsearchException(randomAlphaOfLengthBetween(10, 20)));
         }

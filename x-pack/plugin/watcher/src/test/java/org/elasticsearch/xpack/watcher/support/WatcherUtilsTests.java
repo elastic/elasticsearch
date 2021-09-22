@@ -150,10 +150,10 @@ public class WatcherUtilsTests extends ESTestCase {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedSource.utf8ToString()));
             assertThat(result.getTemplate().getType(), equalTo(ScriptType.INLINE));
         }
-        if (expectedIndicesOptions != DEFAULT_INDICES_OPTIONS && expectedTypes != null) {
+        if (expectedIndicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false && expectedTypes != null) {
             assertWarnings(IGNORE_THROTTLED_FIELD_WARNING, WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
             assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes));
-        } else if (expectedIndicesOptions != DEFAULT_INDICES_OPTIONS) {
+        } else if (expectedIndicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
             assertWarnings(IGNORE_THROTTLED_FIELD_WARNING);
         } else if (expectedTypes != null) {
             assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);

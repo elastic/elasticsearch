@@ -733,7 +733,7 @@ public abstract class Engine implements Closeable {
      * Returns the estimated number of history operations whose seq# at least {@code startingSeqNo}(inclusive) in this engine.
      */
     public abstract int estimateNumberOfHistoryOperations(String reason, HistorySource historySource,
-                                                          MapperService mapperService, long startingSeqNo) throws IOException;
+                                                          long startingSeqNo) throws IOException;
 
     /**
      * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)

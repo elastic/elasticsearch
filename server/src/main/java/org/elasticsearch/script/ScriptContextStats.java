@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 public class ScriptContextStats implements Writeable, ToXContentFragment, Comparable<ScriptContextStats> {
@@ -43,10 +42,8 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         cacheEvictions = in.readVLong();
         compilationLimitTriggered = in.readVLong();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            List<TimeSeries> timeSeries = in.readList(TimeSeries::new);
-            assert timeSeries.size() == 2;
-            compilationsHistory = timeSeries.get(0);
-            cacheEvictionsHistory = timeSeries.get(1);
+            compilationsHistory = new TimeSeries(in);
+            cacheEvictionsHistory = new TimeSeries(in);
         } else {
             compilationsHistory = null;
             cacheEvictionsHistory = null;
@@ -60,7 +57,8 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         out.writeVLong(cacheEvictions);
         out.writeVLong(compilationLimitTriggered);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeList(List.of(compilationsHistory, cacheEvictionsHistory));
+            compilationsHistory.writeTo(out);
+            cacheEvictionsHistory.writeTo(out);
         }
     }
 

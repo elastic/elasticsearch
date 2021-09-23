@@ -14,13 +14,12 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
-import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
 import org.gradle.process.ExecOperations;
@@ -44,11 +43,11 @@ import javax.inject.Inject;
 public class PruneChangelogsTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(PruneChangelogsTask.class);
 
-    private final ConfigurableFileCollection changelogs;
+    private FileCollection changelogs;
     private final GitWrapper gitWrapper;
     private final Path rootDir;
 
-    private boolean confirmed;
+    private boolean dryRun;
 
     @Inject
     public PruneChangelogsTask(Project project, ObjectFactory objectFactory, ExecOperations execOperations) {
@@ -57,23 +56,24 @@ public class PruneChangelogsTask extends DefaultTask {
         rootDir = project.getRootDir().toPath();
     }
 
-    @InputFiles
+    @Internal
+    @SkipWhenEmpty
     public FileCollection getChangelogs() {
         return changelogs;
     }
 
     public void setChangelogs(FileCollection files) {
-        this.changelogs.setFrom(files);
+        this.changelogs = files;
     }
 
-    @Input
-    public boolean isConfirmed() {
-        return confirmed;
+    @Internal
+    public boolean isDryRun() {
+        return dryRun;
     }
 
-    @Option(option = "confirm", description = "Required in order to actually remove files")
-    public void setConfirmed(boolean confirmed) {
-        this.confirmed = confirmed;
+    @Option(option = "dry-run", description = "Find and print files to prune but don't actually delete them")
+    public void setDryRun(boolean dryRun) {
+        this.dryRun = dryRun;
     }
 
     @TaskAction
@@ -83,7 +83,7 @@ public class PruneChangelogsTask extends DefaultTask {
             files -> files.stream().filter(each -> each.delete() == false).collect(Collectors.toSet()),
             QualifiedVersion.of(VersionProperties.getElasticsearch()),
             this.getChangelogs().getFiles(),
-            this.confirmed,
+            this.dryRun,
             this.rootDir
         );
     }
@@ -94,14 +94,9 @@ public class PruneChangelogsTask extends DefaultTask {
         DeleteHelper deleteHelper,
         QualifiedVersion version,
         Set<File> allFilesInCheckout,
-        boolean confirmed,
+        boolean dryRun,
         Path rootDir
     ) {
-        if (allFilesInCheckout.isEmpty()) {
-            LOGGER.warn("No changelog files in checkout, so nothing to delete.");
-            return;
-        }
-
         final Set<String> earlierFiles = findAllFilesInEarlierVersions(gitWrapper, version);
 
         if (earlierFiles.isEmpty()) {
@@ -118,11 +113,11 @@ public class PruneChangelogsTask extends DefaultTask {
             return;
         }
 
-        LOGGER.warn("The following changelog files {} be deleted:", confirmed ? "will" : "can");
+        LOGGER.warn("The following changelog files {} be deleted:", dryRun ? "can" : "will");
         LOGGER.warn("");
         filesToDelete.forEach(file -> LOGGER.warn("\t{}", rootDir.relativize(file.toPath())));
 
-        if (confirmed) {
+        if (dryRun == false) {
             final Set<File> failedToDelete = deleteHelper.deleteFiles(filesToDelete);
 
             if (failedToDelete.isEmpty() == false) {
@@ -132,9 +127,6 @@ public class PruneChangelogsTask extends DefaultTask {
                         + "\n"
                 );
             }
-        } else {
-            LOGGER.warn("");
-            LOGGER.warn("Re-run with `--confirm` to delete the above file(s).");
         }
     }
 

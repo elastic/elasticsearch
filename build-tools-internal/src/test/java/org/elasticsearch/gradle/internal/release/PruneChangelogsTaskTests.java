@@ -45,23 +45,11 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
     }
 
     /**
-     * Check that if there are no files in the current checkout, then the task does nothing.
-     */
-    @Test
-    public void findAndDeleteFiles_withNoFiles_doesNothing() {
-        // when:
-        findAndDeleteFiles(gitWrapper, deleteHelper, null, Set.of(), false, Path.of("rootDir"));
-
-        // then:
-        verify(gitWrapper, never()).listVersions(anyString());
-    }
-
-    /**
      * Check that if there are files in the checkout, but no prior versions in the git
      * history, the task deletes nothing.
      */
     @Test
-    public void findAndDeleteFiles_withFilesButNoPriorVersions_deletesNothing() {
+    public void findAndDeleteFiles_withNoPriorVersions_deletesNothing() {
         // given:
         when(gitWrapper.listVersions(anyString())).thenReturn(Stream.of());
 
@@ -106,43 +94,11 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
     }
 
     /**
-     * Check that if there are files to delete, but the user hasn't supplied the confirmation CLI option,
+     * Check that if there are files to delete, but the user has supplied the `--dry-run` CLI option,
      * then no files are deleted.
      */
     @Test
-    public void findAndDeleteFiles_withFilesToDelete_respectCancellation() {
-        // given:
-        when(gitWrapper.listVersions(anyString())).thenReturn(Stream.of(QualifiedVersion.of("7.14.0"), QualifiedVersion.of("7.15.0")));
-        when(gitWrapper.listFiles(anyString(), anyString())).thenAnswer(
-            args -> Stream.of("docs/changelog/1234.yml", "docs/changelog/5678.yml")
-        );
-
-        // when:
-        findAndDeleteFiles(
-            gitWrapper,
-            deleteHelper,
-            QualifiedVersion.of("7.16.0"),
-            Set.of(
-                new File("rootDir/docs/changelog/1234.yml"),
-                new File("rootDir/docs/changelog/5678.yml"),
-                new File("rootDir/docs/changelog/9123.yml")
-            ),
-            false,
-            Path.of("rootDir")
-        );
-
-        // then:
-        verify(gitWrapper).listVersions("v7.*");
-        verify(gitWrapper, times(2)).listFiles(anyString(), anyString());
-        verify(deleteHelper, never()).deleteFiles(any());
-    }
-
-    /**
-     * Check that if there are files to delete, and the user has confirmed the delete action
-     * via the CLI option, then the files are deleted.
-     */
-    @Test
-    public void findAndDeleteFiles_withFilesToDelete_deletesFiles() {
+    public void findAndDeleteFiles_withFilesToDelete_respectDryRun() {
         // given:
         when(gitWrapper.listVersions(anyString())).thenReturn(Stream.of(QualifiedVersion.of("7.14.0"), QualifiedVersion.of("7.15.0")));
         when(gitWrapper.listFiles(anyString(), anyString())).thenAnswer(
@@ -166,12 +122,42 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
         // then:
         verify(gitWrapper).listVersions("v7.*");
         verify(gitWrapper, times(2)).listFiles(anyString(), anyString());
+        verify(deleteHelper, never()).deleteFiles(any());
+    }
+
+    /**
+     * Check that if there are files to delete, then the files are deleted.
+     */
+    @Test
+    public void findAndDeleteFiles_withFilesToDelete_deletesFiles() {
+        // given:
+        when(gitWrapper.listVersions(anyString())).thenReturn(Stream.of(QualifiedVersion.of("7.14.0"), QualifiedVersion.of("7.15.0")));
+        when(gitWrapper.listFiles(anyString(), anyString())).thenAnswer(
+            args -> Stream.of("docs/changelog/1234.yml", "docs/changelog/5678.yml")
+        );
+
+        // when:
+        findAndDeleteFiles(
+            gitWrapper,
+            deleteHelper,
+            QualifiedVersion.of("7.16.0"),
+            Set.of(
+                new File("rootDir/docs/changelog/1234.yml"),
+                new File("rootDir/docs/changelog/5678.yml"),
+                new File("rootDir/docs/changelog/9123.yml")
+            ),
+            false,
+            Path.of("rootDir")
+        );
+
+        // then:
+        verify(gitWrapper).listVersions("v7.*");
+        verify(gitWrapper, times(2)).listFiles(anyString(), anyString());
         verify(deleteHelper).deleteFiles(Set.of(new File("rootDir/docs/changelog/1234.yml"), new File("rootDir/docs/changelog/5678.yml")));
     }
 
     /**
-     * Check that if there are files to delete, and the user has confirmed the delete action
-     * via the CLI option, but some deletes fail, then the task throws an exception.
+     * Check that if there are files to delete, but some deletes fail, then the task throws an exception.
      */
     @Test
     public void findAndDeleteFiles_withFilesToDeleteButDeleteFails_throwsException() {
@@ -195,7 +181,7 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
                     new File("rootDir/docs/changelog/5678.yml"),
                     new File("rootDir/docs/changelog/9123.yml")
                 ),
-                true,
+                false,
                 Path.of("rootDir")
             )
         );

@@ -369,7 +369,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                         "Unexpected null categorization group for bucket [" + delayedBucket.key.asString() + "]"
                     );
                 }
-                BytesRef[] categoryTokens = hash.getShallows(group.getCategorization());
+                BytesRef[] categoryTokens = hash.getDeeps(group.getCategorization());
 
                 BucketKey key = reduceContext.isFinalReduce() ?
                     BucketKey.withCollapsedWildcards(categoryTokens) :

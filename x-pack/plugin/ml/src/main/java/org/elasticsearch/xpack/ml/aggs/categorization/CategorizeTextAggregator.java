@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
@@ -71,11 +73,29 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         this.sourceLookup = context.lookup().source();
         this.sourceFieldName = sourceFieldName;
         this.fieldType = fieldType;
-        this.analyzer = new CategorizationAnalyzer(
-            context.getAnalysisRegistry(),
-            Optional.ofNullable(categorizationAnalyzerConfig)
-                .orElse(CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(Collections.emptyList()))
-        );
+        CategorizationAnalyzerConfig analyzerConfig = Optional.ofNullable(categorizationAnalyzerConfig)
+            .orElse(CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(Collections.emptyList()));
+        String analyzer = analyzerConfig.getAnalyzer();
+        final boolean shouldClose;
+        final Analyzer innerAnalyzer;
+        if (analyzer != null) {
+            Analyzer globalAnalyzer = context.getNamedAnalyzer(analyzer);
+            if (globalAnalyzer == null) {
+                throw new IllegalArgumentException("Failed to find global analyzer [" + analyzer + "]");
+            }
+            innerAnalyzer = globalAnalyzer;
+            shouldClose = false;
+        } else {
+            innerAnalyzer = context.buildCustomAnalyzer(
+                context.getIndexSettings(),
+                false,
+                analyzerConfig.getTokenizer(),
+                analyzerConfig.getCharFilters(),
+                analyzerConfig.getTokenFilters()
+            );
+            shouldClose = true;
+        }
+        this.analyzer = new CategorizationAnalyzer(innerAnalyzer, shouldClose);
         this.categorizers = bigArrays().newObjectArray(1);
         this.maxChildren = maxChildren;
         this.maxDepth = maxDepth;
@@ -156,6 +176,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
+            private final BytesRefBuilder scratch = new BytesRefBuilder();
 
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {

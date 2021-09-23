@@ -26,13 +26,6 @@ class CategorizationBytesRefHash implements Closeable {
         this.bytesRefHash = bytesRefHash;
     }
 
-    BytesRef getShallow(long id) {
-        if (id == WILD_CARD_ID) {
-            return WILD_CARD_REF;
-        }
-        return bytesRefHash.get(id, new BytesRef());
-    }
-
     long[] getIds(BytesRef[] tokens) {
         long[] ids = new long[tokens.length];
         for (int i = 0; i < tokens.length; i++) {
@@ -41,10 +34,10 @@ class CategorizationBytesRefHash implements Closeable {
         return ids;
     }
 
-    BytesRef[] getShallows(long[] ids) {
+    BytesRef[] getDeeps(long[] ids) {
         BytesRef[] tokens = new BytesRef[ids.length];
         for (int i = 0; i < tokens.length; i++) {
-            tokens[i] = getShallow(ids[i]);
+            tokens[i] = getDeep(ids[i]);
         }
         return tokens;
     }

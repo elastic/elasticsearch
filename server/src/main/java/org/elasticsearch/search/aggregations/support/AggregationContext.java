@@ -19,6 +19,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -97,9 +98,28 @@ public abstract class AggregationContext implements Releasable {
     }
 
     /**
-     * @return The analysis registry for the node. Allows specialized aggregations to build custom analyzers for tokenizing text
+     * Returns an existing registered analyzer that should NOT be closed when finished being used.
+     * @param analyzer The custom analyzer name
+     * @return The existing named analyzer.
      */
-    public abstract AnalysisRegistry getAnalysisRegistry();
+    public abstract Analyzer getNamedAnalyzer(String analyzer) throws IOException;
+
+    /**
+     * Creates a new custom analyzer that should be closed when finished being used.
+     * @param indexSettings The current index settings or null
+     * @param normalizer Is a normalizer
+     * @param tokenizer The tokenizer name or definition to use
+     * @param charFilters The char filter name or definition to use
+     * @param tokenFilters The token filter name or definition to use
+     * @return A new custom analyzer
+     */
+    public abstract Analyzer buildCustomAnalyzer(
+        IndexSettings indexSettings,
+        boolean normalizer,
+        NameOrDefinition tokenizer,
+        List<NameOrDefinition> charFilters,
+        List<NameOrDefinition> tokenFilters
+    ) throws IOException;
 
     /**
      * Lookup the context for an already resolved field type.
@@ -337,11 +357,6 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public AnalysisRegistry getAnalysisRegistry() {
-            return this.analysisRegistry;
-        }
-
-        @Override
         public Query query() {
             return topLevelQuery.get();
         }
@@ -362,6 +377,22 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public long nowInMillis() {
             return context.nowInMillis();
+        }
+
+        @Override
+        public Analyzer getNamedAnalyzer(String analyzer) throws IOException {
+            return analysisRegistry.getAnalyzer(analyzer);
+        }
+
+        @Override
+        public Analyzer buildCustomAnalyzer(
+            IndexSettings indexSettings,
+            boolean normalizer,
+            NameOrDefinition tokenizer,
+            List<NameOrDefinition> charFilters,
+            List<NameOrDefinition> tokenFilters
+        ) throws IOException {
+            return analysisRegistry.buildCustomAnalyzer(indexSettings, normalizer, tokenizer, charFilters, tokenFilters);
         }
 
         @Override

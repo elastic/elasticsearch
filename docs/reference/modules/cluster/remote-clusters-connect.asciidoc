@@ -100,7 +100,7 @@ The `seeds` parameter specifies the hostname and
 remote cluster.
 
 The `mode` parameter determines the configured connection mode, which defaults
-to <<sniff-mode,`sniff`>>. Because `cluster_one` doesn't specify a `mode`, it
+to <<sniff-mode-remote,`sniff`>>. Because `cluster_one` doesn't specify a `mode`, it
 uses the default. Both `cluster_two` and `cluster_three` explicitly use
 different modes.
 

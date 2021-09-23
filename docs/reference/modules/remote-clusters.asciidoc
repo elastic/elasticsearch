@@ -34,7 +34,7 @@ remote cluster using sniff mode (default) or proxy mode. After registering
 remote clusters, <<remote-clusters-privileges,configure privileges>> for {ccr} 
 and {ccs}.
 
-[[sniff-mode]]
+[[sniff-mode-remote]]
 [discrete]
 === Sniff mode
 
@@ -46,7 +46,7 @@ are accessible by the local cluster.
 
 Sniff mode is the default connection mode.
 
-[[gateway-nodes-selection]]
+[[gateway-node-selection]]
 The _gateway nodes_ selection depends on the following criteria:
 
 * *version*: Remote nodes must be compatible with the cluster they are
@@ -86,7 +86,7 @@ h| Remote cluster | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
 (see <<remote-clusters-settings,remote cluster settings>>), though such tagged nodes still have
 to satisfy the two above requirements.
 
-[[proxy-mode]]
+[[proxy-mode-remote]]
 [discrete]
 === Proxy mode
 In proxy mode, a cluster is created using a name and a single proxy address.
@@ -96,7 +96,7 @@ connections to the remote cluster. Proxy mode does not require remote cluster
 nodes to have accessible publish addresses.
 
 The proxy mode is not the default connection mode and must be configured. Similar
-to the sniff <<gateway-nodes-selection,gateway nodes>>, the remote
+to the sniff <<gateway-node-selection,gateway nodes>>, the remote
 connections are subject to the same version compatibility rules as
 <<rolling-upgrades,rolling upgrades>>.
 

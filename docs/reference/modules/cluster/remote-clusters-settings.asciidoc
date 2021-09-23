@@ -1,7 +1,7 @@
 [[remote-clusters-settings]]
 === Remote cluster settings
-The following settings apply to both <<sniff-mode,sniff mode>> and
-<<proxy-mode,proxy mode>>. Settings that are specific to sniff mode and proxy
+The following settings apply to both <<sniff-mode-remote,sniff mode>> and
+<<proxy-mode-remote,proxy mode>>. Settings that are specific to sniff mode and proxy
 mode are described separately.
 
 `cluster.remote.<cluster_alias>.mode`::

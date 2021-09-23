@@ -139,7 +139,7 @@ The only requirements are that each node must be:
 
 * Accessible at its transport publish address by all other
   nodes in its cluster, and by any remote clusters that will discover it using
-  <<sniff-mode>>.
+  <<sniff-mode-remote>>.
 
 * Accessible at its HTTP publish address by all clients
   that will discover it using sniffing.

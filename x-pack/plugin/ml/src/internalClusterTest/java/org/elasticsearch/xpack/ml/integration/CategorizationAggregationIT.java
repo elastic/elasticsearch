@@ -83,8 +83,8 @@ public class CategorizationAggregationIT extends BaseMlIntegTestCase {
             .addAggregation(
                 new CategorizeTextAggregationBuilder("categorize", "msg")
                     .setSimilarityThreshold(11)
-                    .setMaxChildren(2)
-                    .setMaxDepth(1)
+                    .setMaxUniqueTokens(2)
+                    .setMaxMatchedTokens(1)
                     .subAggregation(AggregationBuilders.max("max").field("time"))
                     .subAggregation(AggregationBuilders.min("min").field("time"))
             ).get();

@@ -28,16 +28,25 @@ NOTE: If you have considerable memory allocated to your JVM but are receiving ci
 (Required, string)
 The semi-structured text field to categorize.
 
-`max_children`::
+`max_unique_tokens`::
 (Optional, integer, default: `50`)
-The maximum number of unique tokens at any given layer of the tokenization tree.
+The maximum number of unique tokens at any position up to `max_matched_tokens`.
 Must be larger than 1. Smaller values use less memory and create fewer categories.
 Larger values will use more memory and create narrower categories.
 
-`max_depth`::
+`max_matched_tokens`::
 (Optional, integer, default: `5`)
-The maximum number of tokens matched on before attempting to merge categories.
+The maximum number of token positions to match on before attempting to merge categories.
 Larger values will use more memory and create narrower categories.
+
+Example:
+`max_matched_tokens` of 2 would disallow merging of the categories
+[`foo` `bar` `baz`]
+[`foo` `baz` `bozo`]
+As the first 2 tokens are required to match for the category.
+
+NOTE: Once `max_unique_tokens` is reached at a given position, a new `*` token is
+added and all new tokens at that position are matched by the `*` token.
 
 `similarity_threshold`::
 (Optional, integer, default: `50`)
@@ -220,7 +229,7 @@ POST log-messages/_search?filter_path=aggregations
       "categorize_text": {
         "field": "message",
         "categorization_filters": ["\\w+\\_\\d{3}"], <1>
-        "max_depth": 2, <2>
+        "max_matched_tokens": 2, <2>
         "similarity_threshold": 30 <3>
       }
     }
@@ -230,8 +239,7 @@ POST log-messages/_search?filter_path=aggregations
 // TEST[setup:categorize_text]
 <1> The filters to apply to the analyzed tokens. It filters
 out tokens like `bar_123`.
-<2> Only the token tree to have 2 tokens before the log categories
-    attempt to merge together
+<2> Require at least 2 tokens before the log categories attempt to merge together
 <3> Require 30% of the tokens to match before expanding a log categories
     to add a new log entry
 

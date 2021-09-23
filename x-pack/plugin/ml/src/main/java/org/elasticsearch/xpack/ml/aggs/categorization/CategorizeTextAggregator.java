@@ -49,8 +49,8 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     private final CategorizationAnalyzer analyzer;
     private final String sourceFieldName;
     private ObjectArray<CategorizationTokenTree> categorizers;
-    private final int maxChildren;
-    private final int maxDepth;
+    private final int maxUniqueTokens;
+    private final int maxMatchTokens;
     private final int similarityThreshold;
     private final LongKeyedBucketOrds bucketOrds;
     private final CategorizationBytesRefHash bytesRefHash;
@@ -63,8 +63,8 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         String sourceFieldName,
         MappedFieldType fieldType,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
-        int maxChildren,
-        int maxDepth,
+        int maxUniqueTokens,
+        int maxMatchTokens,
         int similarityThreshold,
         CategorizationAnalyzerConfig categorizationAnalyzerConfig,
         Map<String, Object> metadata
@@ -97,8 +97,8 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         }
         this.analyzer = new CategorizationAnalyzer(innerAnalyzer, shouldClose);
         this.categorizers = bigArrays().newObjectArray(1);
-        this.maxChildren = maxChildren;
-        this.maxDepth = maxDepth;
+        this.maxUniqueTokens = maxUniqueTokens;
+        this.maxMatchTokens = maxMatchTokens;
         this.similarityThreshold = similarityThreshold;
         this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), CardinalityUpperBound.MANY);
         this.bucketCountThresholds = bucketCountThresholds;
@@ -150,8 +150,8 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 name,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
-                maxChildren,
-                maxDepth,
+                maxUniqueTokens,
+                maxMatchTokens,
                 similarityThreshold,
                 metadata(),
                 Arrays.asList(bucketArray)
@@ -166,8 +166,8 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             name,
             bucketCountThresholds.getRequiredSize(),
             bucketCountThresholds.getMinDocCount(),
-            maxChildren,
-            maxDepth,
+            maxUniqueTokens,
+            maxMatchTokens,
             similarityThreshold,
             metadata()
         );
@@ -217,7 +217,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 categorizers = bigArrays().grow(categorizers, owningBucketOrd + 1);
                 CategorizationTokenTree categorizer = categorizers.get(owningBucketOrd);
                 if (categorizer == null) {
-                    categorizer = new CategorizationTokenTree(maxChildren, maxDepth, similarityThreshold);
+                    categorizer = new CategorizationTokenTree(maxUniqueTokens, maxMatchTokens, similarityThreshold);
                     addRequestCircuitBreakerBytes(categorizer.ramBytesUsed());
                     categorizers.set(owningBucketOrd, categorizer);
                 }

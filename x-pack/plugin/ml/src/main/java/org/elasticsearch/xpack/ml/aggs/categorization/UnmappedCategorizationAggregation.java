@@ -33,8 +33,8 @@ class UnmappedCategorizationAggregation extends InternalCategorizationAggregatio
             name,
             requiredSize,
             minDocCount,
-            maxChildren,
-            maxDepth,
+            maxUniqueTokens,
+            maxMatchTokens,
             similarityThreshold,
             super.metadata
         );
@@ -51,8 +51,8 @@ class UnmappedCategorizationAggregation extends InternalCategorizationAggregatio
             name,
             requiredSize,
             minDocCount,
-            maxChildren,
-            maxDepth,
+            maxUniqueTokens,
+            maxMatchTokens,
             similarityThreshold,
             super.metadata
         );

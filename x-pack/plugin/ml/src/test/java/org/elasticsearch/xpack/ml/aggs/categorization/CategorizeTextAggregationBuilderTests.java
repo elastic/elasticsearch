@@ -35,10 +35,10 @@ public class CategorizeTextAggregationBuilderTests extends BaseAggregationTestCa
             builder.setCategorizationAnalyzerConfig(CategorizationAnalyzerConfigTests.createRandomized().build());
         }
         if (randomBoolean()) {
-            builder.setMaxChildren(randomIntBetween(1, 500));
+            builder.setMaxUniqueTokens(randomIntBetween(1, 500));
         }
         if (randomBoolean()) {
-            builder.setMaxDepth(randomIntBetween(1, 10));
+            builder.setMaxMatchedTokens(randomIntBetween(1, 10));
         }
         if (randomBoolean()) {
             builder.setSimilarityThreshold(randomIntBetween(1, 100));

@@ -43,14 +43,14 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         -1
     );
 
-    static final int MAX_MAX_CHILDREN = 100;
-    static final int MAX_MAX_DEPTH = 100;
+    static final int MAX_MAX_UNIQUE_TOKENS = 100;
+    static final int MAX_MAX_MATCHED_TOKENS = 100;
     public static final String NAME = "categorize_text";
 
     static final ParseField FIELD_NAME = new ParseField("field");
-    static final ParseField MAX_CHILDREN = new ParseField("max_children");
+    static final ParseField MAX_UNIQUE_TOKENS = new ParseField("max_unique_tokens");
     static final ParseField SIMILARITY_THRESHOLD = new ParseField("similarity_threshold");
-    static final ParseField MAX_DEPTH = new ParseField("max_depth");
+    static final ParseField MAX_MATCHED_TOKENS = new ParseField("max_matched_tokens");
     static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
     static final ParseField CATEGORIZATION_ANALYZER = new ParseField("categorization_analyzer");
 
@@ -60,8 +60,8 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     );
     static {
         PARSER.declareString(CategorizeTextAggregationBuilder::setFieldName, FIELD_NAME);
-        PARSER.declareInt(CategorizeTextAggregationBuilder::setMaxChildren, MAX_CHILDREN);
-        PARSER.declareInt(CategorizeTextAggregationBuilder::setMaxDepth, MAX_DEPTH);
+        PARSER.declareInt(CategorizeTextAggregationBuilder::setMaxUniqueTokens, MAX_UNIQUE_TOKENS);
+        PARSER.declareInt(CategorizeTextAggregationBuilder::setMaxMatchedTokens, MAX_MATCHED_TOKENS);
         PARSER.declareInt(CategorizeTextAggregationBuilder::setSimilarityThreshold, SIMILARITY_THRESHOLD);
         PARSER.declareField(
             CategorizeTextAggregationBuilder::setCategorizationAnalyzerConfig,
@@ -85,9 +85,9 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     );
     private CategorizationAnalyzerConfig categorizationAnalyzerConfig;
     private String fieldName;
-    private int maxChildren = 50;
+    private int maxUniqueTokens = 50;
     private int similarityThreshold = 50;
-    private int maxDepth = 5;
+    private int maxMatchedTokens = 5;
 
     private CategorizeTextAggregationBuilder(String name) {
         super(name);
@@ -111,24 +111,24 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         super(in);
         this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
         this.fieldName = in.readString();
-        this.maxChildren = in.readVInt();
-        this.maxDepth = in.readVInt();
+        this.maxUniqueTokens = in.readVInt();
+        this.maxMatchedTokens = in.readVInt();
         this.similarityThreshold = in.readVInt();
         this.categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
     }
 
-    public int getMaxChildren() {
-        return maxChildren;
+    public int getMaxUniqueTokens() {
+        return maxUniqueTokens;
     }
 
-    public CategorizeTextAggregationBuilder setMaxChildren(int maxChildren) {
-        this.maxChildren = maxChildren;
-        if (maxChildren <= 0) {
+    public CategorizeTextAggregationBuilder setMaxUniqueTokens(int maxUniqueTokens) {
+        this.maxUniqueTokens = maxUniqueTokens;
+        if (maxUniqueTokens <= 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] must be greater than 0 and less than [{}]. Found [{}] in [{}]",
-                MAX_CHILDREN.getPreferredName(),
-                MAX_MAX_CHILDREN,
-                maxChildren,
+                MAX_UNIQUE_TOKENS.getPreferredName(),
+                MAX_MAX_UNIQUE_TOKENS,
+                maxUniqueTokens,
                 name
             );
         }
@@ -185,18 +185,18 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         return this;
     }
 
-    public int getMaxDepth() {
-        return maxDepth;
+    public int getMaxMatchedTokens() {
+        return maxMatchedTokens;
     }
 
-    public CategorizeTextAggregationBuilder setMaxDepth(int maxDepth) {
-        this.maxDepth = maxDepth;
-        if (maxDepth <= 0) {
+    public CategorizeTextAggregationBuilder setMaxMatchedTokens(int maxMatchedTokens) {
+        this.maxMatchedTokens = maxMatchedTokens;
+        if (maxMatchedTokens <= 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] must be greater than 0 and less than [{}]. Found [{}] in [{}]",
-                MAX_DEPTH.getPreferredName(),
-                MAX_MAX_DEPTH,
-                maxDepth,
+                MAX_MATCHED_TOKENS.getPreferredName(),
+                MAX_MAX_MATCHED_TOKENS,
+                maxMatchedTokens,
                 name
             );
         }
@@ -280,8 +280,8 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         super(clone, factoriesBuilder, metadata);
         this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(clone.bucketCountThresholds);
         this.fieldName = clone.fieldName;
-        this.maxChildren = clone.maxChildren;
-        this.maxDepth = clone.maxDepth;
+        this.maxUniqueTokens = clone.maxUniqueTokens;
+        this.maxMatchedTokens = clone.maxMatchedTokens;
         this.similarityThreshold = clone.similarityThreshold;
         this.categorizationAnalyzerConfig = clone.categorizationAnalyzerConfig;
     }
@@ -290,8 +290,8 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     protected void doWriteTo(StreamOutput out) throws IOException {
         bucketCountThresholds.writeTo(out);
         out.writeString(fieldName);
-        out.writeVInt(maxChildren);
-        out.writeVInt(maxDepth);
+        out.writeVInt(maxUniqueTokens);
+        out.writeVInt(maxMatchedTokens);
         out.writeVInt(similarityThreshold);
         out.writeOptionalWriteable(categorizationAnalyzerConfig);
     }
@@ -305,8 +305,8 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         return new CategorizeTextAggregatorFactory(
             name,
             fieldName,
-            maxChildren,
-            maxDepth,
+            maxUniqueTokens,
+            maxMatchedTokens,
             similarityThreshold,
             bucketCountThresholds,
             categorizationAnalyzerConfig,
@@ -322,8 +322,8 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         builder.startObject();
         bucketCountThresholds.toXContent(builder, params);
         builder.field(FIELD_NAME.getPreferredName(), fieldName);
-        builder.field(MAX_CHILDREN.getPreferredName(), maxChildren);
-        builder.field(MAX_DEPTH.getPreferredName(), maxDepth);
+        builder.field(MAX_UNIQUE_TOKENS.getPreferredName(), maxUniqueTokens);
+        builder.field(MAX_MATCHED_TOKENS.getPreferredName(), maxMatchedTokens);
         builder.field(SIMILARITY_THRESHOLD.getPreferredName(), similarityThreshold);
         if (categorizationAnalyzerConfig != null) {
             categorizationAnalyzerConfig.toXContent(builder, params);

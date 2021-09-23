@@ -53,18 +53,18 @@ import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
  */
 public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
 
-    private final int maxDepth;
-    private final int maxChildren;
+    private final int maxMatchTokens;
+    private final int maxUniqueTokens;
     private final int similarityThreshold;
     private final AtomicLong idGen = new AtomicLong();
     // TODO statically allocate an array like DuplicateByteSequenceSpotter ???
     private final Map<Integer, TreeNode> root = new HashMap<>();
     private long sizeInBytes;
 
-    public CategorizationTokenTree(int maxChildren, int maxDepth, int similarityThreshold) {
-        assert maxChildren > 0 && maxDepth >= 0;
-        this.maxChildren = maxChildren;
-        this.maxDepth = maxDepth;
+    public CategorizationTokenTree(int maxUniqueTokens, int maxMatchTokens, int similarityThreshold) {
+        assert maxUniqueTokens > 0 && maxMatchTokens >= 0;
+        this.maxUniqueTokens = maxUniqueTokens;
+        this.maxMatchTokens = maxMatchTokens;
         this.similarityThreshold = similarityThreshold;
         this.sizeInBytes = Integer.BYTES // maxDepth
             + Integer.BYTES // maxChildren
@@ -120,8 +120,8 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
 
     @Override
     public TreeNode newNode(long docCount, int tokenPos, int[] logTokenIds) {
-        TreeNode node = tokenPos < maxDepth - 1 && tokenPos < logTokenIds.length
-            ? new TreeNode.InnerTreeNode(docCount, tokenPos, maxChildren)
+        TreeNode node = tokenPos < maxMatchTokens - 1 && tokenPos < logTokenIds.length
+            ? new TreeNode.InnerTreeNode(docCount, tokenPos, maxUniqueTokens)
             : new TreeNode.LeafTreeNode(docCount, similarityThreshold);
         // The size of the node + entry (since it is a map entry) + extra reference for priority queue
         sizeInBytes += node.ramBytesUsed() + RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + RamUsageEstimator.NUM_BYTES_OBJECT_REF;

@@ -247,9 +247,9 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     private final List<Bucket> buckets;
-    protected final int maxChildren;
+    protected final int maxUniqueTokens;
     protected final int similarityThreshold;
-    protected final int maxDepth;
+    protected final int maxMatchTokens;
     protected final int requiredSize;
     protected final long minDocCount;
 
@@ -257,28 +257,28 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         String name,
         int requiredSize,
         long minDocCount,
-        int maxChildren,
-        int maxDepth,
+        int maxUniqueTokens,
+        int maxMatchTokens,
         int similarityThreshold,
         Map<String, Object> metadata
     ) {
-        this(name, requiredSize, minDocCount, maxChildren, maxDepth, similarityThreshold, metadata, new ArrayList<>());
+        this(name, requiredSize, minDocCount, maxUniqueTokens, maxMatchTokens, similarityThreshold, metadata, new ArrayList<>());
     }
 
     protected InternalCategorizationAggregation(
         String name,
         int requiredSize,
         long minDocCount,
-        int maxChildren,
-        int maxDepth,
+        int maxUniqueTokens,
+        int maxMatchTokens,
         int similarityThreshold,
         Map<String, Object> metadata,
         List<Bucket> buckets
     ) {
         super(name, metadata);
         this.buckets = buckets;
-        this.maxChildren = maxChildren;
-        this.maxDepth = maxDepth;
+        this.maxUniqueTokens = maxUniqueTokens;
+        this.maxMatchTokens = maxMatchTokens;
         this.similarityThreshold = similarityThreshold;
         this.minDocCount = minDocCount;
         this.requiredSize = requiredSize;
@@ -286,8 +286,8 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     public InternalCategorizationAggregation(StreamInput in) throws IOException {
         super(in);
-        this.maxChildren = in.readVInt();
-        this.maxDepth = in.readVInt();
+        this.maxUniqueTokens = in.readVInt();
+        this.maxMatchTokens = in.readVInt();
         this.similarityThreshold = in.readVInt();
         this.buckets = in.readList(Bucket::new);
         this.requiredSize = readSize(in);
@@ -300,8 +300,8 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             name,
             requiredSize,
             minDocCount,
-            maxChildren,
-            maxDepth,
+            maxUniqueTokens,
+            maxMatchTokens,
             similarityThreshold,
             super.metadata,
             buckets
@@ -330,8 +330,8 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(maxChildren);
-        out.writeVInt(maxDepth);
+        out.writeVInt(maxUniqueTokens);
+        out.writeVInt(maxMatchTokens);
         out.writeVInt(similarityThreshold);
         out.writeList(buckets);
         writeSize(requiredSize, out);
@@ -341,7 +341,11 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         try (CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()))) {
-            CategorizationTokenTree categorizationTokenTree = new CategorizationTokenTree(maxChildren, maxDepth, similarityThreshold);
+            CategorizationTokenTree categorizationTokenTree = new CategorizationTokenTree(
+                maxUniqueTokens,
+                maxMatchTokens,
+                similarityThreshold
+            );
             // TODO: Could we do a merge sort similar to terms?
             //  It would require us returning partial reductions sorted by key, not by doc_count
             // First, make sure we have all the counts for equal log groups
@@ -409,8 +413,8 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 name,
                 requiredSize,
                 minDocCount,
-                maxChildren,
-                maxDepth,
+                maxUniqueTokens,
+                maxMatchTokens,
                 similarityThreshold,
                 metadata,
                 Arrays.asList(bucketList)

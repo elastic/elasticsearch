@@ -69,8 +69,8 @@ setup:
                 "categorize_text": {
                   "field": "text",
                   "size": 10,
-                  "max_children": 2,
-                  "max_depth": 1,
+                  "max_unique_tokens": 2,
+                  "max_matched_tokens": 1,
                   "similarity_threshold": 11
                 }
               }
@@ -86,7 +86,7 @@ setup:
 "Test categorization aggregation with poor settings":
 
   - do:
-      catch: /\[max_children\] must be greater than 0 and less than \[100\]/
+      catch: /\[max_unique_tokens\] must be greater than 0 and less than \[100\]/
       search:
         index: to_categorize
         body: >
@@ -96,13 +96,13 @@ setup:
               "categories": {
                 "categorize_text": {
                   "field": "text",
-                  "max_children": -2
+                  "max_unique_tokens": -2
                 }
               }
             }
           }
   - do:
-      catch: /\[max_depth\] must be greater than 0 and less than \[100\]/
+      catch: /\[max_matched_tokens\] must be greater than 0 and less than \[100\]/
       search:
         index: to_categorize
         body: >
@@ -112,7 +112,7 @@ setup:
               "categories": {
                 "categorize_text": {
                   "field": "text",
-                  "max_depth": -2
+                  "max_matched_tokens": -2
                 }
               }
             }

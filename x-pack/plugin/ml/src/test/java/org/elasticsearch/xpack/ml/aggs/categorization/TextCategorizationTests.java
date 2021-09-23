@@ -63,7 +63,7 @@ public class TextCategorizationTests extends ESTestCase {
         assertArrayEquals(lg.getCategorization(), getTokens(bytesRefHash, "foo", "bar", "baz", "*"));
     }
 
-    static long[] getTokens(CategorizationBytesRefHash bytesRefHash, String... tokens) {
+    static int[] getTokens(CategorizationBytesRefHash bytesRefHash, String... tokens) {
         BytesRef[] refs = new BytesRef[tokens.length];
         int i = 0;
         for (String token : tokens) {

@@ -7,34 +7,33 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.io.Closeable;
 import java.io.IOException;
 
 class CategorizationBytesRefHash implements Closeable {
 
-    private static final Logger logger = LogManager.getLogger(CategorizationBytesRefHash.class);
     static final BytesRef WILD_CARD_REF = new BytesRef("*");
-    static final long WILD_CARD_ID = -1;
+    static final int WILD_CARD_ID = -1;
     private final BytesRefHash bytesRefHash;
 
     CategorizationBytesRefHash(BytesRefHash bytesRefHash) {
         this.bytesRefHash = bytesRefHash;
     }
 
-    long[] getIds(BytesRef[] tokens) {
-        long[] ids = new long[tokens.length];
+    int[] getIds(BytesRef[] tokens) {
+        int[] ids = new int[tokens.length];
         for (int i = 0; i < tokens.length; i++) {
             ids[i] = put(tokens[i]);
         }
         return ids;
     }
 
-    BytesRef[] getDeeps(long[] ids) {
+    BytesRef[] getDeeps(int[] ids) {
         BytesRef[] tokens = new BytesRef[ids.length];
         for (int i = 0; i < tokens.length; i++) {
             tokens[i] = getDeep(ids[i]);
@@ -50,18 +49,26 @@ class CategorizationBytesRefHash implements Closeable {
         return BytesRef.deepCopyOf(shallow);
     }
 
-    long put(BytesRef bytesRef) {
+    int put(BytesRef bytesRef) {
         if (WILD_CARD_REF.equals(bytesRef)) {
             return WILD_CARD_ID;
         }
         long hash = bytesRefHash.add(bytesRef);
         if (hash < 0) {
-            return -1 - hash;
+            return (int) (-1L - hash);
         } else {
             if (hash > Integer.MAX_VALUE) {
-                logger.error("More than Integer.MAX_VALUE unique terms");
+                throw new AggregationExecutionException(
+                    LoggerMessageFormat.format(
+                        "more than [{}] unique terms encountered. "
+                            + "Consider restricting the documents queried or adding [{}] in the {} configuration",
+                        Integer.MAX_VALUE,
+                        CategorizeTextAggregationBuilder.CATEGORIZATION_FILTERS.getPreferredName(),
+                        CategorizeTextAggregationBuilder.NAME
+                    )
+                );
             }
-            return hash;
+            return (int) hash;
         }
     }
 

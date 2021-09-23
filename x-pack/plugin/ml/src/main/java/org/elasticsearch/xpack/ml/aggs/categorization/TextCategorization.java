@@ -22,15 +22,14 @@ import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytes
 class TextCategorization implements Accountable {
 
     private final long id;
-    // TODO Do we want to just make this native arrays?
-    private final long[] categorization;
+    private final int[] categorization;
     private final long[] tokenCounts;
     private long count;
 
     // Used at the shard level for tracking the bucket ordinal for collecting sub aggregations
     long bucketOrd;
 
-    TextCategorization(long[] logTokenIds, long count, long id) {
+    TextCategorization(int[] logTokenIds, long count, long id) {
         this.id = id;
         this.categorization = logTokenIds;
         this.count = count;
@@ -42,7 +41,7 @@ class TextCategorization implements Accountable {
         return id;
     }
 
-    long[] getCategorization() {
+    int[] getCategorization() {
         return categorization;
     }
 
@@ -50,7 +49,7 @@ class TextCategorization implements Accountable {
         return count;
     }
 
-    Similarity calculateSimilarity(long[] logEvent) {
+    Similarity calculateSimilarity(int[] logEvent) {
         assert logEvent.length == this.categorization.length;
         int eqParams = 0;
         long tokenCount = 0;
@@ -68,7 +67,7 @@ class TextCategorization implements Accountable {
         return new Similarity((double) tokensKept / tokenCount, eqParams);
     }
 
-    void addLog(long[] logEvent, long docCount) {
+    void addLog(int[] logEvent, long docCount) {
         assert logEvent.length == this.categorization.length;
         for (int i = 0; i < logEvent.length; i++) {
             if (logEvent[i] != this.categorization[i]) {

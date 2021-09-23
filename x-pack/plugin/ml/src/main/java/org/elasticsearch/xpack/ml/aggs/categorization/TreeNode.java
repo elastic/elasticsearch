@@ -58,9 +58,9 @@ abstract class TreeNode implements Accountable {
     }
 
     // TODO add option for calculating the cost of adding the new group
-    abstract TextCategorization addLog(long[] logTokenIds, long docCount, TreeNodeFactory treeNodeFactory);
+    abstract TextCategorization addLog(int[] logTokenIds, long docCount, TreeNodeFactory treeNodeFactory);
 
-    abstract TextCategorization getLogGroup(long[] logTokens);
+    abstract TextCategorization getLogGroup(int[] logTokens);
 
     abstract List<TextCategorization> getAllChildrenLogGroups();
 
@@ -111,7 +111,7 @@ abstract class TreeNode implements Accountable {
         }
 
         @Override
-        public TextCategorization addLog(long[] logTokenIds, long docCount, TreeNodeFactory treeNodeFactory) {
+        public TextCategorization addLog(int[] logTokenIds, long docCount, TreeNodeFactory treeNodeFactory) {
             return getAndUpdateLogGroup(logTokenIds, docCount).orElseGet(() -> {
                 // Need to update the tree if possible
                 return putNewLogGroup(treeNodeFactory.newGroup(docCount, logTokenIds));
@@ -126,7 +126,7 @@ abstract class TreeNode implements Accountable {
         @Override
         void collapseTinyChildren() {}
 
-        private Optional<TextCategorization> getAndUpdateLogGroup(long[] logTokenIds, long docCount) {
+        private Optional<TextCategorization> getAndUpdateLogGroup(int[] logTokenIds, long docCount) {
             return getBestLogGroup(logTokenIds).map(bestGroupAndSimilarity -> {
                 if ((bestGroupAndSimilarity.v2() * 100) >= similarityThreshold) {
                     bestGroupAndSimilarity.v1().addLog(logTokenIds, docCount);
@@ -141,7 +141,7 @@ abstract class TreeNode implements Accountable {
             return group;
         }
 
-        private Optional<Tuple<TextCategorization, Double>> getBestLogGroup(long[] logTokenIds) {
+        private Optional<Tuple<TextCategorization, Double>> getBestLogGroup(int[] logTokenIds) {
             if (textCategorizations.isEmpty()) {
                 return Optional.empty();
             }
@@ -163,7 +163,7 @@ abstract class TreeNode implements Accountable {
         }
 
         @Override
-        public TextCategorization getLogGroup(final long[] logTokenIds) {
+        public TextCategorization getLogGroup(final int[] logTokenIds) {
             return getBestLogGroup(logTokenIds).map(Tuple::v1).orElse(null);
         }
 
@@ -203,7 +203,7 @@ abstract class TreeNode implements Accountable {
         }
 
         @Override
-        public TextCategorization getLogGroup(final long[] logTokenIds) {
+        public TextCategorization getLogGroup(final int[] logTokenIds) {
             return getChild(logTokenIds[childrenTokenPos]).or(() -> getChild(WILD_CARD_ID))
                 .map(node -> node.getLogGroup(logTokenIds))
                 .orElse(null);
@@ -222,7 +222,7 @@ abstract class TreeNode implements Accountable {
         }
 
         @Override
-        public TextCategorization addLog(final long[] logTokenIds, final long docCount, final TreeNodeFactory treeNodeFactory) {
+        public TextCategorization addLog(final int[] logTokenIds, final long docCount, final TreeNodeFactory treeNodeFactory) {
             final long currentToken = logTokenIds[childrenTokenPos];
             TreeNode child = getChild(currentToken).map(node -> {
                 node.incCount(docCount);

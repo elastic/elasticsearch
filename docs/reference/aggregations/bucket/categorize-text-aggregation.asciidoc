@@ -11,7 +11,15 @@ using a custom analyzer. The resulting tokens are then categorized creating buck
 text values. This aggregation works best with machine generated text like system logs.
 
 WARNING: Re-analyzing _large_ result sets will require a lot of time and memory. This aggregation should be
-         used in conjunction with <<async-search, Async search>>.
+         used in conjunction with <<async-search, Async search>>. Additionally, you may consider
+         using the aggregation as a child of either the <<search-aggregations-bucket-sampler-aggregation,sampler>> or
+         <<search-aggregations-bucket-diversified-sampler-aggregation,diversified sampler>> aggregation.
+         This will typically improve speed and memory use.
+
+NOTE: If you have considerable memory allocated to your JVM but are receiving circuit breaker exceptions from this
+      aggregation, you may be attempting to categorize text that is poorly formatted for categorization. Consider
+      adding `categorization_filters` or running under <<search-aggregations-bucket-sampler-aggregation,sampler>> or
+      <<search-aggregations-bucket-diversified-sampler-aggregation,diversified sampler>> to explore the created categories.
 
 [[bucket-categorize-text-agg-syntax]]
 ==== Parameters
@@ -24,7 +32,7 @@ The semi-structured text field to categorize.
 (Optional, integer, default: `50`)
 The maximum number of unique tokens at any given layer of the tokenization tree.
 Must be larger than 1. Smaller values use less memory and create fewer categories.
-Larger values will use more memory and create more categories.
+Larger values will use more memory and create narrower categories.
 
 `max_depth`::
 (Optional, integer, default: `5`)

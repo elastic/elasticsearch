@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -237,9 +236,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
                 if (indexService.index().getName().equals(restoredIndex)) {
                     for (IndexShard indexShard : indexService) {
                         try {
-                            final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
-                            directory.clearStats();
-                        } catch (AlreadyClosedException ace) {
+                            unwrapDirectory(indexShard.store().directory()).clearStats();
+                        } catch (AlreadyClosedException ignore) {
                             // ok to ignore these
                         }
                     }

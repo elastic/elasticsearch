@@ -17,6 +17,9 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+/**
+ * Tests for the Get Feature Upgrade Status response object.
+ */
 public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializingTestCase<GetFeatureUpgradeStatusResponse> {
 
     @Override
@@ -42,6 +45,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
         );
     }
 
+    /** If constructor is called with null for a list, we just use an empty list */
     public void testConstructorHandlesNullLists() {
         GetFeatureUpgradeStatusResponse response = new GetFeatureUpgradeStatusResponse(null, "status");
         assertThat(response.getFeatureUpgradeStatuses(), notNullValue());

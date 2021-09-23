@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.tasks.AbstractCopyTask;
 import org.gradle.api.tasks.Sync;
@@ -42,6 +43,7 @@ public class InternalDistributionArchiveSetupPlugin implements InternalPlugin {
 
     public static final String DEFAULT_CONFIGURATION_NAME = "default";
     public static final String EXTRACTED_CONFIGURATION_NAME = "extracted";
+    public static final String COMPOSITE_CONFIGURATION_NAME = "composite";
     private NamedDomainObjectContainer<DistributionArchive> container;
 
     @Override
@@ -75,6 +77,12 @@ public class InternalDistributionArchiveSetupPlugin implements InternalPlugin {
                 extractedConfiguration.setCanBeResolved(false);
                 extractedConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
                 sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExpandedDistTask());
+                // The "composite" configuration is specifically used for resolving transformed artifacts in an included build
+                var compositeConfiguration = sub.getConfigurations().create(COMPOSITE_CONFIGURATION_NAME);
+                compositeConfiguration.setCanBeResolved(false);
+                compositeConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+                compositeConfiguration.getAttributes().attribute(Attribute.of("composite", Boolean.class), true);
+                sub.getArtifacts().add(COMPOSITE_CONFIGURATION_NAME, distributionArchive.getArchiveTask());
                 sub.getTasks().register("extractedAssemble", task ->
                 // We keep extracted configuration resolvable false to keep
                 // resolveAllDependencies simple so we rely only on its build dependencies here.

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -251,85 +250,38 @@ public final class IndicesPermission {
         private final String name;
 
         /**
-         * The type of the IndexAbstraction on which authorization is being performed
-         */
-        private final IndexAbstraction.Type type;
-
-        /**
-         * The names of the concrete indices to which the IndexAbstraction refers.
-         * If {@link #type} is {@link IndexAbstraction.Type#CONCRETE_INDEX}, this will be a singleton set of {@link #name}.
-         * For all other types, it will be the backing indices for the named object.
-         */
-        private final Collection<String> concreteIndices;
-
-        /**
-         * The name of the parent datastream, if any - otherwise {@code null}.
+         * The IndexAbstraction on which authorization is being performed, or {@code null} if nothing in the cluster matches the name
          */
         @Nullable
-        private final String parentDataStream;
+        private final IndexAbstraction indexAbstraction;
 
-        private IndexResource(String name, IndexAbstraction.Type type, Collection<String> concreteIndices, String parentDataStream) {
-            if (Assertions.ENABLED) {
-                assert name != null : "Resource name cannot be null";
-                if (type == IndexAbstraction.Type.CONCRETE_INDEX) {
-                    assert concreteIndices.size() <= 1 : "An object of type " + type + " cannot have multiple indices";
-                    assert concreteIndices.isEmpty() || concreteIndices.contains(name) : "An object of type "
-                        + type
-                        + " must reference itself";
-                } else {
-                    assert parentDataStream == null : "Only a CONCRETE_INDEX may have a parent data stream";
-                }
-            }
-            this.name = name;
-            this.type = type;
-            this.concreteIndices = concreteIndices;
-            this.parentDataStream = parentDataStream;
-        }
+        public Collection<String> concreteIndices;
 
-        /**
-         * Expand the provided {@link IndexAbstraction} into the required attributes for use in authorization.
-         * @param name The name of the object
-         * @param abstraction The cluster object with that name, if any
-         */
-        static IndexResource create(String name, @Nullable IndexAbstraction abstraction) {
-            if (abstraction == null) {
-                return new IndexResource(name, IndexAbstraction.Type.CONCRETE_INDEX, List.of(), null);
-            }
-
-            assert abstraction.getName().equals(name) : "Index abstraction has unexpected name ["
+        private IndexResource(String name, @Nullable IndexAbstraction abstraction) {
+            assert name != null : "Resource name cannot be null";
+            assert abstraction == null || abstraction.getName().equals(name) : "Index abstraction has unexpected name ["
                 + abstraction.getName()
                 + "] vs ["
                 + name
                 + "]";
-
-            if (abstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
-                final IndexAbstraction.DataStream parentDataStream = abstraction.getParentDataStream();
-                return new IndexResource(
-                    name,
-                    abstraction.getType(),
-                    List.of(abstraction.getName()),
-                    parentDataStream == null ? null : parentDataStream.getName()
-                );
-            }
-
-            final List<IndexMetadata> indices = abstraction.getIndices();
-            final List<String> concreteIndices = new ArrayList<>(indices.size());
-            for (var idx : indices) {
-                concreteIndices.add(idx.getIndex().getName());
-            }
-            return new IndexResource(name, abstraction.getType(), concreteIndices, null);
+            this.name = name;
+            this.indexAbstraction = abstraction;
         }
 
         /**
-         * @return {@code true} if-and-only-if this object is related to a data-stream, either by having a {@link #type} of
-         * {@link IndexAbstraction.Type#DATA_STREAM} or by being the backing index for a {@link #parentDataStream data-stream}.
+         * @return {@code true} if-and-only-if this object is related to a data-stream, either by having a
+         * {@link IndexAbstraction#getType()} of {@link IndexAbstraction.Type#DATA_STREAM} or by being the backing index for a
+         * {@link IndexAbstraction#getParentDataStream()}  data-stream}.
          */
-        public boolean isDataStreamRelated() {
-            switch (type) {
+        public boolean isPartOfDataStream() {
+            if (indexAbstraction == null) {
+                return false;
+            }
+            switch (indexAbstraction.getType()) {
                 case DATA_STREAM:
                     return true;
                 case CONCRETE_INDEX:
-                    return parentDataStream != null;
+                    return indexAbstraction.getParentDataStream() != null;
                 default:
                     return false;
             }
@@ -341,8 +293,9 @@ public final class IndicesPermission {
          * In all other cases, it checks the name of this object only.
          */
         public boolean checkIndex(Group group) {
-            if (parentDataStream != null) {
-                if (group.checkIndex(parentDataStream)) {
+            final IndexAbstraction.DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
+            if (ds != null) {
+                if (group.checkIndex(ds.getName())) {
                     return true;
                 }
             }
@@ -353,10 +306,27 @@ public final class IndicesPermission {
          * @return the number of distinct objects to which this expansion refers.
          */
         public int size() {
-            if (type == IndexAbstraction.Type.CONCRETE_INDEX) {
+            if (indexAbstraction == null) {
+                return 1;
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return 1;
             } else {
-                return 1 + concreteIndices.size();
+                return 1 + indexAbstraction.getIndices().size();
+            }
+        }
+
+        public Collection<String> resolveConcreteIndices() {
+            if (indexAbstraction == null) {
+                return List.of();
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
+                return List.of(indexAbstraction.getName());
+            } else {
+                final List<IndexMetadata> indices = indexAbstraction.getIndices();
+                final List<String> concreteIndices = new ArrayList<>(indices.size());
+                for (var idx : indices) {
+                    concreteIndices.add(idx.getIndex().getName());
+                }
+                return concreteIndices;
             }
         }
     }
@@ -375,7 +345,7 @@ public final class IndicesPermission {
         int totalResourceCount = 0;
 
         for (String indexOrAlias : requestedIndicesOrAliases) {
-            final IndexResource resource = IndexResource.create(indexOrAlias, lookup.get(indexOrAlias));
+            final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias));
             resources.add(resource);
             totalResourceCount += resource.size();
         }
@@ -396,6 +366,7 @@ public final class IndicesPermission {
             boolean bwcGrantMappingUpdate = false;
             final List<Runnable> bwcDeprecationLogActions = new ArrayList<>();
 
+            final Collection<String> concreteIndices = resource.resolveConcreteIndices();
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {
@@ -405,13 +376,13 @@ public final class IndicesPermission {
                     // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
                     // outside of the privilege definition
                     boolean bwcMappingActionCheck = isMappingUpdateAction
-                        && false == resource.isDataStreamRelated()
+                        && false == resource.isPartOfDataStream()
                         && containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
                     bwcGrantMappingUpdate = bwcGrantMappingUpdate || bwcMappingActionCheck;
 
                     if (actionCheck || bwcMappingActionCheck) {
                         // propagate DLS and FLS permissions over the concrete indices
-                        for (String index : resource.concreteIndices) {
+                        for (String index : concreteIndices) {
                             Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
                             fieldPermissionsByIndex.put(resource.name, fieldPermissions);
                             fieldPermissions.add(group.getFieldPermissions());
@@ -452,13 +423,9 @@ public final class IndicesPermission {
                 bwcDeprecationLogActions.forEach(Runnable::run);
             }
 
-            if (resource.concreteIndices.isEmpty()) {
-                grantedBuilder.put(resource.name, granted);
-            } else {
-                grantedBuilder.put(resource.name, granted);
-                for (String concreteIndex : resource.concreteIndices) {
-                    grantedBuilder.put(concreteIndex, granted);
-                }
+            grantedBuilder.put(resource.name, granted);
+            for (String concreteIndex : concreteIndices) {
+                grantedBuilder.put(concreteIndex, granted);
             }
         }
 

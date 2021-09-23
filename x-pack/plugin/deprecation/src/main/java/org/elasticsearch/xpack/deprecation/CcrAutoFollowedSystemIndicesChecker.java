@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ccr.CcrAutoFollowInfoFetcher;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
 import java.util.stream.Collectors;

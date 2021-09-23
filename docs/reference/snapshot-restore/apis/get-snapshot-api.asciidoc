@@ -118,6 +118,9 @@ Allows setting a sort order for the result. Defaults to `start_time`, i.e. sorti
 `name`::
   Sort snapshots by their name.
 
+`repository`::
+  Sort snapshots by their repository name and break ties by snapshot name.
+
 `index_count`::
   Sort snapshots by the number of indices they contain and break ties by snapshot name.
 
@@ -414,7 +417,7 @@ The API returns the following response:
         "total": 0,
         "failed": 0,
         "successful": 0
-      },
+      }
     }
   ],
   "next": "c25hcHNob3RfMixteV9yZXBvc2l0b3J5LHNuYXBzaG90XzI=",

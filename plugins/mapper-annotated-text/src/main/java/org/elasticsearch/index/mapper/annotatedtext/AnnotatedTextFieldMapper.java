@@ -24,9 +24,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -87,7 +87,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
-            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers,
+                    m -> builder(m).analyzers.getIndexAnalyzer(),
+                    m -> builder(m).analyzers.positionIncrementGap.getValue());
         }
 
         @Override
@@ -98,14 +100,14 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 boost, meta);
         }
 
-        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
+        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
             TextSearchInfo tsi = new TextSearchInfo(
                 fieldType,
                 similarity.get(),
                 wrapAnalyzer(analyzers.getSearchAnalyzer()),
                 wrapAnalyzer(analyzers.getSearchQuoteAnalyzer()));
             AnnotatedTextFieldType ft = new AnnotatedTextFieldType(
-                buildFullName(contentPath),
+                context.buildFullName(name),
                 store.getValue(),
                 tsi,
                 meta.getValue());
@@ -114,7 +116,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public AnnotatedTextFieldMapper build(ContentPath contentPath) {
+        public AnnotatedTextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
             if (fieldType.indexOptions() == IndexOptions.NONE ) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
@@ -126,8 +128,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 }
             }
             return new AnnotatedTextFieldMapper(
-                    name, fieldType, buildFieldType(fieldType, contentPath),
-                    multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+                    name, fieldType, buildFieldType(fieldType, context),
+                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 

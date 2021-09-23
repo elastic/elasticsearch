@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -65,8 +63,6 @@ import java.util.stream.Stream;
  * Transport Action for get snapshots operation
  */
 public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
-
-    private static final Logger logger = LogManager.getLogger(TransportGetSnapshotsAction.class);
 
     private final RepositoriesService repositoriesService;
 
@@ -417,18 +413,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 ignoreUnavailable == false,
                 task::isCancelled,
                 (context, snapshotInfo) -> snapshotInfos.add(snapshotInfo),
-                ignoreUnavailable ? ActionListener.runAfter(new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        logger.trace("done fetching snapshot infos [{}]", snapshotIdsToIterate);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        assert false : new AssertionError("listener should always complete successfully for ignoreUnavailable=true", e);
-                        logger.warn("failed to fetch snapshot info for some snapshots", e);
-                    }
-                }, () -> allDoneListener.onResponse(null)) : allDoneListener
+                allDoneListener
             )
         );
     }
@@ -498,6 +483,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private static final Comparator<SnapshotInfo> BY_NAME = Comparator.comparing(sni -> sni.snapshotId().getName());
 
+    private static final Comparator<SnapshotInfo> BY_REPOSITORY = Comparator.comparing(SnapshotInfo::repository)
+        .thenComparing(SnapshotInfo::snapshotId);
+
     private static SnapshotsInRepo sortSnapshots(
         final List<SnapshotInfo> snapshotInfos,
         final GetSnapshotsRequest.SortBy sortBy,
@@ -525,6 +513,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 break;
             case FAILED_SHARDS:
                 comparator = BY_FAILED_SHARDS_COUNT;
+                break;
+            case REPOSITORY:
+                comparator = BY_REPOSITORY;
                 break;
             default:
                 throw new AssertionError("unexpected sort column [" + sortBy + "]");
@@ -576,6 +567,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         order
                     );
                     break;
+                case REPOSITORY:
+                    isAfter = order == SortOrder.ASC
+                        ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
+                        : (info -> compareRepositoryName(snapshotName, repoName, info) > 0);
+                    break;
                 default:
                     throw new AssertionError("unexpected sort column [" + sortBy + "]");
             }
@@ -610,6 +606,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final long val = extractor.applyAsLong(info);
             return after > val || (after == val && compareName(snapshotName, repoName, info) > 0);
         };
+    }
+
+    private static int compareRepositoryName(String name, String repoName, SnapshotInfo info) {
+        final int res = repoName.compareTo(info.repository());
+        if (res != 0) {
+            return res;
+        }
+        return name.compareTo(info.snapshotId().getName());
     }
 
     private static int compareName(String name, String repoName, SnapshotInfo info) {

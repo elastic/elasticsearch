@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -18,14 +18,16 @@ import java.util.Collections;
 public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new WildcardFieldMapper.Builder("field", Version.CURRENT).build(new ContentPath()).fieldType();
+        MappedFieldType mapper = new WildcardFieldMapper.Builder("field", Version.CURRENT)
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
         assertEquals(Collections.singletonList("value"), fetchSourceValue(mapper, "value"));
         assertEquals(Collections.singletonList("42"), fetchSourceValue(mapper, 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(mapper, true));
 
         MappedFieldType ignoreAboveMapper = new WildcardFieldMapper.Builder("field", Version.CURRENT)
             .ignoreAbove(4)
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(Collections.emptyList(), fetchSourceValue(ignoreAboveMapper, "value"));
         assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper, 42L));
@@ -33,7 +35,7 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType nullValueMapper = new WildcardFieldMapper.Builder("field", Version.CURRENT)
             .nullValue("NULL")
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper, null));
     }

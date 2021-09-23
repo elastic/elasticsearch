@@ -6,8 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rollup.RollupV2;
@@ -20,12 +24,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 
@@ -39,55 +45,53 @@ import static java.util.stream.Collectors.toList;
  */
 public class TimeseriesLifecycleType implements LifecycleType {
     public static final TimeseriesLifecycleType INSTANCE = new TimeseriesLifecycleType();
-
+    private static final Logger logger = LogManager.getLogger(TimeseriesLifecycleType.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
     public static final String TYPE = "timeseries";
+
     static final String HOT_PHASE = "hot";
     static final String WARM_PHASE = "warm";
     static final String COLD_PHASE = "cold";
     static final String FROZEN_PHASE = "frozen";
     static final String DELETE_PHASE = "delete";
     static final List<String> ORDERED_VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
-    static final List<String> ORDERED_VALID_HOT_ACTIONS;
+
+    public static final String FREEZE_ACTION_DEPRECATION_WARNING = "the freeze action has been deprecated and will be removed in a future" +
+        " release";
+
+    static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
+            ReadOnlyAction.NAME, RollupV2.isEnabled() ? RollupILMAction.NAME : null, ShrinkAction.NAME, ForceMergeAction.NAME,
+            SearchableSnapshotAction.NAME)
+        .filter(Objects::nonNull).collect(toList());
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, MigrateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
-    static final List<String> ORDERED_VALID_COLD_ACTIONS;
-    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Collections.singletonList(SearchableSnapshotAction.NAME);
+    static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
+            SearchableSnapshotAction.NAME, AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME,
+            RollupV2.isEnabled() ? RollupILMAction.NAME : null)
+        .filter(Objects::nonNull).collect(toList());
+    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(SearchableSnapshotAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
-    static final Set<String> VALID_HOT_ACTIONS;
+
+    static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
-    static final Set<String> VALID_COLD_ACTIONS;
-    static final Set<String> VALID_FROZEN_ACTIONS;
+    static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
+    static final Set<String> VALID_FROZEN_ACTIONS = Sets.newHashSet(ORDERED_VALID_FROZEN_ACTIONS);
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
-    private static final Map<String, Set<String>> ALLOWED_ACTIONS;
+
+    private static final Map<String, Set<String>> ALLOWED_ACTIONS = org.elasticsearch.core.Map.of(
+        HOT_PHASE, VALID_HOT_ACTIONS,
+        WARM_PHASE, VALID_WARM_ACTIONS,
+        COLD_PHASE, VALID_COLD_ACTIONS,
+        DELETE_PHASE, VALID_DELETE_ACTIONS,
+        FROZEN_PHASE, VALID_FROZEN_ACTIONS
+    );
 
     static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Sets.newHashSet(ReadOnlyAction.NAME, ShrinkAction.NAME,
         ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
-    // a set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot
-    static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Sets.newHashSet(ShrinkAction.NAME, ForceMergeAction.NAME,
-        FreezeAction.NAME, RollupILMAction.NAME);
-
-    static {
-        if (RollupV2.isEnabled()) {
-            ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
-                ReadOnlyAction.NAME, RollupILMAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
-            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
-                SearchableSnapshotAction.NAME, AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME, RollupILMAction.NAME);
-        } else {
-            ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
-                ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
-            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
-                SearchableSnapshotAction.NAME, AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME);
-        }
-        VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
-        VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
-        VALID_FROZEN_ACTIONS = Sets.newHashSet(ORDERED_VALID_FROZEN_ACTIONS);
-        ALLOWED_ACTIONS = new HashMap<>();
-        ALLOWED_ACTIONS.put(HOT_PHASE, VALID_HOT_ACTIONS);
-        ALLOWED_ACTIONS.put(WARM_PHASE, VALID_WARM_ACTIONS);
-        ALLOWED_ACTIONS.put(COLD_PHASE, VALID_COLD_ACTIONS);
-        ALLOWED_ACTIONS.put(DELETE_PHASE, VALID_DELETE_ACTIONS);
-        ALLOWED_ACTIONS.put(FROZEN_PHASE, VALID_FROZEN_ACTIONS);
-    }
+    // Set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot.
+    // It's ordered to produce consistent error messages which can be unit tested.
+    static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = new LinkedHashSet<>(Arrays.asList(
+        ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, RollupILMAction.NAME));
 
     private TimeseriesLifecycleType() {
     }
@@ -300,6 +304,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
         validateActionsFollowingSearchableSnapshot(phases);
         validateAllSearchableSnapshotActionsUseSameRepository(phases);
         validateFrozenPhaseHasSearchableSnapshotAction(phases);
+        logDeprecationWarningForFreezeAction(phases);
+    }
+
+    private void logDeprecationWarningForFreezeAction(Collection<Phase> phases) {
+        if (phases.stream().anyMatch(phase -> phase.getActions().containsKey(FreezeAction.NAME))) {
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "ilm_freee_action", FREEZE_ACTION_DEPRECATION_WARNING);
+        }
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {
@@ -412,16 +423,15 @@ public class TimeseriesLifecycleType implements LifecycleType {
                         while (it.hasNext()) {
                             badPhase = it.next();
                             error = error + ", the " + badPhase.getName() + " phase (min_age: "
-                                + badPhase.getMinimumAge()+ ")";
+                                + badPhase.getMinimumAge() + ")";
                         }
-                            //if multiple phases are cited
-                            //replace last occurrence of "," with " and"
-                            StringBuilder builder = new StringBuilder();
-                            int last_comma_index = error.lastIndexOf(",");
-                            builder.append(error, 0, last_comma_index);
-                            builder.append(" and");
-                            builder.append(error.substring(last_comma_index + 1));
-                            error = builder.toString();
+                        // if multiple phases are cited replace last occurrence of "," with " and"
+                        StringBuilder builder = new StringBuilder();
+                        int last_comma_index = error.lastIndexOf(",");
+                        builder.append(error, 0, last_comma_index);
+                        builder.append(" and");
+                        builder.append(error.substring(last_comma_index + 1));
+                        error = builder.toString();
                     }
                     error = error + " before the " + phaseName + " phase (min_age: " + phase.getMinimumAge() +
                         "). You should change the phase timing so that the phases will execute in the order of hot, warm, then cold.";

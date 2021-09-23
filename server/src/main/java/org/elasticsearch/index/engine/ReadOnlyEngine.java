@@ -202,6 +202,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
+        // TODO: provide engineConfig.getLeafSorter() when opening a DirectoryReader from a commit
+        // should be available from Lucene v 8.10
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             if (lazilyLoadSoftDeletes) {
@@ -344,8 +346,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource,
-                                                 MapperService mapperService, long startingSeqNo) {
+    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource, long startingSeqNo) {
         return 0;
     }
 

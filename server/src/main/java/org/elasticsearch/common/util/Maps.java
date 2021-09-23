@@ -12,9 +12,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public class Maps {
@@ -128,4 +131,19 @@ public class Maps {
         }
         return flatMap;
     }
+
+    /**
+     * Returns a {@link Collector} that accumulates the input elements into a sorted map and finishes the resulting set into an
+     * unmodifiable sorted map. The resulting read-only view through the unmodifiable sorted map is a sorted map.
+     *
+     * @param <T> the type of the input elements
+     * @return an unmodifiable {@link NavigableMap} where the underlying map is sorted
+     */
+    public static <T, K, V> Collector<T, ?, NavigableMap<K, V>> toUnmodifiableSortedMap(Function<T, ? extends K> keyMapper,
+                                                                                        Function<T, ? extends V> valueMapper) {
+        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
+            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
+        }, () -> new TreeMap<K, V>()), Collections::unmodifiableNavigableMap);
+    }
+
 }

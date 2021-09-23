@@ -40,8 +40,10 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-         project.getPluginManager().apply(PrecommitTaskPlugin.class);
+        project.getPluginManager().apply(PrecommitTaskPlugin.class);
         final Directory projectDirectory = projectLayout.getProjectDirectory();
+
+        final Version version = VersionProperties.getElasticsearchVersion();
 
         final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
             .getAsFileTree()
@@ -65,8 +67,6 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             });
 
         project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(task -> {
-            final Version version = VersionProperties.getElasticsearchVersion();
-
             task.setGroup("Documentation");
             task.setDescription("Generates release notes from changelog files held in this checkout");
             task.setChangelogs(yamlFiles);
@@ -92,6 +92,6 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.dependsOn(validateChangelogsTask);
         });
 
-         project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
+        project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
     }
 }

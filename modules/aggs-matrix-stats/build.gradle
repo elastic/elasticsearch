@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
@@ -17,13 +17,4 @@ restResources {
   restApi {
     include '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
   }
-}
-
-tasks.named('splitPackagesAudit').configure {
-  // search should be owned by server, this should be renamed to aggsmatrix
-  ignoreClasses 'org.elasticsearch.search.aggregations.support.ArrayValuesSource',
-    'org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregationBuilder',
-    'org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregatorFactory',
-    'org.elasticsearch.search.aggregations.support.ArrayValuesSourceParser',
-    'org.elasticsearch.search.aggregations.MatrixStatsAggregationBuilders'
 }

@@ -97,9 +97,9 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
 
     @Override
     public RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
-        IndexFieldData<?> factorField =
+        IndexFieldData<?> factorFieldData =
                 this.factorField == null ? null : context.getForField(context.getFieldType(this.factorField));
-        return new ExampleRescoreContext(windowSize, factor, factorField);
+        return new ExampleRescoreContext(windowSize, factor, factorFieldData);
     }
 
     @Override

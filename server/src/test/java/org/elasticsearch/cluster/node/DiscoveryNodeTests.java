@@ -185,6 +185,7 @@ public class DiscoveryNodeTests extends ESTestCase {
         final String descriptionWithoutAttributes = stringBuilder.toString();
         assertThat(node.toString(), allOf(startsWith(descriptionWithoutAttributes), containsString("test-attr=val")));
         assertThat(descriptionWithoutAttributes, not(containsString("test-attr")));
+        assertEquals(descriptionWithoutAttributes, node.descriptionWithoutAttributes());
     }
 
     public void testDiscoveryNodeToXContent() {

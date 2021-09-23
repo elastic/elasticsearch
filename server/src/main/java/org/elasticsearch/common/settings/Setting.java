@@ -543,11 +543,16 @@ public class Setting<T> implements ToXContentObject {
      * @return the raw string representation of the setting value
      */
     String innerGetRaw(final Settings settings) {
-        if (this.isSecure(settings)) {
-            throw new IllegalArgumentException("Setting [" + getKey() + "] is a non-secure setting" +
+        final String key = getKey();
+            if (this.isSecure(settings)) {
+            throw new IllegalArgumentException("Setting [" + key + "] is a non-secure setting" +
                 " and must be stored inside elasticsearch.yml, but was found inside the Elasticsearch keystore");
         }
-        return settings.get(getKey(), defaultValue.apply(settings));
+        final String found = settings.get(key);
+        if (found != null) {
+            return found;
+        }
+        return defaultValue.apply(settings);
     }
 
     /** Logs a deprecation warning if the setting is deprecated and used. */
@@ -577,7 +582,7 @@ public class Setting<T> implements ToXContentObject {
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("key", key.toString());
+        builder.field("key", getKey());
         builder.field("properties", properties);
         builder.field("is_group_setting", isGroupSetting());
         builder.field("default", defaultValue.apply(Settings.EMPTY));
@@ -1417,7 +1422,28 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static <T extends Enum<T>> Setting<T> enumSetting(Class<T> clazz, String key, T defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue.toString(), e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), properties);
+        return enumSetting(clazz, key, defaultValue, s -> {}, properties);
+    }
+
+    /**
+     * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
+     *
+     * @param clazz the enum class
+     * @param key the key for the setting
+     * @param defaultValue the default value for this setting
+     * @param validator validator for this setting
+     * @param properties properties for this setting like scope, filtering...
+     * @param <T> the generics type parameter reflecting the actual type of the enum
+     * @return the setting object
+     */
+    public static <T extends Enum<T>> Setting<T> enumSetting(
+        Class<T> clazz,
+        String key,
+        T defaultValue,
+        Validator<T> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue.toString(), e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), validator, properties);
     }
 
     /**
@@ -1549,6 +1575,9 @@ public class Setting<T> implements ToXContentObject {
     }
 
     private static List<String> parseableStringToList(String parsableString) {
+        if ("[]".equals(parsableString)) {
+            return Collections.emptyList();
+        }
         // fromXContent doesn't use named xcontent or deprecation.
         try (XContentParser xContentParser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)) {
@@ -1563,6 +1592,9 @@ public class Setting<T> implements ToXContentObject {
     }
 
     private static String arrayToParsableString(List<String> array) {
+        if (array.isEmpty()) {
+            return "[]";
+        }
         try {
             XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
             builder.startArray();
@@ -1888,6 +1920,8 @@ public class Setting<T> implements ToXContentObject {
         private final String prefix;
         private final String suffix;
 
+        private final String keyString;
+
         AffixKey(String prefix) {
             this(prefix, null);
         }
@@ -1906,6 +1940,14 @@ public class Setting<T> implements ToXContentObject {
                 // the last part of this regexp is to support both list and group keys
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
             }
+            StringBuilder sb = new StringBuilder();
+            sb.append(prefix);
+            if (suffix != null) {
+                sb.append('*');
+                sb.append('.');
+                sb.append(suffix);
+            }
+            keyString = sb.toString();
         }
 
         @Override
@@ -1950,16 +1992,7 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder();
-            if (prefix != null) {
-                sb.append(prefix);
-            }
-            if (suffix != null) {
-                sb.append('*');
-                sb.append('.');
-                sb.append(suffix);
-            }
-            return sb.toString();
+            return keyString;
         }
 
         @Override

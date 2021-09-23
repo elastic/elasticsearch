@@ -43,10 +43,10 @@ public class ParseField {
             Collections.addAll(set, deprecatedNames);
             this.deprecatedNames = set.toArray(new String[set.size()]);
         }
-        Set<String> allNames = new HashSet<>();
-        allNames.add(name);
-        Collections.addAll(allNames, this.deprecatedNames);
-        this.allNames = allNames.toArray(new String[allNames.size()]);
+        Set<String> names = new HashSet<>();
+        names.add(name);
+        Collections.addAll(names, this.deprecatedNames);
+        this.allNames = names.toArray(new String[names.size()]);
     }
 
     /**
@@ -65,23 +65,23 @@ public class ParseField {
     }
 
     /**
-     * @param deprecatedNames
+     * @param deprecatedNamesOverride
      *            deprecated names to include with the returned
      *            {@link ParseField}
      * @return a new {@link ParseField} using the preferred name from this one
      *         but with the specified deprecated names
      */
-    public ParseField withDeprecation(String... deprecatedNames) {
-        return new ParseField(this.name, deprecatedNames);
+    public ParseField withDeprecation(String... deprecatedNamesOverride) {
+        return new ParseField(this.name, deprecatedNamesOverride);
     }
 
     /**
      * Return a new ParseField where all field names are deprecated and replaced
      * with {@code allReplacedWith}.
      */
-    public ParseField withAllDeprecated(String allReplacedWith) {
+    public ParseField withAllDeprecated(String allReplacedWithOverride) {
         ParseField parseField = this.withDeprecation(getAllNamesIncludedDeprecated());
-        parseField.allReplacedWith = allReplacedWith;
+        parseField.allReplacedWith = allReplacedWithOverride;
         return parseField;
     }
 

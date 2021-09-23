@@ -49,6 +49,10 @@ gradlePlugin {
             id = 'elasticsearch.esplugin'
             implementationClass = 'org.elasticsearch.gradle.plugin.PluginBuildPlugin'
         }
+        javaRestTest {
+            id = 'elasticsearch.java-rest-test'
+            implementationClass = 'org.elasticsearch.gradle.test.JavaRestTestPlugin'
+        }
         testclusters {
             id = 'elasticsearch.testclusters'
             implementationClass = 'org.elasticsearch.gradle.testclusters.TestClustersPlugin'
@@ -60,6 +64,10 @@ gradlePlugin {
         testpermissions {
             id = 'elasticsearch.test-gradle-policy'
             implementationClass = 'org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin'
+        }
+        yamlTests {
+            id = 'elasticsearch.yaml-rest-test'
+            implementationClass = 'org.elasticsearch.gradle.test.YamlRestTestPlugin'
         }
     }
 }

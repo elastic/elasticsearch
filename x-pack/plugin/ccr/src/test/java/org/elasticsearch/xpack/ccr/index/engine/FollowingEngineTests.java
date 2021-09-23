@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -18,9 +17,8 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -32,8 +30,10 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.TranslogHandler;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -104,7 +105,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FollowingEngine(engineConfig));
             assertThat(e, hasToString(containsString("a following engine can not be constructed for a non-following index")));
         }
@@ -137,7 +138,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final VersionType versionType =
                         randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE);
@@ -162,7 +163,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final Engine.Index index = indexForFollowing("id", seqNo, origin);
                 consumer.accept(followingEngine, index);
@@ -196,7 +197,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final String id = "id";
                 final Engine.Delete delete = new Engine.Delete(
@@ -227,7 +228,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 followingEngine.index(indexForFollowing("id", 128, Engine.Operation.Origin.PRIMARY));
                 int addedNoops = followingEngine.fillSeqNoGaps(primaryTerm.get());
@@ -240,9 +241,7 @@ public class FollowingEngineTests extends ESTestCase {
             final ShardId shardId,
             final IndexSettings indexSettings,
             final ThreadPool threadPool,
-            final Store store,
-            final Logger logger,
-            final NamedXContentRegistry xContentRegistry) throws IOException {
+            final Store store) {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         final Path translogPath = createTempDir("translog");
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
@@ -255,7 +254,7 @@ public class FollowingEngineTests extends ESTestCase {
                 newMergePolicy(),
                 indexWriterConfig.getAnalyzer(),
                 indexWriterConfig.getSimilarity(),
-                new CodecService(null, logger),
+                new CodecService(null),
                 new Engine.EventListener() {
                     @Override
                     public void onFailedEngine(String reason, Exception e) {
@@ -273,7 +272,8 @@ public class FollowingEngineTests extends ESTestCase {
                 globalCheckpoint::longValue,
                 () -> RetentionLeases.EMPTY,
                 () -> primaryTerm.get(),
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                null);
     }
 
     private static Store createStore(
@@ -294,10 +294,32 @@ public class FollowingEngineTests extends ESTestCase {
 
     private Engine.Index indexForFollowing(String id, long seqNo, Engine.Operation.Origin origin) {
         final long version = randomBoolean() ? 1 : randomNonNegativeLong();
+        return indexForFollowing(id, seqNo, origin, version);
+    }
+
+    private Engine.Index indexForFollowing(String id, long seqNo, Engine.Operation.Origin origin, long version) {
         final ParsedDocument parsedDocument = EngineTestCase.createParsedDoc(id, null);
         return new Engine.Index(EngineTestCase.newUid(parsedDocument), parsedDocument, seqNo, primaryTerm.get(), version,
             VersionType.EXTERNAL, origin, System.currentTimeMillis(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, randomBoolean(),
             SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+    }
+
+    private Engine.Delete deleteForFollowing(String id, long seqNo, Engine.Operation.Origin origin, long version) {
+        final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, null);
+        long startTime = System.nanoTime();
+        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+        return new Engine.Delete(parsedDoc.type(),
+            parsedDoc.id(),
+            uid,
+            seqNo,
+            primaryTerm.get(),
+            version,
+            VersionType.EXTERNAL,
+            origin,
+            startTime,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
     }
 
     private Engine.Index indexForPrimary(String id) {
@@ -453,6 +475,87 @@ public class FollowingEngineTests extends ESTestCase {
         });
     }
 
+    public void testConcurrentIndexOperationsWithDeletesCanAdvanceMaxSeqNoOfUpdates() throws Exception {
+        // See #72527 for more details
+        Settings followerSettings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.version.created", Version.CURRENT)
+            .put("index.xpack.ccr.following_index", true)
+            .build();
+
+        IndexMetadata followerIndexMetadata = IndexMetadata.builder(index.getName()).settings(followerSettings).build();
+        IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetadata, Settings.EMPTY);
+        try (Store followerStore = createStore(shardId, followerIndexSettings, newDirectory())) {
+            EngineConfig followerConfig =
+                engineConfig(shardId, followerIndexSettings, threadPool, followerStore);
+            followerStore.createEmpty();
+            String translogUuid = Translog.createEmptyTranslog(followerConfig.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                shardId,
+                1L
+            );
+            followerStore.associateIndexWithNewTranslog(translogUuid);
+            CountDownLatch concurrentDeleteOpLatch = new CountDownLatch(1);
+            final long indexNewDocWithSameIdSeqNo = 4;
+            FollowingEngine followingEngine = new FollowingEngine(followerConfig) {
+                @Override
+                protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
+                    if (seqNo == indexNewDocWithSameIdSeqNo) {
+                        // wait until the concurrent delete finishes meaning that processedLocalCheckpoint == maxSeqNoOfUpdatesOrDeletes
+                        try {
+                            concurrentDeleteOpLatch.await();
+                            assertThat(getProcessedLocalCheckpoint(), equalTo(getMaxSeqNoOfUpdatesOrDeletes()));
+                        } catch (Exception exception) {
+                            throw new RuntimeException(exception);
+                        }
+                    }
+                    super.advanceMaxSeqNoOfUpdatesOnPrimary(seqNo);
+                }
+            };
+            TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), followerConfig.getIndexSettings());
+            followingEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+            try {
+                final long leaderMaxSeqNoOfUpdatesOnPrimary = 3;
+                followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(leaderMaxSeqNoOfUpdatesOnPrimary);
+
+                followingEngine.index(indexForFollowing("1", 0, Engine.Operation.Origin.PRIMARY, 1));
+                followingEngine.delete(deleteForFollowing("1", 1, Engine.Operation.Origin.PRIMARY, 2));
+                followingEngine.index(indexForFollowing("2", 2, Engine.Operation.Origin.PRIMARY, 1));
+                assertThat(followingEngine.getProcessedLocalCheckpoint(), equalTo(2L));
+
+                CyclicBarrier barrier = new CyclicBarrier(3);
+                Thread thread1 = new Thread(() -> {
+                    try {
+                        barrier.await();
+                        followingEngine.delete(deleteForFollowing("2", 3, Engine.Operation.Origin.PRIMARY, 2));
+                        concurrentDeleteOpLatch.countDown();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                Thread thread2 = new Thread(() -> {
+                    try {
+                        barrier.await();
+                        followingEngine.index(indexForFollowing("1", indexNewDocWithSameIdSeqNo, Engine.Operation.Origin.PRIMARY, 3));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+                thread1.start();
+                thread2.start();
+                barrier.await();
+                thread1.join();
+                thread2.join();
+
+                assertThat(followingEngine.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leaderMaxSeqNoOfUpdatesOnPrimary));
+            } finally {
+                followingEngine.close();
+            }
+        }
+    }
+
     private void runFollowTest(CheckedBiConsumer<InternalEngine, FollowingEngine, Exception> task) throws Exception {
         final CheckedBiConsumer<InternalEngine, FollowingEngine, Exception> wrappedTask = (leader, follower) -> {
             Thread[] threads = new Thread[between(1, 8)];
@@ -495,7 +598,7 @@ public class FollowingEngineTests extends ESTestCase {
         IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetadata, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
             leaderStore.createEmpty();
-            EngineConfig leaderConfig = engineConfig(shardId, leaderIndexSettings, threadPool, leaderStore, logger, xContentRegistry());
+            EngineConfig leaderConfig = engineConfig(shardId, leaderIndexSettings, threadPool, leaderStore);
             leaderStore.associateIndexWithNewTranslog(Translog.createEmptyTranslog(
                 leaderConfig.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L));
             try (InternalEngine leaderEngine = new InternalEngine(leaderConfig)) {
@@ -507,7 +610,7 @@ public class FollowingEngineTests extends ESTestCase {
                 IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetadata, leaderSettings);
                 try (Store followerStore = createStore(shardId, followerIndexSettings, newDirectory())) {
                     EngineConfig followerConfig = engineConfig(
-                        shardId, followerIndexSettings, threadPool, followerStore, logger, xContentRegistry());
+                        shardId, followerIndexSettings, threadPool, followerStore);
                     try (FollowingEngine followingEngine = createEngine(followerStore, followerConfig)) {
                         wrappedTask.accept(leaderEngine, followingEngine);
                     }
@@ -545,7 +648,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private Translog.Snapshot shuffleSnapshot(Translog.Snapshot snapshot) throws IOException {
-        final List<Translog.Operation> operations = new ArrayList<>(snapshot.totalOperations());
+        final List<Translog.Operation> operations = new ArrayList<>();
         Translog.Operation op;
         while ((op = snapshot.next()) != null) {
             operations.add(op);
@@ -602,7 +705,7 @@ public class FollowingEngineTests extends ESTestCase {
         final long oldTerm = randomLongBetween(1, Integer.MAX_VALUE);
         primaryTerm.set(oldTerm);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(operations.size() - 1L);
                 final Map<Long,Long> operationWithTerms = new HashMap<>();
@@ -674,7 +777,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
             try (FollowingEngine engine = createEngine(store, engineConfig)) {
                 AtomicBoolean running = new AtomicBoolean(true);
                 Thread rollTranslog = new Thread(() -> {

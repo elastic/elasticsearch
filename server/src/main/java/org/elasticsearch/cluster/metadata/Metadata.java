@@ -12,6 +12,7 @@ import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CollectionUtil;
@@ -74,7 +75,6 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -1134,7 +1134,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private CoordinationMetadata coordinationMetadata = CoordinationMetadata.EMPTY_METADATA;
         private Settings transientSettings = Settings.Builder.EMPTY_SETTINGS;
         private Settings persistentSettings = Settings.Builder.EMPTY_SETTINGS;
-        private DiffableStringMap hashesOfConsistentSettings = new DiffableStringMap(Collections.emptyMap());
+        private DiffableStringMap hashesOfConsistentSettings = DiffableStringMap.EMPTY;
 
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
@@ -1436,7 +1436,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
-            StreamSupport.stream(customs.spliterator(), false).forEach(cursor -> Objects.requireNonNull(cursor.value, cursor.key));
+            customs.stream().forEach(entry -> Objects.requireNonNull(entry.getValue(), entry.getKey()));
             this.customs.putAll(customs);
             return this;
         }

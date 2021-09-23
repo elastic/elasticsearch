@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -24,6 +25,8 @@ import java.util.stream.Collectors;
  * Describes the capabilities of a field in a single index.
  */
 public class IndexFieldCapabilities implements Writeable {
+
+    private static final StringLiteralDeduplicator typeStringDeduplicator = new StringLiteralDeduplicator();
 
     private final String name;
     private final String type;
@@ -55,7 +58,7 @@ public class IndexFieldCapabilities implements Writeable {
     IndexFieldCapabilities(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             this.name = in.readString();
-            this.type = in.readString();
+            this.type = typeStringDeduplicator.deduplicate(in.readString());
             this.isMetadatafield = in.getVersion().onOrAfter(Version.V_7_13_0) ? in.readBoolean() : false;
             this.isSearchable = in.readBoolean();
             this.isAggregatable = in.readBoolean();

@@ -826,7 +826,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             .setInput(new TrainedModelInput(Collections.singletonList("feature1")))
             .setInferenceConfig(RegressionConfig.EMPTY_PARAMS)
             .build();
-        client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(config)).actionGet();
+        client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(config, false)).actionGet();
     }
 
     private static OperationMode randomInvalidLicenseType() {
@@ -853,7 +853,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     public static void disableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, false, Long.MAX_VALUE, null);
+            licenseState.update(operationMode, false, null);
         }
     }
 
@@ -863,7 +863,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     public static void enableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, true, Long.MAX_VALUE, null);
+            licenseState.update(operationMode, true, null);
         }
     }
 }

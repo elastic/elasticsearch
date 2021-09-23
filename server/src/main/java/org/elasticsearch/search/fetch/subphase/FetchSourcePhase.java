@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -23,7 +24,6 @@ import java.io.IOException;
 import java.util.Map;
 
 public final class FetchSourcePhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         FetchSourceContext fetchSourceContext = fetchContext.fetchSourceContext();
@@ -34,6 +34,8 @@ public final class FetchSourcePhase implements FetchSubPhase {
         assert fetchSourceContext.fetchSource();
 
         return new FetchSubPhaseProcessor() {
+            private int fastPath;
+
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
 
@@ -50,50 +52,59 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 }
                 hitExecute(fetchSourceContext, hitContext);
             }
-        };
-    }
 
-    @SuppressWarnings("unchecked")
-    private void hitExecute(FetchSourceContext fetchSourceContext, HitContext hitContext) {
+            @SuppressWarnings("unchecked")
+            private void hitExecute(FetchSourceContext fetchSourceContext, HitContext hitContext) {
+                final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
+                SourceLookup source = hitContext.sourceLookup();
 
-        final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
-        SourceLookup source = hitContext.sourceLookup();
+                // If this is a parent document and there are no source filters, then add the source as-is.
+                if (nestedHit == false && containsFilters(fetchSourceContext) == false) {
+                    hitContext.hit().sourceRef(source.internalSourceRef());
+                    fastPath++;
+                    return;
+                }
 
-        // If this is a parent document and there are no source filters, then add the source as-is.
-        if (nestedHit == false && containsFilters(fetchSourceContext) == false) {
-            hitContext.hit().sourceRef(source.internalSourceRef());
-            return;
-        }
+                // Otherwise, filter the source and add it to the hit.
+                Object value = source.filter(fetchSourceContext);
+                if (nestedHit) {
+                    value = getNestedSource((Map<String, Object>) value, hitContext);
+                }
 
-        // Otherwise, filter the source and add it to the hit.
-        Object value = source.filter(fetchSourceContext);
-        if (nestedHit) {
-            value = getNestedSource((Map<String, Object>) value, hitContext);
-        }
-
-        try {
-            final int initialCapacity = nestedHit ? 1024 : Math.min(1024, source.internalSourceRef().length());
-            BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
-            XContentBuilder builder = new XContentBuilder(source.sourceContentType().xContent(), streamOutput);
-            if (value != null) {
-                builder.value(value);
-            } else {
-                // This happens if the source filtering could not find the specified in the _source.
-                // Just doing `builder.value(null)` is valid, but the xcontent validation can't detect what format
-                // it is. In certain cases, for example response serialization we fail if no xcontent type can't be
-                // detected. So instead we just return an empty top level object. Also this is in inline with what was
-                // being return in this situation in 5.x and earlier.
-                builder.startObject();
-                builder.endObject();
+                try {
+                    final int initialCapacity = nestedHit ? 1024 : Math.min(1024, source.internalSourceRef().length());
+                    hitContext.hit().sourceRef(objectToBytes(value, source.sourceContentType(), initialCapacity));
+                } catch (IOException e) {
+                    throw new ElasticsearchException("Error filtering source", e);
+                }
             }
-            hitContext.hit().sourceRef(BytesReference.bytes(builder));
-        } catch (IOException e) {
-            throw new ElasticsearchException("Error filtering source", e);
-        }
+
+            @Override
+            public Map<String, Object> getDebugInfo() {
+                return org.elasticsearch.core.Map.of("fast_path", fastPath);
+            }
+        };
     }
 
     private static boolean containsFilters(FetchSourceContext context) {
         return context.includes().length != 0 || context.excludes().length != 0;
+    }
+
+    public static BytesReference objectToBytes(Object value, XContentType xContentType, int initialCapacity) throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
+        XContentBuilder builder = new XContentBuilder(xContentType.xContent(), streamOutput);
+        if (value != null) {
+            builder.value(value);
+        } else {
+            // This happens if the source filtering could not find the specified in the _source.
+            // Just doing `builder.value(null)` is valid, but the xcontent validation can't detect what format
+            // it is. In certain cases, for example response serialization we fail if no xcontent type can't be
+            // detected. So instead we just return an empty top level object. Also this is in inline with what was
+            // being return in this situation in 5.x and earlier.
+            builder.startObject();
+            builder.endObject();
+        }
+        return BytesReference.bytes(builder);
     }
 
     @SuppressWarnings("unchecked")

@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -71,7 +72,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
@@ -79,7 +79,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -89,25 +88,27 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -2942,7 +2943,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSettings() {
-        CodecService codecService = new CodecService(null, logger);
+        CodecService codecService = new CodecService(null);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -3161,7 +3162,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     private Mapping dynamicUpdate() {
-        final RootObjectMapper root = new RootObjectMapper.Builder("some_type").build(new ContentPath());
+        final RootObjectMapper root = new RootObjectMapper.Builder("some_type").build(MapperBuilderContext.ROOT);
         return new Mapping(root, new MetadataFieldMapper[0], emptyMap());
     }
 
@@ -3293,7 +3294,7 @@ public class InternalEngineTests extends EngineTestCase {
                 newMergePolicy(),
                 config.getAnalyzer(),
                 config.getSimilarity(),
-                new CodecService(null, logger),
+                new CodecService(null),
                 config.getEventListener(),
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -3306,7 +3307,8 @@ public class InternalEngineTests extends EngineTestCase {
                 () -> UNASSIGNED_SEQ_NO,
                 () -> RetentionLeases.EMPTY,
                 primaryTerm::get,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                null);
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
@@ -6396,11 +6398,11 @@ public class InternalEngineTests extends EngineTestCase {
                 createTempDir(), config.getTranslogConfig().getIndexSettings(), config.getTranslogConfig().getBigArrays());
             EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getThreadPool(),
                 config.getIndexSettings(), warmer, store, config.getMergePolicy(), config.getAnalyzer(),
-                config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
+                config.getSimilarity(), new CodecService(null), config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), translogConfig, config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(expectThrows(Throwable.class, () -> engine.acquireSearcher("test")).getMessage(),

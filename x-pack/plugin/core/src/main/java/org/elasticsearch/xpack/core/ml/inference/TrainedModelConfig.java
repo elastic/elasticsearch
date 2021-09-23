@@ -169,6 +169,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
         this.estimatedOperations = estimatedOperations;
         this.licenseLevel = License.OperationMode.parse(ExceptionsHelper.requireNonNull(licenseLevel, LICENSE_LEVEL));
+        assert this.licenseLevel.equals(License.OperationMode.PLATINUM) || this.licenseLevel.equals(License.OperationMode.BASIC) :
+                "[" + LICENSE_LEVEL.getPreferredName() + "] only [platinum] or [basic] is supported";
         this.defaultFieldMap = defaultFieldMap == null ? null : Collections.unmodifiableMap(defaultFieldMap);
         this.inferenceConfig = inferenceConfig;
     }
@@ -245,6 +247,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return definition.getCompressedString();
     }
 
+    public String getCompressedDefinitionIfSet() {
+        if (definition == null) {
+            return null;
+        }
+        return definition.getCompressedDefinitionIfSet();
+    }
+
     public void clearCompressed() {
         definition.compressedString = null;
     }
@@ -289,6 +298,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return estimatedOperations;
     }
 
+    //TODO if we ever support anything other than "basic" and platinum, we need to adjust our feature tracking logic
     public License.OperationMode getLicenseLevel() {
         return licenseLevel;
     }
@@ -619,6 +629,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         /**
          * Runs validations against the builder.
+         * @param forCreation indicates if we should validate for model creation or for a model read from storage
          * @return The current builder object if validations are successful
          * @throws ActionRequestValidationException when there are validation failures.
          */
@@ -679,12 +690,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);
                 validationException = checkIllegalSetting(createdBy, CREATED_BY.getPreferredName(), validationException);
                 validationException = checkIllegalSetting(createTime, CREATE_TIME.getPreferredName(), validationException);
-                validationException = checkIllegalSetting(estimatedHeapMemory,
-                    ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
-                    validationException);
-                validationException = checkIllegalSetting(estimatedOperations,
-                    ESTIMATED_OPERATIONS.getPreferredName(),
-                    validationException);
                 validationException = checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName(), validationException);
                 if (metadata != null) {
                     validationException = checkIllegalSetting(
@@ -777,6 +782,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             if (compressedString == null) {
                 compressedString = InferenceToXContentCompressor.deflate(parsedDefinition);
             }
+            return compressedString;
+        }
+
+        public String getCompressedDefinitionIfSet() {
             return compressedString;
         }
 

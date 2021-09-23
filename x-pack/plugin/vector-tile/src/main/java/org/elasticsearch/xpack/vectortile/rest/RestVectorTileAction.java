@@ -45,7 +45,7 @@ import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
@@ -70,6 +70,7 @@ public class RestVectorTileAction extends BaseRestHandler {
 
     private static final String COUNT_TAG = "_count";
     private static final String ID_TAG = "_id";
+    private static final String INDEX_TAG = "_index";
 
     // mime type as defined by the mapbox vector tile specification
     private static final String MIME_TYPE = "application/vnd.mapbox-vector-tile";
@@ -147,7 +148,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                             searchResponse.isTerminatedEarly(),
                             searchResponse.getProfileResults() == null
                                 ? null
-                                : new SearchProfileShardResults(searchResponse.getProfileResults()),
+                                : new SearchProfileResults(searchResponse.getProfileResults()),
                             searchResponse.getNumReducePhases()
                         ),
                         searchResponse.getScrollId(),
@@ -172,6 +173,7 @@ public class RestVectorTileAction extends BaseRestHandler {
         final SearchRequestBuilder searchRequestBuilder = client.prepareSearch(request.getIndexes());
         searchRequestBuilder.setSize(request.getSize());
         searchRequestBuilder.setFetchSource(false);
+        searchRequestBuilder.setTrackTotalHitsUpTo(request.getTrackTotalHitsUpTo());
         searchRequestBuilder.addFetchField(
             new FieldAndFormat(
                 request.getField(),
@@ -208,9 +210,9 @@ public class RestVectorTileAction extends BaseRestHandler {
                 tileAggBuilder.subAggregations(request.getAggBuilder());
                 final Collection<AggregationBuilder> aggregations = otherAggBuilder.getAggregatorFactories();
                 for (AggregationBuilder aggregation : aggregations) {
-                    searchRequestBuilder.addAggregation(
-                        new StatsBucketPipelineAggregationBuilder(aggregation.getName(), GRID_FIELD + ">" + aggregation.getName())
-                    );
+                    // we add the metric (.value) to the path in order to support aggregation names with '.'
+                    final String bucketPath = GRID_FIELD + ">" + aggregation.getName() + ".value";
+                    searchRequestBuilder.addAggregation(new StatsBucketPipelineAggregationBuilder(aggregation.getName(), bucketPath));
                 }
             }
         }
@@ -240,6 +242,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                 featureBuilder.clear();
                 featureBuilder.mergeFrom((byte[]) feature);
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
+                VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, INDEX_TAG, searchHit.getIndex());
                 if (fields != null) {
                     for (FieldAndFormat field : fields) {
                         final DocumentField documentField = searchHit.field(field.field);

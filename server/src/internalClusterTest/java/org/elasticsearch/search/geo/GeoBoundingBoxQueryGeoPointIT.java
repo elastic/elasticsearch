@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 
-public class GeoBoundingBoxQueryGeoPointIT extends AbstractGeoBoundingBoxQueryIT {
+public class GeoBoundingBoxQueryGeoPointIT extends GeoBoundingBoxQueryIntegTestCase {
 
     @Override
     public XContentBuilder getMapping() throws IOException {

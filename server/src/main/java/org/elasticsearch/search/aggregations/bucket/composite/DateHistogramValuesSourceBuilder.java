@@ -58,6 +58,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
+            MissingOrder missingOrder,
             SortOrder order
         );
     }
@@ -271,7 +272,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
-            (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it
                 // here
@@ -287,6 +288,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                     docValueFormat,
                     order,
                     missingBucket,
+                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -295,13 +297,13 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                         LongConsumer addRequestCircuitBreakerBytes,
                         CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
                         final RoundingValuesSource roundingValuesSource = (RoundingValuesSource) compositeValuesSourceConfig.valuesSource();
-                        return new LongValuesSource(
+                        return new DateHistogramValuesSource(
                             bigArrays,
                             compositeValuesSourceConfig.fieldType(),
-                            roundingValuesSource::longValues,
-                            roundingValuesSource::round,
+                            roundingValuesSource,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
@@ -321,6 +323,6 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
         return registry.getAggregator(REGISTRY_KEY, config)
-            .apply(config, rounding, name, config.script() != null, format(), missingBucket(), order());
+            .apply(config, rounding, name, config.script() != null, format(), missingBucket(), missingOrder(), order());
     }
 }

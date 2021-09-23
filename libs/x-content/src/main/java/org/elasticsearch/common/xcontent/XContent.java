@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -55,6 +57,17 @@ public interface XContent {
      */
     XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, InputStream is) throws IOException;
+
+    /**
+     * Creates a parser over the provided input stream.
+     */
+    XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        InputStream is,
+        FilterPath[] includes,
+        FilterPath[] excludes
+    ) throws IOException;
 
     /**
      * Creates a parser over the provided bytes.

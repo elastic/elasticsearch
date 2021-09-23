@@ -28,8 +28,8 @@ setup:
 ---
 "basic":
   - skip:
-      version: " - 7.99.99"
-      reason: added in 8.0.0 (to be backported to 7.9.0)
+      version: " - 7.8.99"
+      reason: added in 7.9.0
   - do:
       search:
         body:

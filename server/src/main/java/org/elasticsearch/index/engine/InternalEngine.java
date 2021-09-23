@@ -558,7 +558,7 @@ public class InternalEngine extends Engine {
                                                    MapperService mapperService, long startingSeqNo) throws IOException {
         if (historySource == HistorySource.INDEX) {
             ensureSoftDeletesEnabled();
-            return newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false, false);
+            return newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false, false, true);
         } else {
             return getTranslog().newSnapshot(startingSeqNo, Long.MAX_VALUE);
         }
@@ -568,13 +568,13 @@ public class InternalEngine extends Engine {
      * Returns the estimated number of history operations whose seq# at least the provided seq# in this engine.
      */
     @Override
-    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource,
-                                                 MapperService mapperService, long startingSeqNo) throws IOException {
+    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource, long startingSeqNo) throws IOException {
         if (historySource == HistorySource.INDEX) {
             ensureSoftDeletesEnabled();
-            try (Translog.Snapshot snapshot =
-                     newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false, false)) {
-                return snapshot.totalOperations();
+            ensureOpen();
+            refresh(reason, SearcherScope.INTERNAL, true);
+            try (Searcher searcher = acquireSearcher(reason, SearcherScope.INTERNAL)) {
+                return LuceneChangesSnapshot.countOperations(searcher, startingSeqNo, Long.MAX_VALUE);
             }
         } else {
             return getTranslog().estimateTotalOperationsFromMinSeq(startingSeqNo);
@@ -880,7 +880,11 @@ public class InternalEngine extends Engine {
         return doGenerateSeqNoForOperation(operation);
     }
 
-    protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
+    protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
+        advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
+    }
+
+    protected void advanceMaxSeqNoOfDeletesOnPrimary(long seqNo) {
         advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
     }
 
@@ -948,7 +952,7 @@ public class InternalEngine extends Engine {
 
                         final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
                         if (toAppend == false) {
-                            advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(index.seqNo());
+                            advanceMaxSeqNoOfUpdatesOnPrimary(index.seqNo());
                         }
                     } else {
                         markSeqNoAsSeen(index.seqNo());
@@ -1332,7 +1336,7 @@ public class InternalEngine extends Engine {
                         delete.primaryTerm(), delete.version(), delete.versionType(), delete.origin(), delete.startTime(),
                         delete.getIfSeqNo(), delete.getIfPrimaryTerm());
 
-                    advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());
+                    advanceMaxSeqNoOfDeletesOnPrimary(delete.seqNo());
                 } else {
                     markSeqNoAsSeen(delete.seqNo());
                 }
@@ -2342,6 +2346,11 @@ public class InternalEngine extends Engine {
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
         }
+        // Provide a custom leaf sorter, so that index readers opened from this writer
+        // will have its leaves sorted according the given leaf sorter.
+        if (engineConfig.getLeafSorter() != null) {
+            iwc.setLeafSorter(engineConfig.getLeafSorter());
+        }
         return iwc;
     }
 
@@ -2701,15 +2710,15 @@ public class InternalEngine extends Engine {
         }
     }
 
-    Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
-                                         boolean requiredFullRange, boolean singleConsumer) throws IOException {
+    final Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
+                                               boolean requiredFullRange, boolean singleConsumer, boolean accessStats) throws IOException {
         ensureSoftDeletesEnabled();
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
-            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer);
+            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
+                fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
             searcher = null;
             return snapshot;
         } catch (Exception e) {
@@ -2727,7 +2736,7 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
-        return newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange, true);
+        return newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange, true, false);
     }
 
     @Override

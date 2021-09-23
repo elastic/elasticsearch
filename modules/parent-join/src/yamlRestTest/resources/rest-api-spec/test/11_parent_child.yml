@@ -20,7 +20,7 @@ setup:
       index:
         index: test
         id:    2
-        routing: 1
+        routing: "1"
         body:  {"bar": "baz", "join_field": { "name" : "child", "parent": "1"} }
 
   - do:

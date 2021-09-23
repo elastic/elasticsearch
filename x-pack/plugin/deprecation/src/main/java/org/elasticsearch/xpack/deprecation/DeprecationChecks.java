@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
@@ -38,7 +40,10 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkPollIntervalTooLow,
             ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled,
             ClusterDeprecationChecks::checkTemplatesWithMultipleTypes,
-            ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
+            ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+            ClusterDeprecationChecks::checkGeoShapeTemplates,
+            ClusterDeprecationChecks::checkSparseVectorTemplates,
+            ClusterDeprecationChecks::checkILMFreezeActions
         ));
 
     static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
@@ -94,7 +99,29 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkSharedDataPathSetting,
                     NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
                     NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
+                    NodeDeprecationChecks::checkSearchRemoteSettings,
                     NodeDeprecationChecks::checkMonitoringExporterPassword,
+                    NodeDeprecationChecks::checkFractionalByteValueSettings,
+                    NodeDeprecationChecks::checkFrozenCacheLeniency,
+                    NodeDeprecationChecks::checkSslServerEnabled,
+                    NodeDeprecationChecks::checkSslCertConfiguration,
+                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkNoPermitHandshakeFromIncompatibleBuilds(settings, pluginsAndModules, clusterState,
+                            licenseState, () -> System.getProperty(TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY)),
+                    NodeDeprecationChecks::checkTransportClientProfilesFilterSetting,
+                    NodeDeprecationChecks::checkDelayClusterStateRecoverySettings,
+                    NodeDeprecationChecks::checkFixedAutoQueueSizeThreadpool,
+                    NodeDeprecationChecks::checkJoinTimeoutSetting,
+                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
+                    NodeDeprecationChecks::checkClusterRoutingRequireSetting,
+                    NodeDeprecationChecks::checkClusterRoutingIncludeSetting,
+                    NodeDeprecationChecks::checkClusterRoutingExcludeSetting,
+                    NodeDeprecationChecks::checkAcceptDefaultPasswordSetting,
+                    NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
+                    NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
+                    NodeDeprecationChecks::checkMaxLocalStorageNodesSetting,
+                    NodeDeprecationChecks::checkSamlNameIdFormatSetting,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
                 )
             ).collect(Collectors.toList());
@@ -111,7 +138,12 @@ public class DeprecationChecks {
             IndexDeprecationChecks::checkIndexDataPath,
             IndexDeprecationChecks::indexingSlowLogLevelSettingCheck,
             IndexDeprecationChecks::searchSlowLogLevelSettingCheck,
-            IndexDeprecationChecks::storeTypeSettingCheck
+            IndexDeprecationChecks::storeTypeSettingCheck,
+            IndexDeprecationChecks::checkIndexRoutingRequireSetting,
+            IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
+            IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
+            IndexDeprecationChecks::checkIndexMatrixFiltersSetting,
+            IndexDeprecationChecks::checkGeoShapeMappings
         ));
 
     /**

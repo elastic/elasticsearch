@@ -26,9 +26,12 @@ import org.elasticsearch.cluster.service.MasterServiceTests;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.Node;
@@ -160,7 +163,7 @@ public class NodeJoinTests extends ESTestCase {
                             destination,
                             initialState.getClusterName()
                     ));
-                } else if (action.equals(JoinHelper.VALIDATE_JOIN_ACTION_NAME)) {
+                } else if (action.equals(JoinHelper.JOIN_VALIDATE_ACTION_NAME) || action.equals(JoinHelper.JOIN_PING_ACTION_NAME)) {
                     handleResponse(requestId, new TransportResponse.Empty());
                 } else {
                     super.onSendRequest(requestId, action, request, destination);
@@ -172,14 +175,23 @@ public class NodeJoinTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> initialState.nodes().getLocalNode(),
             clusterSettings, Collections.emptySet());
-        coordinator = new Coordinator("test_node", Settings.EMPTY, clusterSettings,
-            transportService, writableRegistry(),
+        coordinator = new Coordinator(
+            "test_node",
+            Settings.EMPTY,
+            clusterSettings,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+            transportService,
+            writableRegistry(),
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
-            () -> new InMemoryPersistedState(term, initialState), r -> emptyList(),
+            () -> new InMemoryPersistedState(term, initialState),
+            r -> emptyList(),
             new NoOpClusterApplier(),
             Collections.emptyList(),
-            random, (s, p, r) -> {}, ElectionStrategy.DEFAULT_INSTANCE, nodeHealthService);
+            random,
+            (s, p, r) -> {},
+            ElectionStrategy.DEFAULT_INSTANCE,
+            nodeHealthService);
         transportService.start();
         transportService.acceptIncomingRequests();
         transport = capturingTransport;

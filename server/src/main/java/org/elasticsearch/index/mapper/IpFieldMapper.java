@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.IpField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -125,11 +126,11 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IpFieldMapper build(ContentPath contentPath) {
+        public IpFieldMapper build(MapperBuilderContext context) {
             return new IpFieldMapper(name,
-                new IpFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
+                new IpFieldType(context.buildFullName(name), indexed.getValue(), stored.getValue(),
                     hasDocValues.getValue(), parseNullValue(), scriptValues(), meta.getValue()),
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
     }
@@ -336,8 +337,8 @@ public class IpFieldMapper extends FieldMapper {
             }
 
             @Override
-            public org.elasticsearch.script.Field<String> toField(String fieldName) {
-                return new org.elasticsearch.script.Field.IpField(fieldName, this);
+            public org.elasticsearch.script.field.Field<String> toField(String fieldName) {
+                return new IpField(fieldName, this);
             }
         }
 
@@ -357,13 +358,8 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
-            }
-            if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+            checkNoFormat(format);
+            checkNoTimeZone(timeZone);
             return DocValueFormat.IP;
         }
     }

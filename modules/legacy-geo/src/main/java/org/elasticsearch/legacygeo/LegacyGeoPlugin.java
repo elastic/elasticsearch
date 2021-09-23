@@ -9,13 +9,14 @@
 package org.elasticsearch.legacygeo;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class LegacyGeoPlugin extends Plugin {
+public class LegacyGeoPlugin extends Plugin implements ExtensiblePlugin {
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

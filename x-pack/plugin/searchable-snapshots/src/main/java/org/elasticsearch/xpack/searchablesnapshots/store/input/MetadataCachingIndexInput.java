@@ -170,8 +170,11 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
             final int bytesRead = populateCacheFuture.get();
             assert bytesRead == length : bytesRead + " vs " + length;
         } else {
-            logger.trace("reading [{}] bytes of file [{}] at position [{}] using cache index", length, fileInfo.physicalName(), position);
             final int sliceOffset = toIntBytes(position - cachedBlob.from());
+            assert sliceOffset + length <= cachedBlob.to()
+                : "reading " + length + " bytes from " + sliceOffset + " exceed cached blob max position " + cachedBlob.to();
+
+            logger.trace("reading [{}] bytes of file [{}] at position [{}] using cache index", length, fileInfo.physicalName(), position);
             final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(sliceOffset, length).iterator();
             BytesRef bytesRef;
             int copiedBytes = 0;
@@ -287,7 +290,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
             // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
             byteBuffer.flip();
             final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
-            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.start(), content, new ActionListener<Void>() {
+            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss, content, new ActionListener<>() {
                 @Override
                 public void onResponse(Void response) {
                     onCacheFillComplete.close();

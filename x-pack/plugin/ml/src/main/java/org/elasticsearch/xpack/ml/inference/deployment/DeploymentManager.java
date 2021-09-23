@@ -49,6 +49,8 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -130,12 +132,12 @@ public class DeploymentManager {
                 assert modelConfig.getInferenceConfig() instanceof NlpConfig;
                 NlpConfig nlpConfig = (NlpConfig) modelConfig.getInferenceConfig();
 
-                SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig());
+                SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
                 executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
                     searchVocabResponse -> {
                         if (searchVocabResponse.getHits().getHits().length == 0) {
                             listener.onFailure(new ResourceNotFoundException(Messages.getMessage(
-                                Messages.VOCABULARY_NOT_FOUND, task.getModelId(), nlpConfig.getVocabularyConfig().getId())));
+                                Messages.VOCABULARY_NOT_FOUND, task.getModelId(), VocabularyConfig.docId(modelConfig.getModelId()))));
                             return;
                         }
 
@@ -159,9 +161,9 @@ public class DeploymentManager {
             getModelListener);
     }
 
-    private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig) {
+    private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {
         return client.prepareSearch(vocabularyConfig.getIndex())
-            .setQuery(new IdsQueryBuilder().addIds(vocabularyConfig.getId()))
+            .setQuery(new IdsQueryBuilder().addIds(VocabularyConfig.docId(modelId)))
             .setSize(1)
             .setTrackTotalHits(false)
             .request();
@@ -232,7 +234,10 @@ public class DeploymentManager {
             @Override
             protected void doRun() {
                 try {
-                    String text = NlpTask.extractInput(processContext.modelInput.get(), doc);
+                    // The request builder expect a list of inputs which are then batched.
+                    // TODO batching was implemented for expected use-cases such as zero-shot
+                    // classification but is not used here.
+                    List<String> text = Collections.singletonList(NlpTask.extractInput(processContext.modelInput.get(), doc));
                     NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
                     processor.validateInputs(text);
                     NlpTask.Request request = processor.getRequestBuilder().buildRequest(text, requestId);

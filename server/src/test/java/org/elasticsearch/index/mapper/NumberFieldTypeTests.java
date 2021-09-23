@@ -12,16 +12,16 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -122,7 +122,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static MappedFieldType unsearchable() {
-        return new NumberFieldType("field", NumberType.LONG, false, false, true, true, null, Collections.emptyMap(), null, false);
+        return new NumberFieldType("field", NumberType.LONG, false, false, true, true, null, Collections.emptyMap(), null, false, null);
     }
 
     public void testTermQuery() {
@@ -419,6 +419,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         dir.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74057")
     public void testIndexSortIntRange() throws Exception {
         doTestIndexSortRangeQueries(NumberType.INTEGER, random()::nextInt);
     }
@@ -635,7 +636,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, ScriptCompiler.NONE, false, true)
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
@@ -643,7 +644,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, ScriptCompiler.NONE, false, true)
             .nullValue(2.71f)
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
@@ -651,7 +652,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchHalfFloatFromSource() throws IOException {
         MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.HALF_FLOAT, ScriptCompiler.NONE, false, true)
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but

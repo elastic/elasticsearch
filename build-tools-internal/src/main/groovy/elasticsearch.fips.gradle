@@ -46,16 +46,16 @@ if (BuildParams.inFipsJvm) {
           // This afterEvaluate hooks is required to avoid deprecated configuration resolution
           // This configuration can be removed once system modules are available
           def extraFipsJars = configurations.detachedConfiguration(bcFips, bcTlsFips)
-          testClusters.all {
+          testClusters.configureEach {
             extraFipsJars.files.each {
               extraJarFile it
             }
           }
         }
-        tasks.withType(TestClustersAware) {
+        tasks.withType(TestClustersAware).configureEach {
           dependsOn 'fipsResources'
         }
-        testClusters.all {
+        testClusters.configureEach {
           setTestDistribution(TestDistribution.DEFAULT)
           extraConfigFile "fips_java.security", fipsSecurity
           extraConfigFile "fips_java.policy", fipsPolicy

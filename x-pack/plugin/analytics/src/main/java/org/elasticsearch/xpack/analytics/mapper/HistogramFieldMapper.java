@@ -16,10 +16,10 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,13 +32,14 @@ import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -73,6 +74,12 @@ public class HistogramFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
 
+        /**
+         * Parameter that marks this field as a time series metric defining its time series metric type.
+         * For {@link HistogramFieldMapper} fields only the histogram metric type is supported.
+         */
+        private final Parameter<TimeSeriesParams.MetricType> metric;
+
         public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(
@@ -81,19 +88,21 @@ public class HistogramFieldMapper extends FieldMapper {
                 m -> toType(m).ignoreMalformed,
                 ignoreMalformedByDefault
             );
+
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.histogram);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(ignoreMalformed, meta);
+            return List.of(ignoreMalformed, meta, metric);
         }
 
         @Override
-        public HistogramFieldMapper build(ContentPath contentPath) {
+        public HistogramFieldMapper build(MapperBuilderContext context) {
             return new HistogramFieldMapper(
                 name,
-                new HistogramFieldType(buildFullName(contentPath), meta.getValue()),
-                multiFieldsBuilder.build(this, contentPath),
+                new HistogramFieldType(context.buildFullName(name), meta.getValue(), metric.getValue()),
+                multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this
             );
@@ -108,6 +117,9 @@ public class HistogramFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
 
+    /** The metric type (gauge, counter, summary) if  field is a time series metric */
+    private final TimeSeriesParams.MetricType metricType;
+
     public HistogramFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -118,6 +130,7 @@ public class HistogramFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
+        this.metricType = builder.metric.getValue();
     }
 
     boolean ignoreMalformed() {
@@ -141,8 +154,11 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public static class HistogramFieldType extends MappedFieldType {
 
-        public HistogramFieldType(String name, Map<String, String> meta) {
+        private final TimeSeriesParams.MetricType metricType;
+
+        public HistogramFieldType(String name, Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
+            this.metricType = metricType;
         }
 
         @Override
@@ -246,6 +262,14 @@ public class HistogramFieldMapper extends FieldMapper {
                 "[" + CONTENT_TYPE + "] field do not support searching, " + "use dedicated aggregations instead: [" + name() + "]"
             );
         }
+
+        /**
+         * If field is a time series metric field, returns its metric type
+         * @return the metric type or null
+         */
+        public TimeSeriesParams.MetricType getMetricType() {
+            return metricType;
+        }
     }
 
     @Override
@@ -341,7 +365,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         + "]"
                 );
             }
-            ByteBuffersDataOutput dataOutput = new ByteBuffersDataOutput();
+            BytesStreamOutput streamOutput = new BytesStreamOutput();
             for (int i = 0; i < values.size(); i++) {
                 int count = counts.get(i);
                 if (count < 0) {
@@ -350,11 +374,11 @@ public class HistogramFieldMapper extends FieldMapper {
                     );
                 } else if (count > 0) {
                     // we do not add elements with count == 0
-                    dataOutput.writeVInt(count);
-                    dataOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
+                    streamOutput.writeVInt(count);
+                    streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
                 }
             }
-            BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
+            BytesRef docValue = streamOutput.bytes().toBytesRef();
             Field field = new BinaryDocValuesField(name(), docValue);
             if (context.doc().getByKey(fieldType().name()) != null) {
                 throw new IllegalArgumentException(
@@ -386,25 +410,25 @@ public class HistogramFieldMapper extends FieldMapper {
         double value;
         int count;
         boolean isExhausted;
-        ByteArrayDataInput dataInput;
+        ByteArrayStreamInput streamInput;
 
         InternalHistogramValue() {
-            dataInput = new ByteArrayDataInput();
+            streamInput = new ByteArrayStreamInput();
         }
 
         /** reset the value for the histogram */
         void reset(BytesRef bytesRef) {
-            dataInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            streamInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
             isExhausted = false;
             value = 0;
             count = 0;
         }
 
         @Override
-        public boolean next() {
-            if (dataInput.eof() == false) {
-                count = dataInput.readVInt();
-                value = Double.longBitsToDouble(dataInput.readLong());
+        public boolean next() throws IOException {
+            if (streamInput.available() > 0) {
+                count = streamInput.readVInt();
+                value = Double.longBitsToDouble(streamInput.readLong());
                 return true;
             }
             isExhausted = true;

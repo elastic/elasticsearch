@@ -20,6 +20,8 @@ import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
+import org.elasticsearch.gradle.util.GradleUtils
+
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
@@ -44,7 +46,7 @@ plugins {
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.release-tools'
-  id "com.diffplug.spotless" version "5.12.5" apply false
+  id "com.diffplug.spotless" version "5.15.1" apply false
 }
 
 String licenseCommit
@@ -165,12 +167,14 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
   bwc_tests_enabled = false
 }
 
-allprojects {
+subprojects {
   // common maven publishing configuration
   group = 'org.elasticsearch'
   version = VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
+}
 
+allprojects {
   // We disable this plugin for now till we shaked out the issues we see
   // e.g. see https://github.com/elastic/elasticsearch/issues/72169
   // apply plugin:'elasticsearch.internal-test-rerun'
@@ -365,6 +369,7 @@ tasks.register("branchConsistency") {
 }
 
 tasks.named("wrapper").configure {
+  dependsOn gradle.includedBuild('example-plugins').task(':wrapper')
   distributionType = 'ALL'
   doLast {
     final DistributionLocator locator = new DistributionLocator()
@@ -405,11 +410,13 @@ gradle.projectsEvaluated {
 tasks.named("precommit") {
   dependsOn gradle.includedBuild('build-tools').task(':precommit')
   dependsOn gradle.includedBuild('build-tools-internal').task(':precommit')
+  dependsOn gradle.includedBuild('example-plugins').task(':precommit')
 }
 
 tasks.named("checkPart1").configure {
   dependsOn gradle.includedBuild('build-tools').task(':check')
   dependsOn gradle.includedBuild('build-tools-internal').task(':check')
+  dependsOn gradle.includedBuild('example-plugins').task(':check')
 }
 
 tasks.named("assemble").configure {
@@ -426,4 +433,13 @@ tasks.named("eclipse").configure {
   dependsOn gradle.includedBuild('build-conventions').task(':eclipse')
   dependsOn gradle.includedBuild('build-tools').task(':eclipse')
   dependsOn gradle.includedBuild('build-tools-internal').task(':eclipse')
+}
+
+tasks.register("buildReleaseArtifacts").configure {
+  group = 'build'
+  description = 'Builds all artifacts required for release manager'
+
+  dependsOn allprojects.findAll { it.path.startsWith(':distribution:docker') == false && it.path.startsWith(':ml-cpp') == false }
+    .collect { GradleUtils.findByName(it.tasks, 'assemble') }
+    .findAll { it != null }
 }

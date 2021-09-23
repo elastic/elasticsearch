@@ -844,7 +844,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         };
         DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
         // Exists queries convert to MatchNone if this isn't defined
-        FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
         debugTestCase(
             builder,
             new MatchAllDocsQuery(),

@@ -41,6 +41,9 @@ public class RestGetSnapshotsCancellationIT extends AbstractSnapshotRestTestCase
         repository.setBlockOnAnyFiles();
 
         final Request request = new Request(HttpGet.METHOD_NAME, "/_snapshot/" + repoName + "/*");
+        if (randomBoolean()) {
+            request.addParameter("ignore_unavailable", "true");
+        }
         final PlainActionFuture<Response> future = new PlainActionFuture<>();
         final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 

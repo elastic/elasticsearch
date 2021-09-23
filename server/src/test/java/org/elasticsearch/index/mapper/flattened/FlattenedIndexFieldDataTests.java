@@ -23,8 +23,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldData;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -42,10 +42,11 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
-            indicesService.getCircuitBreakerService(),
-            indexService.mapperService());
+            indicesService.getCircuitBreakerService()
+        );
 
-        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("flattened").build(new ContentPath(1));
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("flattened")
+            .build(MapperBuilderContext.ROOT);
         MappedFieldType fieldType1 = fieldMapper.fieldType().getChildFieldType("key");
 
         AtomicInteger onCacheCalled = new AtomicInteger();

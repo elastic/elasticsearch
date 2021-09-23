@@ -10,7 +10,6 @@ package org.elasticsearch.lucene.util;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.test.ESTestCase;

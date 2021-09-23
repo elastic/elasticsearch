@@ -144,14 +144,13 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             });
 
-            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter)
-                .addValidator(v -> {
-                    if (v != null && hasDocValues.getValue() == false) {
-                        throw new IllegalArgumentException(
-                            "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
-                        );
-                    }
-                });
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter).addValidator(v -> {
+                if (v != null && hasDocValues.getValue() == false) {
+                    throw new IllegalArgumentException(
+                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
+                    );
+                }
+            }).precludesParameters(dimension);
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
@@ -1161,10 +1160,10 @@ public class NumberFieldMapper extends FieldMapper {
     private final FieldValues<Number> scriptValues;
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
+    private final boolean dimension;
     private final ScriptCompiler scriptCompiler;
     private final Script script;
-    private final boolean dimension;
-    private final TimeSeriesParams.MetricType metricType;
+    private final MetricType metricType;
 
     private NumberFieldMapper(
             String simpleName,
@@ -1183,9 +1182,9 @@ public class NumberFieldMapper extends FieldMapper {
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.scriptValues = builder.scriptValues();
+        this.dimension = builder.dimension.getValue();
         this.scriptCompiler = builder.scriptCompiler;
         this.script = builder.script.getValue();
-        this.dimension = builder.dimension.getValue();
         this.metricType = builder.metric.getValue();
     }
 

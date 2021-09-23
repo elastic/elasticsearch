@@ -31,6 +31,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('spatial'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  api "org.locationtech.jts:jts-core:${versions.jts}"
   api "com.wdtinc:mapbox-vector-tile:3.1.0"
   api "com.google.protobuf:protobuf-java:3.14.0"
   runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")

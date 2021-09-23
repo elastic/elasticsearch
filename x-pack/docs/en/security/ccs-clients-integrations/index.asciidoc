@@ -24,6 +24,8 @@ be secured as well, or at least communicate with the cluster in a secured way:
 
 include::http.asciidoc[]
 
+include::java.asciidoc[]
+
 include::hadoop.asciidoc[]
 
 include::monitoring.asciidoc[]

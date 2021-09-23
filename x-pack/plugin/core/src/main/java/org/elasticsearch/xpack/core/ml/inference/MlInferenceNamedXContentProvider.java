@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResu
 import org.elasticsearch.xpack.core.ml.inference.results.TextClassificationResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -206,13 +205,6 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 (p, c) -> BertTokenization.fromXContent(p, (boolean) c)
             )
         );
-        namedXContent.add(
-            new NamedXContentRegistry.Entry(
-                Tokenization.class,
-                DistilBertTokenization.NAME,
-                (p, c) -> DistilBertTokenization.fromXContent(p, (boolean) c)
-            )
-        );
 
         return namedXContent;
     }
@@ -316,13 +308,6 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 Tokenization.class,
                 BertTokenization.NAME.getPreferredName(),
                 BertTokenization::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                Tokenization.class,
-                DistilBertTokenization.NAME.getPreferredName(),
-                DistilBertTokenization::new
             )
         );
 

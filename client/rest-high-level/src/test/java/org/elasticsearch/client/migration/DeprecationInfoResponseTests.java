@@ -73,6 +73,7 @@ public class DeprecationInfoResponseTests extends ESTestCase {
         if (issue.getDetails() != null) {
             builder.field("details", issue.getDetails());
         }
+        builder.field("resolve_during_rolling_upgrade", issue.isResolveDuringRollingUpgrade());
         if (issue.getMeta() != null) {
             builder.field("_meta", issue.getMeta());
         }
@@ -99,6 +100,7 @@ public class DeprecationInfoResponseTests extends ESTestCase {
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),
                 randomBoolean() ? randomAlphaOfLength(5) : null,
+                randomBoolean(),
                 randomBoolean() ? randomMap(1, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))) : null));
         }
         return list;

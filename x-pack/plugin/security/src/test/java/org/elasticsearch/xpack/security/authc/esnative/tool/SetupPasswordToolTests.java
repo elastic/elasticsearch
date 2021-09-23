@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -31,9 +30,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
-import org.elasticsearch.xpack.security.tool.HttpResponse;
-import org.elasticsearch.xpack.security.tool.HttpResponse.HttpResponseBuilder;
+import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
+import org.elasticsearch.xpack.core.security.HttpResponse;
+import org.elasticsearch.xpack.core.security.HttpResponse.HttpResponseBuilder;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Rule;
@@ -57,6 +56,8 @@ import java.util.Map;
 import java.util.Set;
 import javax.net.ssl.SSLException;
 
+import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedFunction;
+import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedSupplier;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -562,14 +563,4 @@ public class SetupPasswordToolTests extends CommandTestCase {
         }
         return user + "-password";
      }
-
-    @SuppressWarnings("unchecked")
-    private static <T, R, E extends Exception> CheckedFunction<T, R, E> anyCheckedFunction() {
-        return any(CheckedFunction.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T, E extends Exception> CheckedSupplier<T, E> anyCheckedSupplier() {
-        return any(CheckedSupplier.class);
-    }
 }

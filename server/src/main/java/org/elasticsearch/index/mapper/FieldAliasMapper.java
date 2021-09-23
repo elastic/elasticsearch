@@ -140,8 +140,9 @@ public final class FieldAliasMapper extends Mapper {
             return this;
         }
 
-        public FieldAliasMapper build(ContentPath contentPath) {
-            String fullName = contentPath.pathAsText(name);
+        @Override
+        public FieldAliasMapper build(MapperBuilderContext context) {
+            String fullName = context.buildFullName(name);
             return new FieldAliasMapper(name, fullName, path);
         }
     }

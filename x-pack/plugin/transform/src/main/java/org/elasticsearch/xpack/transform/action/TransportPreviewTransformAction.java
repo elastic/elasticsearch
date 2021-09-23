@@ -196,7 +196,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         );
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(nodeSettings)) {
             TransformPrivilegeChecker.checkPrivileges(
                 "preview",
                 securityContext,

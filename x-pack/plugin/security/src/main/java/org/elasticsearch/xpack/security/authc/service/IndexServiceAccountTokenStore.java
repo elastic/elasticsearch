@@ -114,7 +114,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         return TokenSource.INDEX;
     }
 
-    public void createToken(Authentication authentication, CreateServiceAccountTokenRequest request,
+    void createToken(Authentication authentication, CreateServiceAccountTokenRequest request,
                             ActionListener<CreateServiceAccountTokenResponse> listener) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
@@ -146,8 +146,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         }
     }
 
-    @Override
-    public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
+    void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
         if (false == frozenSecurityIndex.indexExists()) {
             listener.onResponse(List.of());
@@ -179,7 +178,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         }
     }
 
-    public void deleteToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+    void deleteToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
         if (false == frozenSecurityIndex.indexExists()) {
             listener.onResponse(false);

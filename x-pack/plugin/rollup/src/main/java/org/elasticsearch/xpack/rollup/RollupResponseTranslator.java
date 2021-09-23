@@ -46,7 +46,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-
 /**
  * This class contains static utilities that combine the responses from an msearch
  * with rollup + non-rollup agg trees into a single, regular search response
@@ -74,8 +73,10 @@ public class RollupResponseTranslator {
      * See {@link #combineResponses(MultiSearchResponse.Item[], InternalAggregation.ReduceContext)} for more details
      * on the translation conventions
      */
-    public static SearchResponse translateResponse(MultiSearchResponse.Item[] rolledMsearch,
-                                                 InternalAggregation.ReduceContext reduceContext) throws Exception {
+    public static SearchResponse translateResponse(
+        MultiSearchResponse.Item[] rolledMsearch,
+        InternalAggregation.ReduceContext reduceContext
+    ) throws Exception {
 
         assert rolledMsearch.length > 0;
         List<SearchResponse> responses = new ArrayList<>();
@@ -85,9 +86,12 @@ public class RollupResponseTranslator {
 
                 // If an index was deleted after execution, give a hint to the user that this is a transient error
                 if (e instanceof IndexNotFoundException) {
-                    throw new ResourceNotFoundException("Index [" + ((IndexNotFoundException) e).getIndex().getName()
-                        + "] was not found, likely because it was deleted while the request was in-flight. " +
-                        "Rollup does not support partial search results, please try the request again.");
+                    throw new ResourceNotFoundException(
+                        "Index ["
+                            + ((IndexNotFoundException) e).getIndex().getName()
+                            + "] was not found, likely because it was deleted while the request was in-flight. "
+                            + "Rollup does not support partial search results, please try the request again."
+                    );
                 }
 
                 // Otherwise just throw
@@ -198,8 +202,10 @@ public class RollupResponseTranslator {
      *
      * @param msearchResponses The responses from the msearch, where the first response is the live-index response
      */
-    public static SearchResponse combineResponses(MultiSearchResponse.Item[] msearchResponses,
-                                                  InternalAggregation.ReduceContext reduceContext) throws Exception {
+    public static SearchResponse combineResponses(
+        MultiSearchResponse.Item[] msearchResponses,
+        InternalAggregation.ReduceContext reduceContext
+    ) throws Exception {
 
         assert msearchResponses.length >= 2;
 
@@ -212,9 +218,14 @@ public class RollupResponseTranslator {
 
                 // If an index was deleted after execution, give a hint to the user that this is a transient error
                 if (e instanceof IndexNotFoundException) {
-                    throw new ResourceNotFoundException("Index [" + ((IndexNotFoundException) e).getIndex() + "] was not found, " +
-                        "likely because it was deleted while the request was in-flight. Rollup does not support partial search results, " +
-                        "please try the request again.", e);
+                    throw new ResourceNotFoundException(
+                        "Index ["
+                            + ((IndexNotFoundException) e).getIndex()
+                            + "] was not found, "
+                            + "likely because it was deleted while the request was in-flight. Rollup does not support "
+                            + "partial search results, please try the request again.",
+                        e
+                    );
                 }
 
                 // Otherwise just throw
@@ -230,7 +241,7 @@ public class RollupResponseTranslator {
             first = false;
         }
 
-        // If we only have a live index left, just return it directly.  We know it can't be an error already
+        // If we only have a live index left, just return it directly. We know it can't be an error already
         if (rolledResponses.isEmpty() && liveResponse != null) {
             return liveResponse;
         } else if (rolledResponses.isEmpty()) {
@@ -240,12 +251,15 @@ public class RollupResponseTranslator {
         return doCombineResponse(liveResponse, rolledResponses, reduceContext);
     }
 
-    private static SearchResponse doCombineResponse(SearchResponse liveResponse, List<SearchResponse> rolledResponses,
-                                                  InternalAggregation.ReduceContext reduceContext) {
+    private static SearchResponse doCombineResponse(
+        SearchResponse liveResponse,
+        List<SearchResponse> rolledResponses,
+        InternalAggregation.ReduceContext reduceContext
+    ) {
 
         final InternalAggregations liveAggs = liveResponse != null
-                ? (InternalAggregations)liveResponse.getAggregations()
-                : InternalAggregations.EMPTY;
+            ? (InternalAggregations) liveResponse.getAggregations()
+            : InternalAggregations.EMPTY;
 
         int missingRollupAggs = rolledResponses.stream().mapToInt(searchResponse -> {
             if (searchResponse == null
@@ -261,7 +275,7 @@ public class RollupResponseTranslator {
             // Return an empty response, but make sure we include all the shard, failure, etc stats
             return mergeFinalResponse(liveResponse, rolledResponses, InternalAggregations.EMPTY);
         } else if (missingRollupAggs > 0 && missingRollupAggs != rolledResponses.size()) {
-            // We were missing some but not all the aggs, unclear how to handle this.  Bail.
+            // We were missing some but not all the aggs, unclear how to handle this. Bail.
             throw new RuntimeException("Expected to find aggregations in rollup response, but none found.");
         }
 
@@ -270,19 +284,23 @@ public class RollupResponseTranslator {
         // it was a result from another shard
         InternalAggregations currentTree = InternalAggregations.EMPTY;
         InternalAggregation.ReduceContext finalReduceContext = InternalAggregation.ReduceContext.forFinalReduction(
-                reduceContext.bigArrays(), reduceContext.scriptService(), b -> {}, PipelineTree.EMPTY);
+            reduceContext.bigArrays(),
+            reduceContext.scriptService(),
+            b -> {},
+            PipelineTree.EMPTY
+        );
         for (SearchResponse rolledResponse : rolledResponses) {
             List<InternalAggregation> unrolledAggs = new ArrayList<>(rolledResponse.getAggregations().asList().size());
             for (Aggregation agg : rolledResponse.getAggregations()) {
                 // We expect a filter agg here because the rollup convention is that all translated aggs
-                // will start with a filter, containing various agg-specific predicates.  If there
+                // will start with a filter, containing various agg-specific predicates. If there
                 // *isn't* a filter agg here, something has gone very wrong!
                 if ((agg instanceof InternalFilter) == false) {
-                    throw new RuntimeException("Expected [" +agg.getName()
-                            + "] to be a FilterAggregation, but was ["
-                            + agg.getClass().getSimpleName() + "]");
+                    throw new RuntimeException(
+                        "Expected [" + agg.getName() + "] to be a FilterAggregation, but was [" + agg.getClass().getSimpleName() + "]"
+                    );
                 }
-                unrolledAggs.addAll(unrollAgg(((InternalFilter)agg).getAggregations(), liveAggs, currentTree));
+                unrolledAggs.addAll(unrollAgg(((InternalFilter) agg).getAggregations(), liveAggs, currentTree));
             }
 
             // Iteratively merge in each new set of unrolled aggs, so that we can identify/fix overlapping doc_counts
@@ -301,13 +319,16 @@ public class RollupResponseTranslator {
         return mergeFinalResponse(liveResponse, rolledResponses, currentTree);
     }
 
-    private static SearchResponse mergeFinalResponse(SearchResponse liveResponse, List<SearchResponse> rolledResponses,
-                                              InternalAggregations aggs) {
+    private static SearchResponse mergeFinalResponse(
+        SearchResponse liveResponse,
+        List<SearchResponse> rolledResponses,
+        InternalAggregations aggs
+    ) {
 
         int totalShards = rolledResponses.stream().mapToInt(SearchResponse::getTotalShards).sum();
         int sucessfulShards = rolledResponses.stream().mapToInt(SearchResponse::getSuccessfulShards).sum();
         int skippedShards = rolledResponses.stream().mapToInt(SearchResponse::getSkippedShards).sum();
-        long took = rolledResponses.stream().mapToLong(r -> r.getTook().getMillis()).sum() ;
+        long took = rolledResponses.stream().mapToLong(r -> r.getTook().getMillis()).sum();
 
         boolean isTimedOut = rolledResponses.stream().anyMatch(SearchResponse::isTimedOut);
         boolean isTerminatedEarly = rolledResponses.stream()
@@ -325,12 +346,27 @@ public class RollupResponseTranslator {
             numReducePhases += liveResponse.getNumReducePhases();
         }
 
-        InternalSearchResponse combinedInternal = new InternalSearchResponse(SearchHits.empty(), aggs, null, null,
-            isTimedOut, isTerminatedEarly, numReducePhases);
+        InternalSearchResponse combinedInternal = new InternalSearchResponse(
+            SearchHits.empty(),
+            aggs,
+            null,
+            null,
+            isTimedOut,
+            isTerminatedEarly,
+            numReducePhases
+        );
 
         // Shard failures are ignored atm, so returning an empty array is fine
-        return new SearchResponse(combinedInternal, null, totalShards, sucessfulShards, skippedShards,
-            took, ShardSearchFailure.EMPTY_ARRAY, rolledResponses.get(0).getClusters());
+        return new SearchResponse(
+            combinedInternal,
+            null,
+            totalShards,
+            sucessfulShards,
+            skippedShards,
+            took,
+            ShardSearchFailure.EMPTY_ARRAY,
+            rolledResponses.get(0).getClusters()
+        );
     }
 
     /**
@@ -342,26 +378,27 @@ public class RollupResponseTranslator {
      *
      * @return An unrolled aggregation that mimics the structure of `base`, allowing reduction
      */
-    private static List<InternalAggregation> unrollAgg(InternalAggregations rolled, InternalAggregations original,
-                                                       InternalAggregations currentTree) {
-        return rolled.asList().stream()
-                .filter(subAgg -> subAgg.getName().endsWith("." + RollupField.COUNT_FIELD) == false)
-                .map(agg -> {
-                    // During the translation process, some aggregations' doc_counts are stored in accessory
-                    // `sum` metric aggs, so we may need to extract that.  Unfortunately, structure of multibucket vs
-                    // leaf metric is slightly different; multibucket count is stored per-bucket in a sub-agg, while
-                    // metric is "next" to the metric as a sibling agg.
-                    //
-                    // So we only look for a count if this is not a multibucket, as multibuckets will handle
-                    // the doc_count themselves on a per-bucket basis.
-                    //
-                    long count = -1;
-                    if (agg instanceof InternalMultiBucketAggregation == false) {
-                        count = getAggCount(agg, rolled.getAsMap());
-                    }
+    private static List<InternalAggregation> unrollAgg(
+        InternalAggregations rolled,
+        InternalAggregations original,
+        InternalAggregations currentTree
+    ) {
+        return rolled.asList().stream().filter(subAgg -> subAgg.getName().endsWith("." + RollupField.COUNT_FIELD) == false).map(agg -> {
+            // During the translation process, some aggregations' doc_counts are stored in accessory
+            // `sum` metric aggs, so we may need to extract that. Unfortunately, structure of multibucket vs
+            // leaf metric is slightly different; multibucket count is stored per-bucket in a sub-agg, while
+            // metric is "next" to the metric as a sibling agg.
+            //
+            // So we only look for a count if this is not a multibucket, as multibuckets will handle
+            // the doc_count themselves on a per-bucket basis.
+            //
+            long count = -1;
+            if (agg instanceof InternalMultiBucketAggregation == false) {
+                count = getAggCount(agg, rolled.getAsMap());
+            }
 
-                    return unrollAgg((InternalAggregation)agg, original.get(agg.getName()), currentTree.get(agg.getName()), count);
-                }).collect(Collectors.toList());
+            return unrollAgg((InternalAggregation) agg, original.get(agg.getName()), currentTree.get(agg.getName()), count);
+        }).collect(Collectors.toList());
     }
 
     /**
@@ -373,18 +410,30 @@ public class RollupResponseTranslator {
      *
      * @return An unrolled aggregation that mimics the structure of base, allowing reduction
      */
-    protected static InternalAggregation unrollAgg(InternalAggregation rolled, InternalAggregation originalAgg,
-                                                   InternalAggregation currentTree, long count) {
+    protected static InternalAggregation unrollAgg(
+        InternalAggregation rolled,
+        InternalAggregation originalAgg,
+        InternalAggregation currentTree,
+        long count
+    ) {
 
         if (rolled instanceof InternalMultiBucketAggregation) {
-            return unrollMultiBucket((InternalMultiBucketAggregation) rolled, (InternalMultiBucketAggregation) originalAgg,
-                    (InternalMultiBucketAggregation) currentTree);
+            return unrollMultiBucket(
+                (InternalMultiBucketAggregation) rolled,
+                (InternalMultiBucketAggregation) originalAgg,
+                (InternalMultiBucketAggregation) currentTree
+            );
         } else if (rolled instanceof SingleValue) {
             return unrollMetric((SingleValue) rolled, count);
         } else {
-            throw new RuntimeException("Unable to unroll aggregation tree.  Aggregation ["
-                    + rolled.getName() + "] is of type [" + rolled.getClass().getSimpleName() + "] which is " +
-                    "currently unsupported.");
+            throw new RuntimeException(
+                "Unable to unroll aggregation tree.  Aggregation ["
+                    + rolled.getName()
+                    + "] is of type ["
+                    + rolled.getClass().getSimpleName()
+                    + "] which is "
+                    + "currently unsupported."
+            );
         }
     }
 
@@ -393,25 +442,33 @@ public class RollupResponseTranslator {
      * called by other internal methods in this class, rather than directly calling the per-type methods.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private static InternalAggregation unrollMultiBucket(InternalMultiBucketAggregation rolled, InternalMultiBucketAggregation original,
-                                                         InternalMultiBucketAggregation currentTree) {
+    private static InternalAggregation unrollMultiBucket(
+        InternalMultiBucketAggregation rolled,
+        InternalMultiBucketAggregation original,
+        InternalMultiBucketAggregation currentTree
+    ) {
 
         // The only thing unique between all the multibucket agg is the type of bucket they
         // need, so this if/else simply creates specialized closures that return the appropriate
-        // bucket type.  Otherwise the heavy-lifting is in
+        // bucket type. Otherwise the heavy-lifting is in
         // {@link #unrollMultiBucket(InternalMultiBucketAggregation, InternalMultiBucketAggregation, TriFunction)}
         if (rolled instanceof InternalDateHistogram) {
             return unrollMultiBucket(rolled, original, currentTree, (bucket, bucketCount, subAggs) -> {
                 long key = ((InternalDateHistogram) rolled).getKey(bucket).longValue();
-                DocValueFormat formatter = ((InternalDateHistogram.Bucket)bucket).getFormatter();
+                DocValueFormat formatter = ((InternalDateHistogram.Bucket) bucket).getFormatter();
                 assert bucketCount >= 0;
-                return new InternalDateHistogram.Bucket(key, bucketCount,
-                        ((InternalDateHistogram.Bucket) bucket).getKeyed(), formatter, subAggs);
+                return new InternalDateHistogram.Bucket(
+                    key,
+                    bucketCount,
+                    ((InternalDateHistogram.Bucket) bucket).getKeyed(),
+                    formatter,
+                    subAggs
+                );
             });
         } else if (rolled instanceof InternalHistogram) {
             return unrollMultiBucket(rolled, original, currentTree, (bucket, bucketCount, subAggs) -> {
                 long key = ((InternalHistogram) rolled).getKey(bucket).longValue();
-                DocValueFormat formatter = ((InternalHistogram.Bucket)bucket).getFormatter();
+                DocValueFormat formatter = ((InternalHistogram.Bucket) bucket).getFormatter();
                 assert bucketCount >= 0;
                 return new InternalHistogram.Bucket(key, bucketCount, ((InternalHistogram.Bucket) bucket).getKeyed(), formatter, subAggs);
             });
@@ -420,20 +477,25 @@ public class RollupResponseTranslator {
 
                 BytesRef key = new BytesRef(bucket.getKeyAsString().getBytes(StandardCharsets.UTF_8));
                 assert bucketCount >= 0;
-                //TODO expose getFormatter(), keyed upstream in Core
+                // TODO expose getFormatter(), keyed upstream in Core
                 return new StringTerms.Bucket(key, bucketCount, subAggs, false, 0, DocValueFormat.RAW);
             });
         } else if (rolled instanceof LongTerms) {
             return unrollMultiBucket(rolled, original, currentTree, (bucket, bucketCount, subAggs) -> {
-                long key = (long)bucket.getKey();
+                long key = (long) bucket.getKey();
                 assert bucketCount >= 0;
-                //TODO expose getFormatter(), keyed upstream in Core
+                // TODO expose getFormatter(), keyed upstream in Core
                 return new LongTerms.Bucket(key, bucketCount, subAggs, false, 0, DocValueFormat.RAW);
             });
         } else {
-            throw new RuntimeException("Unable to unroll aggregation tree.  Aggregation ["
-                    + rolled.getName() + "] is of type [" + rolled.getClass().getSimpleName() + "] which is " +
-                    "currently unsupported.");
+            throw new RuntimeException(
+                "Unable to unroll aggregation tree.  Aggregation ["
+                    + rolled.getName()
+                    + "] is of type ["
+                    + rolled.getClass().getSimpleName()
+                    + "] which is "
+                    + "currently unsupported."
+            );
         }
 
     }
@@ -445,11 +507,15 @@ public class RollupResponseTranslator {
      * @param source The rolled aggregation that we wish to unroll
      * @param bucketFactory A Trifunction which generates new buckets for the given type of multibucket
      */
-    private static <A  extends InternalMultiBucketAggregation<A, B>,
-                    B extends InternalBucket,
-                    T extends InternalMultiBucketAggregation<A, B>>
-    InternalAggregation unrollMultiBucket(T source, T original, T currentTree,
-                                          TriFunction<InternalBucket, Long, InternalAggregations, B> bucketFactory) {
+    private static <
+        A extends InternalMultiBucketAggregation<A, B>,
+        B extends InternalBucket,
+        T extends InternalMultiBucketAggregation<A, B>> InternalAggregation unrollMultiBucket(
+            T source,
+            T original,
+            T currentTree,
+            TriFunction<InternalBucket, Long, InternalAggregations, B> bucketFactory
+        ) {
 
         Map<Object, InternalBucket> originalKeys = new HashMap<>();
         Map<Object, InternalBucket> currentKeys = new HashMap<>();
@@ -464,33 +530,36 @@ public class RollupResponseTranslator {
 
         // Iterate over the buckets in the multibucket
         List<B> buckets = source.getBuckets()
-                .stream()
-                .filter(b -> originalKeys.containsKey(b.getKey()) == false) // If the original has this key, ignore the rolled version
-                .map(bucket -> {
+            .stream()
+            .filter(b -> originalKeys.containsKey(b.getKey()) == false) // If the original has this key, ignore the rolled version
+            .map(bucket -> {
 
-                    // Grab the value from the count agg (if it exists), which represents this bucket's doc_count
-                    long bucketCount = getAggCount(source, bucket.getAggregations().getAsMap());
+                // Grab the value from the count agg (if it exists), which represents this bucket's doc_count
+                long bucketCount = getAggCount(source, bucket.getAggregations().getAsMap());
 
-                    // Don't generate buckets if the doc count is zero
-                    if (bucketCount == 0) {
-                        return null;
-                    }
+                // Don't generate buckets if the doc count is zero
+                if (bucketCount == 0) {
+                    return null;
+                }
 
-                    // current, partially merged tree contains this key.  Defer to the existing doc_count if it is non-zero
-                    if (currentKeys.containsKey(bucket.getKey()) && currentKeys.get(bucket.getKey()).getDocCount() != 0) {
-                        // Unlike above where we return null if doc_count is zero, we return a doc_count: 0 bucket
-                        // here because it may have sub-aggs that need merging, whereas above the bucket was just empty/null
-                        bucketCount = 0;
-                    }
+                // current, partially merged tree contains this key. Defer to the existing doc_count if it is non-zero
+                if (currentKeys.containsKey(bucket.getKey()) && currentKeys.get(bucket.getKey()).getDocCount() != 0) {
+                    // Unlike above where we return null if doc_count is zero, we return a doc_count: 0 bucket
+                    // here because it may have sub-aggs that need merging, whereas above the bucket was just empty/null
+                    bucketCount = 0;
+                }
 
-                    // Then iterate over the subAggs in the bucket
-                    InternalAggregations subAggs = unrollSubAggsFromMulti(bucket, originalKeys.get(bucket.getKey()),
-                            currentKeys.get(bucket.getKey()));
+                // Then iterate over the subAggs in the bucket
+                InternalAggregations subAggs = unrollSubAggsFromMulti(
+                    bucket,
+                    originalKeys.get(bucket.getKey()),
+                    currentKeys.get(bucket.getKey())
+                );
 
-                    return bucketFactory.apply(bucket, bucketCount, subAggs);
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+                return bucketFactory.apply(bucket, bucketCount, subAggs);
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
         return source.create(buckets);
     }
 
@@ -501,8 +570,10 @@ public class RollupResponseTranslator {
      */
     private static InternalAggregations unrollSubAggsFromMulti(InternalBucket bucket, InternalBucket original, InternalBucket currentTree) {
         // Iterate over the subAggs in each bucket
-        return InternalAggregations.from(bucket.getAggregations()
-                .asList().stream()
+        return InternalAggregations.from(
+            bucket.getAggregations()
+                .asList()
+                .stream()
                 // Avoid any rollup count metrics, as that's not a true "sub-agg" but rather agg
                 // added by the rollup for accounting purposes (e.g. doc_count)
                 .filter(subAgg -> subAgg.getName().endsWith("." + RollupField.COUNT_FIELD) == false)
@@ -521,7 +592,9 @@ public class RollupResponseTranslator {
                     }
 
                     return unrollAgg((InternalAggregation) subAgg, originalSubAgg, currentSubAgg, count);
-                }).collect(Collectors.toList()));
+                })
+                .collect(Collectors.toList())
+        );
     }
 
     private static InternalAggregation unrollMetric(SingleValue metric, long count) {
@@ -536,14 +609,24 @@ public class RollupResponseTranslator {
             // If count is anything other than -1, this sum is actually an avg
             if (count != -1) {
                 // Note: Avgs have a slightly different name to prevent collision with empty bucket defaults
-                return new InternalAvg(metric.getName().replace("." + RollupField.VALUE, ""), metric.value(), count, DocValueFormat.RAW,
-                        metric.getMetadata());
+                return new InternalAvg(
+                    metric.getName().replace("." + RollupField.VALUE, ""),
+                    metric.value(),
+                    count,
+                    DocValueFormat.RAW,
+                    metric.getMetadata()
+                );
             }
             return metric;
         } else {
-            throw new RuntimeException("Unable to unroll metric.  Aggregation ["
-                    + metric.getName() + "] is of type [" + metric.getClass().getSimpleName() + "] which is " +
-                    "currently unsupported.");
+            throw new RuntimeException(
+                "Unable to unroll metric.  Aggregation ["
+                    + metric.getName()
+                    + "] is of type ["
+                    + metric.getClass().getSimpleName()
+                    + "] which is "
+                    + "currently unsupported."
+            );
         }
     }
 
@@ -551,8 +634,9 @@ public class RollupResponseTranslator {
         String countPath = null;
 
         if (agg.getType().equals(DateHistogramAggregationBuilder.NAME)
-                || agg.getType().equals(HistogramAggregationBuilder.NAME)
-                || agg.getType().equals(StringTerms.NAME) || agg.getType().equals(LongTerms.NAME)) {
+            || agg.getType().equals(HistogramAggregationBuilder.NAME)
+            || agg.getType().equals(StringTerms.NAME)
+            || agg.getType().equals(LongTerms.NAME)) {
             countPath = RollupField.formatCountAggName(agg.getName());
         } else if (agg.getType().equals(SumAggregationBuilder.NAME)) {
             // Note: Avgs have a slightly different name to prevent collision with empty bucket defaults
@@ -562,7 +646,7 @@ public class RollupResponseTranslator {
         if (countPath != null && aggMap.get(countPath) != null) {
             // we always set the count fields to Sum aggs, so this is safe
             assert aggMap.get(countPath) instanceof InternalSum;
-            return (long)((InternalSum) aggMap.get(countPath)).getValue();
+            return (long) ((InternalSum) aggMap.get(countPath)).getValue();
         }
 
         return -1;

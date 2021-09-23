@@ -6,11 +6,8 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 
-
-public interface SignificanceHeuristicBuilder extends ToXContentFragment {
-}
+public interface SignificanceHeuristicBuilder extends ToXContentFragment {}

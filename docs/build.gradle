@@ -64,9 +64,6 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     setting 'ingest.geoip.downloader.enabled', 'false'
-    if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
-      setting 'es.shutdown_feature_flag_enabled', 'true'
-    }
     systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }
@@ -1516,6 +1513,29 @@ setups['setup-repository'] = '''
           type: fs
           settings:
             location: buildDir/cluster/shared/repo
+'''
+
+// Used by snapshot restore docs
+setups['setup-snapshots'] = setups['setup-repository'] + '''
+  - do:
+      bulk:
+        index: my-index
+        refresh: true
+        body: |
+          {"index":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      bulk:
+        index: logs-my_app-default
+        refresh: true
+        body: |
+          {"create":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      snapshot.create:
+        repository: my_repository
+        snapshot: my_snapshot_2099.05.06
+        wait_for_completion: true
 '''
 
 // Fake sec logs data used by EQL search

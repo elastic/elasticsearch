@@ -770,10 +770,10 @@ PUT _ingest/pipeline/my-pipeline
 }
 ----
 
-If the static `script.painless.regex.enabled` cluster setting is enabled, you
-can use regular expressions in your `if` condition scripts. For supported
-syntax, see the {painless}/painless-regexes.html[Painless regexes]
-documentation.
+If the <<script-painless-regex-enabled,`script.painless.regex.enabled`>> cluster
+setting is enabled, you can use regular expressions in your `if` condition
+scripts. For supported syntax, see {painless}/painless-regexes.html[Painless
+regular expressions].
 
 TIP: If possible, avoid using regular expressions. Expensive regular expressions
 can slow indexing speeds.

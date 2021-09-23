@@ -665,13 +665,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         OpenIndexRequest lenientOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         lenientOpenIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         OpenIndexResponse lenientOpenIndexResponse = execute(lenientOpenIndexRequest, highLevelClient().indices()::open,
-                highLevelClient().indices()::openAsync);
+                highLevelClient().indices()::openAsync, IGNORE_THROTTLED_WARNING);
         assertThat(lenientOpenIndexResponse.isAcknowledged(), equalTo(true));
 
         OpenIndexRequest strictOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         strictOpenIndexRequest.indicesOptions(IndicesOptions.strictExpandOpen());
         ElasticsearchException strictException = expectThrows(ElasticsearchException.class,
-                () -> execute(openIndexRequest, highLevelClient().indices()::open, highLevelClient().indices()::openAsync));
+                () -> execute(openIndexRequest, highLevelClient().indices()::open,
+                    highLevelClient().indices()::openAsync, IGNORE_THROTTLED_WARNING));
         assertEquals(RestStatus.NOT_FOUND, strictException.status());
     }
 
@@ -1269,10 +1270,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
                 highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), equalTo(
+        assertThat(
+            exception.getMessage(),
+            equalTo(
                 "Elasticsearch exception [type=illegal_argument_exception, "
-                + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins are installed, "
-                + "or check the breaking changes documentation for removed settings]"));
+                    + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins "
+                    + "are installed, or check the breaking changes documentation for removed settings]"
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")

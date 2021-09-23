@@ -2,7 +2,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-test-artifact'
@@ -89,7 +89,7 @@ tasks.named("yamlRestTest").configure {
   dependsOn "copyExtraResources"
 }
 
-tasks.named("transformV7RestTests").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.replaceKeyInDo("license.delete", "xpack-license.delete")
   task.replaceKeyInDo("license.get", "xpack-license.get")
   task.replaceKeyInDo("license.get_basic_status", "xpack-license.get_basic_status")
@@ -99,6 +99,9 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceKeyInDo("license.post_start_trial", "xpack-license.post_start_trial")
   task.addAllowedWarningRegex(".*_xpack/license.* is deprecated.*")
 
+  task.replaceKeyInDo("migration.deprecations", "xpack-migration.deprecations")
+  task.addAllowedWarningRegex(".*_xpack/migration.* is deprecated.*")
+
   task.replaceKeyInDo("rollup.delete_job", "xpack-rollup.delete_job")
   task.replaceKeyInDo("rollup.get_jobs", "xpack-rollup.get_jobs")
   task.replaceKeyInDo("rollup.get_rollup_caps", "xpack-rollup.get_rollup_caps")
@@ -107,55 +110,104 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceKeyInDo("rollup.start_job", "xpack-rollup.start_job")
   task.replaceKeyInDo("rollup.stop_job", "xpack-rollup.stop_job")
   task.addAllowedWarningRegex(".*_xpack/rollup.* is deprecated.*")
+
+  task.replaceKeyInDo("ml.close_job", "xpack-ml.close_job")
+  task.replaceKeyInDo("ml.delete_calendar", "xpack-ml.delete_calendar")
+  task.replaceKeyInDo("ml.delete_calendar_event", "xpack-ml.delete_calendar_event")
+  task.replaceKeyInDo("ml.delete_calendar_job", "xpack-ml.delete_calendar_job")
+  task.replaceKeyInDo("ml.delete_datafeed", "xpack-ml.delete_datafeed")
+  task.replaceKeyInDo("ml.delete_expired_data", "xpack-ml.delete_expired_data")
+  task.replaceKeyInDo("ml.delete_filter", "xpack-ml.delete_filter")
+  task.replaceKeyInDo("ml.delete_forecast", "xpack-ml.delete_forecast")
+  task.replaceKeyInDo("ml.delete_job", "xpack-ml.delete_job")
+  task.replaceKeyInDo("ml.delete_model_snapshot", "xpack-ml.delete_model_snapshot")
+  task.replaceKeyInDo("ml.flush_job", "xpack-ml.flush_job")
+  task.replaceKeyInDo("ml.forecast", "xpack-ml.forecast")
+  task.replaceKeyInDo("ml.get_buckets", "xpack-ml.get_buckets")
+  task.replaceKeyInDo("ml.get_calendar_events", "xpack-ml.get_calendar_events")
+  task.replaceKeyInDo("ml.get_calendars", "xpack-ml.get_calendars")
+  task.replaceKeyInDo("ml.get_categories", "xpack-ml.get_categories")
+  task.replaceKeyInDo("ml.get_datafeed_stats", "xpack-ml.get_datafeed_stats")
+  task.replaceKeyInDo("ml.get_datafeeds", "xpack-ml.get_datafeeds")
+  task.replaceKeyInDo("ml.get_filters", "xpack-ml.get_filters")
+  task.replaceKeyInDo("ml.get_influencers", "xpack-ml.get_influencers")
+  task.replaceKeyInDo("ml.get_job_stats", "xpack-ml.get_job_stats")
+  task.replaceKeyInDo("ml.get_jobs", "xpack-ml.get_jobs")
+  task.replaceKeyInDo("ml.get_model_snapshots", "xpack-ml.get_model_snapshots")
+  task.replaceKeyInDo("ml.get_overall_buckets", "xpack-ml.get_overall_buckets")
+  task.replaceKeyInDo("ml.get_records", "xpack-ml.get_records")
+  task.replaceKeyInDo("ml.info", "xpack-ml.info")
+  task.replaceKeyInDo("ml.open_job", "xpack-ml.open_job")
+  task.replaceKeyInDo("ml.post_calendar_events", "xpack-ml.post_calendar_events")
+  task.replaceKeyInDo("ml.post_data", "xpack-ml.post_data")
+  task.replaceKeyInDo("ml.preview_datafeed", "xpack-ml.preview_datafeed")
+  task.replaceKeyInDo("ml.put_calendar", "xpack-ml.put_calendar")
+  task.replaceKeyInDo("ml.put_calendar_job", "xpack-ml.put_calendar_job")
+  task.replaceKeyInDo("ml.put_datafeed", "xpack-ml.put_datafeed")
+  task.replaceKeyInDo("ml.put_filter", "xpack-ml.put_filter")
+  task.replaceKeyInDo("ml.put_job", "xpack-ml.put_job")
+  task.replaceKeyInDo("ml.revert_model_snapshot", "xpack-ml.revert_model_snapshot")
+  task.replaceKeyInDo("ml.set_upgrade_mode", "xpack-ml.set_upgrade_mode")
+  task.replaceKeyInDo("ml.start_datafeed", "xpack-ml.start_datafeed")
+  task.replaceKeyInDo("ml.stop_datafeed", "xpack-ml.stop_datafeed")
+  task.replaceKeyInDo("ml.update_datafeed", "xpack-ml.update_datafeed")
+  task.replaceKeyInDo("ml.update_filter", "xpack-ml.update_filter")
+  task.replaceKeyInDo("ml.update_job", "xpack-ml.update_job")
+  task.replaceKeyInDo("ml.update_model_snapshot", "xpack-ml.update_model_snapshot")
+  task.replaceKeyInDo("ml.validate", "xpack-ml.validate")
+  task.replaceKeyInDo("ml.validate_detector", "xpack-ml.validate_detector")
+  task.addAllowedWarningRegex(".*_xpack/ml.* is deprecated.*")
+
+  task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates", "Test get SSL certificates")
+  task.addAllowedWarningRegexForTest(".*_xpack/ssl.* is deprecated.*", "Test get SSL certificates")
+  task.replaceValueInMatch("_type", "_doc")
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+  task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
 })
-def v7compatibilityNotSupportedTests = {
-  return [
-    // to support it, it would require to almost revert back the #48725 and complicate the code
-    'vectors/10_dense_vector_basic/Deprecated function signature',
-    // not going to be supported
-    'vectors/30_sparse_vector_basic/Cosine Similarity',
-    'vectors/30_sparse_vector_basic/Deprecated function signature',
-    'vectors/30_sparse_vector_basic/Dot Product',
-    'vectors/35_sparse_vector_l1l2/L1 norm',
-    'vectors/35_sparse_vector_l1l2/L2 norm',
-    'vectors/40_sparse_vector_special_cases/Dimensions can be sorted differently',
-    'vectors/40_sparse_vector_special_cases/Documents missing a vector field',
-    'vectors/40_sparse_vector_special_cases/Query vector has different dimensions from documents\' vectors',
-    'vectors/40_sparse_vector_special_cases/Sparse vectors should error with dense vector functions',
-    'vectors/40_sparse_vector_special_cases/Vectors of different dimensions and data types',
-    // the test uses sparse vector - not supported
-    'vectors/50_vector_stats/Usage stats on vector fields',
+tasks.named("yamlRestTestV7CompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+      // to support it, it would require to almost revert back the #48725 and complicate the code
+      'vectors/10_dense_vector_basic/Deprecated function signature',
+      // not going to be supported
+      'vectors/30_sparse_vector_basic/Cosine Similarity',
+      'vectors/30_sparse_vector_basic/Deprecated function signature',
+      'vectors/30_sparse_vector_basic/Dot Product',
+      'vectors/35_sparse_vector_l1l2/L1 norm',
+      'vectors/35_sparse_vector_l1l2/L2 norm',
+      'vectors/40_sparse_vector_special_cases/Dimensions can be sorted differently',
+      'vectors/40_sparse_vector_special_cases/Documents missing a vector field',
+      'vectors/40_sparse_vector_special_cases/Query vector has different dimensions from documents\' vectors',
+      'vectors/40_sparse_vector_special_cases/Sparse vectors should error with dense vector functions',
+      'vectors/40_sparse_vector_special_cases/Vectors of different dimensions and data types',
+      // the test uses sparse vector - not supported
+      'vectors/50_vector_stats/Usage stats on vector fields',
 
-    // put role request with a term lookup (deprecated) and type. Requires validation in REST layer
-    'roles/30_prohibited_role_query/Test use prohibited query inside role query',
-    //removing undocumented functionality
-    'ml/jobs_crud/Test create job with delimited format',
-    // behaviour change #44752 - not allowing to update datafeed job_id
-    'ml/datafeeds_crud/Test update datafeed to point to missing job',
-    'ml/datafeeds_crud/Test update datafeed to point to different job',
-    'ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed',
-    //rollup was an experimental feature
-    //https://github.com/elastic/elasticsearch/pull/41227.
-    'rollup/delete_job/Test basic delete_job',
-    'rollup/delete_job/Test delete job twice',
-    'rollup/delete_job/Test delete running job',
-    'rollup/get_jobs/Test basic get_jobs',
-    'rollup/put_job/Test basic put_job',
-    //https://github.com/elastic/elasticsearch/pull/41502
-    'rollup/start_job/Test start job twice',
+      // put role request with a term lookup (deprecated) and type. Requires validation in REST layer
+      'roles/30_prohibited_role_query/Test use prohibited query inside role query',
+      //removing undocumented functionality
+      'ml/jobs_crud/Test create job with delimited format',
+      // behaviour change #44752 - not allowing to update datafeed job_id
+      'ml/datafeeds_crud/Test update datafeed to point to missing job',
+      'ml/datafeeds_crud/Test update datafeed to point to different job',
+      'ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed',
+      //rollup was an experimental feature
+      //https://github.com/elastic/elasticsearch/pull/41227.
+      'rollup/delete_job/Test basic delete_job',
+      'rollup/delete_job/Test delete job twice',
+      'rollup/delete_job/Test delete running job',
+      'rollup/get_jobs/Test basic get_jobs',
+      'rollup/put_job/Test basic put_job',
+      //https://github.com/elastic/elasticsearch/pull/41502
+      'rollup/start_job/Test start job twice',
 
-    // a type field was added to cat.ml_trained_models #73660, this is a backwards compatible change.
-    // still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)
-    'ml/trained_model_cat_apis/Test cat trained models'
-  ]
-}
-
-tasks.named("yamlRestCompatTest").configure {
-  systemProperty 'tests.rest.blacklist', v7compatibilityNotSupportedTests().join(',')
+      // a type field was added to cat.ml_trained_models #73660, this is a backwards compatible change.
+      // still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)
+      'ml/trained_model_cat_apis/Test cat trained models'
+  ].join(',')
   dependsOn "copyExtraResources"
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
@@ -203,8 +255,3 @@ tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
 
-tasks.named("transformV7RestTests").configure({ task ->
-  task.replaceValueInMatch("_type", "_doc")
-  task.addAllowedWarningRegex("\\[types removal\\].*")
-  task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
-})

@@ -204,7 +204,7 @@ public class MetadataCreateIndexService {
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
-                deprecationLogger.deprecate(DeprecationCategory.INDICES, "index_name_starts_with_dot",
+                deprecationLogger.critical(DeprecationCategory.INDICES, "index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names " +
                         "starting with a dot are reserved for hidden indices and system indices", index);
             }
@@ -366,7 +366,7 @@ public class MetadataCreateIndexService {
                     request.index(), isHiddenFromRequest);
 
                 if (v1Templates.size() > 1) {
-                    deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "index_template_multiple_match",
+                    deprecationLogger.critical(DeprecationCategory.TEMPLATES, "index_template_multiple_match",
                         "index [{}] matches multiple legacy templates [{}], composable templates will only match a single template",
                         request.index(), v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
                 }
@@ -577,7 +577,7 @@ public class MetadataCreateIndexService {
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(template, componentTemplates, null), currentState.metadata(),
+                MetadataIndexTemplateService.resolveAliases(template, componentTemplates), currentState.metadata(),
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
@@ -819,7 +819,9 @@ public class MetadataCreateIndexService {
             // in this case we either have no index to recover from or
             // we have a source index with 1 shard and without an explicit split factor
             // or one that is valid in that case we can split into whatever and auto-generate a new factor.
-            if (IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettings)) {
+            // (Don't use IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(indexSettings) here, otherwise
+            // we get the default value when `null` has been provided as value)
+            if (indexSettings.get(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey()) != null) {
                 routingNumShards = IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(indexSettings);
             } else {
                 routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);
@@ -1272,16 +1274,19 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
             (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "translog_retention",
-                "Translog retention settings [index.translog.retention.age] "
-                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+            deprecationLogger.critical(
+                DeprecationCategory.SETTINGS,
+                "translog_retention",
+                "Translog retention settings [index.translog.retention.age] and [index.translog.retention.size] are deprecated and "
+                    + "effectively ignored. They will be removed in a future version."
+            );
         }
     }
 
     public static void validateStoreTypeSetting(Settings indexSettings) {
         final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings);
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
-            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "store_type_setting",
+            deprecationLogger.critical(DeprecationCategory.SETTINGS, "store_type_setting",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type as it offers superior " +
                     "or equivalent performance to [simplefs].");

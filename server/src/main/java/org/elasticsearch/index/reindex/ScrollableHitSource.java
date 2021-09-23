@@ -77,7 +77,7 @@ public abstract class ScrollableHitSource {
     }
 
     // package private for tests.
-    final void startNextScroll(TimeValue extraKeepAlive) {
+    public final void startNextScroll(TimeValue extraKeepAlive) {
         startNextScroll(extraKeepAlive, createRetryListener(listener -> startNextScroll(extraKeepAlive, listener)));
     }
     private void startNextScroll(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
@@ -85,7 +85,7 @@ public abstract class ScrollableHitSource {
     }
 
     private void onResponse(Response response) {
-        logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
+        logger.trace("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
         setScroll(response.getScrollId());
         onResponse.accept(new AsyncResponse() {
             private AtomicBoolean alreadyDone = new AtomicBoolean();

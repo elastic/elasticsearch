@@ -14,8 +14,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -25,10 +25,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -122,16 +122,16 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public UnsignedLongFieldMapper build(ContentPath contentPath) {
+        public UnsignedLongFieldMapper build(MapperBuilderContext context) {
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
-                buildFullName(contentPath),
+                context.buildFullName(name),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
                 parsedNullValue(),
                 meta.getValue()
             );
-            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -270,11 +270,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            if (timeZone != null) {
-                throw new IllegalArgumentException(
-                    "Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones"
-                );
-            }
+            checkNoTimeZone(timeZone);
             return DocValueFormat.UNSIGNED_LONG_SHIFTED;
         }
 
@@ -508,21 +504,38 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Value [" + lv + "] is out of range for unsigned long.");
                 }
                 return lv;
+            } else if (value instanceof Double || value instanceof Float) {
+                final Number v = (Number) value;
+                if (Double.compare(v.doubleValue(), Math.floor(v.doubleValue())) != 0) {
+                    throw new IllegalArgumentException("Value \"" + value + "\" has a decimal part");
+                }
+                return parseUnsignedLong(v.longValue());
             } else if (value instanceof BigInteger) {
                 BigInteger bigIntegerValue = (BigInteger) value;
                 if (bigIntegerValue.compareTo(BIGINTEGER_2_64_MINUS_ONE) > 0 || bigIntegerValue.compareTo(BigInteger.ZERO) < 0) {
                     throw new IllegalArgumentException("Value [" + bigIntegerValue + "] is out of range for unsigned long");
                 }
                 return bigIntegerValue.longValue();
+            } else if (value instanceof BigDecimal) {
+                return parseUnsignedLong(((BigDecimal) value).toBigIntegerExact());
             }
             // throw exception for all other numeric types with decimal parts
-            throw new IllegalArgumentException("For input string: [" + value.toString() + "].");
+            throw new IllegalArgumentException("For input string: [" + value + "].");
         } else {
-            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+            final String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
             try {
                 return Long.parseUnsignedLong(stringValue);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+            } catch (NumberFormatException ignored) {
+                final BigInteger bigInteger;
+                try {
+                    final BigDecimal bigDecimal = new BigDecimal(stringValue);
+                    bigInteger = bigDecimal.toBigIntegerExact();
+                } catch (ArithmeticException e) {
+                    throw new IllegalArgumentException("Value \"" + stringValue + "\" has a decimal part");
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+                }
+                return parseUnsignedLong(bigInteger);
             }
         }
     }

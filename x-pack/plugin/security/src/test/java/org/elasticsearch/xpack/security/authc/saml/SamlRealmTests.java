@@ -7,17 +7,19 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import com.sun.net.httpserver.HttpsServer;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.jdk.JavaVersion;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.http.MockResponse;
@@ -30,14 +32,13 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -80,9 +81,11 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -301,7 +304,6 @@ public class SamlRealmTests extends SamlTestCase {
 
     private void initializeRealms(Realm... realms) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
 
         final List<Realm> realmList = Arrays.asList(realms);
@@ -436,7 +438,6 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(credential.getPublicKey(), equalTo(encryptionCert.getPublicKey()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testCreateEncryptionCredentialFromKeyStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
@@ -486,7 +487,6 @@ public class SamlRealmTests extends SamlTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testCreateSigningCredentialFromKeyStoreSuccessScenarios() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
@@ -527,7 +527,6 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(credential.getPublicKey(), equalTo(certKeyPair1.v1().getPublicKey()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75097")
     public void testCreateSigningCredentialFromKeyStoreFailureScenarios() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
@@ -664,7 +663,7 @@ public class SamlRealmTests extends SamlTestCase {
             assertThat(request.getDestination(), equalTo("https://logout.saml/"));
             assertThat(request.getNameID(), equalTo(nameId));
             assertThat(request.getSessionIndexes(), iterableWithSize(1));
-            assertThat(request.getSessionIndexes().get(0).getSessionIndex(), equalTo(session));
+            assertThat(request.getSessionIndexes().get(0).getValue(), equalTo(session));
         }
     }
 
@@ -686,15 +685,15 @@ public class SamlRealmTests extends SamlTestCase {
         when(realms.realm(REALM_NAME)).thenReturn(realm);
         when(realms.stream()).thenAnswer(i -> Stream.of(realm));
         final String emptyRealmName = randomBoolean() ? null : "";
-        assertThat(SamlRealm.findSamlRealms(realms, emptyRealmName, acsUrl).size(), equalTo(1));
+        assertThat(SamlRealm.findSamlRealms(realms, emptyRealmName, acsUrl), hasSize(1));
         assertThat(SamlRealm.findSamlRealms(realms, emptyRealmName, acsUrl).get(0), equalTo(realm));
-        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", acsUrl).size(), equalTo(1));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", acsUrl), hasSize(1));
         assertThat(SamlRealm.findSamlRealms(realms, "my-saml", acsUrl).get(0), equalTo(realm));
-        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", null).size(), equalTo(1));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", null), hasSize(1));
         assertThat(SamlRealm.findSamlRealms(realms, "my-saml", null).get(0), equalTo(realm));
-        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", "https://idp.test:443/saml/login").size(), equalTo(0));
-        assertThat(SamlRealm.findSamlRealms(realms, "incorrect", acsUrl).size(), equalTo(0));
-        assertThat(SamlRealm.findSamlRealms(realms, "incorrect", "https://idp.test:443/saml/login").size(), equalTo(0));
+        assertThat(SamlRealm.findSamlRealms(realms, "my-saml", "https://idp.test:443/saml/login"), empty());
+        assertThat(SamlRealm.findSamlRealms(realms, "incorrect", acsUrl), empty());
+        assertThat(SamlRealm.findSamlRealms(realms, "incorrect", "https://idp.test:443/saml/login"), empty());
     }
 
     private EntityDescriptor mockIdp() {

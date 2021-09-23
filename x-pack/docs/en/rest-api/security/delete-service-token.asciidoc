@@ -21,7 +21,6 @@ specified `namespace`.
 
 [[security-api-delete-service-token-desc]]
 ==== {api-description-title}
-include::../../security/authentication/service-accounts.asciidoc[tag=service-accounts-tls]
 
 The API response indicates whether the specified service account token is found
 and deleted or it is not found.

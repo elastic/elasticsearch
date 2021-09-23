@@ -56,6 +56,8 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
+import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTaskCleaner;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
@@ -154,7 +156,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
      */
     @SuppressWarnings("unused") // constructed reflectively by the plugin infrastructure
     public Ccr(final Settings settings) {
-        this(settings, new CcrLicenseChecker());
+        this(settings, new CcrLicenseChecker(settings));
     }
 
     /**
@@ -292,7 +294,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
                 // Task statuses
                 new NamedWriteableRegistry.Entry(Task.Status.class, ShardFollowNodeTaskStatus.STATUS_PARSER_NAME,
-                        ShardFollowNodeTaskStatus::new)
+                        ShardFollowNodeTaskStatus::new),
+
+                // usage api
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.CCR, CCRInfoTransportAction.Usage::new)
         );
     }
 

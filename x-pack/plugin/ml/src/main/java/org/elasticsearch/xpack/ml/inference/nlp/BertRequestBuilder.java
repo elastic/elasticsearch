@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.List;
 
 public class BertRequestBuilder implements NlpTask.RequestBuilder {
 
@@ -25,48 +25,39 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
     static final String ARG3 = "arg_3";
 
     private final BertTokenizer tokenizer;
-    private BertTokenizer.TokenizationResult tokenization;
-    private final int maxSequenceLength;
 
-    public BertRequestBuilder(BertTokenizer tokenizer, NlpTaskConfig config) {
+    public BertRequestBuilder(BertTokenizer tokenizer) {
         this.tokenizer = tokenizer;
-        this.maxSequenceLength = config.getMaxSequenceLength();
-    }
-
-    public BertTokenizer.TokenizationResult getTokenization() {
-        return tokenization;
     }
 
     @Override
-    public BytesReference buildRequest(String input, String requestId) throws IOException {
-        tokenization = tokenizer.tokenize(input);
-        if (tokenization.getTokenIds().length > maxSequenceLength) {
-            throw ExceptionsHelper.badRequestException(
-                "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
-                tokenization.getTokenIds().length, maxSequenceLength);
+    public NlpTask.Request buildRequest(List<String> inputs, String requestId) throws IOException {
+        if (tokenizer.getPadToken().isEmpty()) {
+            throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN +
+                " token in its vocabulary");
         }
-        return jsonRequest(tokenization.getTokenIds(), requestId);
+
+        TokenizationResult tokenization = tokenizer.tokenize(inputs);
+        return new NlpTask.Request(tokenization, jsonRequest(tokenization, tokenizer.getPadToken().getAsInt(), requestId));
     }
 
-    static BytesReference jsonRequest(int[] tokens, String requestId) throws IOException {
+    static BytesReference jsonRequest(TokenizationResult tokenization,
+                                      int padToken,
+                                      String requestId) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field(REQUEST_ID, requestId);
-        builder.array(TOKENS, tokens);
 
-        int[] inputMask = new int[tokens.length];
-        Arrays.fill(inputMask, 1);
-        int[] segmentMask = new int[tokens.length];
-        Arrays.fill(segmentMask, 0);
-        int[] positionalIds = new int[tokens.length];
-        Arrays.setAll(positionalIds, i -> i);
-
-        builder.array(ARG1, inputMask);
-        builder.array(ARG2, segmentMask);
-        builder.array(ARG3, positionalIds);
+        NlpTask.RequestBuilder.writePaddedTokens(TOKENS, tokenization, padToken, (tokens, i) -> tokens.getTokenIds()[i], builder);
+        NlpTask.RequestBuilder.writePaddedTokens(ARG1, tokenization, padToken, (tokens, i) -> 1, builder);
+        int batchSize = tokenization.getTokenizations().size();
+        NlpTask.RequestBuilder.writeNonPaddedArguments(ARG2, batchSize, tokenization.getLongestSequenceLength(), i -> 0, builder);
+        NlpTask.RequestBuilder.writeNonPaddedArguments(ARG3, batchSize, tokenization.getLongestSequenceLength(), i -> i, builder);
         builder.endObject();
 
         // BytesReference.bytes closes the builder
         return BytesReference.bytes(builder);
     }
+
+
 }

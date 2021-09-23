@@ -8,14 +8,15 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.xpack.vectortile.SpatialVectorTileExtension;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.xpack.vectortile.SpatialGeometryFormatterExtension;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 import org.hamcrest.Matchers;
 
@@ -27,7 +28,9 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper
-            = new GeoShapeFieldMapper.Builder("field", true, true).build(new ContentPath()).fieldType();
+            = new GeoShapeFieldMapper.Builder("field", true, true)
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
             List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
@@ -89,9 +92,12 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
     }
 
     private void fetchVectorTile(Geometry geometry) throws IOException {
+        final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
+            new SpatialGeometryFormatterExtension().getGeometryFormatterFactories());
         final MappedFieldType mapper
-            = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, new SpatialVectorTileExtension())
-            .build(new ContentPath()).fieldType();
+            = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, geoFormatterFactory)
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
@@ -107,7 +113,14 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         }
 
         final List<?> sourceValue = fetchSourceValue(mapper, WellKnownText.toWKT(geometry), mvtString);
-        final List<byte[]> features = featureFactory.getFeatures(geometry);
+        List<byte[]> features;
+        try {
+            features = featureFactory.getFeatures(geometry);
+        } catch (IllegalArgumentException iae) {
+            // if parsing fails means that we must be ignoring malformed values. In case of mvt might
+            // happen that the geometry is out of range (close to the poles).
+            features = List.of();
+        }
         assertThat(features.size(), Matchers.equalTo(sourceValue.size()));
         for (int i = 0; i < features.size(); i++) {
             assertThat(sourceValue.get(i), Matchers.equalTo(features.get(i)));

@@ -13,10 +13,8 @@ import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.ANode;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -36,7 +34,6 @@ public class ScriptScope extends Decorator {
     protected int syntheticCounter = 0;
 
     protected boolean deterministic = true;
-    protected List<String> docFields = new ArrayList<>();
     protected Set<String> usedVariables = Collections.emptySet();
     protected Map<String, Object> staticConstants = new HashMap<>();
 
@@ -95,17 +92,6 @@ public class ScriptScope extends Decorator {
 
     public boolean isDeterministic() {
         return deterministic;
-    }
-
-    /**
-     * Document fields read or written using constant strings
-     */
-    public List<String> docFields() {
-        return Collections.unmodifiableList(docFields);
-    }
-
-    public void addDocField(String field) {
-        docFields.add(field);
     }
 
     public void setUsedVariables(Set<String> usedVariables) {

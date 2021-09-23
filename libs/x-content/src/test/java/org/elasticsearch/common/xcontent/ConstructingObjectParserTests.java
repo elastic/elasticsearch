@@ -666,7 +666,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         }
 
         private static BiConsumer<StructRemovalField, Integer> logWarningDoNothing(String old_name) {
-            return (struct,value) -> deprecationLogger.compatibleApiWarning("struct_removal",
+            return (struct,value) -> deprecationLogger.compatibleCritical("struct_removal",
                 "The field old_name has been removed and is being ignored");
         }
 

@@ -9,7 +9,7 @@
 ## should create one or more files in the jvm.options.d
 ## directory containing your adjustments.
 ##
-## See https://www.elastic.co/guide/en/elasticsearch/reference/current/jvm-options.html
+## See https://www.elastic.co/guide/en/elasticsearch/reference/@project.minor.version@/jvm-options.html
 ## for more information.
 ##
 ################################################################
@@ -24,14 +24,15 @@
 ## based on the available memory in your system and the roles
 ## each node is configured to fulfill. If specifying heap is
 ## required, it should be done through a file in jvm.options.d,
-## and the min and max should be set to the same value. For
-## example, to set the heap to 4 GB, create a new file in the
-## jvm.options.d directory containing these lines:
+## which should be named with .options suffix, and the min and
+## max should be set to the same value. For example, to set the
+## heap to 4 GB, create a new file in the jvm.options.d
+## directory containing these lines:
 ##
 ## -Xms4g
 ## -Xmx4g
 ##
-## See https://www.elastic.co/guide/en/elasticsearch/reference/current/heap-size.html
+## See https://www.elastic.co/guide/en/elasticsearch/reference/@project.minor.version@/heap-size.html
 ## for more information
 ##
 ################################################################

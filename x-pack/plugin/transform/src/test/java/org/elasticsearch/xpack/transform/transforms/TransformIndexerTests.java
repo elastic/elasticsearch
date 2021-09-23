@@ -26,7 +26,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
@@ -60,6 +61,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
@@ -76,7 +78,7 @@ public class TransformIndexerTests extends ESTestCase {
             // Simulate completely null aggs
             null,
             new Suggest(Collections.emptyList()),
-            new SearchProfileShardResults(Collections.emptyMap()),
+            new SearchProfileResults(Collections.emptyMap()),
             false,
             false,
             1
@@ -237,7 +239,7 @@ public class TransformIndexerTests extends ESTestCase {
             assert state == IndexerState.STARTED || state == IndexerState.INDEXING || state == IndexerState.STOPPED;
 
             assertTrue(saveStateInProgress.compareAndSet(true, false));
-            next.run();
+            super.doSaveState(state, position, next);
         }
 
         @Override
@@ -247,7 +249,7 @@ public class TransformIndexerTests extends ESTestCase {
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
             return new IterationResult<>(
-                Collections.singletonList(new IndexRequest()),
+                Stream.of(new IndexRequest()),
                 new TransformIndexerPosition(null, null),
                 numberOfLoops == 0
             );
@@ -264,6 +266,11 @@ public class TransformIndexerTests extends ESTestCase {
 
         public int getDeleteByQueryCallCount() {
             return deleteByQueryCallCount;
+        }
+
+        @Override
+        void persistState(TransformState state, ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
     }
 

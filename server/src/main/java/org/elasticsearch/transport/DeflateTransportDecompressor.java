@@ -113,6 +113,11 @@ public class DeflateTransportDecompressor implements TransportDecompressor {
     }
 
     @Override
+    public Compression.Scheme getScheme() {
+        return Compression.Scheme.DEFLATE;
+    }
+
+    @Override
     public void close() {
         inflater.end();
         for (Recycler.V<byte[]> page : pages) {

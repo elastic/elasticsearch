@@ -364,7 +364,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             new MockLogAppender.SeenEventExpectation(
                 "restore-system-index-from-snapshot",
                 "org.elasticsearch.deprecation.snapshots.RestoreService",
-                DeprecationLogger.DEPRECATION,
+                DeprecationLogger.CRITICAL,
                 "Restoring system indices by name is deprecated. Use feature states instead. System indices: [.test-system-idx]"
             )
         );

@@ -34,10 +34,10 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -106,6 +106,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final Map<String, MappedFieldType> runtimeMappings;
+    private Predicate<String> allowedFields;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -153,7 +154,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             ),
             allowExpensiveQueries,
             valuesSourceRegistry,
-            parseRuntimeMappings(runtimeMappings, mapperService)
+            parseRuntimeMappings(runtimeMappings, mapperService),
+            null
         );
     }
 
@@ -176,7 +178,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.fullyQualifiedIndex,
             source.allowExpensiveQueries,
             source.valuesSourceRegistry,
-            source.runtimeMappings
+            source.runtimeMappings,
+            source.allowedFields
         );
     }
 
@@ -198,7 +201,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
                                    Index fullyQualifiedIndex,
                                    BooleanSupplier allowExpensiveQueries,
                                    ValuesSourceRegistry valuesSourceRegistry,
-                                   Map<String, MappedFieldType> runtimeMappings) {
+                                   Map<String, MappedFieldType> runtimeMappings,
+                                   Predicate<String> allowedFields) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -217,6 +221,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.runtimeMappings = runtimeMappings;
+        this.allowedFields = allowedFields;
     }
 
     private void reset() {
@@ -347,6 +352,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     private MappedFieldType fieldType(String name) {
+        // If the field is not allowed, behave as if it is not mapped
+        if (allowedFields != null && false == allowedFields.test(name)) {
+            return null;
+        }
         MappedFieldType fieldType = runtimeMappings.get(name);
         return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
     }
@@ -374,7 +383,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
         Mapper.Builder builder = typeParser.parse("__anonymous_", Collections.emptyMap(), parserContext);
-        Mapper mapper = builder.build(new ContentPath(0));
+        Mapper mapper = builder.build(MapperBuilderContext.ROOT);
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper)mapper).fieldType();
         }
@@ -410,12 +419,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
+    public void setAllowedFields(Predicate<String> allowedFields) {
+        this.allowedFields = allowedFields;
+    }
+
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
-            return builder.build(new ContentPath(1)).fieldType();
+            return builder.build(MapperBuilderContext.ROOT).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
@@ -613,8 +626,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
-        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
-            mapperService.parserContext(), false);
+        //TODO add specific tests to SearchExecutionTests similar to the ones in FieldTypeLookupTests
+        MappingParserContext parserContext = mapperService.parserContext();
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(
+            new HashMap<>(runtimeMappings),
+            parserContext,
+            false);
         return RuntimeField.collectFieldTypes(runtimeFields.values());
     }
 

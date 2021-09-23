@@ -229,6 +229,10 @@ public class StubbableTransport implements Transport {
             connection.addCloseListener(listener);
         }
 
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
+            connection.addRemovedListener(listener);
+        }
 
         @Override
         public boolean isClosed() {
@@ -250,6 +254,11 @@ public class StubbableTransport implements Transport {
             connection.close();
         }
 
+        @Override
+        public void onRemoved() {
+            connection.onRemoved();
+        }
+
         public Transport.Connection getConnection() {
             return connection;
         }
@@ -257,6 +266,26 @@ public class StubbableTransport implements Transport {
         @Override
         public String toString() {
             return "WrappedConnection[" + connection + "]";
+        }
+
+        @Override
+        public void incRef() {
+            connection.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return connection.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return connection.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return connection.hasReferences();
         }
     }
 

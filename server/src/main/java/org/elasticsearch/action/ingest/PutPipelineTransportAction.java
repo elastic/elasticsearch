@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
@@ -22,8 +23,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestInfo;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -55,16 +59,43 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
     @Override
     protected void masterOperation(Task task, PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
             throws Exception {
-        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-        nodesInfoRequest.clear()
-            .addMetric(NodesInfoRequest.Metric.INGEST.metricName());
-        client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(nodeInfos -> {
-            Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
-            for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
-                ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
+
+        Map<String, Object> pipelineConfig = null;
+        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        if (currentIngestMetadata != null && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
+            pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+            var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
+            if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {
+                // existing pipeline matches request pipeline -- no need to update
+                listener.onResponse(AcknowledgedResponse.TRUE);
+                return;
             }
-            ingestService.putPipeline(ingestInfos, request, listener);
-        }, listener::onFailure));
+        }
+
+        if (state.getNodes().getMinNodeVersion().before(Version.V_7_15_0)) {
+            pipelineConfig = pipelineConfig == null
+                ? XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2()
+                : pipelineConfig;
+            if (pipelineConfig.containsKey(Pipeline.META_KEY)) {
+                throw new IllegalStateException("pipelines with _meta field require minimum node version of " + Version.V_7_15_0);
+            }
+        }
+        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+        nodesInfoRequest.clear();
+        nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
+        client.admin().cluster().nodesInfo(
+            nodesInfoRequest,
+            ActionListener.wrap(
+                nodeInfos -> {
+                    Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+                    for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
+                        ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
+                    }
+                    ingestService.putPipeline(ingestInfos, request, listener);
+                },
+                listener::onFailure
+            )
+        );
     }
 
     @Override

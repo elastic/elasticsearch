@@ -11,19 +11,22 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
@@ -31,7 +34,9 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledgedResponse> {
+import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelDeploymentTaskId;
+
+public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAllocationAction.Response> {
 
     public static final StartTrainedModelDeploymentAction INSTANCE = new StartTrainedModelDeploymentAction();
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/start";
@@ -39,16 +44,22 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
 
     public StartTrainedModelDeploymentAction() {
-        super(NAME, NodeAcknowledgedResponse::new);
+        super(NAME, CreateTrainedModelAllocationAction.Response::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
+        private static final AllocationStatus.State[] VALID_WAIT_STATES = new AllocationStatus.State[] {
+            AllocationStatus.State.STARTED,
+            AllocationStatus.State.STARTING,
+            AllocationStatus.State.FULLY_ALLOCATED };
         public static final ParseField MODEL_ID = new ParseField("model_id");
         public static final ParseField TIMEOUT = new ParseField("timeout");
+        public static final ParseField WAIT_FOR = new ParseField("wait_for");
 
         private String modelId;
         private TimeValue timeout = DEFAULT_TIMEOUT;
+        private AllocationStatus.State waitForState = AllocationStatus.State.STARTED;
 
         public Request(String modelId) {
             setModelId(modelId);
@@ -58,6 +69,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
             super(in);
             modelId = in.readString();
             timeout = in.readTimeValue();
+            waitForState = in.readEnum(AllocationStatus.State.class);
         }
 
         public final void setModelId(String modelId) {
@@ -76,23 +88,44 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
             return timeout;
         }
 
+        public AllocationStatus.State getWaitForState() {
+            return waitForState;
+        }
+
+        public Request setWaitForState(AllocationStatus.State waitForState) {
+            this.waitForState = ExceptionsHelper.requireNonNull(waitForState, WAIT_FOR);
+            return this;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelId);
             out.writeTimeValue(timeout);
+            out.writeEnum(waitForState);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MODEL_ID.getPreferredName(), modelId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
+            builder.field(WAIT_FOR.getPreferredName(), waitForState);
             return builder;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            if (waitForState.isAnyOf(VALID_WAIT_STATES)) {
+                return null;
+            }
+            ActionRequestValidationException validationException = new ActionRequestValidationException();
+            validationException.addValidationError(
+                "invalid [wait_for] state ["
+                    + waitForState
+                    + "]; must be one of ["
+                    + Strings.arrayToCommaDelimitedString(VALID_WAIT_STATES)
+            );
+            return validationException;
         }
 
         @Override
@@ -118,11 +151,30 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
         }
     }
 
-    public static class TaskParams implements PersistentTaskParams, MlTaskParams {
+    public static class TaskParams implements MlTaskParams, Writeable, ToXContentObject {
+
+        // TODO add support for other roles? If so, it may have to be an instance method...
+        // NOTE, whatever determines allocation should not be dynamically set on the node
+        // Otherwise allocation logic might fail
+        public static boolean mayAllocateToNode(DiscoveryNode node) {
+            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) && node.getVersion().onOrAfter(VERSION_INTRODUCED);
+        }
 
         public static final Version VERSION_INTRODUCED = Version.V_8_0_0;
-
         private static final ParseField MODEL_BYTES = new ParseField("model_bytes");
+        private static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
+            "trained_model_deployment_params",
+            true,
+            a -> new TaskParams((String)a[0], (Long)a[1])
+        );
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), TrainedModelConfig.MODEL_ID);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODEL_BYTES);
+        }
+
+        public static TaskParams fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
 
         /**
          * This has been found to be approximately 300MB on linux by manual testing.
@@ -132,12 +184,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
         private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(270);
 
         private final String modelId;
-        private final String index;
         private final long modelBytes;
 
-        public TaskParams(String modelId, String index, long modelBytes) {
+        public TaskParams(String modelId, long modelBytes) {
             this.modelId = Objects.requireNonNull(modelId);
-            this.index = Objects.requireNonNull(index);
             this.modelBytes = modelBytes;
             if (modelBytes < 0) {
                 throw new IllegalArgumentException("modelBytes must be non-negative");
@@ -146,7 +196,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
 
         public TaskParams(StreamInput in) throws IOException {
             this.modelId = in.readString();
-            this.index = in.readString();
             this.modelBytes = in.readVLong();
         }
 
@@ -154,21 +203,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
             return modelId;
         }
 
-        public String getIndex() {
-            return index;
-        }
-
         public long estimateMemoryUsageBytes() {
             // While loading the model in the process we need twice the model size.
             return MEMORY_OVERHEAD.getBytes() + 2 * modelBytes;
         }
 
-        @Override
-        public String getWriteableName() {
-            return MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME;
-        }
-
-        @Override
         public Version getMinimalSupportedVersion() {
             return VERSION_INTRODUCED;
         }
@@ -176,7 +215,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(modelId);
-            out.writeString(index);
             out.writeVLong(modelBytes);
         }
 
@@ -184,7 +222,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
-            builder.field(IndexLocation.INDEX.getPreferredName(), index);
             builder.field(MODEL_BYTES.getPreferredName(), modelBytes);
             builder.endObject();
             return builder;
@@ -192,7 +229,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, index, modelBytes);
+            return Objects.hash(modelId, modelBytes);
         }
 
         @Override
@@ -202,7 +239,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
 
             TaskParams other = (TaskParams) o;
             return Objects.equals(modelId, other.modelId)
-                && Objects.equals(index, other.index)
                 && modelBytes == other.modelBytes;
         }
 
@@ -219,7 +255,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
                 if (Strings.isAllOrWildcard(expectedId)) {
                     return true;
                 }
-                String expectedDescription = MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + expectedId;
+                String expectedDescription = trainedModelDeploymentTaskId(expectedId);
                 return expectedDescription.equals(task.getDescription());
             }
             return false;

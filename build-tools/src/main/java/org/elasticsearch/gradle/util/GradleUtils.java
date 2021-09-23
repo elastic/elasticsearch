@@ -18,7 +18,6 @@ import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
@@ -205,8 +204,7 @@ public abstract class GradleUtils {
 
     public static boolean isModuleProject(String projectPath) {
         return projectPath.contains("modules:")
-            || projectPath.startsWith(":x-pack:plugin")
-            || projectPath.startsWith(":x-pack:quota-aware-fs");
+            || projectPath.startsWith(":x-pack:plugin");
     }
 
     public static void disableTransitiveDependencies(Configuration config) {

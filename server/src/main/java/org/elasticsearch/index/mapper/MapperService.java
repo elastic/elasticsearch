@@ -271,16 +271,22 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mergeAndApplyMappings(type, mappingSource, reason);
     }
 
-    private synchronized DocumentMapper mergeAndApplyMappings(String mappingType, CompressedXContent mappingSource, MergeReason reason) {
-        Mapping incomingMapping = parseMapping(mappingType, mappingSource);
-        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
-        DocumentMapper newMapper = newDocumentMapper(mapping, reason);
-        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+    private DocumentMapper mergeAndApplyMappings(String mappingType, CompressedXContent mappingSource, MergeReason reason) {
+        final DocumentMapper currentMapper = this.mapper;
+        if (currentMapper != null && currentMapper.mappingSource().equals(mappingSource)) {
+            return currentMapper;
+        }
+        synchronized (this) {
+            Mapping incomingMapping = parseMapping(mappingType, mappingSource);
+            Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
+            DocumentMapper newMapper = newDocumentMapper(mapping, reason);
+            if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+                return newMapper;
+            }
+            this.mapper = newMapper;
+            assert assertSerialization(newMapper);
             return newMapper;
         }
-        this.mapper = newMapper;
-        assert assertSerialization(newMapper);
-        return newMapper;
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {

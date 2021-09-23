@@ -222,6 +222,10 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
     }
 
+    public boolean isNodeDying() {
+        return nodeDying;
+    }
+
     /**
      * Makes open jobs on this node go through the motions of closing but
      * without completing the persistent task and instead telling the

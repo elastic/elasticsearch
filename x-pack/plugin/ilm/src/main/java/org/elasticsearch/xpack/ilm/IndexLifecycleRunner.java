@@ -16,9 +16,9 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
@@ -62,6 +62,13 @@ class IndexLifecycleRunner {
      */
     static Step getCurrentStep(PolicyStepsRegistry stepRegistry, String policy, IndexMetadata indexMetadata) {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        return getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
+    }
+
+    static Step getCurrentStep(PolicyStepsRegistry stepRegistry,
+                               String policy,
+                               IndexMetadata indexMetadata,
+                               LifecycleExecutionState lifecycleState) {
         StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
         logger.trace("[{}] retrieved current step key: {}", indexMetadata.getIndex().getName(), currentStepKey);
         if (currentStepKey == null) {
@@ -126,7 +133,7 @@ class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata);
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;
@@ -261,7 +268,7 @@ class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata);
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;
@@ -291,23 +298,15 @@ class IndexLifecycleRunner {
                 new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext()), new ActionListener<>() {
 
                     @Override
-                    public void onResponse(Boolean complete) {
+                    public void onResponse(Void unused) {
                         logger.trace("cs-change-async-action-callback, [{}], current-step: {}", index, currentStep.getKey());
-                        if (complete) {
-                            if (((AsyncActionStep) currentStep).indexSurvives()) {
-                                moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
-                            } else {
-                                // Delete needs special handling, because after this step we
-                                // will no longer have access to any information about the
-                                // index since it will be... deleted.
-                                registerDeleteOperation(indexMetadata);
-                            }
+                        if (((AsyncActionStep) currentStep).indexSurvives()) {
+                            moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
                         } else {
-                            // All steps *should* return true for complete, or invoke listener.onFailure
-                            // with a useful exception. In the case that they don't, we move to error
-                            // step here with a generic exception
-                            moveToErrorStep(indexMetadata.getIndex(), policy, currentStep.getKey(),
-                                new IllegalStateException("unknown exception for step " + currentStep.getKey() + " in policy " + policy));
+                            // Delete needs special handling, because after this step we
+                            // will no longer have access to any information about the
+                            // index since it will be... deleted.
+                            registerDeleteOperation(indexMetadata);
                         }
                     }
 
@@ -330,7 +329,7 @@ class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata);
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;

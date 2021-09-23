@@ -558,26 +558,17 @@ public class NodeStatsTests extends ESTestCase {
             List<ScriptContextStats> stats = new ArrayList<>(numContents);
             HashSet<String> contexts = new HashSet<>();
             for (int i = 0; i < numContents; i++) {
-                List<ScriptContextStats.TimeSeries> timeSeries = new ArrayList<>();
-                for (int j = 0; j < 2; j++) {
-                    if (randomBoolean()) {
-                        long day = randomLongBetween(0, 1024);
-                        long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
-                        long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
-                        timeSeries.add(new ScriptContextStats.TimeSeries(five, fifteen, day));
-                    } else {
-                        timeSeries.add(new ScriptContextStats.TimeSeries());
-                    }
-                }
                 long compile = randomLongBetween(0, 1024);
                 long eviction = randomLongBetween(0, 1024);
+                String context = randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12));
+                contexts.add(context);
                 stats.add(new ScriptContextStats(
-                    randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12)),
+                    context,
                     compile,
                     eviction,
                     randomLongBetween(0, 1024),
-                    timeSeries.get(0),
-                    timeSeries.get(1))
+                    randomTimeSeries(),
+                    randomTimeSeries())
                 );
             }
             scriptStats = new ScriptStats(stats);
@@ -679,6 +670,17 @@ public class NodeStatsTests extends ESTestCase {
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
                 ingestStats, adaptiveSelectionStats, null);
+    }
+
+    private static ScriptContextStats.TimeSeries randomTimeSeries() {
+        if (randomBoolean()) {
+            long day = randomLongBetween(0, 1024);
+            long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
+            long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
+            return new ScriptContextStats.TimeSeries(five, fifteen, day);
+        } else {
+            return new ScriptContextStats.TimeSeries();
+        }
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

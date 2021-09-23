@@ -21,11 +21,6 @@ setup:
 
   - do:
       index:
-        index: test-timeout
-        body: { }
-
-  - do:
-      index:
         index:  test-after-refresh
         body:   { }
 

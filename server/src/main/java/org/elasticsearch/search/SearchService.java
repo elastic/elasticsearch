@@ -130,8 +130,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -443,7 +445,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final TimeValue timeout = request.getWaitForCheckpointsTimeout();
                 final long waitForCheckpoint = request.waitForCheckpoint();
                 if (waitForCheckpoint > SequenceNumbers.NO_OPS_PERFORMED) {
-                    if (shard.indexSettings().getRefreshInterval().getMillis() < 0) {
+                    if (shard.indexSettings().getRefreshInterval().getMillis() <= 0) {
                         listener.onFailure(
                             new IllegalArgumentException("Cannot use wait_for_checkpoints with [index.refresh_interval=-1]")
                         );
@@ -508,12 +510,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                 if (Thread.currentThread() != thread) {
                                     runAsync(executor, executable, listener);
                                 } else {
-                                    runAsync(threadPool.executor(Names.SAME), executable, listener);
+                                    ActionRunnable.supply(listener, executable).run();
                                 }
                             }
                         }
                     };
-                    shard.addRefreshListener(waitForCheckpoint, readyListener);
                     if (NO_TIMEOUT.equals(timeout) == false && isDone.get() == false) {
                         Scheduler.ScheduledCancellable scheduled = threadPool.schedule(() ->
                             readyListener.onFailure(
@@ -524,6 +525,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             ), timeout, Names.SAME);
                         timeoutTask.set(scheduled);
                     }
+                    shard.addRefreshListener(waitForCheckpoint, readyListener);
                 } else {
                     ActionRunnable.supply(listener, executable).run();
                 }
@@ -1375,7 +1377,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // If this request requests wait_for_refresh behavior, it is safest to assume a refresh is pending. Theoretically,
                 // this can be improved in the future by manually checking that the requested checkpoint has already been refresh.
                 // However, this will request modifying the engine to surface that information.
-                hasRefreshPending = checkRefreshPending && (indexShard.hasRefreshPending() || needsWaitForRefresh);
+                hasRefreshPending = needsWaitForRefresh || (indexShard.hasRefreshPending() && checkRefreshPending);
                 canMatchSearcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
             }
             try (canMatchSearcher) {

@@ -274,7 +274,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     }
 
     /**
-     * Setup the engine used to find the max issued seqNo checkpoint.
+     * Setup the engine used to find the max issued seqNo.
      */
     public void setMaxIssuedSeqNoSupplier(LongSupplier maxIssuedSeqNoSupplier) {
         this.maxIssuedSeqNoSupplier = maxIssuedSeqNoSupplier;

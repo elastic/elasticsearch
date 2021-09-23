@@ -1361,6 +1361,27 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(1, searchPhaseResult.queryResult().getTotalHits().value);
     }
 
+    public void testWaitOnRefreshFailsWithRefreshesDisabled() throws Exception {
+        createIndex("index", Settings.builder().put("index.refresh_interval", "-1").build());
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+
+        final IndexResponse response = client().prepareIndex("index").setSource("id", "1").get();
+        assertEquals(RestStatus.CREATED, response.status());
+
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
+        ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 0, TimeValue.timeValueSeconds(30));
+        service.executeQueryPhase(request, task, future);
+        IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(illegalArgumentException.getMessage(),
+            containsString("Cannot use wait_for_checkpoints with [index.refresh_interval=-1]"));
+    }
+
     public void testWaitOnRefreshTimeout() throws Exception {
         createIndex("index", Settings.builder().put("index.refresh_interval", "60s").build());
         final SearchService service = getInstanceFromNode(SearchService.class);

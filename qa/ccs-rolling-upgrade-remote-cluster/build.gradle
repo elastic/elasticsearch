@@ -20,8 +20,8 @@ dependencies {
 }
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
-  String baseName = "v${bwcVersion}"
-  String bwcVersionStr = "${bwcVersion}"
+  String bwcVersionStr = bwcVersion.toString()
+  String baseName = "v" + bwcVersionStr
 
   /**
    * We execute tests 3 times.
@@ -30,30 +30,29 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
    * - Only node-0 and node-2 of the remote cluster can accept remote connections. This can creates a test
    *   scenario where a query request and fetch request are sent via **proxy nodes** that have different version.
    */
-  testClusters {
-    "${baseName}-local" {
-      numberOfNodes = 2
-      versions = [bwcVersionStr, project.version]
-      setting 'cluster.remote.node.attr', 'gateway'
-      setting 'xpack.security.enabled', 'false'
-    }
-    "${baseName}-remote" {
-      numberOfNodes = 3
-      versions = [bwcVersionStr, project.version]
-      firstNode.setting 'node.attr.gateway', 'true'
-      lastNode.setting 'node.attr.gateway', 'true'
-      setting 'xpack.security.enabled', 'false'
-    }
+  def localCluster = testClusters.register("${baseName}-local") {
+    numberOfNodes = 2
+    versions = [bwcVersionStr, project.version]
+    setting 'cluster.remote.node.attr', 'gateway'
+    setting 'xpack.security.enabled', 'false'
+  }
+  def remoteCluster = testClusters.register("${baseName}-remote") {
+    numberOfNodes = 3
+    versions = [bwcVersionStr, project.version]
+    firstNode.setting 'node.attr.gateway', 'true'
+    lastNode.setting 'node.attr.gateway', 'true'
+    setting 'xpack.security.enabled', 'false'
   }
 
+
   tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
-    useCluster testClusters."${baseName}-local"
-    useCluster testClusters."${baseName}-remote"
+    useCluster localCluster
+    useCluster remoteCluster
     systemProperty 'tests.upgrade_from_version', bwcVersionStr.replace('-SNAPSHOT', '')
 
     doFirst {
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}-local".allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.rest.remote_cluster', "${-> testClusters."${baseName}-remote".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
     }
   }
 
@@ -61,22 +60,22 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     dependsOn "processTestResources"
     mustRunAfter("precommit")
     doFirst {
-      testClusters."${baseName}-local".nextNodeToNextVersion()
-      testClusters."${baseName}-remote".nextNodeToNextVersion()
+      localCluster.get().nextNodeToNextVersion()
+      remoteCluster.get().nextNodeToNextVersion()
     }
   }
 
   tasks.register("${baseName}#twoThirdUpgraded", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgraded"
     doFirst {
-      testClusters."${baseName}-remote".nextNodeToNextVersion()
+      remoteCluster.get().nextNodeToNextVersion()
     }
   }
 
   tasks.register("${baseName}#fullUpgraded", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdUpgraded"
     doFirst {
-      testClusters."${baseName}-remote".nextNodeToNextVersion()
+      remoteCluster.get().nextNodeToNextVersion()
     }
   }
 

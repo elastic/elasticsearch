@@ -10,6 +10,9 @@ package org.elasticsearch.action.admin.cluster.migration;
 
 import org.elasticsearch.action.ActionType;
 
+/**
+ * Action for beginning a system feature upgrade
+ */
 public class PostFeatureUpgradeAction extends ActionType<PostFeatureUpgradeResponse> {
 
     public static final PostFeatureUpgradeAction INSTANCE = new PostFeatureUpgradeAction();

@@ -25,6 +25,9 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Transport action for post feature upgrade action
+ */
 public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction<
     PostFeatureUpgradeRequest,
     PostFeatureUpgradeResponse> {

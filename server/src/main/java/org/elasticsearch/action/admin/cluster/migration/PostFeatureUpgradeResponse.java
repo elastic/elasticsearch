@@ -22,6 +22,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * The response to return to a request for a system feature upgrade
+ */
 public class PostFeatureUpgradeResponse extends ActionResponse implements ToXContentObject {
 
     private final boolean accepted;
@@ -29,6 +32,12 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
     @Nullable private final String reason;
     @Nullable private final ElasticsearchException elasticsearchException;
 
+    /**
+     * @param accepted Whether the upgrade request is accepted by the server
+     * @param features A list of the features that will be upgraded
+     * @param reason If the upgrade is rejected, the reason for rejection. Null otherwise.
+     * @param exception If the upgrade is rejected because of an exception, the exception. Null otherwise.
+     */
     public PostFeatureUpgradeResponse(boolean accepted, List<Feature> features,
                                       @Nullable String reason, @Nullable ElasticsearchException exception) {
         this.accepted = accepted;
@@ -37,6 +46,10 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
         this.elasticsearchException = exception;
     }
 
+    /**
+     * @param in A stream input for a serialized response object
+     * @throws IOException if we can't deserialize the object
+     */
     public PostFeatureUpgradeResponse(StreamInput in) throws IOException {
         super(in);
         this.accepted = in.readBoolean();
@@ -126,13 +139,23 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
             '}';
     }
 
+    /**
+     * A data class representing a feature that to be upgraded
+     */
     public static class Feature implements Writeable, ToXContentObject {
         private final String featureName;
 
+        /**
+         * @param featureName Name of the feature
+         */
         public Feature(String featureName) {
             this.featureName = featureName;
         }
 
+        /**
+         * @param in A stream input for a serialized feature object
+         * @throws IOException if we can't deserialize the object
+         */
         public Feature(StreamInput in) throws IOException {
             this.featureName = in.readString();
         }

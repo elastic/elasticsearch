@@ -25,6 +25,9 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Transport class for the get feature upgrade status action
+ */
 public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeAction<
         GetFeatureUpgradeStatusRequest,
         GetFeatureUpgradeStatusResponse> {

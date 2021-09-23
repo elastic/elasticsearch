@@ -20,16 +20,28 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * A response showing whether system features need to be upgraded and, feature by feature, which
+ * indices need to be upgraded.
+ */
 public class GetFeatureUpgradeStatusResponse extends ActionResponse implements ToXContentObject {
 
     private final List<FeatureUpgradeStatus> featureUpgradeStatuses;
     private final String upgradeStatus;
 
+    /**
+     * @param statuses A list of feature statuses
+     * @param upgradeStatus Whether system features need to be upgraded
+     */
     public GetFeatureUpgradeStatusResponse(List<FeatureUpgradeStatus> statuses, String upgradeStatus) {
         this.featureUpgradeStatuses = Objects.nonNull(statuses) ? statuses : Collections.emptyList();
         this.upgradeStatus = upgradeStatus;
     }
 
+    /**
+     * @param in A stream input for a serialized response object
+     * @throws IOException if we can't deserialize the object
+     */
     public GetFeatureUpgradeStatusResponse(StreamInput in) throws IOException {
         super(in);
         this.featureUpgradeStatuses = in.readList(FeatureUpgradeStatus::new);
@@ -76,12 +88,22 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         return Objects.hash(featureUpgradeStatuses, upgradeStatus);
     }
 
+    /**
+     * A class for a particular feature, showing whether it needs to be upgraded and the earliest
+     * Elasticsearch version used to create one of this feature's system indices.
+     */
     public static class FeatureUpgradeStatus implements Writeable, ToXContentObject {
         private final String featureName;
         private final String minimumIndexVersion;
         private final String upgradeStatus;
         private final List<IndexVersion> indexVersions;
 
+        /**
+         * @param featureName Name of the feature
+         * @param minimumIndexVersion Earliest Elasticsearch version used to create a system index for this feature
+         * @param upgradeStatus Whether the feature needs to be upgraded
+         * @param indexVersions A list of this feature's concrete indices and the Elasticsearch version that created them
+         */
         public FeatureUpgradeStatus(String featureName, String minimumIndexVersion,
                                     String upgradeStatus, List<IndexVersion> indexVersions) {
             this.featureName = featureName;
@@ -90,6 +112,10 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             this.indexVersions = indexVersions;
         }
 
+        /**
+         * @param in A stream input for a serialized feature status object
+         * @throws IOException if we can't deserialize the object
+         */
         public FeatureUpgradeStatus(StreamInput in) throws IOException {
             this.featureName = in.readString();
             this.minimumIndexVersion = in.readString();
@@ -153,15 +179,26 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         }
     }
 
+    /**
+     * A data class that holds an index name and the version of Elasticsearch with which that index was created
+     */
     public static class IndexVersion implements Writeable, ToXContentObject {
         private final String indexName;
         private final String version;
 
+        /**
+         * @param indexName Name of the index
+         * @param version Version of Elasticsearch that created the index
+         */
         public IndexVersion(String indexName, String version) {
             this.indexName = indexName;
             this.version = version;
         }
 
+        /**
+         * @param in A stream input for a serialized index version object
+         * @throws IOException if we can't deserialize the object
+         */
         public IndexVersion(StreamInput in) throws IOException {
             this.indexName = in.readString();
             this.version = in.readString();

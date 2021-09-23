@@ -10,6 +10,9 @@ package org.elasticsearch.action.admin.cluster.migration;
 
 import org.elasticsearch.action.ActionType;
 
+/**
+ * Action for getting a feature upgrade status.
+ */
 public class GetFeatureUpgradeStatusAction extends ActionType<GetFeatureUpgradeStatusResponse> {
 
     public static final GetFeatureUpgradeStatusAction INSTANCE = new GetFeatureUpgradeStatusAction();

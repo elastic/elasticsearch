@@ -18,6 +18,9 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Endpoint for getting the system feature upgrade status
+ */
 public class RestGetFeatureUpgradeStatusAction extends BaseRestHandler {
     @Override
     public String getName() {

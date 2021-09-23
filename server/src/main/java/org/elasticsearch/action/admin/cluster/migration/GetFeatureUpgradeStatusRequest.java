@@ -14,6 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Request for whether system features need to be upgraded
+ */
 public class GetFeatureUpgradeStatusRequest extends MasterNodeRequest<GetFeatureUpgradeStatusRequest> {
 
     public GetFeatureUpgradeStatusRequest() {

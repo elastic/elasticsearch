@@ -14,6 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
+/**
+ * Request to begin an upgrade of system features
+ */
 public class PostFeatureUpgradeRequest extends MasterNodeRequest<PostFeatureUpgradeRequest> {
 
     public PostFeatureUpgradeRequest() {

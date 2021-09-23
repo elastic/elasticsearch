@@ -169,7 +169,6 @@ tasks.named("yamlRestTestV7CompatTest").configure {
       // UNMUTE after #78184 is backported to 7.x
       'indices.freeze/10_basic/Basic',
       'indices.freeze/10_basic/Test index options',
-      '',
       // to support it, it would require to almost revert back the #48725 and complicate the code
       'vectors/10_dense_vector_basic/Deprecated function signature',
       // not going to be supported

@@ -11,6 +11,7 @@ package org.elasticsearch.indices.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -279,11 +280,20 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                         logger.debug(() -> new ParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId), ex);
                     }
                 },
-                e -> logger.error(
-                    () -> new ParameterizedMessage(
-                        "{} unexpected error during deletion of unallocated shard",
-                        shardId),
-                    e));
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "{} unexpected error during deletion of unallocated shard",
+                                shardId),
+                            e);
+                    }
+                });
         }
 
     }

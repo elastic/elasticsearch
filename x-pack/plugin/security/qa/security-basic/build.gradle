@@ -13,7 +13,7 @@ if (BuildParams.inFipsJvm){
   tasks.named("javaRestTest").configure{enabled = false }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 

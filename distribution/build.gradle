@@ -252,7 +252,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         "bundled_${platform}_${architecture}" {
           it.platform = platform
           it.version = VersionProperties.getBundledJdk(platform)
-          it.vendor = (platform == 'darwin' && architecture == 'aarch64') ? 'azul' : VersionProperties.bundledJdkVendor
+          it.vendor = VersionProperties.bundledJdkVendor
           it.architecture = architecture
         }
       }

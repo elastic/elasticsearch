@@ -137,6 +137,14 @@ public class QueryPhase {
             assert query == searcher.rewrite(query); // already rewritten
 
             final ScrollContext scrollContext = searchContext.scrollContext();
+            if (searchContext.sort() != null && searchContext.sort().sort.getSort().length == 1) {
+                // We must disable the sort optimization with point for search_after or scroll requests until LUCENE-10119 is integrated.
+                if ((scrollContext != null && scrollContext.lastEmittedDoc != null) || searchContext.searchAfter() != null) {
+                    for (SortField sortField : searchContext.sort().sort.getSort()) {
+                        sortField.setOptimizeSortWithPoints(false);
+                    }
+                }
+            }
             if (scrollContext != null) {
                 if (scrollContext.totalHits == null) {
                     // first round
@@ -146,12 +154,6 @@ public class QueryPhase {
 
                 } else {
                     final ScoreDoc after = scrollContext.lastEmittedDoc;
-                    // Disable the sort optimization in scroll requests until LUCENE-10119 is integrated
-                    if (after != null && searchContext.sort() != null && searchContext.sort().sort.getSort().length == 1) {
-                        for (SortField sortField : searchContext.sort().sort.getSort()) {
-                            sortField.setOptimizeSortWithPoints(false);
-                        }
-                    }
                     if (canEarlyTerminate(reader, searchContext.sort())) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc

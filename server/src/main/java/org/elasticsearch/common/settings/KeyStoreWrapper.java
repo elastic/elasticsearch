@@ -11,6 +11,7 @@ package org.elasticsearch.common.settings;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -293,11 +294,11 @@ public class KeyStoreWrapper implements SecureSettings {
                 dataBytes = bytes.toByteArray();
             } else {
                 int dataBytesLen;
-                //if (formatVersion < 5) {
-                //    dataBytesLen = Integer.reverseBytes(input.readInt());
-                //} else {
+                if (formatVersion < 5) {
+                    dataBytesLen = Integer.reverseBytes(input.readInt());
+                } else {
                 dataBytesLen = input.readInt();
-                //}
+                }
                 dataBytes = new byte[dataBytesLen];
                 input.readBytes(dataBytes, 0, dataBytesLen);
             }
@@ -369,21 +370,22 @@ public class KeyStoreWrapper implements SecureSettings {
         final byte[] salt;
         final byte[] iv;
         final byte[] encryptedBytes;
-        try (ByteArrayInputStream bytesStream = new ByteArrayInputStream(dataBytes);
-             DataInputStream input = new DataInputStream(bytesStream)) {
+        try {
+            final ByteArrayDataInput input = new ByteArrayDataInput(dataBytes);
+            // TODO: should wrap for older versions
             int saltLen = input.readInt();
             salt = new byte[saltLen];
-            input.readFully(salt);
+            input.readBytes(salt, 0, saltLen);
             int ivLen = input.readInt();
             iv = new byte[ivLen];
-            input.readFully(iv);
+            input.readBytes(iv, 0, ivLen);
             int encryptedLen = input.readInt();
             encryptedBytes = new byte[encryptedLen];
-            input.readFully(encryptedBytes);
-            if (input.read() != -1) {
+            input.readBytes(encryptedBytes, 0, encryptedLen);
+            if (input.eof() == false) {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
             }
-        } catch (EOFException e) {
+        } catch (ArrayIndexOutOfBoundsException e) {
             throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
 

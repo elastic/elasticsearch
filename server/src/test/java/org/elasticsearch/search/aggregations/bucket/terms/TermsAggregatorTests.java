@@ -1169,8 +1169,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             true,
             null,
             null,
-            Collections.emptyMap()
-        , false);
+            Collections.emptyMap(),
+            false
+        );
         testCase(new TermsAggregationBuilder("_name").field("field"), new MatchAllDocsQuery(), iw -> {
             Document document = new Document();
             InetAddress point = InetAddresses.forString("192.168.100.42");

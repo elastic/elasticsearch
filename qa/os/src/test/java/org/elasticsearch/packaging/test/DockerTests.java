@@ -197,7 +197,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that ESS images can manage plugins using the `sync` subcommand.
      */
-    public void test023InstallPluginsUsingConfigFile() {
+    public void test023InstallPluginsUsingConfigFile() throws Exception {
         assumeTrue("Only applies to ESS images", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
 
         // The repository plugins have to be present, because (1) they are preinstalled, and (2) they
@@ -221,10 +221,19 @@ public class DockerTests extends PackagingTestCase {
             distribution(),
             builder().volumes(volumes)
                 .envVars(
-                    "ES_JAVA_OPTS",
-                    "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
+                    Map.of(
+                        "ingest.geoip.downloader.enabled",
+                        "false",
+                        "ELASTIC_PASSWORD",
+                        PASSWORD,
+                        "ES_JAVA_OPTS",
+                        "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
+                    )
                 )
         );
+
+        // Since ES is doing the installing, give it a chance to complete
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
 
         final List<String> actualPlugins = sh.run(installation.executables().pluginTool + " list").stdout.lines()
             .collect(Collectors.toList());

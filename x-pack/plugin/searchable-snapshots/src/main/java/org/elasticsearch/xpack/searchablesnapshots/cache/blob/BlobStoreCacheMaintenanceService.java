@@ -173,7 +173,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                         request.setQuery(buildDeleteByQuery(indexMetadata.getNumberOfShards(), snapshotId.getUUID(), indexId.getId()));
                         request.setRefresh(queue.isEmpty());
 
-                        queue.add(Tuple.tuple(request, new ActionListener<>() {
+                        queue.add(Tuple.tuple(request, new ActionListener<BulkByScrollResponse>() {
                             @Override
                             public void onResponse(BulkByScrollResponse response) {
                                 logger.debug(

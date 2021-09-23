@@ -16,8 +16,8 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
@@ -26,14 +26,15 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
@@ -76,7 +77,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
             for (int n = 100; n > 0; n--) {
                 indexRequestBuilders.add(
-                    client().prepareIndex(indexName)
+                    client().prepareIndex(indexName, SINGLE_MAPPING_NAME)
                         .setSource(
                             XContentFactory.smileBuilder()
                                 .startObject()
@@ -87,7 +88,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             }
             indexRandom(true, indexRequestBuilders);
 
-            createSnapshot(repositoryName, "snapshot-" + i, List.of(indexName));
+            createSnapshot(repositoryName, "snapshot-" + i, Collections.singletonList(indexName));
             assertAcked(client().admin().indices().prepareDelete(indexName));
 
             final String mountedIndex = "mounted-index-" + i;
@@ -124,7 +125,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         assertThat(numberOfEntriesInCache, equalTo(mountedIndices.values().stream().mapToLong(l -> l).sum()));
 
         final List<String> indicesToDelete = randomSubsetOf(randomIntBetween(1, mountedIndices.size()), mountedIndices.keySet());
-        assertAcked(client().admin().indices().prepareDelete(indicesToDelete.toArray(String[]::new)));
+        assertAcked(client().admin().indices().prepareDelete(indicesToDelete.toArray(new String[0])));
 
         final long expectedDeletedEntriesInCache = mountedIndices.entrySet()
             .stream()
@@ -157,7 +158,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
         final Set<String> remainingIndices = mountedIndices.keySet()
             .stream()
-            .filter(Predicate.not(indicesToDelete::contains))
+            .filter(index -> indicesToDelete.contains(index) == false)
             .collect(Collectors.toSet());
 
         if (remainingIndices.isEmpty() == false) {
@@ -194,7 +195,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                 snapshotIndexName,
                 remainingMountedIndex
             );
-            assertAcked(client().admin().indices().prepareDelete(moreIndicesToDelete.toArray(String[]::new)));
+            assertAcked(client().admin().indices().prepareDelete(moreIndicesToDelete.toArray(new String[0])));
 
             assertBusy(() -> {
                 refreshSystemIndex(true);

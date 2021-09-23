@@ -380,6 +380,58 @@ public class VectorTileRestIT extends ESRestTestCase {
         }
     }
 
+    public void testTrackTotalHitsAsBoolean() throws Exception {
+        {
+            final Request mvtRequest = new Request(
+                getHttpMethod(),
+                INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y + "?track_total_hits=true"
+            );
+            final VectorTile.Tile tile = execute(mvtRequest);
+            assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+            assertLayer(tile, HITS_LAYER, 4096, 33, 2);
+            assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
+            assertLayer(tile, META_LAYER, 4096, 1, 13);
+            assertStringTag(getLayer(tile, META_LAYER), getLayer(tile, META_LAYER).getFeatures(0), "hits.total.relation", "eq");
+            assertSintTag(getLayer(tile, META_LAYER), getLayer(tile, META_LAYER).getFeatures(0), "hits.total.value", 33);
+        }
+        {
+            final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+            mvtRequest.setJsonEntity("{\"track_total_hits\": false }");
+            final VectorTile.Tile tile = execute(mvtRequest);
+            assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+            assertLayer(tile, HITS_LAYER, 4096, 33, 2);
+            assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
+            assertLayer(tile, META_LAYER, 4096, 1, 11);
+        }
+    }
+
+    public void testTrackTotalHitsAsInt() throws Exception {
+        {
+            final Request mvtRequest = new Request(
+                getHttpMethod(),
+                INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y + "?track_total_hits=100"
+            );
+            final VectorTile.Tile tile = execute(mvtRequest);
+            assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+            assertLayer(tile, HITS_LAYER, 4096, 33, 2);
+            assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
+            assertLayer(tile, META_LAYER, 4096, 1, 13);
+            assertStringTag(getLayer(tile, META_LAYER), getLayer(tile, META_LAYER).getFeatures(0), "hits.total.relation", "eq");
+            assertSintTag(getLayer(tile, META_LAYER), getLayer(tile, META_LAYER).getFeatures(0), "hits.total.value", 33);
+        }
+        {
+            final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+            mvtRequest.setJsonEntity("{\"track_total_hits\": 1 }");
+            final VectorTile.Tile tile = execute(mvtRequest);
+            assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+            assertLayer(tile, HITS_LAYER, 4096, 33, 2);
+            assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
+            assertLayer(tile, META_LAYER, 4096, 1, 13);
+            assertStringTag(getLayer(tile, META_LAYER), getLayer(tile, META_LAYER).getFeatures(0), "hits.total.relation", "gte");
+            assertSintTag(getLayer(tile, META_LAYER), getLayer(tile, META_LAYER).getFeatures(0), "hits.total.value", 1);
+        }
+    }
+
     public void testGridTypeURL() throws Exception {
         final Request mvtRequest = new Request(
             getHttpMethod(),
@@ -621,6 +673,18 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(layer.getKeysCount(), Matchers.equalTo(numTags));
     }
 
+    private void assertSintTag(VectorTile.Tile.Layer layer, VectorTile.Tile.Feature feature, String tag, long value) {
+        for (int i = 0; i < feature.getTagsCount(); i += 2) {
+            String thisTag = layer.getKeys(feature.getTags(i));
+            if (tag.equals(thisTag)) {
+                VectorTile.Tile.Value thisValue = layer.getValues(feature.getTags(i + 1));
+                assertThat(value, Matchers.equalTo(thisValue.getSintValue()));
+                return;
+            }
+        }
+        fail("Could not find tag [" + tag + " ]");
+    }
+
     private void assertDoubleTag(VectorTile.Tile.Layer layer, VectorTile.Tile.Feature feature, String tag, double value) {
         for (int i = 0; i < feature.getTagsCount(); i += 2) {
             String thisTag = layer.getKeys(feature.getTags(i));
@@ -639,8 +703,10 @@ public class VectorTileRestIT extends ESRestTestCase {
             if (tag.equals(thisTag)) {
                 VectorTile.Tile.Value thisValue = layer.getValues(feature.getTags(i + 1));
                 assertEquals(thisValue.getStringValue(), value);
+                return;
             }
         }
+        fail("Could not find tag [" + tag + " ]");
     }
 
     private VectorTile.Tile execute(Request mvtRequest) throws IOException {

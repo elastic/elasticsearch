@@ -14,7 +14,7 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   // Data streams is basic, but a few tests test data streams in combination with paid features
   setting 'xpack.license.self_generated.type', 'trial'

@@ -50,9 +50,7 @@ public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEm
     public static TextEmbeddingConfig createRandom() {
         return new TextEmbeddingConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
-            randomBoolean() ?
-                null :
-                randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom())
-            );
+            randomBoolean() ? null : BertTokenizationTests.createRandom()
+        );
     }
 }

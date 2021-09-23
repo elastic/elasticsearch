@@ -316,7 +316,7 @@ public class HotThreadsTests extends ESTestCase {
         // Test with only one stack to trigger the different print in innerDetect
 
         allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
-        cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
+        cpuOrderedInfos = org.elasticsearch.core.List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         hotThreads = new HotThreads()
@@ -503,7 +503,7 @@ public class HotThreadsTests extends ESTestCase {
         List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
 
         long[] topThreadIds = new long[]{threadIds[threadIds.length - 1], threadIds[threadIds.length - 2]};
-        List<ThreadInfo> topThreads = List.of(
+        List<ThreadInfo> topThreads = org.elasticsearch.core.List.of(
             allInfos.get(threadIds.length - 1),
             allInfos.get(threadIds.length - 2));
 
@@ -559,7 +559,7 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
         List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
-        List<ThreadInfo> cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
+        List<ThreadInfo> cpuOrderedInfos = org.elasticsearch.core.List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         HotThreads hotThreads = new HotThreads()

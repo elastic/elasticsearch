@@ -23,7 +23,7 @@ tasks.named("javaRestTest").configure {
   systemProperty 'tests.path.repo', repoDir
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
 

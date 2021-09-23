@@ -32,7 +32,7 @@ testClusters.matching { it.name == 'leader-cluster' }.configureEach {
 
 tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn tasks.findByName('leader-cluster')
-  useCluster testClusters.'leader-cluster'
+  useCluster testClusters.named('leader-cluster')
   systemProperty 'tests.target_cluster', 'follow'
   nonInputProperties.systemProperty 'tests.leader_host',
     "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"

@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCase<
     org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse, GetFeatureUpgradeStatusResponse> {
 
+    /** Our constructor should convert nulls to empty lists */
     public void testConstructorHandlesNullLists() {
         GetFeatureUpgradeStatusResponse response = new GetFeatureUpgradeStatusResponse(null, "status");
         assertThat(response.getFeatureUpgradeStatuses(), notNullValue());

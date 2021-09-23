@@ -10,6 +10,10 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.client.migration.DeprecationInfoRequest;
 import org.elasticsearch.client.migration.DeprecationInfoResponse;
+import org.elasticsearch.client.migration.GetFeatureUpgradeStatusRequest;
+import org.elasticsearch.client.migration.GetFeatureUpgradeStatusResponse;
+import org.elasticsearch.client.migration.PostFeatureUpgradeRequest;
+import org.elasticsearch.client.migration.PostFeatureUpgradeResponse;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -28,5 +32,21 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getIndexSettingsIssues().size(), equalTo(0));
         assertThat(response.getNodeSettingsIssues().size(), equalTo(0));
         assertThat(response.getMlSettingsIssues().size(), equalTo(0));
+    }
+
+    public void testGetFeatureUpgradeStatus() throws IOException {
+        GetFeatureUpgradeStatusRequest request = new GetFeatureUpgradeStatusRequest();
+        GetFeatureUpgradeStatusResponse response = highLevelClient().migration().getFeatureUpgradeStatus(request, RequestOptions.DEFAULT);
+        // a test like this cannot test actual deprecations
+        assertThat(response.getUpgradeStatus(), equalTo("UPGRADE_NEEDED"));
+        assertThat(response.getFeatureUpgradeStatuses().size(), equalTo(0));
+    }
+
+    public void testPostFeatureUpgradeStatus() throws IOException {
+        PostFeatureUpgradeRequest request = new PostFeatureUpgradeRequest();
+        PostFeatureUpgradeResponse response = highLevelClient().migration().postFeatureUpgrade(request, RequestOptions.DEFAULT);
+        // a test like this cannot test actual deprecations
+        assertThat(response.isAccepted(), equalTo(false));
+        assertThat(response.getFeatures().size(), equalTo(0));
     }
 }

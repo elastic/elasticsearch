@@ -28,6 +28,11 @@ final class MigrationRequestConverters {
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
+    /**
+     * Convert a {@link GetFeatureUpgradeStatusRequest} to a {@link Request}
+     * @param getFeatureUpgradeStatusRequest a request for feature upgrade status
+     * @return a {@link Request} with the correct path and HTTP request type
+     */
     static Request getFeatureUpgradeStatus(GetFeatureUpgradeStatusRequest getFeatureUpgradeStatusRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_migration", "system_features")
@@ -36,6 +41,11 @@ final class MigrationRequestConverters {
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
+    /**
+     * Convert a {@link PostFeatureUpgradeRequest} to a {@link Request}
+     * @param postFeatureUpgradeRequest a request for feature upgrade status
+     * @return a {@link Request} with the correct path and HTTP request type
+     */
     static Request postFeatureUpgrade(PostFeatureUpgradeRequest postFeatureUpgradeRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_migration", "system_features")

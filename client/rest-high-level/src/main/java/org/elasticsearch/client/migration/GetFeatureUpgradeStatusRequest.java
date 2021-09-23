@@ -10,6 +10,9 @@ package org.elasticsearch.client.migration;
 
 import org.elasticsearch.client.TimedRequest;
 
+/**
+ * A request for information about which system features need to be upgraded.
+ */
 public class GetFeatureUpgradeStatusRequest extends TimedRequest {
 
 }

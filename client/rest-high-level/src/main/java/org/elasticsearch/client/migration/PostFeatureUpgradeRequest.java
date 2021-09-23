@@ -10,6 +10,9 @@ package org.elasticsearch.client.migration;
 
 import org.elasticsearch.client.TimedRequest;
 
+/**
+ * A request to begin a system feature update
+ */
 public class PostFeatureUpgradeRequest extends TimedRequest {
 
 }

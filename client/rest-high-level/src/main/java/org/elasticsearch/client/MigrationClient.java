@@ -59,6 +59,13 @@ public final class MigrationClient {
             DeprecationInfoResponse::fromXContent, listener, Collections.emptySet());
     }
 
+    /**
+     * Get a list of system features that need to be upgraded for the next release
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
     public GetFeatureUpgradeStatusResponse getFeatureUpgradeStatus(
         GetFeatureUpgradeStatusRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
@@ -70,6 +77,13 @@ public final class MigrationClient {
         );
     }
 
+    /**
+     * Asynchronously get a list of system features that need to be upgraded for the next release
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
     public Cancellable getFeatureUpgradeStatusAsync(GetFeatureUpgradeStatusRequest request,
                                                     RequestOptions options, ActionListener<GetFeatureUpgradeStatusResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
@@ -82,6 +96,13 @@ public final class MigrationClient {
         );
     }
 
+    /**
+     * Trigger a system feature upgrade
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
     public PostFeatureUpgradeResponse postFeatureUpgrade(
         PostFeatureUpgradeRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
@@ -93,6 +114,13 @@ public final class MigrationClient {
         );
     }
 
+    /**
+     * Asynchronously trigger a system feature upgrade
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
     public Cancellable postFeatureUpgradeAsync(
         PostFeatureUpgradeRequest request, RequestOptions options,
         ActionListener<PostFeatureUpgradeResponse> listener) throws IOException {

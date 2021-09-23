@@ -18,6 +18,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Information about which system features need to be upgraded before the next
+ * major version.
+ */
 public class GetFeatureUpgradeStatusResponse {
 
     private static final ParseField FEATURE_UPGRADE_STATUSES = new ParseField("features");
@@ -39,6 +43,11 @@ public class GetFeatureUpgradeStatusResponse {
             (p, c) -> p.text(), UPGRADE_STATUS, ObjectParser.ValueType.STRING);
     }
 
+    /**
+     * Constructor for the response object
+     * @param featureUpgradeStatuses A list of feature, their upgrade statuses, and other relevant information for upgrading
+     * @param upgradeStatus Does this feature need to be upgraded or not?
+     */
     public GetFeatureUpgradeStatusResponse(List<FeatureUpgradeStatus> featureUpgradeStatuses, String upgradeStatus) {
         this.featureUpgradeStatuses = Objects.nonNull(featureUpgradeStatuses) ? featureUpgradeStatuses : Collections.emptyList();
         this.upgradeStatus = upgradeStatus;
@@ -56,6 +65,9 @@ public class GetFeatureUpgradeStatusResponse {
         return upgradeStatus;
     }
 
+    /**
+     * This class represents a particular feature and whether it needs to be upgraded.
+     */
     public static class FeatureUpgradeStatus {
         private final String featureName;
         private final String minimumIndexVersion;
@@ -82,6 +94,13 @@ public class GetFeatureUpgradeStatusResponse {
             PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), IndexVersion::parse, INDEX_VERSIONS);
         }
 
+        /**
+         * A feature upgrade status object
+         * @param featureName Name of the feature
+         * @param minimumIndexVersion The earliest version of Elasticsearch used to create one of this feature's system indices
+         * @param upgradeStatus Whether this feature needs to be upgraded
+         * @param indexVersions A list of individual indices and which version of Elasticsearch created them
+         */
         public FeatureUpgradeStatus(
             String featureName,
             String minimumIndexVersion,
@@ -131,10 +150,18 @@ public class GetFeatureUpgradeStatusResponse {
         }
     }
 
+    /**
+     * A class representing an index and the version of Elasticsearch that created it.
+     */
     public static class IndexVersion {
         private final String indexName;
         private final String version;
 
+        /**
+         * Constructor
+         * @param indexName Name of a concrete index
+         * @param version Version of Elasticsearch used to create the index
+         */
         public IndexVersion(String indexName, String version) {
             this.indexName = indexName;
             this.version = version;

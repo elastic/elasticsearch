@@ -19,6 +19,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Response to a request to begin a feature update
+ */
 public class PostFeatureUpgradeResponse {
 
     private final boolean accepted;
@@ -56,6 +59,12 @@ public class PostFeatureUpgradeResponse {
         return PARSER.apply(parser, null);
     }
 
+    /**
+     * @param accepted Whether the request to begin an upgrade was accepted by the server
+     * @param features List of features that will be upgraded, empty for rejected requests
+     * @param reason If the request was rejected, an explanation of why it was rejected, null otherwise.
+     * @param elasticsearchException If a request was request because of an exception, the exception. Null otherwise.
+     */
     public PostFeatureUpgradeResponse(
         boolean accepted,
         List<Feature> features,
@@ -105,6 +114,9 @@ public class PostFeatureUpgradeResponse {
         return Objects.hash(accepted, features, reason);
     }
 
+    /**
+     * A data class representing a feature.
+     */
     public static class Feature {
         private final String featureName;
 
@@ -123,6 +135,9 @@ public class PostFeatureUpgradeResponse {
             return PARSER.apply(parser, ctx);
         }
 
+        /**
+         * @param featureName Name of the feature being upgraded.
+         */
         public Feature(String featureName) {
             this.featureName = featureName;
         }

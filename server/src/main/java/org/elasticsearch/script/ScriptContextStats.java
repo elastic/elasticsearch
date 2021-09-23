@@ -65,48 +65,48 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
     }
 
     public static class TimeSeries implements Writeable, ToXContentFragment {
-        public final long five;
-        public final long fifteen;
-        public final long day;
+        public final long fiveMinutes;
+        public final long fifteenMinutes;
+        public final long twentyFourHours;
 
         public TimeSeries() {
-            this.five = 0;
-            this.fifteen = 0;
-            this.day = 0;
+            this.fiveMinutes = 0;
+            this.fifteenMinutes = 0;
+            this.twentyFourHours = 0;
         }
 
-        public TimeSeries(long five, long fifteen, long day) {
-            assert five >= 0;
-            this.five = five;
-            assert fifteen >= five;
-            this.fifteen = fifteen;
-            assert day >= fifteen;
-            this.day = day;
+        public TimeSeries(long fiveMinutes, long fifteenMinutes, long twentyFourHours) {
+            assert fiveMinutes >= 0;
+            this.fiveMinutes = fiveMinutes;
+            assert fifteenMinutes >= fiveMinutes;
+            this.fifteenMinutes = fifteenMinutes;
+            assert twentyFourHours >= fifteenMinutes;
+            this.twentyFourHours = twentyFourHours;
         }
 
         public TimeSeries(StreamInput in) throws IOException {
-            five = in.readVLong();
-            fifteen = in.readVLong();
-            day = in.readVLong();
+            fiveMinutes = in.readVLong();
+            fifteenMinutes = in.readVLong();
+            twentyFourHours = in.readVLong();
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(Fields.FIVE_MINUTES, five);
-            builder.field(Fields.FIFTEEN_MINUTES, fifteen);
-            builder.field(Fields.TWENTY_FOUR_HOURS, day);
+            builder.field(Fields.FIVE_MINUTES, fiveMinutes);
+            builder.field(Fields.FIFTEEN_MINUTES, fifteenMinutes);
+            builder.field(Fields.TWENTY_FOUR_HOURS, twentyFourHours);
             return builder;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(five);
-            out.writeVLong(fifteen);
-            out.writeVLong(day);
+            out.writeVLong(fiveMinutes);
+            out.writeVLong(fifteenMinutes);
+            out.writeVLong(twentyFourHours);
         }
 
         public boolean isEmpty() {
-            return day == 0;
+            return twentyFourHours == 0;
         }
 
         @Override
@@ -114,12 +114,12 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TimeSeries that = (TimeSeries) o;
-            return five == that.five && fifteen == that.fifteen && day == that.day;
+            return fiveMinutes == that.fiveMinutes && fifteenMinutes == that.fifteenMinutes && twentyFourHours == that.twentyFourHours;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(five, fifteen, day);
+            return Objects.hash(fiveMinutes, fifteenMinutes, twentyFourHours);
         }
     }
 

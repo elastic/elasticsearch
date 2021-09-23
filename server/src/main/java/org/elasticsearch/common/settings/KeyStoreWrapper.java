@@ -294,11 +294,11 @@ public class KeyStoreWrapper implements SecureSettings {
                 dataBytes = bytes.toByteArray();
             } else {
                 int dataBytesLen;
-                if (formatVersion < 5) {
-                    dataBytesLen = Integer.reverseBytes(input.readInt());
-                } else {
+                //if (formatVersion < 5) {
+                //    dataBytesLen = Integer.reverseBytes(input.readInt());
+                //} else {
                 dataBytesLen = input.readInt();
-                }
+                //}
                 dataBytes = new byte[dataBytesLen];
                 input.readBytes(dataBytes, 0, dataBytesLen);
             }

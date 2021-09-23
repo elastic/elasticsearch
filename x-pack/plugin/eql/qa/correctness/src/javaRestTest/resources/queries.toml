@@ -385,8 +385,8 @@ type = "sequence"
 
 [[queries]]
 queryNo = 24
-count = 1
-expected_event_ids = [2860083, 2860090, 2860098]
+count = 0
+expected_event_ids = []
 filter_counts = [6, 6, 6]
 filters = [
   'security where hostname != "newyork" and event_id == 4625',

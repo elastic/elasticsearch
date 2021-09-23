@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -22,7 +21,6 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -60,12 +58,10 @@ public class BoxedQueryRequest implements QueryRequest {
         RuntimeUtils.addFilter(timestampRange, searchSource);
         // do not join on null values
         if (keyNames.isEmpty() == false) {
-            BoolQueryBuilder nullValuesFilter = boolQuery();
-            for (int keyIndex = 0; keyIndex < keyNames.size(); keyIndex++) {
+            for (String keyName : keyNames) {
                 // add an "exists" query for each join key to filter out any non-existent values
-                nullValuesFilter.must(existsQuery(keyNames.get(keyIndex)));
+                RuntimeUtils.addFilter(existsQuery(keyName), searchSource);
             }
-            RuntimeUtils.addFilter(nullValuesFilter, searchSource);
         }
     }
 

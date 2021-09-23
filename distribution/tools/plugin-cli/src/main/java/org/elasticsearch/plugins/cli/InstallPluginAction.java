@@ -50,7 +50,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
-import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -183,11 +182,6 @@ class InstallPluginAction implements Closeable {
     private final Terminal terminal;
     private Environment env;
     private boolean batch;
-    private Proxy proxy = Proxy.NO_PROXY;
-
-    InstallPluginAction(Terminal terminal, Environment env) {
-        this(terminal, env, false);
-    }
 
     InstallPluginAction(Terminal terminal, Environment env, boolean batch) {
         this.terminal = terminal;
@@ -209,8 +203,8 @@ class InstallPluginAction implements Closeable {
         }
 
         final Map<String, List<Path>> deleteOnFailures = new LinkedHashMap<>();
-        for (final PluginDescriptor descriptor : plugins) {
-            final String pluginId = descriptor.getId();
+        for (final PluginDescriptor plugin : plugins) {
+            final String pluginId = plugin.getId();
             terminal.println("-> Installing " + pluginId);
             try {
                 if ("x-pack".equals(pluginId)) {
@@ -220,10 +214,10 @@ class InstallPluginAction implements Closeable {
                 final List<Path> deleteOnFailure = new ArrayList<>();
                 deleteOnFailures.put(pluginId, deleteOnFailure);
 
-                final Path pluginZip = download(descriptor, env.tmpFile());
+                final Path pluginZip = download(plugin, env.tmpFile());
                 final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
-                final PluginInfo pluginInfo = installPlugin(descriptor, extractedZip, deleteOnFailure);
+                final PluginInfo pluginInfo = installPlugin(plugin, extractedZip, deleteOnFailure);
                 terminal.println("-> Installed " + pluginInfo.getName());
                 // swap the entry by plugin id for one with the installed plugin name, it gives a cleaner error message for URL installs
                 deleteOnFailures.remove(pluginId);
@@ -447,7 +441,7 @@ class InstallPluginAction implements Closeable {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
-        URLConnection urlConnection = url.openConnection(this.proxy);
+        URLConnection urlConnection = url.openConnection();
         urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
         try (
             InputStream in = batch
@@ -468,10 +462,6 @@ class InstallPluginAction implements Closeable {
     // for testing only
     void setBatch(boolean batch) {
         this.batch = batch;
-    }
-
-    void setProxy(Proxy proxy) {
-        this.proxy = Objects.requireNonNull(proxy);
     }
 
     /**
@@ -508,9 +498,9 @@ class InstallPluginAction implements Closeable {
         }
     }
 
-    @SuppressForbidden(reason = "URL#openConnection")
-    InputStream urlOpenStream(final URL url) throws IOException {
-        return url.openConnection(this.proxy).getInputStream();
+    @SuppressForbidden(reason = "URL#openStream")
+    private InputStream urlOpenStream(final URL url) throws IOException {
+        return url.openStream();
     }
 
     /**
@@ -706,7 +696,7 @@ class InstallPluginAction implements Closeable {
     // pkg private for tests
     URL openUrl(String urlString) throws IOException {
         URL checksumUrl = new URL(urlString);
-        HttpURLConnection connection = (HttpURLConnection) checksumUrl.openConnection(this.proxy);
+        HttpURLConnection connection = (HttpURLConnection) checksumUrl.openConnection();
         if (connection.getResponseCode() == 404) {
             return null;
         }
@@ -1054,5 +1044,4 @@ class InstallPluginAction implements Closeable {
 
         throw new UserException(ExitCodes.NOPERM, "Plugin license is incompatible with [" + flavor + "] installation");
     }
-
 }

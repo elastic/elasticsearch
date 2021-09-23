@@ -43,8 +43,8 @@ public class DockerRun {
         return this;
     }
 
-    public DockerRun envVars(String key, String value) {
-        this.envVars.put(Objects.requireNonNull(key), value);
+    public DockerRun envVar(String key, String value) {
+        this.envVars.put(key, value);
         return this;
     }
 

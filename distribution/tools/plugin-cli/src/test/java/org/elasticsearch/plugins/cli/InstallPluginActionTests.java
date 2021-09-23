@@ -138,13 +138,13 @@ public class InstallPluginActionTests extends ESTestCase {
         pluginDir = createPluginDir(temp);
         terminal = new MockTerminal();
         env = createEnv(temp);
-        skipJarHellAction = new InstallPluginAction(terminal, null) {
+        skipJarHellAction = new InstallPluginAction(terminal, null, false) {
             @Override
             void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) {
                 // no jarhell check
             }
         };
-        defaultAction = new InstallPluginAction(terminal, env.v2());
+        defaultAction = new InstallPluginAction(terminal, env.v2(), false);
     }
 
     @Override
@@ -772,7 +772,7 @@ public class InstallPluginActionTests extends ESTestCase {
         throws IOException {
 
         final Environment environment = createEnv(temp).v2();
-        final InstallPluginAction flavorAction = new InstallPluginAction(terminal, environment) {
+        final InstallPluginAction flavorAction = new InstallPluginAction(terminal, environment, false) {
             @Override
             Build.Flavor buildFlavor() {
                 return flavor;
@@ -894,7 +894,7 @@ public class InstallPluginActionTests extends ESTestCase {
     ) throws Exception {
         PluginDescriptor pluginZip = createPlugin(pluginId, pluginDir);
         Path pluginZipPath = Path.of(URI.create(pluginZip.getLocation()));
-        InstallPluginAction action = new InstallPluginAction(terminal, env.v2()) {
+        InstallPluginAction action = new InstallPluginAction(terminal, env.v2(), false) {
             @Override
             Path downloadZip(String urlString, Path tmpDir) throws IOException {
                 assertEquals(url, urlString);
@@ -920,13 +920,6 @@ public class InstallPluginActionTests extends ESTestCase {
                     return ascFile.toUri().toURL();
                 }
                 return null;
-            }
-
-            @Override
-            @SuppressForbidden(reason = "We need to open a stream")
-            // Overrides super to ignore the proxy
-            InputStream urlOpenStream(URL url) throws IOException {
-                return url.openStream();
             }
 
             @Override

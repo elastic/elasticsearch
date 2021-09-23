@@ -298,12 +298,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (Files.exists(rootPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
                 for (Path plugin : stream) {
-                    final String fileName = plugin.getFileName().toString();
                     if (FileSystemUtils.isDesktopServicesStore(plugin) ||
-                        fileName.startsWith(".removing-")) {
+                        plugin.getFileName().toString().startsWith(".removing-")) {
                         continue;
                     }
-                    if (seen.add(fileName) == false) {
+                    if (seen.add(plugin.getFileName().toString()) == false) {
                         throw new IllegalStateException("duplicate plugin: " + plugin);
                     }
                     plugins.add(plugin);

@@ -82,8 +82,13 @@ import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 /**
- * This class tests the Elasticsearch Docker images. We have more than one because we build
- * an image with a custom, small base image, and an image based on RedHat's UBI.
+ * This class tests the Elasticsearch Docker images. We have several:
+ * <ul>
+ *     <li>The default image with a custom, small base image</li>
+ *     <li>A UBI-based image</li>
+ *     <li>Another UBI image for Iron Bank</li>
+ *     <li>Images for Cloud</li>
+ * </ul>
  */
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;
@@ -99,7 +104,7 @@ public class DockerTests extends PackagingTestCase {
     public void setupTest() throws IOException {
         installation = runContainer(
             distribution(),
-            builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+            builder().envVar("ingest.geoip.downloader.enabled", "false").envVar("ELASTIC_PASSWORD", PASSWORD)
         );
         tempDir = createTempDir(DockerTests.class.getSimpleName());
     }
@@ -131,7 +136,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test012SecurityCanBeDisabled() throws Exception {
         // restart container with security disabled
-        runContainer(distribution(), builder().envVars(Map.of("xpack.security.enabled", "false")));
+        runContainer(distribution(), builder().envVar("xpack.security.enabled", "false"));
         waitForElasticsearch(installation);
         final int unauthStatusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), null, null, null);
         assertThat(unauthStatusCode, equalTo(200));
@@ -195,9 +200,9 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Checks that ESS images can manage plugins using the `sync` subcommand.
+     * Checks that ESS images can manage plugins by deploying a plugins config file.
      */
-    public void test023InstallPluginsUsingConfigFile() throws Exception {
+    public void test023InstallPluginsUsingConfigFile() {
         assumeTrue("Only applies to ESS images", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
 
         // The repository plugins have to be present, because (1) they are preinstalled, and (2) they
@@ -220,15 +225,11 @@ public class DockerTests extends PackagingTestCase {
         runContainer(
             distribution(),
             builder().volumes(volumes)
-                .envVars(
-                    Map.of(
-                        "ingest.geoip.downloader.enabled",
-                        "false",
-                        "ELASTIC_PASSWORD",
-                        PASSWORD,
-                        "ES_JAVA_OPTS",
-                        "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
-                    )
+                .envVar("ingest.geoip.downloader.enabled", "false")
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
+                .envVar(
+                    "ES_JAVA_OPTS",
+                    "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
                 )
         );
 
@@ -263,7 +264,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that when the keystore is created on startup, it is created with the correct permissions.
      */
-    public void test042KeystorePermissionsAreCorrect() throws Exception {
+    public void test042KeystorePermissionsAreCorrect() {
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 
         assertThat(installation.config("elasticsearch.keystore"), file(p660));
@@ -305,16 +306,9 @@ public class DockerTests extends PackagingTestCase {
         runContainer(
             distribution(),
             builder().volumes(volumes)
-                .envVars(
-                    Map.of(
-                        "ES_JAVA_OPTS",
-                        "-XX:-UseCompressedOops",
-                        "ingest.geoip.downloader.enabled",
-                        "false",
-                        "ELASTIC_PASSWORD",
-                        PASSWORD
-                    )
-                )
+                .envVar("ES_JAVA_OPTS", "-XX:-UseCompressedOops")
+                .envVar("ingest.geoip.downloader.enabled", "false")
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
         );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -345,7 +339,7 @@ public class DockerTests extends PackagingTestCase {
 
             runContainer(
                 distribution(),
-                builder().volumes(volumes).envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+                builder().volumes(volumes).envVar("ingest.geoip.downloader.enabled", "false").envVar("ELASTIC_PASSWORD", PASSWORD)
             );
 
             waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -399,9 +393,7 @@ public class DockerTests extends PackagingTestCase {
         // Restart the container
         runContainer(
             distribution(),
-            builder().volumes(volumes)
-                .envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
-                .uid(501, 501)
+            builder().volumes(volumes).envVar("ingest.geoip.downloader.enabled", "false").envVar("ELASTIC_PASSWORD", PASSWORD).uid(501, 501)
         );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -411,13 +403,14 @@ public class DockerTests extends PackagingTestCase {
      * Check that it is possible to run Elasticsearch under a different user and group to the default,
      * without bind-mounting any directories, provided the container user is added to the `root` group.
      */
-    public void test073RunEsAsDifferentUserAndGroupWithoutBindMounting() throws Exception {
+    public void test073RunEsAsDifferentUserAndGroupWithoutBindMounting() {
         // Restart the container
         runContainer(
             distribution(),
-            builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+            builder().extraArgs("--group-add 0")
                 .uid(501, 501)
-                .extraArgs("--group-add 0")
+                .envVar("ingest.geoip.downloader.enabled", "false")
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
         );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -433,8 +426,6 @@ public class DockerTests extends PackagingTestCase {
         // ELASTIC_PASSWORD_FILE
         Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
-
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
@@ -444,7 +435,7 @@ public class DockerTests extends PackagingTestCase {
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
         // Restart the container
-        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
+        runContainer(distribution(), builder().volumes(volumes).envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename));
 
         // If we configured security correctly, then this call will only work if we specify the correct credentials.
         try {
@@ -481,8 +472,6 @@ public class DockerTests extends PackagingTestCase {
         // it won't resolve inside the container.
         Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
-
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values. The wrapper will resolve the symlink
         // and check the target's permissions.
@@ -492,7 +481,7 @@ public class DockerTests extends PackagingTestCase {
 
         // Restart the container - this will check that Elasticsearch started correctly,
         // and didn't fail to follow the symlink and check the file permissions
-        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
+        runContainer(distribution(), builder().volumes(volumes).envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename));
     }
 
     /**
@@ -503,17 +492,18 @@ public class DockerTests extends PackagingTestCase {
 
         Files.writeString(tempDir.resolve(passwordFilename), "other_hunter2\n");
 
-        Map<String, String> envVars = new HashMap<>();
-        envVars.put("ELASTIC_PASSWORD", "hunter2");
-        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
-
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
-        final Result dockerLogs = runContainerExpectingFailure(distribution, builder().volumes(volumes).envVars(envVars));
+        final Result dockerLogs = runContainerExpectingFailure(
+            distribution,
+            builder().volumes(volumes)
+                .envVar("ELASTIC_PASSWORD", "hunter2")
+                .envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
 
         assertThat(
             dockerLogs.stderr,
@@ -530,15 +520,16 @@ public class DockerTests extends PackagingTestCase {
 
         Files.writeString(tempDir.resolve(passwordFilename), "hunter2\n");
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
-
         // Set invalid file permissions
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p660);
 
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
         // Restart the container
-        final Result dockerLogs = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
+        final Result dockerLogs = runContainerExpectingFailure(
+            distribution(),
+            builder().volumes(volumes).envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
 
         assertThat(
             dockerLogs.stderr,
@@ -567,15 +558,16 @@ public class DockerTests extends PackagingTestCase {
         // it won't resolve inside the container.
         Files.createSymbolicLink(tempDir.resolve(symlinkFilename), Path.of(passwordFilename));
 
-        Map<String, String> envVars = Map.of("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename);
-
         // Set invalid permissions on the file that the symlink targets
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p775);
 
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
         // Restart the container
-        final Result dockerLogs = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
+        final Result dockerLogs = runContainerExpectingFailure(
+            distribution(),
+            builder().volumes(volumes).envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename)
+        );
 
         assertThat(
             dockerLogs.stderr,
@@ -594,7 +586,7 @@ public class DockerTests extends PackagingTestCase {
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
     public void test085EnvironmentVariablesAreRespectedUnderDockerExec() throws Exception {
-        installation = runContainer(distribution(), builder().envVars(Map.of("ELASTIC_PASSWORD", "hunter2")));
+        installation = runContainer(distribution(), builder().envVar("ELASTIC_PASSWORD", "hunter2"));
 
         // The tool below requires a keystore, so ensure that ES is fully initialised before proceeding.
         waitForElasticsearch("green", null, installation, "elastic", "hunter2");
@@ -619,7 +611,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test086EnvironmentVariablesInSnakeCaseAreTranslated() {
         // Note the double-underscore in the var name here, which retains the underscore in translation
-        installation = runContainer(distribution(), builder().envVars(Map.of("ES_SETTING_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")));
+        installation = runContainer(distribution(), builder().envVar("ES_SETTING_XPACK_SECURITY_FIPS__MODE_ENABLED", "false"));
 
         final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
             .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
@@ -795,7 +787,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the container logs contain the expected content for Elasticsearch itself.
      */
-    public void test120DockerLogsIncludeElasticsearchLogs() throws Exception {
+    public void test120DockerLogsIncludeElasticsearchLogs() {
         waitForElasticsearch(installation, USERNAME, PASSWORD);
         final Result containerLogs = getContainerLogs();
 
@@ -806,10 +798,10 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that it is possible to write logs to disk
      */
-    public void test121CanUseStackLoggingConfig() throws Exception {
+    public void test121CanUseStackLoggingConfig() {
         runContainer(
             distribution(),
-            builder().envVars(Map.of("ES_LOG_STYLE", "file", "ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+            builder().envVar("ES_LOG_STYLE", "file").envVar("ingest.geoip.downloader.enabled", "false").envVar("ELASTIC_PASSWORD", PASSWORD)
         );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -828,10 +820,12 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the default logging config can be explicitly selected.
      */
-    public void test122CanUseDockerLoggingConfig() throws Exception {
+    public void test122CanUseDockerLoggingConfig() {
         runContainer(
             distribution(),
-            builder().envVars(Map.of("ES_LOG_STYLE", "console", "ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+            builder().envVar("ES_LOG_STYLE", "console")
+                .envVar("ingest.geoip.downloader.enabled", "false")
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
         );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -847,7 +841,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that an unknown logging config is rejected
      */
     public void test123CannotUseUnknownLoggingConfig() {
-        final Result result = runContainerExpectingFailure(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "unknown")));
+        final Result result = runContainerExpectingFailure(distribution(), builder().envVar("ES_LOG_STYLE", "unknown"));
 
         assertThat(result.stderr, containsString("ERROR: ES_LOG_STYLE set to [unknown]. Expected [console] or [file]"));
     }
@@ -855,8 +849,8 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that it when configuring logging to write to disk, the container can be restarted.
      */
-    public void test124CanRestartContainerWithStackLoggingConfig() throws Exception {
-        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file", "ELASTIC_PASSWORD", PASSWORD)));
+    public void test124CanRestartContainerWithStackLoggingConfig() {
+        runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "file").envVar("ELASTIC_PASSWORD", PASSWORD));
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 
@@ -934,7 +928,8 @@ public class DockerTests extends PackagingTestCase {
             distribution(),
             builder().memory("942m")
                 .volumes(Map.of(jvmOptionsPath, containerJvmOptionsPath))
-                .envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
+                .envVar("ingest.geoip.downloader.enabled", "false")
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
         );
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 

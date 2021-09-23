@@ -16,7 +16,6 @@ import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
@@ -45,6 +45,7 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toCollection;
+import static org.elasticsearch.core.Map.entry;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
@@ -501,15 +502,15 @@ public class DoSection implements ExecutableSection {
                 " " + restTestResponse.getReasonPhrase() + "] [" + restTestResponse.getBodyAsString() + "]";
     }
 
-    private static final Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> CATCHES = Map.ofEntries(
-        Map.entry("bad_request", tuple("400", equalTo(400))),
-        Map.entry("unauthorized", tuple("401", equalTo(401))),
-        Map.entry("forbidden", tuple("403", equalTo(403))),
-        Map.entry("missing", tuple("404", equalTo(404))),
-        Map.entry("request_timeout", tuple("408", equalTo(408))),
-        Map.entry("conflict", tuple("409", equalTo(409))),
-        Map.entry("unavailable", tuple("503", equalTo(503))),
-        Map.entry("request", tuple("4xx|5xx", allOf(greaterThanOrEqualTo(400),
+    private static final Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> CATCHES = org.elasticsearch.core.Map.ofEntries(
+        entry("bad_request", tuple("400", equalTo(400))),
+        entry("unauthorized", tuple("401", equalTo(401))),
+        entry("forbidden", tuple("403", equalTo(403))),
+        entry("missing", tuple("404", equalTo(404))),
+        entry("request_timeout", tuple("408", equalTo(408))),
+        entry("conflict", tuple("409", equalTo(409))),
+        entry("unavailable", tuple("503", equalTo(503))),
+        entry("request", tuple("4xx|5xx", allOf(greaterThanOrEqualTo(400),
             not(equalTo(400)),
             not(equalTo(401)),
             not(equalTo(403)),

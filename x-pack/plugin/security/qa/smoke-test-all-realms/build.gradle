@@ -6,14 +6,14 @@
  * This test is also intended to work correctly on FIPS mode because we also want to know if a realm breaks on FIPS.
  */
 
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-testClusters.javaRestTest {
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
@@ -81,4 +81,3 @@ testClusters.javaRestTest {
   user username: "admin_user", password: "admin-password"
   user username: "security_test_user", password: "security-test-password", role: "security_test_role"
 }
-

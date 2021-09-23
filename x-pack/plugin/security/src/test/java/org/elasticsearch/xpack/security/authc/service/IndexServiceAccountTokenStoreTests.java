@@ -85,6 +85,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore.SERVICE_ACCOUNT_TOKEN_DOC_TYPE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
@@ -112,6 +113,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = new FilterClient(mockClient) {
             @Override
+            @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 requestHolder.set(request);
@@ -135,12 +137,12 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         store = new IndexServiceAccountTokenStore(Settings.EMPTY,
             threadPool,
             Clock.systemUTC(),
@@ -190,7 +192,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final PlainActionFuture<CreateServiceAccountTokenResponse> future1 = new PlainActionFuture<>();
         store.createToken(authentication, request, future1);
         final BulkRequest bulkRequest = (BulkRequest) requestHolder.get();
-        assertThat(bulkRequest.requests().size(), equalTo(1));
+        assertThat(bulkRequest.requests(), hasSize(1));
         final IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
         final Map<String, Object> sourceMap = indexRequest.sourceAsMap();
         assertThat(sourceMap.get("username"), equalTo("elastic/fleet-server"));
@@ -385,9 +387,14 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
 
     private BulkResponse createSingleBulkResponse() {
         return new BulkResponse(new BulkItemResponse[] {
-            new BulkItemResponse(randomInt(), OpType.CREATE, new IndexResponse(
+           BulkItemResponse.success(randomInt(), OpType.CREATE, new IndexResponse(
                 mock(ShardId.class), randomAlphaOfLengthBetween(3, 8), randomLong(), randomLong(), randomLong(), true
             ))
         }, randomLong());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
     }
 }

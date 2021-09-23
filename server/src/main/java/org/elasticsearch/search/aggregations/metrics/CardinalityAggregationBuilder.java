@@ -9,10 +9,10 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -29,8 +29,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public final class CardinalityAggregationBuilder
-    extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, CardinalityAggregationBuilder> {
+public final class CardinalityAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
+    ValuesSource,
+    CardinalityAggregationBuilder> {
 
     public static final String NAME = "cardinality";
     public static final ValuesSourceRegistry.RegistryKey<CardinalityAggregatorSupplier> REGISTRY_KEY =
@@ -39,8 +40,10 @@ public final class CardinalityAggregationBuilder
     private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
 
-    public static final ObjectParser<CardinalityAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, CardinalityAggregationBuilder::new);
+    public static final ObjectParser<CardinalityAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        CardinalityAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
         PARSER.declareLong(CardinalityAggregationBuilder::precisionThreshold, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD);
@@ -57,9 +60,11 @@ public final class CardinalityAggregationBuilder
         super(name);
     }
 
-    public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone,
-                                         AggregatorFactories.Builder factoriesBuilder,
-                                         Map<String, Object> metadata) {
+    public CardinalityAggregationBuilder(
+        CardinalityAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.precisionThreshold = clone.precisionThreshold;
     }
@@ -105,7 +110,8 @@ public final class CardinalityAggregationBuilder
     public CardinalityAggregationBuilder precisionThreshold(long precisionThreshold) {
         if (precisionThreshold < 0) {
             throw new IllegalArgumentException(
-                    "[precisionThreshold] must be greater than or equal to 0. Found [" + precisionThreshold + "] in [" + name + "]");
+                "[precisionThreshold] must be greater than or equal to 0. Found [" + precisionThreshold + "] in [" + name + "]"
+            );
         }
         this.precisionThreshold = precisionThreshold;
         return this;
@@ -121,14 +127,24 @@ public final class CardinalityAggregationBuilder
     }
 
     @Override
-    protected CardinalityAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
-                                                      AggregatorFactory parent,
-                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        CardinalityAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+    protected CardinalityAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        CardinalityAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
-        return new CardinalityAggregatorFactory(name, config, precisionThreshold, context, parent,
-                                                subFactoriesBuilder, metadata, aggregatorSupplier);
+        return new CardinalityAggregatorFactory(
+            name,
+            config,
+            precisionThreshold,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override

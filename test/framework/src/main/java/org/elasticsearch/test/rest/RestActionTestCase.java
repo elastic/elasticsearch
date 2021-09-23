@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
@@ -65,8 +64,10 @@ public abstract class RestActionTestCase extends ESTestCase {
      */
     protected void dispatchRequest(RestRequest request) {
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        controller.dispatchRequest(request, channel, threadContext);
+        ThreadContext threadContext = verifyingClient.threadPool().getThreadContext();
+        try(ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            controller.dispatchRequest(request, channel, threadContext);
+        }
     }
 
     /**

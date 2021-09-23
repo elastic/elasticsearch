@@ -5,19 +5,21 @@
 Phases allowed: hot, cold, frozen.
 
 Takes a snapshot of the managed index in the configured repository and mounts it
-as a <<searchable-snapshots,{search-snap}>>.
-
-In the frozen phase, the action mounts a <<partially-mounted,partially mounted
-index>>. In other phases, the action mounts a <<fully-mounted,fully mounted
-index>>. If the original index is part of a
+as a <<searchable-snapshots,{search-snap}>>. If the index is part of a
 <<data-streams, data stream>>, the mounted index replaces the original index in
-the data stream.
+the stream.
 
-IMPORTANT: If the `searchable_snapshot` action is used in the hot phase the
-subsequent phases cannot define any of the `shrink`, `forcemerge`, `freeze` or
-`searchable_snapshot` (also available in the cold and frozen phases) actions.
+The `searchable_snapshot` action requires <<data-tiers,data tiers>>. The action
+uses the
+<<tier-preference-allocation-filter,`index.routing.allocation.include._tier_preference`>>
+setting to mount the index directly to the phase's corresponding data tier. In
+the frozen phase, the action mounts a <<partially-mounted,partially mounted
+index>> to the frozen tier. In other phases, the action mounts a
+<<fully-mounted,fully mounted index>> to the corresponding data tier.
 
-[NOTE]
+If the `searchable_snapshot` action is used in the hot phase the subsequent
+phases cannot include the `shrink`, `forcemerge`, or `freeze` actions.
+
 This action cannot be performed on a data stream's write index. Attempts to do
 so will fail. To convert the index to a searchable snapshot, first
 <<manually-roll-over-a-data-stream,manually roll over>> the data stream. This
@@ -26,6 +28,12 @@ index, the action can then convert it to a searchable snapshot.
 Using a policy that makes use of the <<ilm-rollover, rollover>> action
 in the hot phase will avoid this situation and the need for a manual rollover for future
 managed indices.
+
+IMPORTANT: Mounting and relocating the shards of {search-snap} indices involves
+copying the shard contents from the snapshot repository. This may incur
+different costs from the copying between nodes that happens with regular
+indices. These costs are typically lower but, in some environments, may be
+higher. See <<searchable-snapshots-costs>> for more details.
 
 By default, this snapshot is deleted by the <<ilm-delete, delete action>> in the delete phase.
 To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.

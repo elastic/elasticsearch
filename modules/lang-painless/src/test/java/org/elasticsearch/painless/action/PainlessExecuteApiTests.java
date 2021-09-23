@@ -288,6 +288,20 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         assertEquals(Arrays.asList("test", "baz was not here", "Data", "-10", "20", "9"), response.getResult());
     }
 
+    public void testCompositeExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=keyword");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless",
+            "emit(\"foo\", \"bar\"); emit(\"foo2\", 2);", emptyMap()), "composite_field", contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        assertEquals(Map.of(
+            "composite_field.foo", List.of("bar"),
+            "composite_field.foo2", List.of(2)), response.getResult());
+    }
+
     public void testContextWhitelists() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         // score

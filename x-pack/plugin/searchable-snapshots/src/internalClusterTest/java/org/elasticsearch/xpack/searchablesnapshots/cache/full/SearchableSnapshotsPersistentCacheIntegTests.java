@@ -23,9 +23,10 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -173,12 +174,20 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         createRepository(fsRepoName, FsRepository.TYPE);
 
         final String indexName = prefix + "index";
-        createAndPopulateIndex(
+        createIndex(
             indexName,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
+                .build()
         );
+        ensureGreen(indexName);
+
+        final int numDocs = scaledRandomIntBetween(1_000, 5_000);
+        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), numDocs)) {
+            waitForDocs(numDocs, indexer);
+        }
+        refresh(indexName);
 
         final String snapshotName = prefix + "snapshot";
         createFullSnapshot(fsRepoName, snapshotName);
@@ -187,8 +196,8 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
 
         final String mountedIndexName = mountSnapshot(fsRepoName, snapshotName, indexName, Settings.EMPTY);
 
-        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
-        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(mountedIndexName).get();
         assertTrue(recoveryResponse.shardRecoveryStates().containsKey(mountedIndexName));

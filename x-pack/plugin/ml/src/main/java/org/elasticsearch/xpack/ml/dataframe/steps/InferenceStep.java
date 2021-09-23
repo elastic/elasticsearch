@@ -27,8 +27,10 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
+import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.dataframe.inference.InferenceRunner;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.Objects;
 
@@ -68,8 +70,25 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
             listener::onFailure
         );
 
+        ActionListener<Boolean> testDocsExistListener = ActionListener.wrap(
+            testDocsExist -> {
+                if (testDocsExist) {
+                    getModelId(modelIdListener);
+                } else {
+                    // no need to run inference at all so let us skip
+                    // loading the model in memory.
+                    LOGGER.debug(() -> new ParameterizedMessage(
+                        "[{}] Inference step completed immediately as there are no test docs", config.getId()));
+                    task.getStatsHolder().getProgressTracker().updateInferenceProgress(100);
+                    listener.onResponse(new StepResponse(isTaskStopping()));
+                    return;
+                }
+            },
+            listener::onFailure
+        );
+
         ActionListener<RefreshResponse> refreshDestListener = ActionListener.wrap(
-            refreshResponse -> getModelId(modelIdListener),
+            refreshResponse -> searchIfTestDocsExist(testDocsExistListener),
             listener::onFailure
         );
 
@@ -89,6 +108,20 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
                 }
             }
         });
+    }
+
+    private void searchIfTestDocsExist(ActionListener<Boolean> listener) {
+        SearchRequest searchRequest = new SearchRequest(config.getDest().getIndex());
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        searchRequest.source().query(QueryBuilders.boolQuery().mustNot(
+            QueryBuilders.termQuery(config.getDest().getResultsField() + "." + DestinationIndex.IS_TRAINING, true)));
+        searchRequest.source().size(0);
+        searchRequest.source().trackTotalHitsUpTo(1);
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
+            searchResponse -> listener.onResponse(searchResponse.getHits().getTotalHits().value > 0),
+            listener::onFailure
+        ));
     }
 
     private void getModelId(ActionListener<String> listener) {

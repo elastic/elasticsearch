@@ -18,13 +18,15 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.function.BiFunction;
 
 /**
  * This class represents a trust configuration that corresponds to the default trusted CAs of the JDK
  */
-final class DefaultJdkTrustConfig implements SslTrustConfig {
+public final class DefaultJdkTrustConfig implements SslTrustConfig {
+
+    public static final DefaultJdkTrustConfig DEFAULT_INSTANCE = new DefaultJdkTrustConfig();
 
     private final BiFunction<String, String, String> systemProperties;
     private final char[] trustStorePassword;
@@ -49,6 +51,11 @@ final class DefaultJdkTrustConfig implements SslTrustConfig {
     DefaultJdkTrustConfig(BiFunction<String, String, String> systemProperties, @Nullable char[] trustStorePassword) {
         this.systemProperties = systemProperties;
         this.trustStorePassword = trustStorePassword;
+    }
+
+    @Override
+    public boolean isSystemDefault() {
+        return true;
     }
 
     @Override
@@ -90,7 +97,12 @@ final class DefaultJdkTrustConfig implements SslTrustConfig {
 
     @Override
     public Collection<Path> getDependentFiles() {
-        return Collections.emptyList();
+        return List.of();
+    }
+
+    @Override
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        return List.of();
     }
 
     @Override

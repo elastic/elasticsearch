@@ -9,11 +9,10 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -24,7 +23,7 @@ import java.util.function.Supplier;
 public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
 
     public static <T> Parameter<T> nullValueParam(Function<FieldMapper, T> initializer,
-                                                  TriFunction<String, ParserContext, Object, T> parser,
+                                                  TriFunction<String, MappingParserContext, Object, T> parser,
                                                   Supplier<T> def) {
         return new Parameter<T>("null_value", false, def, parser, initializer);
     }

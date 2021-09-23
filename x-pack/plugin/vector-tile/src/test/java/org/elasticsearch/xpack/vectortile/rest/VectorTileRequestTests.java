@@ -21,9 +21,13 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.hamcrest.Matchers;
@@ -52,8 +56,8 @@ public class VectorTileRequestTests extends ESTestCase {
             assertThat(vectorTileRequest.getGridPrecision(), Matchers.equalTo(VectorTileRequest.Defaults.GRID_PRECISION));
             assertThat(vectorTileRequest.getExactBounds(), Matchers.equalTo(VectorTileRequest.Defaults.EXACT_BOUNDS));
             assertThat(vectorTileRequest.getRuntimeMappings(), Matchers.equalTo(VectorTileRequest.Defaults.RUNTIME_MAPPINGS));
-            assertThat(vectorTileRequest.getSortBuilders(), Matchers.equalTo(VectorTileRequest.Defaults.SORT));
             assertThat(vectorTileRequest.getQueryBuilder(), Matchers.equalTo(VectorTileRequest.Defaults.QUERY));
+            assertThat(vectorTileRequest.getTrackTotalHitsUpTo(), Matchers.equalTo(VectorTileRequest.Defaults.TRACK_TOTAL_HITS_UP_TO));
         });
     }
 
@@ -62,6 +66,29 @@ public class VectorTileRequestTests extends ESTestCase {
         assertRestRequest(
             (builder) -> { builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size); },
             (vectorTileRequest) -> { assertThat(vectorTileRequest.getSize(), Matchers.equalTo(size)); }
+        );
+    }
+
+    public void testFieldTrackTotalHitsAsBoolean() throws IOException {
+        assertRestRequest(
+            (builder) -> { builder.field(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), true); },
+            (vectorTileRequest) -> {
+                assertThat(vectorTileRequest.getTrackTotalHitsUpTo(), Matchers.equalTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE));
+            }
+        );
+        assertRestRequest(
+            (builder) -> { builder.field(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), false); },
+            (vectorTileRequest) -> {
+                assertThat(vectorTileRequest.getTrackTotalHitsUpTo(), Matchers.equalTo(SearchContext.TRACK_TOTAL_HITS_DISABLED));
+            }
+        );
+    }
+
+    public void testFieldTrackTotalHitsAsInt() throws IOException {
+        final int trackTotalHits = randomIntBetween(1, 10000);
+        assertRestRequest(
+            (builder) -> { builder.field(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), trackTotalHits); },
+            (vectorTileRequest) -> { assertThat(vectorTileRequest.getTrackTotalHitsUpTo(), Matchers.equalTo(trackTotalHits)); }
         );
     }
 
@@ -143,6 +170,14 @@ public class VectorTileRequestTests extends ESTestCase {
         });
     }
 
+    public void testDefaultFieldSort() throws IOException {
+        assertRestRequest((builder) -> {}, (vectorTileRequest) -> {
+            assertThat(vectorTileRequest.getSortBuilders(), Matchers.iterableWithSize(1));
+            ScriptSortBuilder sortBuilder = (ScriptSortBuilder) vectorTileRequest.getSortBuilders().get(0);
+            assertThat(sortBuilder.order(), Matchers.equalTo(SortOrder.DESC));
+        });
+    }
+
     public void testFieldSort() throws IOException {
         final String sortName = randomAlphaOfLength(10);
         assertRestRequest(
@@ -161,16 +196,81 @@ public class VectorTileRequestTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74338")
     public void testWrongTile() {
-        final int z = randomIntBetween(1, 10);
-        final int x = -randomIntBetween(0, (1 << z) - 1);
-        final int y = -randomIntBetween(0, (1 << z) - 1);
         final String index = randomAlphaOfLength(10);
         final String field = randomAlphaOfLength(10);
-        final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
-        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> VectorTileRequest.parseRestRequest(request));
-        assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
+        {
+            // negative zoom
+            final int z = randomIntBetween(Integer.MIN_VALUE, -1);
+            final int x = 0;
+            final int y = 0;
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Invalid geotile_grid precision of " + z + ". Must be between 0 and 29."));
+        }
+        {
+            // too big zoom
+            final int z = -randomIntBetween(GeoTileUtils.MAX_ZOOM + 1, Integer.MAX_VALUE);
+            final int x = 0;
+            final int y = 0;
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Invalid geotile_grid precision of " + z + ". Must be between 0 and 29."));
+        }
+        {
+            // negative x
+            final int z = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
+            final int x = randomIntBetween(Integer.MIN_VALUE, -1);
+            final int y = randomIntBetween(0, (1 << z) - 1);
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
+        }
+        {
+            // too big x
+            final int z = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
+            final int x = randomIntBetween(Integer.MIN_VALUE, -1);
+            final int y = randomIntBetween(1 << z, Integer.MAX_VALUE);
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
+        }
+        {
+            // negative y
+            final int z = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
+            final int x = randomIntBetween(0, (1 << z) - 1);
+            final int y = randomIntBetween(Integer.MIN_VALUE, -1);
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
+        }
+        {
+            // too big y
+            final int z = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
+            final int x = randomIntBetween(1 << z, Integer.MAX_VALUE);
+            final int y = randomIntBetween(Integer.MIN_VALUE, -1);
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
+        }
     }
 
     private void assertRestRequest(CheckedConsumer<XContentBuilder, IOException> consumer, Consumer<VectorTileRequest> asserter)

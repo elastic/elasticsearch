@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.NodesResponseHeader;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
@@ -74,7 +75,6 @@ import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
-import org.elasticsearch.client.security.NodeEnrollmentResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutPrivilegesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -83,6 +83,8 @@ import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
+import org.elasticsearch.client.security.QueryApiKeyRequest;
+import org.elasticsearch.client.security.QueryApiKeyResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.TemplateRoleName;
 import org.elasticsearch.client.security.support.ApiKey;
@@ -107,6 +109,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.hamcrest.Matchers;
 
 import javax.crypto.SecretKeyFactory;
@@ -121,6 +127,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -129,7 +136,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -701,8 +711,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 31 system roles plus the three we created
-            assertThat(roles.size(), equalTo(31 + 3));
+            // 30 system roles plus the three we created
+            assertThat(roles.size(), equalTo(30 + 3));
         }
 
         {
@@ -1175,41 +1185,49 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(certificates.size(), Matchers.equalTo(9));
             final Iterator<CertificateInfo> it = certificates.iterator();
             CertificateInfo c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("c0ea4216e8ff0fd8"));
-            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
-            assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("b8b96c37e332cccb"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.crt"));
             assertThat(c.getFormat(), Matchers.equalTo("PEM"));
-            c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("d3850b2b1995ad5f"));
-            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
-            assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
             assertThat(c.getSerialNumber(), Matchers.equalTo("b8b96c37e332cccb"));
+            c = it.next();
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("b9d497f2924bbe29"));
-            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
-            assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
+            assertThat(c.getAlias(), Matchers.equalTo("activedir"));
             assertThat(c.getSerialNumber(), Matchers.equalTo("580db8ad52bb168a4080e1df122a3f56"));
+            c = it.next();
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("7268203b"));
-            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
-            assertThat(c.getFormat(), Matchers.equalTo("jks"));
-            c = it.next();
+            assertThat(c.getAlias(), Matchers.equalTo("mykey"));
             assertThat(c.getSerialNumber(), Matchers.equalTo("3151a81eec8d4e34c56a8466a8510bcfbe63cc31"));
-            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
-            assertThat(c.getFormat(), Matchers.equalTo("jks"));
             c = it.next();
-            assertThat(c.getSerialNumber(), Matchers.equalTo("223c736a"));
             assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
             assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("openldap"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("d3850b2b1995ad5f"));
+            c = it.next();
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("testclient"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("b9d497f2924bbe29"));
+            c = it.next();
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("testnode-client-profile"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("c0ea4216e8ff0fd8"));
+            c = it.next();
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("testnode_dsa"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("223c736a"));
+            c = it.next();
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("testnode_ec"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("7268203b"));
+            c = it.next();
+            assertThat(c.getPath(), Matchers.equalTo("testnode.jks"));
+            assertThat(c.getFormat(), Matchers.equalTo("jks"));
+            assertThat(c.getAlias(), Matchers.equalTo("testnode_rsa"));
+            assertThat(c.getSerialNumber(), Matchers.equalTo("b8b96c37e332cccb"));
         }
 
         {
@@ -2034,11 +2052,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::create-api-key-execute
 
             // tag::create-api-key-response
-            SecureString apiKey = createApiKeyResponse.getKey(); // <1>
+            SecureString encoded = createApiKeyResponse.getEncoded(); // <1>
             Instant apiKeyExpiration = createApiKeyResponse.getExpiration(); // <2>
             // end::create-api-key-response
             assertThat(createApiKeyResponse.getName(), equalTo(name));
-            assertNotNull(apiKey);
+            assertNotNull(encoded);
             assertNotNull(apiKeyExpiration);
         }
 
@@ -2075,6 +2093,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(future.get(30, TimeUnit.SECONDS));
             assertThat(future.get().getName(), equalTo(name));
             assertNotNull(future.get().getKey());
+            assertNotNull(future.get().getEncoded());
             assertNotNull(future.get().getExpiration());
         }
     }
@@ -2128,11 +2147,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::grant-api-key-execute
 
             // tag::grant-api-key-response
-            SecureString apiKey = apiKeyResponse.getKey(); // <1>
+            SecureString encoded = apiKeyResponse.getEncoded(); // <1>
             Instant apiKeyExpiration = apiKeyResponse.getExpiration(); // <2>
             // end::grant-api-key-response
             assertThat(apiKeyResponse.getName(), equalTo(name));
-            assertNotNull(apiKey);
+            assertNotNull(encoded);
             assertNotNull(apiKeyExpiration);
 
             apiKeyVerifier.accept(apiKeyResponse);
@@ -2176,6 +2195,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(future.get(30, TimeUnit.SECONDS));
             assertThat(future.get().getName(), equalTo(name));
             assertNotNull(future.get().getKey());
+            assertNotNull(future.get().getEncoded());
             assertNotNull(future.get().getExpiration());
 
             apiKeyVerifier.accept(future.get());
@@ -2195,6 +2215,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
         assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
         assertNotNull(createApiKeyResponse1.getKey());
+        assertNotNull(createApiKeyResponse1.getEncoded());
 
         final ApiKey expectedApiKeyInfo = new ApiKey(createApiKeyResponse1.getName(), createApiKeyResponse1.getId(), Instant.now(),
             Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file", metadata);
@@ -2351,6 +2372,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
         assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
         assertNotNull(createApiKeyResponse1.getKey());
+        assertNotNull(createApiKeyResponse1.getEncoded());
 
         {
             // tag::invalidate-api-key-id-request
@@ -2395,6 +2417,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse2.getName(), equalTo("k2"));
             assertNotNull(createApiKeyResponse2.getKey());
+            assertNotNull(createApiKeyResponse2.getEncoded());
 
             // tag::invalidate-api-key-name-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyName(createApiKeyResponse2.getName(),
@@ -2419,6 +2442,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse3 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse3.getName(), equalTo("k3"));
             assertNotNull(createApiKeyResponse3.getKey());
+            assertNotNull(createApiKeyResponse3.getEncoded());
 
             // tag::invalidate-realm-api-keys-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmName("default_file");
@@ -2442,6 +2466,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse4 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse4.getName(), equalTo("k4"));
             assertNotNull(createApiKeyResponse4.getKey());
+            assertNotNull(createApiKeyResponse4.getEncoded());
 
             // tag::invalidate-user-api-keys-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingUserName("test_user");
@@ -2465,6 +2490,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse5 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse5.getName(), equalTo("k5"));
             assertNotNull(createApiKeyResponse5.getKey());
+            assertNotNull(createApiKeyResponse5.getEncoded());
 
             // tag::invalidate-user-realm-api-keys-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName("default_file", "test_user");
@@ -2490,6 +2516,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse6 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse6.getName(), equalTo("k6"));
             assertNotNull(createApiKeyResponse6.getKey());
+            assertNotNull(createApiKeyResponse6.getEncoded());
 
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse6.getId(), false);
 
@@ -2533,6 +2560,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateApiKeyResponse createApiKeyResponse7 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse7.getName(), equalTo("k7"));
             assertNotNull(createApiKeyResponse7.getKey());
+            assertNotNull(createApiKeyResponse7.getEncoded());
 
             // tag::invalidate-api-keys-owned-by-authenticated-user-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.forOwnedApiKeys();
@@ -2551,6 +2579,131 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
         }
 
+    }
+
+    public void testQueryApiKey() throws IOException, ExecutionException, InterruptedException, TimeoutException {
+        RestHighLevelClient client = highLevelClient();
+        final CreateApiKeyRequest createApiKeyRequest1 = new CreateApiKeyRequest("key-10000", List.of(),
+            randomBoolean() ? TimeValue.timeValueHours(24) : null,
+            RefreshPolicy.WAIT_UNTIL, Map.of("environment", "east-production"));
+        final CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest1, RequestOptions.DEFAULT);
+        final CreateApiKeyRequest createApiKeyRequest2 = new CreateApiKeyRequest("key-20000", List.of(),
+            randomBoolean() ? TimeValue.timeValueHours(24) : null,
+            RefreshPolicy.WAIT_UNTIL, Map.of("environment", "east-staging"));
+        final CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest2, RequestOptions.DEFAULT);
+
+        {
+            // tag::query-api-key-default-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
+            // end::query-api-key-default-request
+
+            // tag::query-api-key-execute
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+            // end::query-api-key-execute
+
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(2));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of("key-10000", "key-20000")));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
+        }
+
+        {
+            // tag::query-api-key-query-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest().queryBuilder(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.prefixQuery("metadata.environment", "east-"))
+                    .mustNot(QueryBuilders.termQuery("name", "key-20000")));
+            // end::query-api-key-query-request
+
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(1L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(1));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getName(), equalTo(createApiKeyResponse1.getName()));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getId(), equalTo(createApiKeyResponse1.getId()));
+        }
+
+        {
+            // tag::query-api-key-from-size-sort-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest()
+                .from(1)
+                .size(100)
+                .fieldSortBuilders(List.of(new FieldSortBuilder("name").order(SortOrder.DESC)));
+            // end::query-api-key-from-size-sort-request
+
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+
+            // tag::query-api-key-from-size-sort-response
+            final long total = queryApiKeyResponse.getTotal();  // <1>
+            final int count = queryApiKeyResponse.getCount();  // <2>
+            final List<ApiKey> apiKeys = queryApiKeyResponse.getApiKeys();  // <3>
+            final Object[] sortValues = apiKeys.get(apiKeys.size()-1).getSortValues();  // <4>
+            // end::query-api-key-from-size-sort-response
+
+            assertThat(total, equalTo(2L));
+            assertThat(count, equalTo(1));
+            assertThat(apiKeys.get(0).getName(), equalTo(createApiKeyResponse1.getName()));
+            assertThat(apiKeys.get(0).getId(), equalTo(createApiKeyResponse1.getId()));
+            assertThat(sortValues.length, equalTo(1));
+            assertThat(sortValues[0], equalTo(createApiKeyResponse1.getName()));
+        }
+
+        {
+            // tag::query-api-key-search-after-request
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest()
+                .fieldSortBuilders(List.of(new FieldSortBuilder("name")))
+                .searchAfterBuilder(new SearchAfterBuilder().setSortValues(new String[] {"key-10000"}));
+            // end::query-api-key-search-after-request
+
+            QueryApiKeyResponse queryApiKeyResponse = client.security().queryApiKey(queryApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(1));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getName(), equalTo(createApiKeyResponse2.getName()));
+            assertThat(queryApiKeyResponse.getApiKeys().get(0).getId(), equalTo(createApiKeyResponse2.getId()));
+        }
+
+        {
+            QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
+
+            ActionListener<QueryApiKeyResponse> listener;
+            // tag::query-api-key-execute-listener
+            listener = new ActionListener<QueryApiKeyResponse>() {
+                @Override
+                public void onResponse(QueryApiKeyResponse queryApiKeyResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::query-api-key-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::query-api-key-execute-async
+            client.security().queryApiKeyAsync(queryApiKeyRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::query-api-key-execute-async
+
+            final QueryApiKeyResponse queryApiKeyResponse = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(queryApiKeyResponse);
+
+            assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
+            assertThat(queryApiKeyResponse.getCount(), equalTo(2));
+            assertThat(queryApiKeyResponse.getApiKeys(), is(notNullValue()));
+            assertThat(queryApiKeyResponse.getApiKeys().size(), is(2));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of("key-10000", "key-20000")));
+            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
+        }
     }
 
     public void testGetServiceAccounts() throws IOException {
@@ -2614,13 +2767,12 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74278")
     public void testCreateServiceAccountToken() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
             // tag::create-service-account-token-request
             CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "my_token_1");
             // end::create-service-account-token-request
 
             // tag::create-service-account-token-execute
@@ -2632,7 +2784,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String tokenName = createServiceAccountTokenResponse.getName(); // <1>
             final SecureString tokenValue = createServiceAccountTokenResponse.getValue(); // <2>
             // end::create-service-account-token-response
-            assertThat(createServiceAccountTokenResponse.getName(), equalTo("token1"));
+            assertThat(createServiceAccountTokenResponse.getName(), equalTo("my_token_1"));
             assertNotNull(tokenValue);
         }
 
@@ -2723,14 +2875,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74278")
     public void testGetServiceAccountCredentials() throws IOException {
         RestHighLevelClient client = highLevelClient();
         final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token2");
         final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
             client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
-        assertThat(createServiceAccountTokenResponse.getName(), equalTo("token1"));
+        assertThat(createServiceAccountTokenResponse.getName(), equalTo("token2"));
 
         {
             // tag::get-service-account-credentials-request
@@ -2745,15 +2896,23 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::get-service-account-credentials-response
             final String principal = getServiceAccountCredentialsResponse.getPrincipal(); // <1>
-            final String nodeName = getServiceAccountCredentialsResponse.getNodeName(); // <2>
-            final List<ServiceTokenInfo> serviceTokenInfos = getServiceAccountCredentialsResponse.getServiceTokenInfos(); // <3>
-            final String tokenName = serviceTokenInfos.get(0).getName(); // <4>
-            final String tokenSource = serviceTokenInfos.get(0).getSource(); // <5>
+            final List<ServiceTokenInfo> indexTokenInfos = getServiceAccountCredentialsResponse.getIndexTokenInfos(); // <2>
+            final String tokenName = indexTokenInfos.get(0).getName(); // <3>
+            final String tokenSource = indexTokenInfos.get(0).getSource(); // <4>
+            final Collection<String> nodeNames = indexTokenInfos.get(0).getNodeNames(); // <5>
+            final List<ServiceTokenInfo> fileTokenInfos
+                = getServiceAccountCredentialsResponse.getNodesResponse().getFileTokenInfos(); // <6>
+            final NodesResponseHeader fileTokensResponseHeader
+                = getServiceAccountCredentialsResponse.getNodesResponse().getHeader(); // <7>
+            final int nSuccessful = fileTokensResponseHeader.getSuccessful(); // <8>
+            final int nFailed = fileTokensResponseHeader.getFailed(); // <9>
             // end::get-service-account-credentials-response
             assertThat(principal, equalTo("elastic/fleet-server"));
-            assertThat(serviceTokenInfos.size(), equalTo(1));
-            assertThat(tokenName, equalTo("token1"));
-            assertThat(tokenSource, equalTo("index"));
+            // Cannot assert exactly one token because there are rare occasions where tests overlap and it will see
+            // token created from other tests
+            assertThat(indexTokenInfos.size(), greaterThanOrEqualTo(1));
+            assertThat(indexTokenInfos.stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()), hasItem("token2"));
+            assertThat(indexTokenInfos.stream().map(ServiceTokenInfo::getSource).collect(Collectors.toSet()), hasItem("index"));
         }
 
         {
@@ -2785,8 +2944,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(future.actionGet());
             assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
-            assertThat(future.actionGet().getServiceTokenInfos().size(), equalTo(1));
-            assertThat(future.actionGet().getServiceTokenInfos().get(0), equalTo(new ServiceTokenInfo("token1", "index")));
+            assertThat(future.actionGet().getIndexTokenInfos().size(), greaterThanOrEqualTo(1));
+            assertThat(future.actionGet().getIndexTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
+                hasItem("token2"));
         }
     }
 
@@ -2861,51 +3021,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authnRealm.getName(), is("pki1"));
             assertThat(authnRealm.getType(), is("pki"));
             assertThat(resp.getAuthenticationType(), is("token"));
-        }
-    }
-
-    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
-    public void testNodeEnrollment() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        {
-            // tag::node-enrollment-execute
-            NodeEnrollmentResponse response = client.security().enrollNode(RequestOptions.DEFAULT);
-            // end::node-enrollment-execute
-
-            // tag::node-enrollment-response
-            String httpCaKey = response.getHttpCaKey(); // <1>
-            String httpCaCert = response.getHttpCaCert(); // <2>
-            String transportKey = response.getTransportKey(); // <3>
-            String transportCert = response.getTransportCert(); // <4>
-            String clusterName = response.getClusterName(); // <5>
-            List<String> nodesAddresses = response.getNodesAddresses();  // <6>
-            // end::node-enrollment-response
-        }
-
-        {
-            // tag::node-enrollment-execute-listener
-            ActionListener<NodeEnrollmentResponse> listener =
-                new ActionListener<NodeEnrollmentResponse>() {
-                    @Override
-                    public void onResponse(NodeEnrollmentResponse response) {
-                        // <1>
-                    }
-
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }};
-            // end::node-enrollment-execute-listener
-
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
-
-            // tag::node-enrollment-execute-async
-            client.security().enrollNodeAsync(RequestOptions.DEFAULT, listener);
-            // end::node-enrollment-execute-async
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 

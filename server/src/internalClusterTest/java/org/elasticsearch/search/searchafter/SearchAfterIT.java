@@ -153,9 +153,9 @@ public class SearchAfterIT extends ESIntegTestCase {
         for (int i = 0; i < numFields-1; i++) {
             types[i] = randomInt(6);
         }
-        List<List> documents = new ArrayList<>();
+        List<List<Object>> documents = new ArrayList<>();
         for (int i = 0; i < NUM_DOCS; i++) {
-            List values = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
             for (int type : types) {
                 switch (type) {
                     case 0:
@@ -265,9 +265,9 @@ public class SearchAfterIT extends ESIntegTestCase {
             containsString("failed to parse date field [23/04/2018] with format [epoch_millis]"));
     }
 
-    private static class ListComparator implements Comparator<List> {
+    private static class ListComparator implements Comparator<List<?>> {
         @Override
-        public int compare(List o1, List o2) {
+        public int compare(List<?> o1, List<?> o2) {
             if (o1.size() > o2.size()) {
                 return 1;
             }
@@ -282,6 +282,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 }
                 Object cmp1 = o1.get(i);
                 Object cmp2 = o2.get(i);
+                @SuppressWarnings({"unchecked", "rawtypes"})
                 int cmp = ((Comparable)cmp1).compareTo(cmp2);
                 if (cmp != 0) {
                     return cmp;
@@ -292,7 +293,7 @@ public class SearchAfterIT extends ESIntegTestCase {
     }
     private ListComparator LST_COMPARATOR = new ListComparator();
 
-    private void assertSearchFromWithSortValues(String indexName, List<List> documents, int reqSize) throws Exception {
+    private void assertSearchFromWithSortValues(String indexName, List<List<Object>> documents, int reqSize) throws Exception {
         int numFields = documents.get(0).size();
         {
             createIndexMappingsFromObjectType(indexName, documents.get(0));
@@ -324,7 +325,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             }
             SearchResponse searchResponse = req.get();
             for (SearchHit hit : searchResponse.getHits()) {
-                List toCompare = convertSortValues(documents.get(offset++));
+                List<Object> toCompare = convertSortValues(documents.get(offset++));
                 assertThat(LST_COMPARATOR.compare(toCompare, Arrays.asList(hit.getSortValues())), equalTo(0));
             }
             sortValues = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length-1].getSortValues();
@@ -336,7 +337,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         List<String> mappings = new ArrayList<> ();
         int numFields = types.size();
         for (int i = 0; i < numFields; i++) {
-            Class type = types.get(i).getClass();
+            Class<?> type = types.get(i).getClass();
             if (type == Integer.class) {
                 mappings.add("field" + Integer.toString(i));
                 mappings.add("type=integer");

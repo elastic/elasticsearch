@@ -21,14 +21,15 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -39,8 +40,8 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -123,28 +124,29 @@ public class RefreshListenersTests extends ESTestCase {
             Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = new EngineConfig(
-            shardId,
-            threadPool,
-            indexSettings,
-            null,
-            store,
-            newMergePolicy(),
-            iwc.getAnalyzer(),
-            iwc.getSimilarity(),
-            new CodecService(null, logger),
-            eventListener,
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            Collections.singletonList(listeners),
-            Collections.emptyList(),
-            null,
-            new NoneCircuitBreakerService(),
-            () -> SequenceNumbers.NO_OPS_PERFORMED,
-            () -> RetentionLeases.EMPTY,
-            () -> primaryTerm,
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                shardId,
+                threadPool,
+                indexSettings,
+                null,
+                store,
+                newMergePolicy(),
+                iwc.getAnalyzer(),
+                iwc.getSimilarity(),
+                new CodecService(null),
+                eventListener,
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                translogConfig,
+                TimeValue.timeValueMinutes(5),
+                Collections.singletonList(listeners),
+                Collections.emptyList(),
+                null,
+                new NoneCircuitBreakerService(),
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                () -> RetentionLeases.EMPTY,
+                () -> primaryTerm,
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                null);
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
@@ -520,7 +522,7 @@ public class RefreshListenersTests extends ESTestCase {
 
     private Engine.IndexResult index(String id, String testFieldValue) throws IOException {
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
         Field idField = new Field(uid.field(), uid.bytes(), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);

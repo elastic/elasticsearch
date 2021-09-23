@@ -250,7 +250,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler,
-                                 RestApiVersion restApiVersion)
+                                 ThreadContext threadContext)
         throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
@@ -281,7 +281,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 request.ensureSafeBuffers();
             }
 
-            final ThreadContext threadContext = client.threadPool().getThreadContext();
             if (handler.allowSystemIndexAccessByDefault() == false) {
                 // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
                 // therefore we should allow a subset of external system index access.
@@ -367,7 +366,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
-                    dispatchRequest(request, channel, handler, restApiVersion);
+                    dispatchRequest(request, channel, handler, threadContext);
                     return;
                 }
             }

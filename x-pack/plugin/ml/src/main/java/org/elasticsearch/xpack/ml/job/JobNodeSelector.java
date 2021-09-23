@@ -23,11 +23,11 @@ import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -134,22 +134,39 @@ public class JobNodeSelector {
                                                                long maxNodeSize,
                                                                boolean useAutoMemoryPercentage) {
         final Long estimatedMemoryFootprint = memoryTracker.getJobMemoryRequirement(taskName, jobId);
+        return selectNode(
+            estimatedMemoryFootprint,
+            dynamicMaxOpenJobs,
+            maxConcurrentJobAllocations,
+            maxMachineMemoryPercent,
+            maxNodeSize,
+            useAutoMemoryPercentage
+        );
+    }
+
+    public PersistentTasksCustomMetadata.Assignment selectNode(Long estimatedMemoryFootprint,
+                                                               int dynamicMaxOpenJobs,
+                                                               int maxConcurrentJobAllocations,
+                                                               int maxMachineMemoryPercent,
+                                                               long maxNodeSize,
+                                                               boolean useAutoMemoryPercentage) {
         if (estimatedMemoryFootprint == null) {
             memoryTracker.asyncRefresh();
             String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
             logger.debug(reason);
             return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
-        List<String> reasons = new LinkedList<>();
+        Map<String, String> reasons = new TreeMap<>();
         long maxAvailableMemory = Long.MIN_VALUE;
         DiscoveryNode minLoadedNodeByMemory = null;
+        long requiredMemoryForJob = estimatedMemoryFootprint;
         for (DiscoveryNode node : candidateNodes) {
 
             // First check conditions that would rule out the node regardless of what other tasks are assigned to it
             String reason = nodeFilter.apply(node);
             if (reason != null) {
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(), reason);
                 continue;
             }
             NodeLoad currentLoad = nodeLoadDetector.detectNodeLoad(
@@ -163,7 +180,7 @@ public class JobNodeSelector {
             if (currentLoad.getError() != null) {
                 reason = createReason(jobId, nodeNameAndMlAttributes(node), currentLoad.getError());
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(), reason);
                 continue;
             }
             // Assuming the node is eligible at all, check loading
@@ -177,7 +194,7 @@ public class JobNodeSelector {
                     currentLoad.getNumAllocatingJobs(),
                     maxConcurrentJobAllocations);
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(), reason);
                 continue;
             }
 
@@ -189,7 +206,7 @@ public class JobNodeSelector {
                     MAX_OPEN_JOBS_PER_NODE.getKey(),
                     maxNumberOfOpenJobs);
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(), reason);
                 continue;
             }
 
@@ -198,7 +215,7 @@ public class JobNodeSelector {
                     nodeNameAndMlAttributes(node),
                     "This node is not providing accurate information to determine is load by memory.");
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(),reason);
                 continue;
             }
 
@@ -207,11 +224,10 @@ public class JobNodeSelector {
                     nodeNameAndMlAttributes(node),
                     "This node is indicating that it has no native memory for machine learning.");
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(),reason);
                 continue;
             }
 
-            long requiredMemoryForJob = estimatedMemoryFootprint;
             // If this will be the first job assigned to the node then it will need to
             // load the native code shared libraries, so add the overhead for this
             if (currentLoad.getNumAssignedJobs() == 0) {
@@ -231,7 +247,7 @@ public class JobNodeSelector {
                     requiredMemoryForJob,
                     ByteSizeValue.ofBytes(requiredMemoryForJob).toString());
                 logger.trace(reason);
-                reasons.add(reason);
+                reasons.put(node.getName(),reason);
                 continue;
             }
 
@@ -242,24 +258,24 @@ public class JobNodeSelector {
         }
 
         return createAssignment(
+            estimatedMemoryFootprint,
             minLoadedNodeByMemory,
-            reasons,
+            reasons.values(),
             maxNodeSize > 0L ?
                 NativeMemoryCalculator.allowedBytesForMl(maxNodeSize, maxMachineMemoryPercent, useAutoMemoryPercentage) :
                 Long.MAX_VALUE);
     }
 
-    PersistentTasksCustomMetadata.Assignment createAssignment(DiscoveryNode minLoadedNode,
-                                                              List<String> reasons,
+    PersistentTasksCustomMetadata.Assignment createAssignment(long estimatedMemoryUsage,
+                                                              DiscoveryNode minLoadedNode,
+                                                              Collection<String> reasons,
                                                               long biggestPossibleJob) {
         if (minLoadedNode == null) {
             String explanation = String.join("|", reasons);
             PersistentTasksCustomMetadata.Assignment currentAssignment =
                 new PersistentTasksCustomMetadata.Assignment(null, explanation);
             logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
-            Long estimatedMemoryUsage = memoryTracker.getJobMemoryRequirement(taskName, jobId);
-            if (estimatedMemoryUsage != null
-                && (MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage) > biggestPossibleJob) {
+            if ((MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage) > biggestPossibleJob) {
                 ParameterizedMessage message = new ParameterizedMessage(
                     "[{}] not waiting for node assignment as estimated job size [{}] is greater than largest possible job size [{}]",
                     jobId,
@@ -310,7 +326,7 @@ public class JobNodeSelector {
         return builder.toString();
     }
 
-    static String nodeNameAndMlAttributes(DiscoveryNode node) {
+    public static String nodeNameAndMlAttributes(DiscoveryNode node) {
         String nodeNameOrID = nodeNameOrId(node);
 
         StringBuilder builder = new StringBuilder("{").append(nodeNameOrID).append('}');

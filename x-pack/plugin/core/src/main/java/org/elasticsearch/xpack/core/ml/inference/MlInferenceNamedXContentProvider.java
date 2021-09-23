@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.CustomWordEmbedding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
@@ -24,23 +25,32 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextClassificationResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Exponent;
@@ -154,6 +164,26 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 RegressionConfig::fromXContentLenient));
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, RegressionConfig.NAME,
             RegressionConfig::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedInferenceConfig.class, new ParseField(NerConfig.NAME),
+            NerConfig::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, new ParseField(NerConfig.NAME),
+            NerConfig::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedInferenceConfig.class, new ParseField(FillMaskConfig.NAME),
+            FillMaskConfig::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, new ParseField(FillMaskConfig.NAME),
+            FillMaskConfig::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedInferenceConfig.class,
+            new ParseField(TextClassificationConfig.NAME), TextClassificationConfig::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class,
+            new ParseField(TextClassificationConfig.NAME), TextClassificationConfig::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedInferenceConfig.class,
+            new ParseField(PassThroughConfig.NAME), PassThroughConfig::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, new ParseField(PassThroughConfig.NAME),
+            PassThroughConfig::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedInferenceConfig.class,
+            new ParseField(TextEmbeddingConfig.NAME), TextEmbeddingConfig::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, new ParseField(TextEmbeddingConfig.NAME),
+            TextEmbeddingConfig::fromXContentStrict));
 
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, ClassificationConfigUpdate.NAME,
             ClassificationConfigUpdate::fromXContentStrict));
@@ -166,6 +196,15 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceModel.class,
             LangIdentNeuralNetwork.NAME,
             LangIdentNeuralNetwork::fromXContentLenient));
+
+        // Tokenization
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Tokenization.class,
+                BertTokenization.NAME,
+                (p, c) -> BertTokenization.fromXContent(p, (boolean) c)
+            )
+        );
 
         return namedXContent;
     }
@@ -227,12 +266,28 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
             PyTorchPassThroughResults.NAME,
             PyTorchPassThroughResults::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
+            TextClassificationResults.NAME,
+            TextClassificationResults::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
+            TextEmbeddingResults.NAME,
+            TextEmbeddingResults::new));
 
         // Inference Configs
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
             ClassificationConfig.NAME.getPreferredName(), ClassificationConfig::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
             RegressionConfig.NAME.getPreferredName(), RegressionConfig::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
+            NerConfig.NAME, NerConfig::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
+            FillMaskConfig.NAME, FillMaskConfig::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
+            TextClassificationConfig.NAME, TextClassificationConfig::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
+            PassThroughConfig.NAME, PassThroughConfig::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
+            TextEmbeddingConfig.NAME, TextEmbeddingConfig::new));
 
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
             ClassificationConfigUpdate.NAME.getPreferredName(), ClassificationConfigUpdate::new));
@@ -246,6 +301,15 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         // Location
         namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModelLocation.class,
             IndexLocation.INDEX.getPreferredName(), IndexLocation::new));
+
+        // Tokenization
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                Tokenization.class,
+                BertTokenization.NAME.getPreferredName(),
+                BertTokenization::new
+            )
+        );
 
         return namedWriteables;
     }

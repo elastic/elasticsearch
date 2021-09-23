@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ilm.action;
 
+import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
@@ -30,7 +32,7 @@ public class GetLifecycleResponseTests extends AbstractWireSerializingTestCase<R
         List<LifecyclePolicyResponseItem> responseItems = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(0, 2); i++) {
             responseItems.add(new LifecyclePolicyResponseItem(randomTestLifecyclePolicy(randomPrefix + i),
-                randomNonNegativeLong(), randomAlphaOfLength(8)));
+                randomNonNegativeLong(), randomAlphaOfLength(8), randomUsage()));
         }
         return new Response(responseItems);
     }
@@ -52,14 +54,27 @@ public class GetLifecycleResponseTests extends AbstractWireSerializingTestCase<R
         if (responseItems.size() > 0) {
             if (randomBoolean()) {
                 responseItems.add(new LifecyclePolicyResponseItem(randomTestLifecyclePolicy(randomAlphaOfLength(5)),
-                    randomNonNegativeLong(), randomAlphaOfLength(4)));
+                    randomNonNegativeLong(), randomAlphaOfLength(4), randomUsage()));
             } else {
                 responseItems.remove(0);
             }
         } else {
             responseItems.add(new LifecyclePolicyResponseItem(randomTestLifecyclePolicy(randomAlphaOfLength(2)),
-                randomNonNegativeLong(), randomAlphaOfLength(4)));
+                randomNonNegativeLong(), randomAlphaOfLength(4), randomUsage()));
         }
         return new Response(responseItems);
+    }
+
+    public static ItemUsage randomUsage() {
+        return new ItemUsage(randomStringList(), randomStringList(), randomStringList());
+    }
+
+    @Nullable
+    private static List<String> randomStringList() {
+        if (randomBoolean()) {
+            return null;
+        } else {
+            return randomList(0, 1, () -> randomAlphaOfLengthBetween(2, 10));
+        }
     }
 }

@@ -11,17 +11,13 @@ package org.elasticsearch.core;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * A basic RefCounted implementation that is initialized with a
- * ref count of 1 and calls {@link #closeInternal()} once it reaches
- * a 0 ref count
+ * A basic {@link RefCounted} implementation that is initialized with a ref count of 1 and calls {@link #closeInternal()} once it reaches
+ * a 0 ref count.
  */
 public abstract class AbstractRefCounted implements RefCounted {
-    private final AtomicInteger refCount = new AtomicInteger(1);
-    private final String name;
+    public static final String ALREADY_CLOSED_MESSAGE = "already closed, can't increment ref count";
 
-    public AbstractRefCounted(String name) {
-        this.name = name;
-    }
+    private final AtomicInteger refCount = new AtomicInteger(1);
 
     @Override
     public final void incRef() {
@@ -62,28 +58,29 @@ public abstract class AbstractRefCounted implements RefCounted {
         return false;
     }
 
+    @Override
+    public final boolean hasReferences() {
+        return refCount.get() > 0;
+    }
+
     /**
-     * Called whenever the ref count is incremented or decremented. Can be implemented by implementations to a record of access to the
-     * instance for debugging purposes.
+     * Called whenever the ref count is incremented or decremented. Can be overridden to record access to the instance for debugging
+     * purposes.
      */
     protected void touch() {
     }
 
     protected void alreadyClosed() {
-        throw new IllegalStateException(name + " is already closed can't increment refCount current count [" + refCount.get() + "]");
+        final int currentRefCount = refCount.get();
+        assert currentRefCount == 0 : currentRefCount;
+        throw new IllegalStateException(ALREADY_CLOSED_MESSAGE);
     }
 
     /**
      * Returns the current reference count.
      */
-    public int refCount() {
+    public final int refCount() {
         return this.refCount.get();
-    }
-
-
-    /** gets the name of this instance */
-    public String getName() {
-        return name;
     }
 
     /**
@@ -91,4 +88,16 @@ public abstract class AbstractRefCounted implements RefCounted {
      * Implementations of this method must handle all exceptions and may not throw any exceptions.
      */
     protected abstract void closeInternal();
+
+    /**
+     * Construct an {@link AbstractRefCounted} which runs the given {@link Runnable} when all references are released.
+     */
+    public static AbstractRefCounted of(Runnable onClose) {
+        return new AbstractRefCounted() {
+            @Override
+            protected void closeInternal() {
+                onClose.run();
+            }
+        };
+    }
 }

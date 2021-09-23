@@ -17,6 +17,10 @@ import spock.lang.IgnoreRest
 
 class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
+    def setup() {
+        // required for JarHell to work
+        addSubProject(":libs:elasticsearch-core") << "apply plugin:'java'"
+    }
     def "artifacts and tweaked pom is published"() {
         given:
         buildFile << """

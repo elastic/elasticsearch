@@ -66,7 +66,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected ReplicationOperation.Replicas newReplicasProxy() {
+    protected ReplicationOperation.Replicas<ResyncReplicationRequest> newReplicasProxy() {
         return new ResyncActionReplicasProxy();
     }
 

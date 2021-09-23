@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
+import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
 
 public class SmileXContentParser extends JsonXContentParser {
 
@@ -28,8 +29,24 @@ public class SmileXContentParser extends JsonXContentParser {
         super(xContentRegistry, deprecationHandler, parser, restApiVersion);
     }
 
+    public SmileXContentParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        JsonParser parser,
+        RestApiVersion restApiVersion,
+        FilterPath[] include,
+        FilterPath[] exclude
+    ) {
+        super(xContentRegistry, deprecationHandler, parser, restApiVersion, include, exclude);
+    }
+
     @Override
     public XContentType contentType() {
         return XContentType.SMILE;
+    }
+
+    @Override
+    public void allowDuplicateKeys(boolean allowDuplicateKeys) {
+        throw new UnsupportedOperationException("Allowing duplicate keys after the parser has been created is not possible for Smile");
     }
 }

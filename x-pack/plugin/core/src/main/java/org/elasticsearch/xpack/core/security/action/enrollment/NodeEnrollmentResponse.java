@@ -25,14 +25,12 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
     private static final ParseField HTTP_CA_CERT = new ParseField("http_ca_cert");
     private static final ParseField TRANSPORT_KEY = new ParseField("transport_key");
     private static final ParseField TRANSPORT_CERT = new ParseField("transport_cert");
-    private static final ParseField CLUSTER_NAME = new ParseField("cluster_name");
     private static final ParseField NODES_ADDRESSES = new ParseField("nodes_addresses");
 
     private final String httpCaKey;
     private final String httpCaCert;
     private final String transportKey;
     private final String transportCert;
-    private final String clusterName;
     private final List<String> nodesAddresses;
 
     public NodeEnrollmentResponse(StreamInput in) throws IOException {
@@ -41,17 +39,15 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
         httpCaCert = in.readString();
         transportKey = in.readString();
         transportCert = in.readString();
-        clusterName = in.readString();
         nodesAddresses = in.readStringList();
     }
 
-    public NodeEnrollmentResponse(String httpCaKey, String httpCaCert, String transportKey, String transportCert, String clusterName,
+    public NodeEnrollmentResponse(String httpCaKey, String httpCaCert, String transportKey, String transportCert,
                                   List<String> nodesAddresses) {
         this.httpCaKey = httpCaKey;
         this.httpCaCert = httpCaCert;
         this.transportKey = transportKey;
         this.transportCert = transportCert;
-        this.clusterName = clusterName;
         this.nodesAddresses = nodesAddresses;
     }
 
@@ -71,10 +67,6 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
         return transportCert;
     }
 
-    public String getClusterName() {
-        return clusterName;
-    }
-
     public List<String> getNodesAddresses() {
         return nodesAddresses;
     }
@@ -84,7 +76,6 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
         out.writeString(httpCaCert);
         out.writeString(transportKey);
         out.writeString(transportCert);
-        out.writeString(clusterName);
         out.writeStringCollection(nodesAddresses);
     }
 
@@ -94,7 +85,6 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
         builder.field(HTTP_CA_CERT.getPreferredName(), httpCaCert);
         builder.field(TRANSPORT_KEY.getPreferredName(), transportKey);
         builder.field(TRANSPORT_CERT.getPreferredName(), transportCert);
-        builder.field(CLUSTER_NAME.getPreferredName(), clusterName);
         builder.field(NODES_ADDRESSES.getPreferredName(), nodesAddresses);
         return builder.endObject();
     }
@@ -104,11 +94,11 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
         if (o == null || getClass() != o.getClass()) return false;
         NodeEnrollmentResponse that = (NodeEnrollmentResponse) o;
         return httpCaKey.equals(that.httpCaKey) && httpCaCert.equals(that.httpCaCert) && transportKey.equals(that.transportKey)
-            && transportCert.equals(that.transportCert) && clusterName.equals(that.clusterName)
+            && transportCert.equals(that.transportCert)
             && nodesAddresses.equals(that.nodesAddresses);
     }
 
     @Override public int hashCode() {
-        return Objects.hash(httpCaKey, httpCaCert, transportKey, transportCert, clusterName, nodesAddresses);
+        return Objects.hash(httpCaKey, httpCaCert, transportKey, transportCert, nodesAddresses);
     }
 }

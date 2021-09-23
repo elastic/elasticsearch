@@ -30,7 +30,7 @@ public abstract class AdaptingAggregator extends Aggregator {
     public AdaptingAggregator(
         Aggregator parent,
         AggregatorFactories subAggregators,
-        CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate
+        CheckedFunction<AggregatorFactories, ? extends Aggregator, IOException> delegate
     ) throws IOException {
         // Its important we set parent first or else when we build the sub-aggregators they can fail because they'll call this.parent.
         this.parent = parent;

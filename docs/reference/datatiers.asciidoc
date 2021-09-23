@@ -44,7 +44,8 @@ While they are also responsible for indexing, content data is generally not inge
 as time series data such as logs and metrics. From a resiliency perspective the indices in this
 tier should be configured to use one or more replicas.
 
-New indices are automatically allocated to the <<content-tier>> unless they are part of a data stream.
+The content tier is required. System indices and other indices that aren't part
+of a data stream are automatically allocated to the content tier.
 
 [discrete]
 [[hot-tier]]
@@ -56,8 +57,8 @@ Nodes in the hot tier need to be fast for both reads and writes,
 which requires more hardware resources and faster storage (SSDs).
 For resiliency, indices in the hot tier should be configured to use one or more replicas.
 
-New indices that are part of a <<data-streams, data stream>> are automatically allocated to the
-hot tier.
+The hot tier is required. New indices that are part of a <<data-streams,
+data stream>> are automatically allocated to the hot tier.
 
 [discrete]
 [[warm-tier]]

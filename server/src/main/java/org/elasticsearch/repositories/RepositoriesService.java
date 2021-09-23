@@ -59,7 +59,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
@@ -80,9 +82,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         0,
         Setting.Property.NodeScope
     );
-
-    public static final String SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY = "index.store.snapshot.repository_name";
-    public static final String SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY = "index.store.snapshot.repository_uuid";
 
     private final Map<String, Repository.Factory> typesRegistry;
     private final Map<String, Repository.Factory> internalTypesRegistry;
@@ -148,7 +147,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
 
         final StepListener<AcknowledgedResponse> acknowledgementStep = new StepListener<>();
-        final StepListener<Void> publicationStep = new StepListener<>();
+        final StepListener<Boolean> publicationStep = new StepListener<>(); // Boolean==changed.
 
         if (request.verify()) {
 
@@ -156,8 +155,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             // (if acks timed out then acknowledgementStep completes before the master processes this cluster state, hence why we have
             // to wait for the publication to be complete too)
             final StepListener<List<DiscoveryNode>> verifyStep = new StepListener<>();
-            publicationStep.whenComplete(ignored -> acknowledgementStep.whenComplete(clusterStateUpdateResponse -> {
-                if (clusterStateUpdateResponse.isAcknowledged()) {
+            publicationStep.whenComplete(changed -> acknowledgementStep.whenComplete(clusterStateUpdateResponse -> {
+                if (clusterStateUpdateResponse.isAcknowledged() && changed) {
                     // The response was acknowledged - all nodes should know about the new repository, let's verify them
                     verifyRepository(request.name(), verifyStep);
                 } else {
@@ -202,10 +201,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
                     for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                         if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
-                            if (newRepositoryMetadata.equalsIgnoreGenerations(repositoryMetadata)) {
-                                // Previous version is the same as this one no update is needed.
-                                return currentState;
-                            }
                             Repository existing = RepositoriesService.this.repositories.get(request.name());
                             if (existing == null) {
                                 existing = RepositoriesService.this.internalRepositories.get(request.name());
@@ -214,6 +209,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             assert existing.getMetadata() == repositoryMetadata;
                             final RepositoryMetadata updatedMetadata;
                             if (canUpdateInPlace(newRepositoryMetadata, existing)) {
+                                if (repositoryMetadata.settings().equals(newRepositoryMetadata.settings())) {
+                                    // Previous version is the same as this one no update is needed.
+                                    return currentState;
+                                }
                                 // we're updating in place so the updated metadata must point at the same uuid and generations
                                 updatedMetadata = repositoryMetadata.withSettings(newRepositoryMetadata.settings());
                             } else {
@@ -257,7 +256,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             logger.info("put repository [{}]", request.name());
                         }
                     }
-                    publicationStep.onResponse(null);
+                    publicationStep.onResponse(oldState != newState);
                 }
             }
         );
@@ -738,7 +737,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static boolean indexSettingsMatchRepositoryMetadata(Settings indexSettings, RepositoryMetadata repositoryMetadata) {
-        if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(indexSettings))) {
+        if (isSearchableSnapshotStore(indexSettings)) {
             final String indexRepositoryUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
             if (Strings.hasLength(indexRepositoryUuid)) {
                 return Objects.equals(repositoryMetadata.uuid(), indexRepositoryUuid);
@@ -772,5 +771,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         repos.addAll(internalRepositories.values());
         repos.addAll(repositories.values());
         IOUtils.close(repos);
+        for (Repository repo : repos) {
+            repo.awaitIdle();
+        }
     }
 }

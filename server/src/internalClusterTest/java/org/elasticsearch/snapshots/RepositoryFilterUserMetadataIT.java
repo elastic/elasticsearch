@@ -7,10 +7,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -19,9 +15,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -29,7 +24,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -89,24 +83,8 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                     private final String initialMetaValue = metadata.settings().get(MASTER_SETTING_VALUE);
 
                     @Override
-                    public void finalizeSnapshot(
-                        ShardGenerations shardGenerations,
-                        long repositoryStateId,
-                        Metadata clusterMetadata,
-                        SnapshotInfo snapshotInfo,
-                        Version repositoryMetaVersion,
-                        Function<ClusterState, ClusterState> stateTransformer,
-                        ActionListener<RepositoryData> listener
-                    ) {
-                        super.finalizeSnapshot(
-                            shardGenerations,
-                            repositoryStateId,
-                            clusterMetadata,
-                            snapshotInfo,
-                            repositoryMetaVersion,
-                            stateTransformer,
-                            listener
-                        );
+                    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+                        super.finalizeSnapshot(finalizeSnapshotContext);
                     }
 
                     @Override

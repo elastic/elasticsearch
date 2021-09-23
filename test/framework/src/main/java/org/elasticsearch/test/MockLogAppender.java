@@ -122,6 +122,28 @@ public class MockLogAppender extends AbstractAppender {
         }
     }
 
+    public static class EventuallySeenEventExpectation extends SeenEventExpectation {
+
+        private volatile boolean expectSeen = false;
+
+        public EventuallySeenEventExpectation(String name, String logger, Level level, String message) {
+            super(name, logger, level, message);
+        }
+
+        public void setExpectSeen() {
+            expectSeen = true;
+        }
+
+        @Override
+        public void assertMatched() {
+            if (expectSeen) {
+                super.assertMatched();
+            } else {
+                assertThat("expected not to see " + name + " yet but did", saw, equalTo(false));
+            }
+        }
+    }
+
     public static class ExceptionSeenEventExpectation extends SeenEventExpectation {
 
         private final Class<? extends Exception> clazz;
@@ -153,20 +175,20 @@ public class MockLogAppender extends AbstractAppender {
         protected final String name;
         protected final String logger;
         protected final Level level;
-        protected final String pattern;
+        protected final Pattern pattern;
         volatile boolean saw;
 
         public PatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
             this.name = name;
             this.logger = logger;
             this.level = level;
-            this.pattern = pattern;
+            this.pattern = Pattern.compile(pattern);
         }
 
         @Override
         public void match(LogEvent event) {
             if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
-                if (Pattern.matches(pattern, event.getMessage().getFormattedMessage())) {
+                if (pattern.matcher(event.getMessage().getFormattedMessage()).matches()) {
                     saw = true;
                 }
             }

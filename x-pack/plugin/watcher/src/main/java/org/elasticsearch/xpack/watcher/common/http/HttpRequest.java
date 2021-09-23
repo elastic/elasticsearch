@@ -291,10 +291,12 @@ public class HttpRequest implements ToXContentObject {
                                 pe, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
+                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    final Map<String, String> headers = (Map) WatcherUtils.flattenModel(parser.map());
                     if (Field.HEADERS.match(currentFieldName, parser.getDeprecationHandler())) {
-                        builder.setHeaders((Map) WatcherUtils.flattenModel(parser.map()));
+                        builder.setHeaders(headers);
                     } else if (Field.PARAMS.match(currentFieldName, parser.getDeprecationHandler())) {
-                        builder.setParams((Map) WatcherUtils.flattenModel(parser.map()));
+                        builder.setParams(headers);
                     } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.body(parser.text());
                     } else {

@@ -28,7 +28,6 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,7 +62,7 @@ import java.util.Map;
 public class TransportUpdateTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateTransformAction.class);
-    private final XPackLicenseState licenseState;
+    private final Settings settings;
     private final Client client;
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
@@ -79,7 +78,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
         TransformServices transformServices,
         Client client,
         IngestService ingestService
@@ -92,7 +90,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             actionFilters,
             indexNameExpressionResolver,
             clusterService,
-            licenseState,
             transformServices,
             client,
             ingestService
@@ -107,7 +104,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
         TransformServices transformServices,
         Client client,
         IngestService ingestService
@@ -123,7 +119,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             ThreadPool.Names.SAME
         );
 
-        this.licenseState = licenseState;
+        this.settings = settings;
         this.client = client;
         this.transformConfigManager = transformServices.getConfigManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -234,7 +230,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 listener::onFailure);
 
             // <1> Early check to verify that the user can create the destination index and can read from the source
-            if (licenseState.isSecurityEnabled() && request.isDeferValidation() == false) {
+            if (XPackSettings.SECURITY_ENABLED.get(settings) && request.isDeferValidation() == false) {
                 TransformPrivilegeChecker.checkPrivileges(
                     "update",
                     securityContext,

@@ -124,7 +124,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         threadPool = new TestThreadPool("test");
         indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, threadPool,
-            clock, () -> now, null, null);
+            clock, () -> now, null, null, null);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
         Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
     }
@@ -461,7 +461,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testClusterChangedWaitsForTheStateToBeRecovered() {
         IndexLifecycleService ilmService = new IndexLifecycleService(Settings.EMPTY, mock(Client.class), clusterService, threadPool,
-            systemUTC(), () -> now, null, null) {
+            systemUTC(), () -> now, null, null, null) {
 
             @Override
             void onMaster(ClusterState clusterState) {
@@ -580,6 +580,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
             equalTo(Collections.emptySet()));
 
+        final SingleNodeShutdownMetadata.Type type = randomFrom(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.REPLACE
+        );
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         state = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata())
                 .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("shutdown_node",
@@ -587,7 +592,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                         .setNodeId("shutdown_node")
                         .setReason("shut down for test")
                         .setStartedAtMillis(randomNonNegativeLong())
-                        .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                        .setType(type)
+                        .setTargetNodeName(targetNodeName)
                         .build())))
                 .build())
             .build();

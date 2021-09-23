@@ -12,6 +12,7 @@ import com.azure.storage.blob.models.BlobStorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
@@ -45,6 +47,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
+        String blobKey = buildKey(blobName);
         logger.trace("readBlob({}) from position [{}] with length [{}]", blobName, position, length != null ? length : "unlimited");
         if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && blobExists(blobName) == false) {
             // On Azure, if the location path is a secondary location, and the blob does not
@@ -53,18 +56,18 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             // before throwing a storage exception.  This can cause long delays in retrieving
             // snapshots, so we first check if the blob exists before trying to open an input
             // stream to it.
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+            throw new NoSuchFileException("Blob [" + blobKey + "] not found");
         }
         try {
-            return blobStore.getInputStream(buildKey(blobName), position, length);
+            return blobStore.getInputStream(blobKey, position, length);
         } catch (Exception e) {
             Throwable rootCause = Throwables.getRootCause(e);
             if (rootCause instanceof BlobStorageException) {
                 if (((BlobStorageException) rootCause).getStatusCode() == 404) {
-                    throw new NoSuchFileException("Blob [" + blobName + "] not found");
+                    throw new NoSuchFileException("Blob [" + blobKey + "] not found");
                 }
             }
-            throw new IOException("Unable to get input stream for blob [" + blobName + "]", e);
+            throw new IOException("Unable to get input stream for blob [" + blobKey + "]", e);
         }
     }
 
@@ -97,6 +100,14 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         blobStore.writeBlob(buildKey(blobName), bytes, failIfAlreadyExists);
+    }
+
+    @Override
+    public void writeBlob(String blobName,
+                          boolean failIfAlreadyExists,
+                          boolean atomic,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        blobStore.writeBlob(buildKey(blobName), failIfAlreadyExists, writer);
     }
 
     @Override

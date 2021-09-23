@@ -35,19 +35,16 @@ public class RestGetActionTests extends RestActionTestCase {
         });
     }
 
-    public void testTypeInPathWithGet() {
-        FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
-            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withPath("/some_index/some_type/some_id");
-        dispatchRequest(deprecatedRequest.withMethod(RestRequest.Method.GET).build());
-        assertWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE);
+    public void testTypeInPath() {
+        testTypeInPath(RestRequest.Method.GET);
+        testTypeInPath(RestRequest.Method.HEAD);
     }
 
-    public void testTypeInPathWithHead() {
+    private void testTypeInPath(RestRequest.Method method) {
         FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withPath("/some_index/some_type/some_id");
-        dispatchRequest(deprecatedRequest.withMethod(RestRequest.Method.HEAD).build());
+        dispatchRequest(deprecatedRequest.withMethod(method).build());
         assertWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

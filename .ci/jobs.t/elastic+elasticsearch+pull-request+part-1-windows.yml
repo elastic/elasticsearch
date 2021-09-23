@@ -1,7 +1,7 @@
 ---
 - job:
-    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+part-1-windows"
-    display-name: "elastic / elasticsearch # %BRANCH% - pull request part-1 windows"
+    name: "elastic+elasticsearch+pull-request+part-1-windows"
+    display-name: "elastic / elasticsearch - pull request part-1 windows"
     description: "Testing of Elasticsearch pull requests - part-1 windows"
     node: "windows-immutable"
     workspace: "C:\\Users\\jenkins\\workspace\\pr-part-1\\${BUILD_NUMBER}"
@@ -19,9 +19,8 @@
           github-hooks: true
           status-context: elasticsearch-ci/part-1-windows
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - %BRANCH%
-            - ^feat(ure)?/.*
+          black-list-target-branches:
+            - 6.8
           excluded-regions:
             - ^docs/.*
           white-list-labels:
@@ -34,6 +33,7 @@
           properties-content: |
             JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
             RUNTIME_JAVA_HOME=$USERPROFILE\\.java\\$ES_RUNTIME_JAVA
+            JAVA15_HOME=$USERPROFILE\\.java\\openjdk15
             GRADLE_TASK=checkPart1
       - batch: |
           del /f /s /q %USERPROFILE%\.gradle\init.d\*.*

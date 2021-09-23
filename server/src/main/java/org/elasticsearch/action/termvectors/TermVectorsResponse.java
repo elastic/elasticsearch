@@ -57,7 +57,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         public static final String END_OFFSET = "end_offset";
         public static final String PAYLOAD = "payload";
         public static final String _INDEX = "_index";
-        public static final String _TYPE = "_type";
         public static final String _ID = "_id";
         public static final String _VERSION = "_version";
         public static final String FOUND = "found";

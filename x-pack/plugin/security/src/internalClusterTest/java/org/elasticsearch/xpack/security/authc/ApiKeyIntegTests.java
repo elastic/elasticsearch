@@ -970,7 +970,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertApiKeyNotCreated(client, "key-5");
     }
 
-    public void testAuthenticationReturns429WhenThreadPoolIsSaturated() throws IOException, InterruptedException, ExecutionException {
+    public void testCreationAndAuthenticationReturns429WhenThreadPoolIsSaturated() throws Exception {
         final String nodeName = randomFrom(internalCluster().getNodeNames());
         final Settings settings = internalCluster().getInstance(Settings.class, nodeName);
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
@@ -1030,9 +1030,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final Request authRequest = new Request("GET", "_security/_authenticate");
             authRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(
                 "Authorization", "ApiKey " + base64ApiKeyKeyValue).build());
-            final ResponseException responseException = expectThrows(ResponseException.class, () -> restClient.performRequest(authRequest));
-            assertThat(responseException.getMessage(), containsString("429 Too Many Requests"));
-            assertThat(responseException.getResponse().getStatusLine().getStatusCode(), is(429));
+            final ResponseException e1 = expectThrows(ResponseException.class, () -> restClient.performRequest(authRequest));
+            assertThat(e1.getMessage(), containsString("429 Too Many Requests"));
+            assertThat(e1.getResponse().getStatusLine().getStatusCode(), is(429));
+
+            final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+            createApiKeyRequest.setJsonEntity("{\"name\":\"key\"}");
+            createApiKeyRequest.setOptions(createApiKeyRequest.getOptions().toBuilder()
+                .addHeader("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            final ResponseException e2 = expectThrows(ResponseException.class, () -> restClient.performRequest(createApiKeyRequest));
+            assertThat(e2.getMessage(), containsString("429 Too Many Requests"));
+            assertThat(e2.getResponse().getStatusLine().getStatusCode(), is(429));
         } finally {
             blockingLatch.countDown();
             if (lastTaskFuture != null) {

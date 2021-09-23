@@ -54,23 +54,22 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -80,10 +79,10 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -196,7 +195,7 @@ public abstract class EngineTestCase extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
-        CodecService codecService = new CodecService(null, logger);
+        CodecService codecService = new CodecService(null);
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -235,31 +234,31 @@ public abstract class EngineTestCase extends ESTestCase {
     public EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
         return new EngineConfig(config.getShardId(), config.getThreadPool(), config.getIndexSettings(),
             config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
-            new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
+            new CodecService(null), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
             config.getCircuitBreakerService(), globalCheckpointSupplier, config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
         return new EngineConfig(config.getShardId(), config.getThreadPool(), config.getIndexSettings(),
                 config.getWarmer(), config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
-                new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
+                new CodecService(null), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
                 config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
     }
 
     public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
         return new EngineConfig(config.getShardId(), config.getThreadPool(), config.getIndexSettings(),
             config.getWarmer(), config.getStore(), mergePolicy, config.getAnalyzer(), config.getSimilarity(),
-            new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
+            new CodecService(null), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
             config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
     }
 
     @Override
@@ -281,27 +280,25 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertMaxSeqNoInCommitUserData(replicaEngine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
             }
-            assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
-            assertThat(replicaEngine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
         }
     }
 
 
-    protected static ParseContext.Document testDocumentWithTextField() {
+    protected static LuceneDocument testDocumentWithTextField() {
         return testDocumentWithTextField("test");
     }
 
-    protected static ParseContext.Document testDocumentWithTextField(String value) {
-        ParseContext.Document document = testDocument();
+    protected static LuceneDocument testDocumentWithTextField(String value) {
+        LuceneDocument document = testDocument();
         document.add(new TextField("value", value, Field.Store.YES));
         return document;
     }
 
 
-    protected static ParseContext.Document testDocument() {
-        return new ParseContext.Document();
+    protected static LuceneDocument testDocument() {
+        return new LuceneDocument();
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
@@ -314,11 +311,11 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected static ParsedDocument testParsedDocument(
-            String id, String routing, ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
+            String id, String routing, LuceneDocument document, BytesReference source, Mapping mappingUpdate) {
         return testParsedDocument(id, routing, document, source, mappingUpdate, false);
     }
     protected static ParsedDocument testParsedDocument(
-            String id, String routing, ParseContext.Document document, BytesReference source, Mapping mappingUpdate,
+            String id, String routing, LuceneDocument document, BytesReference source, Mapping mappingUpdate,
             boolean recoverySource) {
         Field uidField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
@@ -659,7 +656,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 mergePolicy,
                 iwc.getAnalyzer(),
                 iwc.getSimilarity(),
-                new CodecService(null, logger),
+                new CodecService(null),
                 eventListener,
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -672,7 +669,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 globalCheckpointSupplier,
                 retentionLeasesSupplier,
                 primaryTerm,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                null);
     }
 
     protected EngineConfig config(EngineConfig config, Store store, Path translogPath) {
@@ -682,11 +680,11 @@ public abstract class EngineTestCase extends ESTestCase {
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         return new EngineConfig(config.getShardId(), config.getThreadPool(),
             indexSettings, config.getWarmer(), store, config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
-            new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
+            new CodecService(null), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             translogConfig, config.getFlushMergesAfter(), config.getExternalRefreshListener(),
             config.getInternalRefreshListener(), config.getIndexSort(), config.getCircuitBreakerService(),
             config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
+            config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier(), config.getLeafSorter());
     }
 
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {
@@ -1024,7 +1022,8 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     public static List<Translog.Operation> readAllOperationsInLucene(Engine engine) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
+        try (Translog.Snapshot snapshot =
+                 engine.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null){
                 operations.add(op);
@@ -1242,6 +1241,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 public LeafReader wrap(LeafReader leaf) {
                     try {
                         final IndexSearcher searcher = new IndexSearcher(leaf);
+                        searcher.setQueryCache(null);
                         final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
                         final Scorer scorer = weight.scorer(leaf.getContext());
                         final DocIdSetIterator iterator = scorer != null ? scorer.iterator() : null;

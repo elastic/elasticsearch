@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedOrdinalsS
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.Instant;
 
@@ -47,7 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -120,10 +119,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx").setProfile(true)
                 .addAggregation(histogram("histo").field(NUMBER_FIELD).interval(1L)).get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -165,10 +164,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                         )
                 ).get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -248,10 +247,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                         .collectMode(SubAggCollectionMode.BREADTH_FIRST).field(TAG_FIELD).subAggregation(avg("avg").field(NUMBER_FIELD))))
                 .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -318,10 +317,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                         .subAggregation(max("max").field(NUMBER_FIELD)))
                 .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -378,10 +377,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                                         .subAggregation(max("max").field(NUMBER_FIELD)))))
                 .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -582,7 +581,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                                         .subAggregation(max("max").field(NUMBER_FIELD)))))
                 .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(0));
     }
@@ -612,10 +611,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                 .subAggregation(new MaxAggregationBuilder("m").field("date")))
             .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("dateidx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -643,21 +642,17 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                         "delegate_debug",
                         matchesMap().entry("average_docs_per_range", equalTo(RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2))
                             .entry("ranges", 1)
-                            .entry("delegate", "FiltersAggregator.FilterByFilter")
+                            .entry("delegate", "FilterByFilterAggregator")
                             .entry(
                                 "delegate_debug",
                                 matchesMap().entry("segments_with_deleted_docs", 0)
                                     .entry("segments_with_doc_count_field", 0)
-                                    .entry("max_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2)
-                                    .entry("estimated_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2)
-                                    .entry("estimate_cost_time", greaterThanOrEqualTo(0L)) // ~1,276,734 nanos is normal
                                     .entry("segments_counted", 0)
                                     .entry("segments_collected", greaterThan(0))
                                     .entry(
                                         "filters",
                                         matchesList().item(
-                                            matchesMap().entry("scorers_prepared_while_estimating_cost", greaterThan(0))
-                                                .entry("query", "DocValuesFieldExistsQuery [field=date]")
+                                            matchesMap().entry("query", "DocValuesFieldExistsQuery [field=date]")
                                                 .entry("specialized_for", "docvalues_field_exists")
                                                 .entry("results_from_metadata", 0)
                                         )
@@ -703,10 +698,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                 .addAggregation(new DateHistogramAggregationBuilder("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
                 .get();
             assertSearchResponse(response);
-            Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+            Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
             assertThat(profileResults, notNullValue());
             assertThat(profileResults.size(), equalTo(getNumShards("date_filter_by_filter_disabled").numPrimaries));
-            for (ProfileShardResult profileShardResult : profileResults.values()) {
+            for (SearchProfileShardResult profileShardResult : profileResults.values()) {
                 assertThat(profileShardResult, notNullValue());
                 AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
                 assertThat(aggProfileResults, notNullValue());

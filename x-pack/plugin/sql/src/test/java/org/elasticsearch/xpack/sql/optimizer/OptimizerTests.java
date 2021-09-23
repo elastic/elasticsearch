@@ -1094,8 +1094,9 @@ public class OptimizerTests extends ESTestCase {
         Sum sum = new Sum(EMPTY, fa);
 
         Alias sumAlias = new Alias(EMPTY, "sum", sum);
+        EsRelation from = new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false);
 
-        Aggregate aggregate = new Aggregate(EMPTY, FROM(), emptyList(), asList(sumAlias));
+        Aggregate aggregate = new Aggregate(EMPTY, from, emptyList(), asList(sumAlias));
         LogicalPlan optimizedPlan = new Optimizer().optimize(aggregate);
         assertTrue(optimizedPlan instanceof Aggregate);
         Aggregate p = (Aggregate) optimizedPlan;
@@ -1119,11 +1120,11 @@ public class OptimizerTests extends ESTestCase {
     }
 
     /**
-     * Once the root cause of https://github.com/elastic/elasticsearch/issues/45251 is fixed in the <code>sum</code> ES aggregation
-     * (can differentiate between <code>SUM(all zeroes)</code> and <code>SUM(all nulls)</code>),
-     * remove the {@link OptimizerTests#testSumIsReplacedWithStats()}, and re-enable the following test.
+     * Once https://github.com/elastic/elasticsearch/issues/71582 is addressed (ES `sum` aggregation can differentiate between
+     * <code>SUM(all zeroes)</code> and <code>SUM(all nulls)</code>), remove the {@link OptimizerTests#testSumIsReplacedWithStats()}, and
+     * re-enable the following test.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45251")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71582")
     public void testSumIsNotReplacedWithStats() {
         FieldAttribute fa = getFieldAttribute();
         Sum sum = new Sum(EMPTY, fa);
@@ -1138,30 +1139,26 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(sumAlias, p.aggregates().get(0));
     }
 
-    //
-    // SkipQueryIfFoldingProjection
-    //
-
-    public void testSkipQueryOnLocalRelation() {
+    public void testPushProjectionsIntoLocalRelations() {
         // SELECT TRUE as a
         Project plan = new Project(EMPTY,
             new LocalRelation(EMPTY, new SingletonExecutable(emptyList())),
             singletonList(new Alias(EMPTY, "a", TRUE)));
 
-        LogicalPlan optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
+        LogicalPlan optimized = new Optimizer.PushProjectionsIntoLocalRelation().apply(plan);
 
         assertEquals(LocalRelation.class, optimized.getClass());
         assertEquals(plan.output(), ((LocalRelation) optimized).executable().output());
     }
 
-    public void testSkipQueryOnAggregationOnEsRelationWithOnlyConstants() {
+    public void testSkipQueryForOnlyLiteralAggregations() {
         Aggregate plan = new Aggregate(EMPTY,
             new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
             emptyList(),
             singletonList(new Alias(EMPTY, "a", TRUE))
         );
 
-        LogicalPlan optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
+        LogicalPlan optimized = new Optimizer.SkipQueryForLiteralAggregations().apply(plan);
 
         optimized.forEachDown(LeafPlan.class, l -> {
             assertEquals(LocalRelation.class, l.getClass());
@@ -1177,11 +1174,12 @@ public class OptimizerTests extends ESTestCase {
                 new IsNull(EMPTY, getFieldAttribute("col"))),
             singletonList(new Alias(EMPTY, "a", TRUE)));
 
-        LogicalPlan optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
+        LogicalPlan optimized = new Optimizer.SkipQueryForLiteralAggregations().apply(plan);
 
         optimized.forEachDown(LeafPlan.class, l -> {
             assertEquals(EsRelation.class, l.getClass());
         });
     }
+
 
 }

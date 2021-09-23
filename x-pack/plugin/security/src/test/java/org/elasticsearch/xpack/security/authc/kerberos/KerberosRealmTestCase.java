@@ -85,7 +85,6 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         settings = buildKerberosRealmSettings(REALM_NAME,
             writeKeyTab(dir.resolve("key.keytab"), "asa").toString(), 100, "10m", true, randomBoolean());
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
     }
 
@@ -95,6 +94,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         terminate(threadPool);
     }
 
+    @SuppressWarnings("unchecked")
     protected void mockKerberosTicketValidator(final byte[] decodedTicket, final Path keytabPath, final boolean krbDebug,
                                                final Tuple<String, String> value, final Exception e) {
         assert value != null || e != null;

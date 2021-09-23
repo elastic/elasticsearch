@@ -7,14 +7,15 @@
  */
 package org.elasticsearch.repositories.azure;
 
+import fixture.azure.AzureHttpHandler;
+
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import fixture.azure.AzureHttpHandler;
+
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -24,12 +25,14 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -40,6 +43,7 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
@@ -241,6 +245,14 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             Randomness.shuffle(blobsToDelete);
             container.deleteBlobsIgnoringIfNotExists(blobsToDelete.iterator());
             assertThat(container.listBlobs(), is(anEmptyMap()));
+        }
+    }
+
+    public void testNotFoundErrorMessageContainsFullKey() throws Exception {
+        try (BlobStore store = newBlobStore()) {
+            BlobContainer container = store.blobContainer(BlobPath.EMPTY.add("nested").add("dir"));
+            NoSuchFileException exception = expectThrows(NoSuchFileException.class, () -> container.readBlob("blob"));
+            assertThat(exception.getMessage(), containsString("nested/dir/blob] not found"));
         }
     }
 }

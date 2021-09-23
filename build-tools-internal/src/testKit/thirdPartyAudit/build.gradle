@@ -28,6 +28,10 @@ repositories {
   mavenCentral()
 }
 
+project("libs:elasticsearch-core") {
+  apply plugin:'java'
+}
+
 dependencies {
   forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.7'
   jdkJarHell 'org.elasticsearch:elasticsearch-core:current'

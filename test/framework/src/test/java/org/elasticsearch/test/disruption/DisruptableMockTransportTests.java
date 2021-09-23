@@ -10,13 +10,13 @@ package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,6 +57,8 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
 
+    private Runnable deliverBlackholedRequests;
+
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> disconnectedLinks;
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> blackholedLinks;
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> blackholedRequestLinks;
@@ -89,8 +91,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         List<DisruptableMockTransport> transports = new ArrayList<>();
 
-        deterministicTaskQueue = new DeterministicTaskQueue(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "dummy").build(), random());
+        deterministicTaskQueue = new DeterministicTaskQueue();
 
         final DisruptableMockTransport transport1 = new DisruptableMockTransport(node1, logger, deterministicTaskQueue) {
             @Override
@@ -137,13 +138,15 @@ public class DisruptableMockTransportTests extends ESTestCase {
         service1.start();
         service2.start();
 
-        final PlainActionFuture<Void> fut1 = new PlainActionFuture<>();
+        final PlainActionFuture<Releasable> fut1 = new PlainActionFuture<>();
         service1.connectToNode(node2, fut1);
-        final PlainActionFuture<Void> fut2 = new PlainActionFuture<>();
+        final PlainActionFuture<Releasable> fut2 = new PlainActionFuture<>();
         service2.connectToNode(node1, fut2);
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertTrue(fut1.isDone());
         assertTrue(fut2.isDone());
+
+        deliverBlackholedRequests = () -> transports.forEach(DisruptableMockTransport::deliverBlackholedRequests);
     }
 
     private TransportRequestHandler<TransportRequest.Empty> requestHandlerShouldNotBeCalled() {
@@ -296,6 +299,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(TransportResponse.Empty.INSTANCE);
         deterministicTaskQueue.runAllTasks();
+        deliverBlackholedRequests.run();
+        deterministicTaskQueue.runAllTasks();
+
         assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 
@@ -313,6 +319,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
         disconnectedLinks.add(Tuple.tuple(node2, node1));
         responseHandlerChannel.get().sendResponse(new Exception());
         deterministicTaskQueue.runAllTasks();
+        deliverBlackholedRequests.run();
+        deterministicTaskQueue.runAllTasks();
+
         assertThat(responseHandlerException.get(), instanceOf(ConnectTransportException.class));
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -36,7 +37,7 @@ public class SnapshotShardsServiceTests extends ESTestCase {
             new UpdateIndexShardSnapshotStatusRequest(
                 new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(random()))),
                 new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(random()), randomInt(5)),
-                new SnapshotsInProgress.ShardSnapshotStatus(randomAlphaOfLength(10), UUIDs.randomBase64UUID(random()))
+                new SnapshotsInProgress.ShardSnapshotStatus(randomAlphaOfLength(10), ShardGeneration.newGeneration(random()))
             ),
             request -> new UpdateIndexShardSnapshotStatusRequest(request.snapshot(), request.shardId(), request.status()),
             request -> {
@@ -51,7 +52,7 @@ public class SnapshotShardsServiceTests extends ESTestCase {
                         ? new ShardId(randomAlphaOfLength(10), UUIDs.randomBase64UUID(random()), randomInt(5))
                         : request.shardId(),
                     mutateStatus
-                        ? new SnapshotsInProgress.ShardSnapshotStatus(randomAlphaOfLength(10), UUIDs.randomBase64UUID(random()))
+                        ? new SnapshotsInProgress.ShardSnapshotStatus(randomAlphaOfLength(10), ShardGeneration.newGeneration(random()))
                         : request.status()
                 );
             }

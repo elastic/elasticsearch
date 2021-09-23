@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.Map;
 
 // Typed object holding properties for a given query
@@ -55,7 +56,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
                          @Nullable SqlQueryTask task,
                          TimeValue waitForCompletionTimeout, boolean keepOnCompletion, TimeValue keepAlive) {
 
-        super(zi, username, clusterName);
+        super(zi, username, clusterName, x -> Collections.emptySet());
 
         this.pageSize = pageSize;
         this.requestTimeout = requestTimeout;

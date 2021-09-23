@@ -32,7 +32,10 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     private String query;
 
     @ClassRule
-    public static LocalH2 H2 = new LocalH2((c) -> { c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'"); });
+    public static LocalH2 H2 = new LocalH2((c) -> {
+        c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'");
+        c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_empty_mapping.sql'");
+    });
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {

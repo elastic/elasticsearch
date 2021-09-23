@@ -176,6 +176,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             if ((object instanceof Map) ==  false) {
                 throw new IllegalArgumentException("malformed [docs] section, should include an inner object");
             }
+            @SuppressWarnings("unchecked")
             Map<String, Object> dataMap = (Map<String, Object>) object;
             Map<String, Object> document = ConfigurationUtils.readMap(null, null,
                 dataMap, Fields.SOURCE);
@@ -186,7 +187,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
                 dataMap, Metadata.ROUTING.getFieldName());
             if (restApiVersion == RestApiVersion.V_7 && dataMap.containsKey(Metadata.TYPE.getFieldName())) {
-                deprecationLogger.compatibleApiWarning("simulate_pipeline_with_types",
+                deprecationLogger.compatibleCritical("simulate_pipeline_with_types",
                     "[types removal] specifying _type in pipeline simulation requests is deprecated");
             }
             Long version = null;

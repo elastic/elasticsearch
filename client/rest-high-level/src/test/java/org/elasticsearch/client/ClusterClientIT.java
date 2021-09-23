@@ -386,5 +386,4 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
 
         assertFalse(exist);
     }
-
 }

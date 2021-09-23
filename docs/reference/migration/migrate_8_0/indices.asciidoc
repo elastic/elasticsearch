@@ -6,8 +6,6 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-//end::notable-breaking-changes[]
-
 .The deprecated `_upgrade` API has been removed.
 [%collapsible]
 ====
@@ -110,10 +108,12 @@ include these settings will return an error.
 When closing an index in earlier versions, by default {es} would not wait for
 the shards of the closed index to be properly assigned before returning. From
 version 8.0 onwards the default behaviour is to wait for shards to be assigned
-according to the <<index-wait-for-active-shards,index setting
-`index.write.wait_for_active_shards`>>.
+according to the
+{ref}/docs-index_.html#index-wait-for-active-shards[`index.write.wait_for_active_shards`
+index setting].
 
 *Impact* +
 Accept the new behaviour, or specify `?wait_for_active_shards=0` to preserve
 the old behaviour if needed.
 ====
+//end::notable-breaking-changes[]

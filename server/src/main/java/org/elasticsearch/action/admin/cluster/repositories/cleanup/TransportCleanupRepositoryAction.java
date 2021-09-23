@@ -173,6 +173,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
+                        SnapshotsService.ensureRepositoryExists(repositoryName, currentState);
                         final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(
                             RepositoryCleanupInProgress.TYPE,
                             RepositoryCleanupInProgress.EMPTY

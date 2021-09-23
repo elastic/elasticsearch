@@ -25,6 +25,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -92,53 +93,34 @@ public class RestGetSourceActionTests extends RestActionTestCase {
     /**
      * test deprecation is logged if type is used in path
      */
-    public void testTypeInGetPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Accept", compatibleMediaType))
-            .withMethod(RestRequest.Method.HEAD)
-            .withPath("/some_index/some_type/id/_source")
-            .build();
-        dispatchRequest(request);
-        assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    public void testTypeInHeadPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Accept", compatibleMediaType))
-            .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index/some_type/id/_source")
-            .build();
-        dispatchRequest(request);
-        assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+    public void testTypeInPath() {
+        for (RestRequest.Method method : Arrays.asList(RestRequest.Method.GET, RestRequest.Method.HEAD)) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                .withHeaders(Map.of("Accept", compatibleMediaType))
+                .withMethod(method)
+                .withPath("/some_index/some_type/id/_source")
+                .build();
+            dispatchRequest(request);
+            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+        }
     }
 
     /**
      * test deprecation is logged if type is used as parameter
      */
-    public void testTypeParameterAndGet() {
+    public void testTypeParameter() {
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Accept", compatibleMediaType))
-            .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index/_source/id")
-            .withParams(params)
-            .build();
-        dispatchRequest(request);
-        assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
-    }
-
-    public void testTypeParameterAndHead() {
-        Map<String, String> params = new HashMap<>();
-        params.put("type", "some_type");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Accept", compatibleMediaType))
-            .withMethod(RestRequest.Method.HEAD)
-            .withPath("/some_index/_source/id")
-            .withParams(params)
-            .build();
-        dispatchRequest(request);
-        assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+        for (RestRequest.Method method : Arrays.asList(RestRequest.Method.GET, RestRequest.Method.HEAD)) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                .withHeaders(Map.of("Accept", compatibleMediaType))
+                .withMethod(method)
+                .withPath("/some_index/_source/id")
+                .withParams(params)
+                .build();
+            dispatchRequest(request);
+            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+        }
     }
 
 }

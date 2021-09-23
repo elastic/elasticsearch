@@ -58,6 +58,7 @@ public class OutboundHandlerTests extends ESTestCase {
     private OutboundHandler handler;
     private FakeTcpChannel channel;
     private DiscoveryNode node;
+    private Compression.Scheme compressionScheme;
 
     @Before
     public void setUp() throws Exception {
@@ -66,6 +67,7 @@ public class OutboundHandlerTests extends ESTestCase {
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
         StatsTracker statsTracker = new StatsTracker();
+        compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
         handler = new OutboundHandler("node", Version.CURRENT, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
 
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
@@ -120,6 +122,8 @@ public class OutboundHandlerTests extends ESTestCase {
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress = randomBoolean();
+        boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
+            && version.before(Compression.Scheme.LZ4_VERSION);
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestRequest request = new TestRequest(value);
@@ -138,7 +142,11 @@ public class OutboundHandlerTests extends ESTestCase {
                 requestRef.set(request);
             }
         });
-        handler.sendRequest(node, channel, requestId, action, request, options, version, compress, isHandshake);
+        if (compress) {
+            handler.sendRequest(node, channel, requestId, action, request, options, version, compressionScheme, isHandshake);
+        } else {
+            handler.sendRequest(node, channel, requestId, action, request, options, version, null, isHandshake);
+        }
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();
@@ -166,7 +174,7 @@ public class OutboundHandlerTests extends ESTestCase {
         } else {
             assertFalse(header.isHandshake());
         }
-        if (compress) {
+        if (compress && compressUnsupportedDueToVersion == false) {
             assertTrue(header.isCompressed());
         } else {
             assertFalse(header.isCompressed());
@@ -183,6 +191,9 @@ public class OutboundHandlerTests extends ESTestCase {
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress = randomBoolean();
+        boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
+            && version.before(Compression.Scheme.LZ4_VERSION);
+
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestResponse response = new TestResponse(value);
@@ -198,7 +209,11 @@ public class OutboundHandlerTests extends ESTestCase {
                 responseRef.set(response);
             }
         });
-        handler.sendResponse(version, channel, requestId, action, response, compress, isHandshake);
+        if (compress) {
+            handler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake);
+        } else {
+            handler.sendResponse(version, channel, requestId, action, response, null, isHandshake);
+        }
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();
@@ -225,7 +240,7 @@ public class OutboundHandlerTests extends ESTestCase {
         } else {
             assertFalse(header.isHandshake());
         }
-        if (compress) {
+        if (compress && compressUnsupportedDueToVersion == false) {
             assertTrue(header.isCompressed());
         } else {
             assertFalse(header.isCompressed());

@@ -12,7 +12,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -28,36 +28,39 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     continue;
   }
 
-  String baseName = "v${bwcVersion}"
+  String bwcVersionString = bwcVersion.toString()
+  String baseName = "v" + bwcVersionString
 
   /* This project runs the core REST tests against a 4 node cluster where two of
      the nodes has a different minor.  */
-  testClusters {
-    "${baseName}" {
-      versions = [bwcVersion.toString(), project.version]
-      numberOfNodes = 4
-
-      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      setting 'xpack.security.enabled', 'false'
-    }
+  def baseCluster = testClusters.register(baseName) {
+    versions = [bwcVersionString, project.version]
+    numberOfNodes = 4
+    setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    setting 'xpack.security.enabled', 'false'
   }
 
   tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     mustRunAfter("precommit")
     doFirst {
       delete("${buildDir}/cluster/shared/repo/${baseName}")
       // Getting the endpoints causes a wait for the cluster
-      println "Test cluster endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      println "Test cluster endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
       println "Upgrading one node to create a mixed cluster"
-      testClusters."${baseName}".nextNodeToNextVersion()
+      if (BuildParams.isSnapshotBuild() == false) {
+           baseCluster.get().nodes."${baseName}-0".systemProperty 'es.index_mode_feature_flag_registered', 'true'
+      }
+      baseCluster.get().nextNodeToNextVersion()
       // Getting the endpoints causes a wait for the cluster
-      println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      println "Upgrade complete, endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
       println "Upgrading another node to create a mixed cluster"
-      testClusters."${baseName}".nextNodeToNextVersion()
-
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+      if (BuildParams.isSnapshotBuild() == false) {
+        baseCluster.get().nodes."${baseName}-1".systemProperty 'es.index_mode_feature_flag_registered', 'true'
+      }
+      baseCluster.get().nextNodeToNextVersion()
+      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.clustername', baseName)
     }
     systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     onlyIf { project.bwc_tests_enabled }

@@ -15,10 +15,8 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.Streams;
@@ -67,7 +65,6 @@ import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStre
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class AnalysisModuleTests extends ESTestCase {
     private final Settings emptyNodeSettings = Settings.builder()
@@ -117,21 +114,6 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testSimpleConfigurationYaml() throws IOException {
         Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
-    }
-
-    public void testVersionedAnalyzers() throws Exception {
-        String yaml = "/org/elasticsearch/index/analysis/test1.yml";
-        Version version = VersionUtils.randomVersion(random());
-        Settings settings2 = Settings.builder()
-                .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
-        AnalysisRegistry newRegistry = getNewRegistry(settings2);
-        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
-
-        assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
         assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
@@ -402,7 +384,7 @@ public class AnalysisModuleTests extends ESTestCase {
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");
         InputStream dic = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.dic");
         Dictionary dictionary;
-        try (Directory tmp = new SimpleFSDirectory(environment.tmpFile())) {
+        try (Directory tmp = newFSDirectory(environment.tmpFile())) {
             dictionary = new Dictionary(tmp, "hunspell", aff, dic);
         }
         AnalysisModule module = new AnalysisModule(environment, singletonList(new AnalysisPlugin() {

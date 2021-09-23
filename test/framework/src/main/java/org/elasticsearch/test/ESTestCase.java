@@ -248,6 +248,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
+
+        // We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+        // other if we allow them to set the number of available processors as it's set-once in Netty.
+        System.setProperty("es.set.netty.runtime.available.processors", "false");
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -725,6 +729,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomPicks.randomFrom(random, array);
     }
 
+    /** Pick a random object from the given array of suppliers. The array must not be empty. */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public static <T> T randomFrom(Random random, Supplier<T>... array) {
+        Supplier<T> supplier = RandomPicks.randomFrom(random, array);
+        return supplier.get();
+    }
+
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
         return RandomPicks.randomFrom(random(), list);
@@ -828,11 +840,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return list;
     }
 
-    public static <K, V> Map<K, V> randomMap(int minListSize, int maxListSize, Supplier<Tuple<K, V>> valueConstructor) {
-        final int size = randomIntBetween(minListSize, maxListSize);
+    public static <K, V> Map<K, V> randomMap(int minMapSize, int maxMapSize, Supplier<Tuple<K, V>> entryConstructor) {
+        final int size = randomIntBetween(minMapSize, maxMapSize);
         Map<K, V> list = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            Tuple<K, V> entry = valueConstructor.get();
+            Tuple<K, V> entry = entryConstructor.get();
             list.put(entry.v1(), entry.v2());
         }
         return list;
@@ -1091,6 +1103,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Returns size random values
      */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> List<T> randomSubsetOf(int size, T... values) {
         List<T> list = arrayAsArrayList(values);
         return randomSubsetOf(size, list);

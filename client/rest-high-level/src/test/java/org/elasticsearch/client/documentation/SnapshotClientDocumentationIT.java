@@ -617,7 +617,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-snapshots-execute
 
         // tag::get-snapshots-response
-        List<SnapshotInfo> snapshotsInfos = response.getSnapshots(repositoryName);
+        List<SnapshotInfo> snapshotsInfos = response.getSnapshots();
         SnapshotInfo snapshotInfo = snapshotsInfos.get(0);
         RestStatus restStatus = snapshotInfo.status(); // <1>
         SnapshotId snapshotId = snapshotInfo.snapshotId(); // <2>

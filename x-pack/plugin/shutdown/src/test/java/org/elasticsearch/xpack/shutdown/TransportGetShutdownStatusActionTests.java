@@ -129,10 +129,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            false,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.COMPLETE, 0, nullValue());
@@ -158,10 +159,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.RESTART,
-            allocationDeciders,
+            randomBoolean(), // Whether the node has been seen doesn't matter, restart-type shutdowns should always say COMPLETE here.
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(
@@ -193,10 +195,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            true,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.COMPLETE, 0, nullValue());
@@ -237,10 +240,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            true,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.IN_PROGRESS, 2, nullValue());
@@ -288,10 +292,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            true,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.IN_PROGRESS, 1, nullValue());
@@ -323,10 +328,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            true,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(
@@ -354,10 +360,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
-            allocationDeciders,
+            true,
             clusterInfoService,
             snapshotsInfoService,
-            allocationService
+            allocationService,
+            allocationDeciders
         );
 
         assertShardMigration(
@@ -366,6 +373,77 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             2,
             equalTo("all remaining shards are currently INITIALIZING and must finish before they can be moved off this node")
         );
+    }
+
+    public void testNodeNotInCluster() {
+        String bogusNodeId = randomAlphaOfLength(10);
+        ImmutableOpenMap.Builder<String, IndexMetadata> indicesTable = ImmutableOpenMap.<String, IndexMetadata>builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(
+                Metadata.builder()
+                    .indices(indicesTable.build())
+                    .putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(
+                            Collections.singletonMap(
+                                bogusNodeId,
+                                SingleNodeShutdownMetadata.builder()
+                                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                    .setStartedAtMillis(randomNonNegativeLong())
+                                    .setReason(this.getTestName())
+                                    .setNodeId(bogusNodeId)
+                                    .build()
+                            )
+                        )
+                    )
+            )
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(
+                        DiscoveryNode.createLocal(
+                            Settings.builder()
+                                .put(Settings.builder().build())
+                                .put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID)
+                                .build(),
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+                            SHUTTING_DOWN_NODE_ID
+                        )
+                    )
+                    .add(
+                        DiscoveryNode.createLocal(
+                            Settings.builder().put(Settings.builder().build()).put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                            LIVE_NODE_ID
+                        )
+                    )
+                    .add(
+                        DiscoveryNode.createLocal(
+                            Settings.builder()
+                                .put(Settings.builder().build())
+                                .put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID)
+                                .build(),
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9202),
+                            OTHER_LIVE_NODE_ID
+                        )
+                    )
+            )
+            .routingTable(routingTable.build())
+            .build();
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            state,
+            bogusNodeId,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            false,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
+
+        assertShardMigration(status, SingleNodeShutdownMetadata.Status.NOT_STARTED, 0, is("node is not currently part of the cluster"));
     }
 
     private IndexMetadata generateIndexMetadata(Index index, int numberOfShards, int numberOfReplicas) {

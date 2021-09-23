@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<GetAliasesResponse> {
 
@@ -98,7 +99,11 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
     }
 
     public static AliasMetadata createAliasMetadata() {
-        Builder builder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
+        return createAliasMetadata(s -> false);
+    }
+
+    public static AliasMetadata createAliasMetadata(Predicate<String> t) {
+        Builder builder = AliasMetadata.builder(randomValueOtherThanMany(t, () -> randomAlphaOfLengthBetween(3, 10)));
         if (randomBoolean()) {
             builder.routing(randomAlphaOfLengthBetween(3, 10));
         }

@@ -148,12 +148,6 @@ file name ends in ".p12", ".pfx" or "pkcs12", the default is `PKCS12`.
 Otherwise, it defaults to `jks`.
 end::ssl-truststore-type[]
 
-tag::ssl-truststore-type-pkcs11[]
-The format of the truststore file. For the Java keystore format, use `jks`. For
-PKCS#12 files, use `PKCS12`. For a PKCS#11 token, use `PKCS11`. The default is
-`jks`.
-end::ssl-truststore-type-pkcs11[]
-
 tag::ssl-verification-mode-values[]
 Controls the verification of certificates.
 +

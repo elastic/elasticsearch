@@ -38,7 +38,6 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestCreateApiKeyActionTests extends ESTestCase {
     private final XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
@@ -54,7 +53,6 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         threadPool = new ThreadPool(settings);
-        when(mockLicenseState.isSecurityEnabled()).thenReturn(true);
     }
 
     @Override

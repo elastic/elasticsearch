@@ -35,7 +35,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
@@ -69,6 +68,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
 import static org.hamcrest.Matchers.containsString;
@@ -76,7 +76,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -99,86 +98,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     public static DatafeedConfig createRandomizedDatafeedConfig(String jobId, String datafeedId, long bucketSpanMillis) {
         return createRandomizedDatafeedConfigBuilder(jobId, datafeedId, bucketSpanMillis).build();
-    }
-
-    private static DatafeedConfig.Builder createRandomizedDatafeedConfigBuilder(String jobId, String datafeedId, long bucketSpanMillis) {
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
-        builder.setIndices(randomStringList(1, 10));
-        if (randomBoolean()) {
-            builder.setQueryProvider(createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
-        }
-        boolean addScriptFields = randomBoolean();
-        if (addScriptFields) {
-            int scriptsSize = randomInt(3);
-            List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
-            for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
-                scriptFields.add(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10), mockScript(randomAlphaOfLength(10)),
-                        randomBoolean()));
-            }
-            builder.setScriptFields(scriptFields);
-        }
-        Long aggHistogramInterval = null;
-        if (randomBoolean() && addScriptFields == false) {
-            // can only test with a single agg as the xcontent order gets randomized by test base class and then
-            // the actual xcontent isn't the same and test fail.
-            // Testing with a single agg is ok as we don't have special list writeable / xcontent logic
-            AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-            aggHistogramInterval = randomNonNegativeLong();
-            aggHistogramInterval = aggHistogramInterval> bucketSpanMillis ? bucketSpanMillis : aggHistogramInterval;
-            aggHistogramInterval = aggHistogramInterval <= 0 ? 1 : aggHistogramInterval;
-            MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-            AggregationBuilder topAgg = randomBoolean() ?
-                AggregationBuilders.dateHistogram("buckets")
-                    .field("time")
-                    .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms")) :
-                AggregationBuilders.composite(
-                    "buckets",
-                    Collections.singletonList(
-                        new DateHistogramValuesSourceBuilder("time")
-                            .field("time")
-                            .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms"))
-                    )
-                );
-            aggs.addAggregator(topAgg.subAggregation(maxTime));
-            builder.setParsedAggregations(aggs);
-        }
-        if (randomBoolean()) {
-            builder.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
-            if (aggHistogramInterval == null) {
-                builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
-            } else {
-                builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 5) * aggHistogramInterval));
-            }
-        }
-        if (randomBoolean()) {
-            builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, 1_000_000)));
-        }
-        if (randomBoolean()) {
-            builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
-        }
-        if (randomBoolean()) {
-            builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(bucketSpanMillis));
-        }
-        if (randomBoolean()) {
-            builder.setMaxEmptySearches(randomIntBetween(10, 100));
-        }
-        builder.setIndicesOptions(IndicesOptions.fromParameters(
-            randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
-            Boolean.toString(randomBoolean()),
-            Boolean.toString(randomBoolean()),
-            Boolean.toString(randomBoolean()),
-            SearchRequest.DEFAULT_INDICES_OPTIONS));
-        if (randomBoolean()) {
-            Map<String, Object> settings = new HashMap<>();
-            settings.put("type", "keyword");
-            settings.put("script", "");
-            Map<String, Object> field = new HashMap<>();
-            field.put("runtime_field_foo", settings);
-            builder.setRuntimeMappings(field);
-        }
-        return builder;
     }
 
     @Override

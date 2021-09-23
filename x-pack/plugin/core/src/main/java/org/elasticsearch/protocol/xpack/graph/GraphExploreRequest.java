@@ -78,6 +78,11 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     }
 
     @Override
+    public boolean allowsRemoteIndices() {
+        return true;
+    }
+
+    @Override
     public GraphExploreRequest indices(String... indices) {
         this.indices = indices;
         return this;
@@ -86,6 +91,11 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     public GraphExploreRequest indicesOptions(IndicesOptions indicesOptions) {

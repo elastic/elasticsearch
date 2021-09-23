@@ -1,12 +1,12 @@
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(xpackModule('async-search'))
-  javaRestTestImplementation project(':x-pack:plugin:async-search:qa')
+  javaRestTestImplementation project(':test:framework')
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
   setting 'xpack.license.self_generated.type', 'trial'

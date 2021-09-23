@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -66,6 +66,7 @@ import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggrega
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils.BucketKeyExtractor;
 
@@ -647,6 +648,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             )
         );
         TransformIndexerStats stats = new TransformIndexerStats();
+        TransformProgress progress = new TransformProgress();
 
         Map<String, String> fieldTypeMap = asStringMap(aggName, "double", targetField, "keyword", targetField2, "keyword");
 
@@ -656,7 +658,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             Collections.emptyList(),
             inputFirstRun,
             fieldTypeMap,
-            stats
+            stats,
+            progress
         );
         List<Map<String, Object>> resultSecondRun = runExtraction(
             groupBy,
@@ -664,7 +667,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             Collections.emptyList(),
             inputSecondRun,
             fieldTypeMap,
-            stats
+            stats,
+            progress
         );
 
         assertNotEquals(resultFirstRun, resultSecondRun);
@@ -1057,6 +1061,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         long expectedDocCounts
     ) throws IOException {
         TransformIndexerStats stats = new TransformIndexerStats();
+        TransformProgress progress = new TransformProgress();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 
@@ -1066,7 +1071,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             pipelineAggregationBuilders,
             input,
             fieldTypeMap,
-            stats
+            stats,
+            progress
         );
 
         // remove the document ids and test uniqueness
@@ -1085,7 +1091,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
         Collection<PipelineAggregationBuilder> pipelineAggregationBuilders,
         Map<String, Object> input,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats stats
+        TransformIndexerStats stats,
+        TransformProgress progress
     ) throws IOException {
 
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -1100,6 +1107,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 pipelineAggregationBuilders,
                 fieldTypeMap,
                 stats,
+                progress,
                 true
             ).collect(Collectors.toList());
         }

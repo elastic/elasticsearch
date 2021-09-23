@@ -1,6 +1,6 @@
 process where process_name : "svchost.exe" and command_line != "* -k *";
 process where process_name in ("ipconfig.exe", "netstat.exe", "systeminfo.exe", "route.exe");
-process where subtype.create and wildcard(command_line, "*.ost *", "*.pst *")
+process where subtype.create and command_line like ("*.ost *", "*.pst *")
 ;
 
 process where subtype.create and

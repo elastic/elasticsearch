@@ -29,7 +29,7 @@
 
     <!-- Use our fork of this Checkstyle rule, so that we can ignore test classes -->
     <module name="org.elasticsearch.gradle.internal.checkstyle.MissingJavadocTypeCheck">
-        <property name="ignorePattern" value="^.*(Tests?|IT)$"/>
+        <property name="ignorePattern" value="^.*(Tests?|IT|TestCase)$"/>
         <property name="severity" value="warning"/>
         <message key="javadoc.missing" value="Types should explain their purpose" />
     </module>

@@ -27,6 +27,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,7 +38,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class SnapshotsServiceTests extends ESTestCase {
@@ -299,7 +302,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertThat(completedClone.state(), is(SnapshotsInProgress.State.SUCCESS));
         final SnapshotsInProgress.Entry startedSnapshot = snapshotsInProgress.entries().get(1);
         assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.STARTED));
-        final SnapshotsInProgress.ShardSnapshotStatus shardCloneStatus = startedSnapshot.clones().get(repositoryShardId);
+        final SnapshotsInProgress.ShardSnapshotStatus shardCloneStatus = startedSnapshot.shardsByRepoShardId().get(repositoryShardId);
         assertThat(shardCloneStatus.state(), is(SnapshotsInProgress.ShardState.INIT));
         assertThat(shardCloneStatus.nodeId(), is(updatedClusterState.nodes().getLocalNodeId()));
         assertIsNoop(updatedClusterState, completeShard);
@@ -380,8 +383,26 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertThat(completedClone.state(), is(SnapshotsInProgress.State.SUCCESS));
         final SnapshotsInProgress.Entry startedSnapshot = snapshotsInProgress.entries().get(1);
         assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.STARTED));
-        assertThat(startedSnapshot.clones().get(shardId1).state(), is(SnapshotsInProgress.ShardState.INIT));
+        assertThat(startedSnapshot.shardsByRepoShardId().get(shardId1).state(), is(SnapshotsInProgress.ShardState.INIT));
         assertIsNoop(updatedClusterState, completeShardClone);
+    }
+
+    public void testSnapshottingIndicesExcludesClones() {
+        final String repoName = "test-repo";
+        final String indexName = "index";
+        final ClusterState clusterState = stateWithSnapshots(
+            stateWithUnassignedIndices(indexName),
+            cloneEntry(
+                snapshot(repoName, "target-snapshot"),
+                snapshot(repoName, "source-snapshot").getSnapshotId(),
+                clonesMap(new RepositoryShardId(indexId(indexName), 0), initShardStatus(uuid()))
+            )
+        );
+
+        assertThat(
+            SnapshotsService.snapshottingIndices(clusterState, singleton(clusterState.metadata().index(indexName).getIndex())),
+            empty()
+        );
     }
 
     private static DiscoveryNodes discoveryNodes(String localNodeId) {
@@ -482,11 +503,14 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     private static SnapshotsInProgress.ShardSnapshotStatus initShardStatus(String nodeId) {
-        return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, uuid());
+        return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, ShardGeneration.newGeneration(random()));
     }
 
     private static SnapshotsInProgress.ShardSnapshotStatus successfulShardStatus(String nodeId) {
-        return SnapshotsInProgress.ShardSnapshotStatus.success(nodeId, new ShardSnapshotResult(uuid(), new ByteSizeValue(1L), 1));
+        return SnapshotsInProgress.ShardSnapshotStatus.success(
+            nodeId,
+            new ShardSnapshotResult(ShardGeneration.newGeneration(random()), new ByteSizeValue(1L), 1)
+        );
     }
 
     private static Snapshot snapshot(String repoName, String name) {

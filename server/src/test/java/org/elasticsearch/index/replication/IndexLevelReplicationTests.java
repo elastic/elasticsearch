@@ -22,9 +22,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -116,7 +116,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> future = shards.asyncRecoverReplica(replica,
-                (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, null, recoveryListener) {
                     @Override
                     public void cleanFiles(int totalTranslogOps, long globalCheckpoint,
                                            Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener) {
@@ -193,7 +193,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> fut = shards.asyncRecoverReplica(replica,
-                (shard, node) -> new RecoveryTarget(shard, node, recoveryListener) {
+                (shard, node) -> new RecoveryTarget(shard, node, null, recoveryListener) {
                     @Override
                     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                         try {
@@ -459,7 +459,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                         assertThat(snapshot.totalOperations(), equalTo(0));
                     }
                 }
-                try (Translog.Snapshot snapshot = shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
+                try (Translog.Snapshot snapshot =
+                         shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
             }
@@ -477,7 +478,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                         assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(Collections.singletonList(noop2)));
                     }
                 }
-                try (Translog.Snapshot snapshot = shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
+                try (Translog.Snapshot snapshot =
+                         shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
             }
@@ -572,7 +574,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.promoteReplicaToPrimary(replica2).get();
             logger.info("--> Recover replica3 from replica2");
             recoverReplica(replica3, replica2, true);
-            try (Translog.Snapshot snapshot = replica3.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
+            try (Translog.Snapshot snapshot = replica3.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), true)) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
                 final List<Translog.Operation> expectedOps = new ArrayList<>(initOperations);
                 expectedOps.add(op2);

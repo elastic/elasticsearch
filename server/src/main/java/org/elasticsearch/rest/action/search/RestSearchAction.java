@@ -16,12 +16,12 @@ import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -131,7 +131,7 @@ public class RestSearchAction extends BaseRestHandler {
                                           IntConsumer setSize) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
-            deprecationLogger.compatibleApiWarning("search_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.compatibleCritical("search_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         if (searchRequest.source() == null) {
@@ -161,16 +161,7 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
         }
 
-        // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
-        // from the REST layer. these modes are an internal optimization and should
-        // not be specified explicitly by the user.
-        String searchType = request.param("search_type");
-        if ("query_and_fetch".equals(searchType) ||
-                "dfs_query_and_fetch".equals(searchType)) {
-            throw new IllegalArgumentException("Unsupported search type [" + searchType + "]");
-        } else {
-            searchRequest.searchType(searchType);
-        }
+        searchRequest.searchType(request.param("search_type"));
         parseSearchSource(searchRequest.source(), request, setSize);
         searchRequest.requestCache(request.paramAsBoolean("request_cache", searchRequest.requestCache()));
 
@@ -207,7 +198,16 @@ public class RestSearchAction extends BaseRestHandler {
         }
         if (request.hasParam("size")) {
             int size = request.paramAsInt("size", SearchService.DEFAULT_SIZE);
-            setSize.accept(size);
+            if (request.getRestApiVersion() == RestApiVersion.V_7 && size == -1) {
+                // we treat -1 as not-set, but deprecate it to be able to later remove this funny extra treatment
+                deprecationLogger.compatibleCritical(
+                    "search-api-size-1",
+                    "Using search size of -1 is deprecated and will be removed in future versions. "
+                        + "Instead, don't use the `size` parameter if you don't want to set it explicitly."
+                );
+            } else {
+                setSize.accept(size);
+            }
         }
 
         if (request.hasParam("explain")) {
@@ -303,7 +303,7 @@ public class RestSearchAction extends BaseRestHandler {
         assert request.pointInTimeBuilder() != null;
         ActionRequestValidationException validationException = null;
         if (request.indices().length > 0) {
-            validationException = addValidationError("[indices] cannot be used with point in time. Do " + 
+            validationException = addValidationError("[indices] cannot be used with point in time. Do " +
                 "not specify any index with point in time.", validationException);
         }
         if (request.indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {

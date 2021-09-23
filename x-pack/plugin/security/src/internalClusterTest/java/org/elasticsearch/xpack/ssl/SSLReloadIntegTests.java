@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.ssl;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.ssl.SSLException;
@@ -109,7 +109,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             .build();
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster()
             .getInstance(Transport.class, node).boundAddress().publishAddress();

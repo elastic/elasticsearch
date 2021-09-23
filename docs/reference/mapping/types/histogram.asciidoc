@@ -24,6 +24,14 @@ per document. Nested arrays are not supported.
 * `histogram` fields do not support sorting.
 ========
 
+[[histogram-params]]
+==== Parameters
+
+include::numeric.asciidoc[tag=time_series_metric]
++
+For `histogram` fields, this parameter accepts `histogram`. You can't update
+this parameter for existing fields.
+
 [[histogram-uses]]
 ==== Uses
 
@@ -44,6 +52,7 @@ following aggregations and queries:
 * <<search-aggregations-metrics-percentile-rank-aggregation,percentile ranks>> aggregation
 * <<search-aggregations-metrics-boxplot-aggregation,boxplot>> aggregation
 * <<search-aggregations-bucket-histogram-aggregation-histogram-fields,histogram>> aggregation
+* <<search-aggregations-bucket-range-aggregation-histogram-fields,range>> aggregation
 * <<query-dsl-exists-query,exists>> query
 
 [[mapping-types-histogram-building-histogram]]

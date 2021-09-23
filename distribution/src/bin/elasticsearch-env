@@ -137,7 +137,7 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
       es_opt="-E${envvar_key}=${envvar_value}"
       es_arg_array+=("${es_opt}")
     fi
-  done <<< "$(env | grep -E '^ES_SETTING(_{1,2}[A-Z]+)+$')"
+  done <<< "$(env | grep -E '^ES_SETTING(_{1,2}[A-Z]+)+=')"
 
   # Reset the positional parameters to the es_arg_array values and any existing positional params
   set -- "$@" "${es_arg_array[@]}"

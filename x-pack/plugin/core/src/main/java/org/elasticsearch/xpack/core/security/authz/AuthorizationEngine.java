@@ -249,13 +249,18 @@ public interface AuthorizationEngine {
         private final TransportRequest request;
         private final String action;
         @Nullable
-        private final AuthorizationContext parentAuthorizationContext;
+        private final AuthorizationContext originatingAuthorizationContext;
 
-        public RequestInfo(Authentication authentication, TransportRequest request, String action, AuthorizationContext parentContext) {
+        public RequestInfo(
+            Authentication authentication,
+            TransportRequest request,
+            String action,
+            AuthorizationContext originatingContext
+        ) {
             this.authentication = Objects.requireNonNull(authentication);
             this.request = Objects.requireNonNull(request);
             this.action = Objects.requireNonNull(action);
-            this.parentAuthorizationContext = parentContext;
+            this.originatingAuthorizationContext = originatingContext;
         }
 
         public String getAction() {
@@ -271,8 +276,8 @@ public interface AuthorizationEngine {
         }
 
         @Nullable
-        public AuthorizationContext getParentAuthorizationContext() {
-            return parentAuthorizationContext;
+        public AuthorizationContext getOriginatingAuthorizationContext() {
+            return originatingAuthorizationContext;
         }
 
         @Override
@@ -287,7 +292,7 @@ public interface AuthorizationEngine {
                 + action
                 + ']'
                 + ", parent=["
-                + parentAuthorizationContext
+                + originatingAuthorizationContext
                 + "]}";
         }
     }
@@ -383,12 +388,12 @@ public interface AuthorizationEngine {
     final class AuthorizationContext {
         private final String action;
         private final AuthorizationInfo authorizationInfo;
-        private final AuthorizationResult authorizationResult;
+        private final IndicesAccessControl indicesAccessControl;
 
-        public AuthorizationContext(String action, AuthorizationInfo authorizationInfo, AuthorizationResult authorizationResult) {
+        public AuthorizationContext(String action, AuthorizationInfo authorizationInfo, IndicesAccessControl accessControl) {
             this.action = action;
             this.authorizationInfo = authorizationInfo;
-            this.authorizationResult = authorizationResult;
+            this.indicesAccessControl = accessControl;
         }
 
         public String getAction() {
@@ -399,8 +404,8 @@ public interface AuthorizationEngine {
             return authorizationInfo;
         }
 
-        public AuthorizationResult getAuthorizationResult() {
-            return authorizationResult;
+        public IndicesAccessControl getIndicesAccessControl() {
+            return indicesAccessControl;
         }
     }
 

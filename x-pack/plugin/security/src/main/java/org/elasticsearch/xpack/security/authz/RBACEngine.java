@@ -310,7 +310,9 @@ public class RBACEngine implements AuthorizationEngine {
                     "api that don't support retrieving the indices they relate to"));
             }
         } else if (isChildActionAuthorizedByParent(requestInfo, authorizationInfo)) {
-            listener.onResponse((IndexAuthorizationResult) requestInfo.getParentAuthorizationContext().getAuthorizationResult());
+            listener.onResponse(
+                new IndexAuthorizationResult(true, requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl())
+            );
         } else if (((IndicesRequest) request).allowsRemoteIndices()) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
@@ -353,16 +355,12 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private boolean isChildActionAuthorizedByParent(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
-        final AuthorizationContext parent = requestInfo.getParentAuthorizationContext();
+        final AuthorizationContext parent = requestInfo.getOriginatingAuthorizationContext();
         if (parent == null) {
             return false;
         }
 
-        final AuthorizationResult parentResult = parent.getAuthorizationResult();
-        if ((parentResult instanceof IndexAuthorizationResult) == false) {
-            return false;
-        }
-        final IndicesAccessControl indicesAccessControl = ((IndexAuthorizationResult) parentResult).getIndicesAccessControl();
+        final IndicesAccessControl indicesAccessControl = parent.getIndicesAccessControl();
         if (indicesAccessControl == null) {
             // This can happen for is the parent request was authorized by index name only - e.g. bulk request
             // A missing IAC is not an error, but it means we can't safely tie authz of the child action to the parent authz
@@ -398,15 +396,25 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
-        return Arrays.stream(indices).allMatch(idx -> {
-            if (Regex.isSimpleMatchPattern(idx)) {
-                // The request contains a wildcard
-                return false;
-            }
+        if (Arrays.equals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
+            // Special placeholder for no indices.
+            // We probably can short circuit this, but it's safer not to and just fall through to the regular authorization
+            return false;
+        }
+
+        for (String idx : indices) {
+            assert Regex.isSimpleMatchPattern(idx) == false : "Wildcards should already be expanded but action ["
+                + requestInfo.getAction()
+                + "] has index ["
+                + idx
+                + "]";
             IndicesAccessControl.IndexAccessControl iac = indicesAccessControl.getIndexPermissions(idx);
             // The parent context has already successfully authorized access to this index (by name)
-            return iac != null && iac.isGranted();
-        });
+            if (iac == null || iac.isGranted() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static IndexAuthorizationResult authorizeIndexActionName(String action,

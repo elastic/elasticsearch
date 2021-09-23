@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.junit.BeforeClass;

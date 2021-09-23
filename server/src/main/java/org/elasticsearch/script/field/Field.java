@@ -9,11 +9,6 @@
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-
-import java.math.BigInteger;
 import java.util.List;
 
 /**
@@ -26,8 +21,6 @@ import java.util.List;
  * * {@code getValue(defaultValue) == defaultValue}
  */
 public abstract class Field<T> {
-    public static final Converter<BigInteger, BigIntegerField> BigInteger = Converters.BIGINTEGER;
-    public static final Converter<Long, LongField> Long = Converters.LONG;
 
     protected final String name;
     protected final FieldValues<T> values;
@@ -98,22 +91,6 @@ public abstract class Field<T> {
     }
 
     /**
-     * Get the underlying value as a {@code double} unless {@link #isEmpty()}, in which case return {@code defaultValue}.
-     * May throw {@link InvalidConversion} if the underlying value is not representable as a {@code double}.
-     */
-    public double getDouble(double defaultValue) {
-        if (isEmpty()) {
-            return defaultValue;
-        }
-        try {
-            return values.getDoubleValue();
-        } catch (RuntimeException err) {
-            return defaultValue;
-        }
-    }
-
-
-    /**
      * Get the underlying value as a {@code long} unless {@link #isEmpty()}, in which case return {@code defaultValue}.
      * May throw {@link InvalidConversion} if the underlying value is not representable as a {@code long}.
      */
@@ -128,69 +105,18 @@ public abstract class Field<T> {
         }
     }
 
-    public static class BooleanField extends Field<Boolean> {
-        public BooleanField(String name, FieldValues<Boolean> values) {
-            super(name, values);
+    /**
+     * Get the underlying value as a {@code double} unless {@link #isEmpty()}, in which case return {@code defaultValue}.
+     * May throw {@link InvalidConversion} if the underlying value is not representable as a {@code double}.
+     */
+    public double getDouble(double defaultValue) {
+        if (isEmpty()) {
+            return defaultValue;
         }
-    }
-
-    public static class DoubleField extends Field<Double> {
-        public DoubleField(String name, FieldValues<Double> values) {
-            super(name, values);
-        }
-    }
-
-    public static class LongField extends Field<Long> {
-        public LongField(String name, FieldValues<Long> values) {
-            super(name, values);
-        }
-    }
-
-    public static class DateNanosField extends Field<JodaCompatibleZonedDateTime> {
-        public DateNanosField(String name, FieldValues<JodaCompatibleZonedDateTime> values) {
-            super(name, values);
-        }
-    }
-
-    public static class DateMillisField extends Field<JodaCompatibleZonedDateTime> {
-        public DateMillisField(String name, FieldValues<JodaCompatibleZonedDateTime> values) {
-            super(name, values);
-        }
-    }
-
-    public static class GeoPointField extends Field<GeoPoint> {
-        public GeoPointField(String name, FieldValues<GeoPoint> values) {
-            super(name, values);
-        }
-    }
-
-    public static class StringField extends Field<String> {
-        public StringField(String name, FieldValues<String> values) {
-            super(name, values);
-        }
-    }
-
-    public static class BytesRefField extends Field<BytesRef> {
-        public BytesRefField(String name, FieldValues<BytesRef> values) {
-            super(name, values);
-        }
-    }
-
-    public static class BigIntegerField extends Field<BigInteger> {
-        public BigIntegerField(String name, FieldValues<BigInteger> values) {
-            super(name, values);
-        }
-    }
-
-    public static class VersionField extends Field<String> {
-        public VersionField(String name, FieldValues<String> values) {
-            super(name, values);
-        }
-    }
-
-    public static class IpField extends Field<String> {
-        public IpField(String name, FieldValues<String> values) {
-            super(name, values);
+        try {
+            return values.getDoubleValue();
+        } catch (RuntimeException err) {
+            return defaultValue;
         }
     }
 }

@@ -8,20 +8,20 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
@@ -53,9 +53,9 @@ public class NodeService implements Closeable {
     private final IndexingPressure indexingPressure;
     private final AggregationUsageService aggregationUsageService;
 
-    private final Discovery discovery;
+    private final Coordinator coordinator;
 
-    NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
+    NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Coordinator coordinator,
                 TransportService transportService, IndicesService indicesService, PluginsService pluginService,
                 CircuitBreakerService circuitBreakerService, ScriptService scriptService,
                 @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
@@ -67,7 +67,7 @@ public class NodeService implements Closeable {
         this.monitorService = monitorService;
         this.transportService = transportService;
         this.indicesService = indicesService;
-        this.discovery = discovery;
+        this.coordinator = coordinator;
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
         this.httpServerTransport = httpServerTransport;
@@ -115,7 +115,7 @@ public class NodeService implements Closeable {
                 http ? (httpServerTransport == null ? null : httpServerTransport.stats()) : null,
                 circuitBreaker ? circuitBreakerService.stats() : null,
                 script ? scriptService.stats() : null,
-                discoveryStats ? discovery.stats() : null,
+                discoveryStats ? coordinator.stats() : null,
                 ingest ? ingestService.stats() : null,
                 adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
                 indexingPressure ? this.indexingPressure.stats() : null);

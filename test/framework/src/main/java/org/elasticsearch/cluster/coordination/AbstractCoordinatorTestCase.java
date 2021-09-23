@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -67,6 +68,8 @@ import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStat
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -133,6 +136,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AbstractCoordinatorTestCase extends ESTestCase {
@@ -564,6 +568,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(false));
                     assertThat(nodeId + " has no STATE_NOT_RECOVERED_BLOCK",
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK), equalTo(false));
+
+                    for (final ClusterNode otherNode : clusterNodes) {
+                        if (isConnectedPair(leader, otherNode) && isConnectedPair(otherNode, clusterNode)) {
+                            assertTrue(otherNode.getId() + " is connected to healthy node " + clusterNode.getId(),
+                                otherNode.transportService.nodeConnected(clusterNode.localNode));
+                        }
+                    }
                 } else {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertThat(nodeId + " has no master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(), nullValue());
@@ -571,6 +582,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(true));
                     assertFalse(nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
+
+                    for (final ClusterNode otherNode : clusterNodes) {
+                        if (isConnectedPair(leader, otherNode)) {
+                            assertFalse(otherNode.getId() + " is not connected to removed node " + clusterNode.getId(),
+                                otherNode.transportService.nodeConnected(clusterNode.localNode));
+                        }
+                    }
                 }
             }
 
@@ -965,6 +983,37 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         return clusterNodes.stream().map(cn -> cn.mockTransport)
                             .filter(transport -> transport.getLocalNode().getAddress().equals(address)).findAny();
                     }
+
+                    @Override
+                    protected void onSendRequest(
+                        long requestId,
+                        String action,
+                        TransportRequest request,
+                        TransportRequestOptions options,
+                        DisruptableMockTransport destinationTransport
+                    ) {
+                        final TransportRequestOptions.Type chanType = options.type();
+                        switch (action) {
+                            case JoinHelper.JOIN_ACTION_NAME:
+                            case FollowersChecker.FOLLOWER_CHECK_ACTION_NAME:
+                            case LeaderChecker.LEADER_CHECK_ACTION_NAME:
+                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.PING));
+                                break;
+                            case JoinHelper.JOIN_VALIDATE_ACTION_NAME:
+                            case PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME:
+                            case PublicationTransportHandler.COMMIT_STATE_ACTION_NAME:
+                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.STATE));
+                                break;
+                            case JoinHelper.JOIN_PING_ACTION_NAME:
+                                assertThat(action, chanType, oneOf(TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.PING));
+                                break;
+                            default:
+                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.REG));
+                                break;
+                        }
+
+                        super.onSendRequest(requestId, action, request, options, destinationTransport);
+                    }
                 };
                 final Settings settings = nodeSettings.hasValue(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()) ?
                     nodeSettings : Settings.builder().put(nodeSettings)
@@ -1002,8 +1051,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     getElectionStrategy(),
                     nodeHealthService);
                 masterService.setClusterStatePublisher(coordinator);
-                final GatewayService gatewayService
-                    = new GatewayService(settings, allocationService, clusterService, threadPool, coordinator, null);
+                final GatewayService gatewayService = new GatewayService(settings, allocationService, clusterService, threadPool);
 
                 logger.trace("starting up [{}]", localNode);
                 transportService.start();
@@ -1245,6 +1293,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 return clusterApplierService.state();
             }
 
+            void addActionBlock(@SuppressWarnings("SameParameterValue") String actionName) {
+                mockTransport.addActionBlock(actionName);
+            }
+
+            void clearActionBlocks() {
+                mockTransport.clearActionBlocks();
+            }
+
             void applyInitialConfiguration() {
                 onNode(() -> {
                     final Set<String> nodeIdsWithPlaceholders = new HashSet<>(initialConfiguration.getNodeIds());
@@ -1401,13 +1457,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         @Override
-        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
+        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ActionListener<Void> listener) {
             if (clusterStateApplyResponse == ClusterStateApplyResponse.HANG) {
                 if (randomBoolean()) {
                     // apply cluster state, but don't notify listener
-                    super.onNewClusterState(source, clusterStateSupplier, e -> {
-                        // ignore result
-                    });
+                    super.onNewClusterState(
+                        source,
+                        clusterStateSupplier,
+                        ActionListener.wrap(() -> {
+                            // ignore result
+                        }));
                 }
             } else {
                 super.onNewClusterState(source, clusterStateSupplier, listener);
@@ -1416,7 +1475,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         protected void connectToNodesAndWait(ClusterState newClusterState) {
-            // don't do anything, and don't block
+            connectToNodesAsync(newClusterState, () -> {
+                // no need to block waiting for handshakes etc. to complete, it's enough to let the NodeConnectionsService take charge of
+                // these connections
+            });
         }
 
         @Override

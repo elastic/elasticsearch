@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.IpField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -89,14 +90,19 @@ public class IpFieldMapper extends FieldMapper {
                 = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
             this.script.precludesParameters(nullValue, ignoreMalformed);
             addScriptValidation(script, indexed, hasDocValues);
-            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
-                .addValidator(v -> {
-                    if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
-                        throw new IllegalArgumentException(
-                            "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
-                        );
-                    }
-                });
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
+                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + hasDocValues.name
+                            + "] are true"
+                    );
+                }
+            });
         }
 
         Builder nullValue(String nullValue) {
@@ -358,7 +364,7 @@ public class IpFieldMapper extends FieldMapper {
 
             @Override
             public org.elasticsearch.script.field.Field<String> toField(String fieldName) {
-                return new org.elasticsearch.script.field.Field.IpField(fieldName, this);
+                return new IpField(fieldName, this);
             }
         }
 

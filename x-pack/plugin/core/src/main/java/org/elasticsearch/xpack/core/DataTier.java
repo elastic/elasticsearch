@@ -39,6 +39,14 @@ public class DataTier {
 
     public static final Set<String> ALL_DATA_TIERS = Set.of(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD, DATA_FROZEN);
 
+    static {
+        for (String tier : ALL_DATA_TIERS) {
+            assert tier.equals(DATA_FROZEN) || tier.contains(DATA_FROZEN) == false
+                : "can't have two tier names containing [" + DATA_FROZEN + "] because it would break setting validation optimizations" +
+                    " in the data tier allocation decider";
+        }
+    }
+
     // Represents an ordered list of data tiers from frozen to hot (or slow to fast)
     private static final List<String> ORDERED_FROZEN_TO_HOT_TIERS =
         List.of(DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);

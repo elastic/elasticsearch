@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.DataTier.DATA_FROZEN;
 
@@ -67,8 +66,6 @@ public class DataTierAllocationDecider extends AllocationDecider {
         private static final Collection<Setting<?>> dependencies = List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
             SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING);
 
-        private static final Pattern FROZEN_TIER_PATTERN = Pattern.compile("(^|,)" + DATA_FROZEN + "($|,)");
-
         public static String getDefaultTierPreference(Settings settings) {
             if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)) {
                 return DATA_FROZEN;
@@ -91,7 +88,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
                             "] tier preference may be used for partial searchable snapshots (got: [" + value + "])");
                     }
                 } else {
-                    if (FROZEN_TIER_PATTERN.matcher(value).find()) {
+                    if (value.contains(DATA_FROZEN)) {
                         throw new IllegalArgumentException("[" + DATA_FROZEN + "] tier can only be used for partial searchable snapshots");
                     }
                 }

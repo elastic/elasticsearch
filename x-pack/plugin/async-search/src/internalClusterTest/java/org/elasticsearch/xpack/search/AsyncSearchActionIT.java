@@ -462,7 +462,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskNotRunning(response.getId());
     }
 
-    public void testMaxResponseSize() throws Exception {
+    public void testMaxResponseSize() {
         SearchSourceBuilder source = new SearchSourceBuilder()
             .query(new MatchAllQueryBuilder())
             .aggregation(AggregationBuilders.terms("terms").field("terms.keyword").size(numKeywords));
@@ -476,14 +476,10 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        ExecutionException e = expectThrows(ExecutionException.class,
-            () -> submitAsyncSearch(request));
+        ExecutionException e = expectThrows(ExecutionException.class, () -> submitAsyncSearch(request));
         assertNotNull(e.getCause());
-
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertEquals("Can't store an async search response larger than [" + limit + "] bytes. " +
-                "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.",
-            e.getCause().getMessage());
+        assertThat(e.getMessage(), containsString("Can't store an async search response larger than [" + limit + "] bytes. " +
+                "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting."));
 
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));

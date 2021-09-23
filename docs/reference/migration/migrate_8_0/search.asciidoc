@@ -13,43 +13,12 @@
 *Details* +
 The multi search API now supports an empty first line when you provide the
 request body as a text file, such as when using curl's `--data-binary` flag. The
-API parses an empty first line as empty action metadata. For example, the API
-now supports a file with the following contents:
-
-[source,js]
-----
-
-{ "query": {"match": { "my-field": "foo" }}}
-
-{ "query": {"match_all": {}}}
-----
-// NOTCONSOLE
+API parses an empty first line as empty action metadata.
 
 The API no longer supports text files that contain:
 
-* An empty first line followed by a line containing only `{}`. For example:
-+
-[source,js]
-----
-
-{}
-{ "query": {"match": { "my-field": "foo" }}}
-
-{ "query": {"match_all": {}}}
-----
-// NOTCONSOLE
-
-* An empty first line followed by another empty line. For example:
-+
-[source,js]
-----
-
-
-{ "query": {"match": { "my-field": "foo" }}}
-
-{ "query": {"match_all": {}}}
-----
-// NOTCONSOLE
+* An empty first line followed by a line containing only `{}`.
+* An empty first line followed by another empty line.
 
 *Impact* +
 Discontinue use of unsupported files with the multi search API. Requests

@@ -105,8 +105,8 @@ tasks.named("yamlRestTestV7CompatTest").configure {
             'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //#42654 cutoff_frequency, common terms are not supported. Throwing an exception
 
             // https://github.com/elastic/elasticsearch/pull/78180
-            'cluster.health/20_request_timeout/cluster/cluster health request timeout on waiting for nodes',
-            'cluster.health/20_request_timeout/cluster/cluster health request timeout waiting for active shards',
+            'cluster.health/20_request_timeout/cluster health request timeout on waiting for nodes',
+            'cluster.health/20_request_timeout/cluster health request timeout waiting for active shards',
     ].join(',')
 }
 

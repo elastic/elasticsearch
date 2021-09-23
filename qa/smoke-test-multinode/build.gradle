@@ -25,7 +25,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'path.repo', repo.absolutePath
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'

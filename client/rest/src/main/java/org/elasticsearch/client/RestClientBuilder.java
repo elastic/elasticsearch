@@ -30,7 +30,6 @@ import org.apache.http.nio.conn.SchemeIOSessionStrategy;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.VersionInfo;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.AccessController;
@@ -40,6 +39,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
+import javax.net.ssl.SSLContext;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
@@ -69,6 +69,7 @@ public final class RestClientBuilder {
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
     private boolean metaHeaderEnabled = true;
+    private Boolean useAPICompatibility = null;
 
     static {
 
@@ -245,6 +246,11 @@ public final class RestClientBuilder {
         return this;
     }
 
+    public RestClientBuilder setAPICompatibilityMode(Boolean enabled) {
+        this.useAPICompatibility = enabled;
+        return this;
+    }
+
     /**
      * Whether to send a {@code X-Elastic-Client-Meta} header that describes the runtime environment. It contains
      * information that is similar to what could be found in {@code User-Agent}. Using a separate header allows
@@ -267,6 +273,9 @@ public final class RestClientBuilder {
             (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient);
         RestClient restClient = new RestClient(httpClient, defaultHeaders, nodes,
                 pathPrefix, failureListener, nodeSelector, strictDeprecationMode, compressionEnabled);
+        if (this.useAPICompatibility != null) {
+            restClient.setApiCompatibilityMode(this.useAPICompatibility);
+        }
         httpClient.start();
         return restClient;
     }

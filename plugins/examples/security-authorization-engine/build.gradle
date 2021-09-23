@@ -1,26 +1,43 @@
-apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
   name 'security-authorization-engine'
   description 'An example spi extension plugin for security that implements an Authorization Engine'
   classname 'org.elasticsearch.example.AuthorizationEnginePlugin'
   extendedPlugins = ['x-pack-security']
-  licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
+  licenseFile rootProject.file('SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-dependencies {
-  compileOnly "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
-  javaRestTestImplementation "org.elasticsearch.client:x-pack-transport:${versions.elasticsearch}"
-  javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
-  // let the javaRestTest see the classpath of main
-  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+sourceSets {
+  javaRestTest {
+    // let the javaRestTest see the classpath of main
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
 }
-//no unit tests
-tasks.named("test").configure { enabled = false }
+
+if (!gradle.includedBuilds) {
+  configurations.all {
+    resolutionStrategy.dependencySubstitution {
+      // Temporary workaround for https://github.com/elastic/elasticsearch/issues/77602
+      substitute module('org.elasticsearch:server') using module("org.elasticsearch:elasticsearch:${elasticsearchVersion}")
+      substitute module('org.elasticsearch.client:rest') using module("org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}")
+    }
+  }
+}
+
+dependencies {
+  compileOnly "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-high-level-client:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.test:framework:${elasticsearchVersion}"
+}
+
 tasks.named("javaRestTest").configure {
-  dependsOn "buildZip"
   systemProperty 'tests.security.manager', 'false'
 }
 

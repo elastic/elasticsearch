@@ -260,6 +260,9 @@ public class NodeStatsTests extends ESTestCase {
 
                         compilations += generatedStats.getCompilations();
                         assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
+
+                        assertEquals(generatedStats.getCacheEvictionsHistory(), deserStats.getCacheEvictionsHistory());
+                        assertEquals(generatedStats.getCompilationsHistory(), deserStats.getCompilationsHistory());
                     }
                     assertEquals(evictions, scriptStats.getCacheEvictions());
                     assertEquals(limited, scriptStats.getCompilationLimitTriggered());
@@ -555,31 +558,26 @@ public class NodeStatsTests extends ESTestCase {
             List<ScriptContextStats> stats = new ArrayList<>(numContents);
             HashSet<String> contexts = new HashSet<>();
             for (int i = 0; i < numContents; i++) {
+                List<ScriptContextStats.TimeSeries> timeSeries = new ArrayList<>();
+                for (int j = 0; j < 2; j++) {
+                    if (randomBoolean()) {
+                        long day = randomLongBetween(0, 1024);
+                        long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
+                        long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
+                        timeSeries.add(new ScriptContextStats.TimeSeries(five, fifteen, day));
+                    } else {
+                        timeSeries.add(new ScriptContextStats.TimeSeries());
+                    }
+                }
                 long compile = randomLongBetween(0, 1024);
-                ScriptContextStats.TimeSeries compileSeries = null;
-                if (randomBoolean()) {
-                    compileSeries = new ScriptContextStats.TimeSeries(
-                            randomLongBetween(0, 1024),
-                            randomLongBetween(0, 1024),
-                            randomLongBetween(0, 1024)
-                    );
-                }
                 long eviction = randomLongBetween(0, 1024);
-                ScriptContextStats.TimeSeries evictionSeries = null;
-                if (randomBoolean()) {
-                    evictionSeries = new ScriptContextStats.TimeSeries(
-                        randomLongBetween(0, 1024),
-                        randomLongBetween(0, 1024),
-                        randomLongBetween(0, 1024)
-                    );
-                }
                 stats.add(new ScriptContextStats(
                     randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12)),
                     compile,
                     eviction,
                     randomLongBetween(0, 1024),
-                    compileSeries,
-                    evictionSeries)
+                    timeSeries.get(0),
+                    timeSeries.get(1))
                 );
             }
             scriptStats = new ScriptStats(stats);

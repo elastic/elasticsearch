@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class ScriptContextStats implements Writeable, ToXContentFragment, Comparable<ScriptContextStats> {
@@ -41,12 +42,14 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
         compilationLimitTriggered = in.readVLong();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            List<TimeSeries> timeSeries = in.readList(TimeSeries::new);
+            assert timeSeries.size() == 2;
+            compilationsHistory = timeSeries.get(0);
+            cacheEvictionsHistory = timeSeries.get(1);
+        } else {
             compilationsHistory = null;
             cacheEvictionsHistory = null;
-        } else {
-            compilationsHistory = in.readOptionalWriteable(TimeSeries::new);
-            cacheEvictionsHistory = in.readOptionalWriteable(TimeSeries::new);
         }
     }
 
@@ -57,8 +60,7 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         out.writeVLong(cacheEvictions);
         out.writeVLong(compilationLimitTriggered);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(compilationsHistory);
-            out.writeOptionalWriteable(cacheEvictionsHistory);
+            out.writeList(List.of(compilationsHistory, cacheEvictionsHistory));
         }
     }
 
@@ -74,8 +76,11 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         }
 
         public TimeSeries(long five, long fifteen, long day) {
+            assert five >= 0;
             this.five = five;
+            assert fifteen >= five;
             this.fifteen = fifteen;
+            assert day >= fifteen;
             this.day = day;
         }
 
@@ -101,7 +106,20 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         }
 
         public boolean isEmpty() {
-            return five == 0 && fifteen == 0 && day == 0;
+            return day == 0;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TimeSeries that = (TimeSeries) o;
+            return five == that.five && fifteen == that.fifteen && day == that.day;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(five, fifteen, day);
         }
     }
 

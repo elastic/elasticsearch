@@ -908,7 +908,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     boolean routingMustForkFromTransportThread(Iterable<DocWriteRequest<?>> requests, ConcreteIndices concreteIndices) {
         for (DocWriteRequest<?> request : requests) {
-            if (concreteIndices.routing(concreteIndices.resolveIfAbsent(request)).mustForkFromTransportThread()) {
+            if (request == null) {
+                continue;
+            }
+            Index index;
+            try {
+                index = concreteIndices.resolveIfAbsent(request);
+            } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
+                continue;
+            }
+            if (concreteIndices.routing(index).mustForkFromTransportThread()) {
                 return true;
             }
         }

@@ -141,6 +141,11 @@ public class StoreFileMetadata implements Writeable {
             // we can't tell if either or is null so we return false in this case! this is why we don't use equals for this!
             return false;
         }
+
+        if (hashEqualsContents()) {
+            return hash.equals(other.hash);
+        }
+
         if (writerUuid.length > 0 && other.writerUuid.length > 0) {
             // if the writer ID is missing on one of the files then we ignore this field and just rely on the checksum and hash, but if
             // it's present on both files then it must be identical

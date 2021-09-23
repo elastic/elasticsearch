@@ -10,6 +10,8 @@ package org.elasticsearch.script.field;
 
 public class IpField extends Field<String> {
 
+    /* ---- Ip Field Members ---- */
+
     public IpField(String name, FieldValues<String> values) {
         super(name, values);
     }

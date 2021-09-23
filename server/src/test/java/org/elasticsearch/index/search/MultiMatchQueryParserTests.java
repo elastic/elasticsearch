@@ -243,16 +243,16 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
 
         // check that synonym query is used for a single field
         Query parsedQuery = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, "dogs", null);
-        Term[] terms = new Term[2];
-        terms[0] = new Term("name.first", "dog");
-        terms[1] = new Term("name.first", "dogs");
-        Query expectedQuery = new SynonymQuery(terms);
+        Query expectedQuery = new SynonymQuery.Builder("name.first")
+            .addTerm(new Term("name.first", "dog"))
+            .addTerm(new Term("name.first", "dogs"))
+            .build();
         assertThat(parsedQuery, equalTo(expectedQuery));
 
         // check that blended term query is used for multiple fields
         fieldNames.put("name.last", 1.0f);
         parsedQuery = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, "dogs", null);
-        terms = new Term[4];
+        Term[] terms = new Term[4];
         terms[0] = new Term("name.first", "dog");
         terms[1] = new Term("name.first", "dogs");
         terms[2] = new Term("name.last", "dog");

@@ -6,6 +6,19 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+.Updating `include_in_parent` or `include_in_root` for a `nested` field now returns an error.
+[%collapsible]
+====
+*Details* +
+Attempts to update the `include_in_parent` or `include_in_root` mapping
+parameter for an existing `nested` field now returns an error. Previously, {es}
+would silently ignore attempts to update these parameters.
+
+*Impact* +
+To avoid errors, do not attempt to update `include_in_parent` or
+`include_in_root` for an existing `nested` field.
+====
+
 .The maximum number of completion contexts per field is now 10.
 [%collapsible]
 ====

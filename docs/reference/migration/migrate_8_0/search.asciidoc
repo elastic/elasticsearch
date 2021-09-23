@@ -16,8 +16,8 @@ Instead, use `unmapped_type: keyword` to handle an unmapped field as if it had
 the `keyword` field type but ignore its values for sorting.
 
 *Impact* +
-Discontinue use of `unmapped_type: string`. Requests that include the
-`unmapped_type: string` sort option will return an error.
+Discontinue use of `unmapped_type: string`. Search requests that include the
+`unmapped_type: string` sort option will return shard failures.
 ====
 
 [[id-field-data]]

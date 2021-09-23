@@ -555,11 +555,31 @@ public class NodeStatsTests extends ESTestCase {
             List<ScriptContextStats> stats = new ArrayList<>(numContents);
             HashSet<String> contexts = new HashSet<>();
             for (int i = 0; i < numContents; i++) {
+                long compile = randomLongBetween(0, 1024);
+                ScriptContextStats.TimeSeries compileSeries = null;
+                if (randomBoolean()) {
+                    compileSeries = new ScriptContextStats.TimeSeries(
+                            randomLongBetween(0, 1024),
+                            randomLongBetween(0, 1024),
+                            randomLongBetween(0, 1024)
+                    );
+                }
+                long eviction = randomLongBetween(0, 1024);
+                ScriptContextStats.TimeSeries evictionSeries = null;
+                if (randomBoolean()) {
+                    evictionSeries = new ScriptContextStats.TimeSeries(
+                        randomLongBetween(0, 1024),
+                        randomLongBetween(0, 1024),
+                        randomLongBetween(0, 1024)
+                    );
+                }
                 stats.add(new ScriptContextStats(
                     randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12)),
+                    compile,
+                    eviction,
                     randomLongBetween(0, 1024),
-                    randomLongBetween(0, 1024),
-                    randomLongBetween(0, 1024))
+                    compileSeries,
+                    evictionSeries)
                 );
             }
             scriptStats = new ScriptStats(stats);

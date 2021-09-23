@@ -22,8 +22,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class ScriptStatsTests extends ESTestCase {
     public void testXContent() throws IOException {
         List<ScriptContextStats> contextStats = List.of(
-            new ScriptContextStats("contextB", 100, 201, 302),
-            new ScriptContextStats("contextA", 1000, 2010, 3020)
+            new ScriptContextStats("contextB", 100, 201, 302,
+                    new ScriptContextStats.TimeSeries(1000, 1001, 1002),
+                    new ScriptContextStats.TimeSeries(2000, 2001, 2002)
+            ),
+            new ScriptContextStats("contextA", 1000, 2010, 3020, null, new ScriptContextStats.TimeSeries(0, 0, 0))
         );
         ScriptStats stats = new ScriptStats(contextStats);
         final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
@@ -46,7 +49,17 @@ public class ScriptStatsTests extends ESTestCase {
             "      {\n" +
             "        \"context\" : \"contextB\",\n" +
             "        \"compilations\" : 100,\n" +
+            "        \"compilations_history\" : {\n" +
+            "          \"5m\" : 1000,\n" +
+            "          \"15m\" : 1001,\n" +
+            "          \"24h\" : 1002\n" +
+            "        },\n" +
             "        \"cache_evictions\" : 201,\n" +
+            "        \"cache_evictions_history\" : {\n" +
+            "          \"5m\" : 2000,\n" +
+            "          \"15m\" : 2001,\n" +
+            "          \"24h\" : 2002\n" +
+            "        },\n" +
             "        \"compilation_limit_triggered\" : 302\n" +
             "      }\n" +
             "    ]\n" +

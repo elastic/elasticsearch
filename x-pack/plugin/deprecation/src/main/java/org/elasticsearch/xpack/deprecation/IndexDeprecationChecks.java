@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.search.SearchModule;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -324,13 +325,27 @@ public class IndexDeprecationChecks {
                                                 final Setting<?> removedSetting,
                                                 final String url,
                                                 DeprecationIssue.Level deprecationLevel) {
+        return checkRemovedSetting(
+            settings,
+            removedSetting,
+            url,
+            "setting [%s] is deprecated and will be removed in the next major version",
+            deprecationLevel
+        );
+    }
+
+    static DeprecationIssue checkRemovedSetting(final Settings settings,
+                                                final Setting<?> removedSetting,
+                                                final String url,
+                                                final String messagePattern,
+                                                DeprecationIssue.Level deprecationLevel) {
         if (removedSetting.exists(settings) == false) {
             return null;
         }
         final String removedSettingKey = removedSetting.getKey();
         final String value = removedSetting.get(settings).toString();
         final String message =
-            String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
+            String.format(Locale.ROOT, messagePattern, removedSettingKey);
         final String details =
             String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
         return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
@@ -357,6 +372,16 @@ public class IndexDeprecationChecks {
             INDEX_ROUTING_EXCLUDE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
             DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue checkIndexMatrixFiltersSetting(IndexMetadata indexMetadata) {
+        return checkRemovedSetting(
+            indexMetadata.getSettings(),
+            IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
+            "https://ela.st/es-deprecation-7-adjacency-matrix-filters-setting",
+            "[%s] setting will be ignored in 8.0. Use [" + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey() + "] instead.",
+            DeprecationIssue.Level.WARNING
         );
     }
 

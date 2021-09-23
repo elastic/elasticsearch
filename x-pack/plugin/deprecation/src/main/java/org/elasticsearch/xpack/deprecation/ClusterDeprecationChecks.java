@@ -26,11 +26,14 @@ import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.ilm.FreezeAction;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -379,5 +382,33 @@ public class ClusterDeprecationChecks {
         } else {
             return null;
         }
+    }
+
+    static DeprecationIssue checkILMFreezeActions(ClusterState state) {
+        IndexLifecycleMetadata indexLifecycleMetadata = state.getMetadata().custom("index_lifecycle");
+        if (indexLifecycleMetadata != null) {
+            List<String> policiesWithFreezeActions =
+                indexLifecycleMetadata.getPolicies().entrySet().stream()
+                    .filter(nameAndPolicy ->
+                        nameAndPolicy.getValue().getPhases().values().stream()
+                            .anyMatch(phase -> phase != null && phase.getActions() != null &&
+                                phase.getActions().containsKey(FreezeAction.NAME)))
+                    .map(nameAndPolicy -> nameAndPolicy.getKey())
+                    .collect(Collectors.toList());
+            if (policiesWithFreezeActions.isEmpty() == false) {
+                String details = String.format(
+                    Locale.ROOT,
+                    "remove freeze action from the following ilm policies: [%s]",
+                    policiesWithFreezeActions.stream().sorted().collect(Collectors.joining(","))
+                );
+                return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "some ilm policies contain a freeze action, which is deprecated and will be removed in a future release",
+                    "https://ela.st/es-deprecation-7-frozen-indices",
+                    details,
+                    false,
+                    null);
+            }
+        }
+        return null;
     }
 }

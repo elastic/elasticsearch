@@ -273,7 +273,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
 
         @Override
-        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+        protected NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             return new NodeResponse(in);
         }
 

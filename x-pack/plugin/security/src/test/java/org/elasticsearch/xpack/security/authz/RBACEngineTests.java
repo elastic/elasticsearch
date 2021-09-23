@@ -87,6 +87,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -379,13 +380,13 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response.getUsername(), is(user.principal()));
         assertThat(response.isCompleteMatch(), is(true));
 
-        assertThat(response.getClusterPrivileges().size(), equalTo(1));
+        assertThat(response.getClusterPrivileges(), aMapWithSize(1));
         assertThat(response.getClusterPrivileges().get(ClusterHealthAction.NAME), equalTo(true));
 
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
         final ResourcePrivileges result = response.getIndexPrivileges().iterator().next();
         assertThat(result.getResource(), equalTo("academy"));
-        assertThat(result.getPrivileges().size(), equalTo(2));
+        assertThat(result.getPrivileges(), aMapWithSize(2));
         assertThat(result.getPrivileges().get(DeleteAction.NAME), equalTo(true));
         assertThat(result.getPrivileges().get(IndexAction.NAME), equalTo(true));
     }
@@ -420,7 +421,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response, notNullValue());
         assertThat(response.getUsername(), is(user.principal()));
         assertThat(response.isCompleteMatch(), is(false));
-        assertThat(response.getClusterPrivileges().size(), equalTo(2));
+        assertThat(response.getClusterPrivileges(), aMapWithSize(2));
         assertThat(response.getClusterPrivileges().get("monitor"), equalTo(true));
         assertThat(response.getClusterPrivileges().get("manage"), equalTo(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(3));
@@ -431,19 +432,19 @@ public class RBACEngineTests extends ESTestCase {
         final ResourcePrivileges school = indexPrivilegesIterator.next();
 
         assertThat(academy.getResource(), equalTo("academy"));
-        assertThat(academy.getPrivileges().size(), equalTo(3));
+        assertThat(academy.getPrivileges(), aMapWithSize(3));
         assertThat(academy.getPrivileges().get("index"), equalTo(true)); // explicit
         assertThat(academy.getPrivileges().get("delete"), equalTo(false));
         assertThat(academy.getPrivileges().get("manage"), equalTo(false));
 
         assertThat(initiative.getResource(), equalTo("initiative"));
-        assertThat(initiative.getPrivileges().size(), equalTo(3));
+        assertThat(initiative.getPrivileges(), aMapWithSize(3));
         assertThat(initiative.getPrivileges().get("index"), equalTo(true)); // implied by write
         assertThat(initiative.getPrivileges().get("delete"), equalTo(true)); // implied by write
         assertThat(initiative.getPrivileges().get("manage"), equalTo(false));
 
         assertThat(school.getResource(), equalTo("school"));
-        assertThat(school.getPrivileges().size(), equalTo(3));
+        assertThat(school.getPrivileges(), aMapWithSize(3));
         assertThat(school.getPrivileges().get("index"), equalTo(false));
         assertThat(school.getPrivileges().get("delete"), equalTo(false));
         assertThat(school.getPrivileges().get("manage"), equalTo(false));
@@ -472,7 +473,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
         final ResourcePrivileges result = response.getIndexPrivileges().iterator().next();
         assertThat(result.getResource(), equalTo("academy"));
-        assertThat(result.getPrivileges().size(), equalTo(2));
+        assertThat(result.getPrivileges(), aMapWithSize(2));
         assertThat(result.getPrivileges().get("read"), equalTo(false));
         assertThat(result.getPrivileges().get("write"), equalTo(false));
     }

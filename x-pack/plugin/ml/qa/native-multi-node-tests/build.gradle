@@ -28,7 +28,7 @@ tasks.named("javaRestTest").configure {
   dependsOn "copyKeyCerts"
 }
 
-testClusters.all {
+testClusters.configureEach {
   numberOfNodes = 3
   testDistribution = 'DEFAULT'
 

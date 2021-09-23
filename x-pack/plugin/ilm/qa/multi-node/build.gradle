@@ -15,7 +15,7 @@ tasks.named("javaRestTest").configure {
   systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
 

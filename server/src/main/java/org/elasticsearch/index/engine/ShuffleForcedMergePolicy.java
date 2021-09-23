@@ -6,8 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.apache.lucene.index;
+package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.FilterMergePolicy;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
@@ -51,6 +59,29 @@ public class ShuffleForcedMergePolicy extends FilterMergePolicy {
         return wrap(in.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, mergeContext));
     }
 
+    /** A wrapping one merge that allows reordering of merge infos, and adds shuffle merge diagnostics. */
+    static class WrappedOneMerge extends OneMerge {
+        // Additional diagnostics Map, containing a single shuffle merge entry.
+        private static final Map<String,String> SHUFFLE_MERGE_DIAGNOSTIC = Map.of(SHUFFLE_MERGE_KEY, "");
+        private final OneMerge original;
+
+        WrappedOneMerge(OneMerge original, List<SegmentCommitInfo> mergeInfos) {
+            super(mergeInfos);
+            this.original = original;
+        }
+        @Override
+        public CodecReader wrapForMerge(CodecReader reader) throws IOException {
+            return original.wrapForMerge(reader);
+        }
+
+        @Override
+        public void setMergeInfo(SegmentCommitInfo info) {
+            // record that this segment was merged with interleaved segments
+            SegmentCommitInfo newInfo = copySegmentCommitInfo(info, SHUFFLE_MERGE_DIAGNOSTIC);
+            super.setMergeInfo(newInfo);
+        }
+    }
+
     private MergeSpecification wrap(MergeSpecification mergeSpec) throws IOException {
         if (mergeSpec == null) {
             return null;
@@ -58,21 +89,7 @@ public class ShuffleForcedMergePolicy extends FilterMergePolicy {
         MergeSpecification newMergeSpec = new MergeSpecification();
         for (OneMerge toWrap : mergeSpec.merges) {
             List<SegmentCommitInfo> newInfos = interleaveList(new ArrayList<>(toWrap.segments));
-            newMergeSpec.add(new OneMerge(newInfos) {
-                @Override
-                public CodecReader wrapForMerge(CodecReader reader) throws IOException {
-                    return toWrap.wrapForMerge(reader);
-                }
-
-                @Override
-                public void setMergeInfo(SegmentCommitInfo info) {
-                    // record that this segment was merged with interleaved segments
-                    Map<String, String> copy = new HashMap<>(info.info.getDiagnostics());
-                    copy.put(SHUFFLE_MERGE_KEY, "");
-                    info.info.setDiagnostics(copy);
-                    super.setMergeInfo(info);
-                }
-            });
+            newMergeSpec.add(new WrappedOneMerge(toWrap, newInfos));
         }
 
         return newMergeSpec;
@@ -104,5 +121,47 @@ public class ShuffleForcedMergePolicy extends FilterMergePolicy {
             right --;
         }
         return newInfos;
+    }
+
+    /** Returns the maxDoc from the given segmentInfo, or the default value -1. */
+    private static int maxDocOrDefault(SegmentInfo segmentInfo) {
+        try {
+            return segmentInfo.maxDoc();
+        } catch (IllegalStateException e) {
+            return -1; // default not-yet-set value
+        }
+    }
+
+    /** Copies the segment commit info and adds the given additional diagnostics. */
+    static SegmentCommitInfo copySegmentCommitInfo(SegmentCommitInfo info,
+                                                   Map<String,String> additionDiagnostics) {
+        Map<String, String> newDiagnostics = new HashMap<>(info.info.getDiagnostics());
+        newDiagnostics.putAll(additionDiagnostics);
+
+        SegmentInfo oldSegmentInfo = info.info;
+        // Same SI as before but with additional diagnostics
+        SegmentInfo newSegmentInfo =
+            new SegmentInfo(
+                oldSegmentInfo.dir,
+                oldSegmentInfo.getVersion(),
+                oldSegmentInfo.getMinVersion(),
+                oldSegmentInfo.name,
+                maxDocOrDefault(oldSegmentInfo),
+                oldSegmentInfo.getUseCompoundFile(),
+                oldSegmentInfo.getCodec(),
+                newDiagnostics,
+                oldSegmentInfo.getId(),
+                oldSegmentInfo.getAttributes(),
+                oldSegmentInfo.getIndexSort());
+        SegmentCommitInfo newSegmentCommitInfo =
+            new SegmentCommitInfo(
+                newSegmentInfo,
+                info.getDelCount(),
+                info.getSoftDelCount(),
+                info.getDelGen(),
+                info.getFieldInfosGen(),
+                info.getDocValuesGen(),
+                info.getId());
+        return newSegmentCommitInfo;
     }
 }

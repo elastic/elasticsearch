@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.lucene.index;
+package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -19,13 +19,16 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.ShuffleForcedMergePolicy;
+import org.elasticsearch.index.engine.ShuffleForcedMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -83,5 +86,13 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
 
     @Override
     protected void assertMerge(MergePolicy policy, MergePolicy.MergeSpecification merge) throws IOException {
+    }
+
+    public void testCopySegmentCommitInfo() {
+        SegmentCommitInfo sci1 = makeSegmentCommitInfo("_testseg", 3, 5, 7, IndexWriter.SOURCE_FLUSH);
+        SegmentCommitInfo sci2 = ShuffleForcedMergePolicy.copySegmentCommitInfo(sci1, Map.of());
+        assertThat(sci2, equalTo(sci1));
+        SegmentCommitInfo sci3 = ShuffleForcedMergePolicy.copySegmentCommitInfo(sci1, Map.of("Foo", "Bar", "Baz", ""));
+        assertThat(sci3.info.getDiagnostics(), equalTo(Map.of("Foo", "Bar", "Baz", "")));
     }
 }

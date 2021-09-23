@@ -282,7 +282,6 @@ tasks.named('splitPackagesAudit').configure {
     // but this should be fixed in Lucene 9
     'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper',
     'org.apache.lucene.index.OneMergeHelper',
-    'org.apache.lucene.index.ShuffleForcedMergePolicy',
 
     // Joda should own its own packages! This should be a simple move.
     'org.joda.time.format.StrictISODateTimeFormat',

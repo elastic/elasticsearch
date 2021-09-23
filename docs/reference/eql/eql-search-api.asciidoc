@@ -49,7 +49,7 @@ or alias.
 * See <<eql-required-fields>>.
 
 * experimental:[] For cross-cluster search, the local and remote clusters must
-use the same {es} version. For security, see <<cross-cluster-configuring>>.
+use the same {es} version. For security, see <<remote-clusters-security>>.
 
 [[eql-search-api-limitations]]
 ===== Limitations

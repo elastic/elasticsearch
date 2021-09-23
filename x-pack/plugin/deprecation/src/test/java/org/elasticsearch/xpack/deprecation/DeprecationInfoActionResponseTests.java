@@ -20,8 +20,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,19 +47,19 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
 
     @Override
     protected DeprecationInfoAction.Response createTestInstance() {
-        List<DeprecationIssue> clusterIssues = Stream.generate(DeprecationIssueTests::createTestInstance)
+        List<DeprecationIssue> clusterIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
             .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
-        List<DeprecationIssue> nodeIssues = Stream.generate(DeprecationIssueTests::createTestInstance)
+        List<DeprecationIssue> nodeIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
             .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
         Map<String, List<DeprecationIssue>> indexIssues = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 10); i++) {
-            List<DeprecationIssue> perIndexIssues = Stream.generate(DeprecationIssueTests::createTestInstance)
+            List<DeprecationIssue> perIndexIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
                 .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
             indexIssues.put(randomAlphaOfLength(10), perIndexIssues);
         }
         Map<String, List<DeprecationIssue>> pluginIssues = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 10); i++) {
-            List<DeprecationIssue> perPluginIssues = Stream.generate(DeprecationIssueTests::createTestInstance)
+            List<DeprecationIssue> perPluginIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
                 .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
             pluginIssues.put(randomAlphaOfLength(10), perPluginIssues);
         }
@@ -87,7 +90,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         boolean clusterIssueFound = randomBoolean();
         boolean nodeIssueFound = randomBoolean();
         boolean indexIssueFound = randomBoolean();
-        DeprecationIssue foundIssue = DeprecationIssueTests.createTestInstance();
+        DeprecationIssue foundIssue = createTestDeprecationIssue();
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
                 (s) -> clusterIssueFound ? foundIssue : null
@@ -152,5 +155,17 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 () -> new DeprecationInfoAction.Response(Collections.emptyList(), Collections.emptyList(), indexNames, pluginSettingsIssues)
             );
         }
+    }
+
+    private static DeprecationIssue createTestDeprecationIssue() {
+        String details = randomBoolean() ? randomAlphaOfLength(10) : null;
+        return new DeprecationIssue(
+            randomFrom(Level.values()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            details,
+            randomBoolean(),
+            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4)))
+        );
     }
 }

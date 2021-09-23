@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -337,7 +338,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                     new ForceMergeAction(1, null))
             ),
             new Phase("cold", TimeValue.ZERO, org.elasticsearch.core.Map.of(FreezeAction.NAME, new FreezeAction())),
-            null, null
+            null, null, expectWarnings(TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING)
         );
 
         // restore the datastream

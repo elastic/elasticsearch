@@ -55,4 +55,20 @@ public class RestSearchActionTests extends RestActionTestCase {
         dispatchRequest(request);
         assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
+
+    /**
+     * Using an illegal search type on the request should throw an error
+     */
+    public void testIllegalSearchType() {
+        Map<String, String> params = new HashMap<>();
+        params.put("search_type", "some_search_type");
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/some_index/_search")
+            .withParams(params)
+            .build();
+
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> new RestSearchAction().prepareRequest(request, verifyingClient));
+        assertEquals("No search type for [some_search_type]", ex.getMessage());
+    }
 }

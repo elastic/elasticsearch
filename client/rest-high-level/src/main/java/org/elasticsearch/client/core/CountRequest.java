@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS;
-
 /**
  * Encapsulates a request to _count API against one, several or all indices.
  */
@@ -35,7 +33,7 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
     private String routing;
     private String preference;
     private QueryBuilder query;
-    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+    private IndicesOptions indicesOptions;
     private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
     private Float minScore;
 

@@ -516,7 +516,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
 
         // This is an exceptionally weird state
         // Our view of the memory is stale or we have tasks where the required job memory is 0, which should be impossible
-        if (largestJob == 0L && ((dataframeAnalyticsTasks.isEmpty() || anomalyDetectionTasks.isEmpty()) == false)) {
+        if (largestJob == 0L && (dataframeAnalyticsTasks.size() + anomalyDetectionTasks.size() > 0)) {
             logger.warn(
                 "The calculated minimum required node size was unexpectedly [0] as there are "
                     + "[{}] anomaly job tasks and [{}] data frame analytics tasks",

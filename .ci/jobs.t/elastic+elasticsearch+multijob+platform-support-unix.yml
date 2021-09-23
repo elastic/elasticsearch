@@ -30,6 +30,7 @@
             - "ubuntu-16.04&&immutable"
             - "ubuntu-18.04&&immutable"
             - "ubuntu-20.04&&immutable"
+            - "rocky-linux-8&&immutable"
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

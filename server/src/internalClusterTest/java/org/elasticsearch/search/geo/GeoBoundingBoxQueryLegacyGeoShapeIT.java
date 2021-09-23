@@ -10,10 +10,24 @@ package org.elasticsearch.search.geo;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.TestLegacyGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 public class GeoBoundingBoxQueryLegacyGeoShapeIT extends GeoBoundingBoxQueryIntegTestCase {
+
+    @Override
+    protected boolean addMockGeoShapeFieldMapper() {
+        return false;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(TestLegacyGeoShapeFieldMapperPlugin.class);
+    }
 
     @Override
     public XContentBuilder getMapping() throws IOException {

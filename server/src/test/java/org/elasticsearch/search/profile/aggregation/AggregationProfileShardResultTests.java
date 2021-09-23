@@ -9,13 +9,13 @@
 package org.elasticsearch.search.profile.aggregation;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,11 +23,11 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class AggregationProfileShardResultTests extends ESTestCase {
+public class AggregationProfileShardResultTests extends AbstractSerializingTestCase<AggregationProfileShardResult> {
 
     public static AggregationProfileShardResult createTestItem(int depth) {
         int size = randomIntBetween(0, 5);
@@ -38,22 +38,30 @@ public class AggregationProfileShardResultTests extends ESTestCase {
         return new AggregationProfileShardResult(aggProfileResults);
     }
 
-    public void testFromXContent() throws IOException {
-        AggregationProfileShardResult profileResult = createTestItem(2);
-        XContentType xContentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(profileResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+    @Override
+    protected AggregationProfileShardResult createTestInstance() {
+        return createTestItem(2);
+    }
 
-        AggregationProfileShardResult parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            XContentParserUtils.ensureFieldName(parser, parser.nextToken(), AggregationProfileShardResult.AGGREGATIONS);
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-            parsed = AggregationProfileShardResult.fromXContent(parser);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-            assertNull(parser.nextToken());
-        }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    @Override
+    protected AggregationProfileShardResult doParseInstance(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        XContentParserUtils.ensureFieldName(parser, parser.nextToken(), AggregationProfileShardResult.AGGREGATIONS);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+        AggregationProfileShardResult result = AggregationProfileShardResult.fromXContent(parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_ARRAY, parser.currentToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        return result;
+    }
+
+    @Override
+    protected Reader<AggregationProfileShardResult> instanceReader() {
+        return AggregationProfileShardResult::new;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return ProfileResultTests.RANDOM_FIELDS_EXCLUDE_FILTER;
     }
 
     public void testToXContent() throws IOException {

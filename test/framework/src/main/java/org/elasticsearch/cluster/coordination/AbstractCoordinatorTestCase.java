@@ -11,8 +11,10 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -41,6 +43,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -65,6 +68,8 @@ import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStat
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -131,6 +136,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AbstractCoordinatorTestCase extends ESTestCase {
@@ -454,6 +460,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         final ClusterNode clusterNode = getAnyNode();
                         logger.debug("----> [runRandomly {}] applying initial configuration on {}", step, clusterNode.getId());
                         clusterNode.applyInitialConfiguration();
+                    } else if (rarely()) {
+                        final ClusterNode clusterNode = getAnyNode();
+                        logger.debug("----> [runRandomly {}] completing blackholed requests sent by {}", step, clusterNode.getId());
+                        clusterNode.deliverBlackholedRequests();
                     } else {
                         if (deterministicTaskQueue.hasDeferredTasks() && randomBoolean()) {
                             deterministicTaskQueue.advanceTime();
@@ -468,6 +478,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 assertConsistentStates();
             }
 
+            logger.debug("delivering pending blackholed requests");
+            clusterNodes.forEach(ClusterNode::deliverBlackholedRequests);
             logger.debug("running {} cleanup actions", cleanupActions.size());
             cleanupActions.forEach(Runnable::run);
             logger.debug("finished running cleanup actions");
@@ -487,8 +499,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 if (storedState == null) {
                     committedStatesByVersion.put(applierState.getVersion(), applierState);
                 } else {
-                    assertEquals("expected " + applierState + " but got " + storedState,
-                        value(applierState), value(storedState));
+                    if (value(applierState) != value(storedState)) {
+                        fail("expected " + applierState + " but got " + storedState);
+                    }
                 }
             }
         }
@@ -509,7 +522,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
 
-            final int pendingTaskCount = leader.masterService.getFakeMasterServicePendingTaskCount();
+            final int pendingTaskCount = leader.getPendingTaskCount();
             runFor((pendingTaskCount + 1) * DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "draining task queue");
 
             final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
@@ -555,6 +568,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(false));
                     assertThat(nodeId + " has no STATE_NOT_RECOVERED_BLOCK",
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK), equalTo(false));
+
+                    for (final ClusterNode otherNode : clusterNodes) {
+                        if (isConnectedPair(leader, otherNode) && isConnectedPair(otherNode, clusterNode)) {
+                            assertTrue(otherNode.getId() + " is connected to healthy node " + clusterNode.getId(),
+                                otherNode.transportService.nodeConnected(clusterNode.localNode));
+                        }
+                    }
                 } else {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertThat(nodeId + " has no master", clusterNode.getLastAppliedClusterState().nodes().getMasterNode(), nullValue());
@@ -562,6 +582,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID), equalTo(true));
                     assertFalse(nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
+
+                    for (final ClusterNode otherNode : clusterNodes) {
+                        if (isConnectedPair(leader, otherNode)) {
+                            assertFalse(otherNode.getId() + " is not connected to removed node " + clusterNode.getId(),
+                                otherNode.transportService.nodeConnected(clusterNode.localNode));
+                        }
+                    }
                 }
             }
 
@@ -699,9 +726,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         List<ClusterNode> getAllNodesExcept(ClusterNode... clusterNodes) {
             Set<String> forbiddenIds = Arrays.stream(clusterNodes).map(ClusterNode::getId).collect(Collectors.toSet());
-            List<ClusterNode> acceptableNodes
-                = this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
-            return acceptableNodes;
+            return this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
         }
 
         ClusterNode getAnyNodePreferringLeaders() {
@@ -728,6 +753,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         public void close() {
+            // noinspection ReplaceInefficientStreamCount using .count() to run the filter on every node
+            while (clusterNodes.stream().filter(ClusterNode::deliverBlackholedRequests).count() != 0L) {
+                logger.debug("--> stabilising again after delivering blackholed requests");
+                stabilise(DEFAULT_STABILISATION_TIME);
+            }
+
             clusterNodes.forEach(ClusterNode::close);
         }
 
@@ -906,9 +937,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private ClusterService clusterService;
             TransportService transportService;
             private DisruptableMockTransport mockTransport;
-            private NodeHealthService nodeHealthService;
+            private final NodeHealthService nodeHealthService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
-
+            private DelegatingBigArrays delegatingBigArrays;
 
             ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
                 this(nodeIndex, createDiscoveryNode(nodeIndex, masterEligible), defaultPersistedStateSupplier, nodeSettings,
@@ -952,6 +983,37 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         return clusterNodes.stream().map(cn -> cn.mockTransport)
                             .filter(transport -> transport.getLocalNode().getAddress().equals(address)).findAny();
                     }
+
+                    @Override
+                    protected void onSendRequest(
+                        long requestId,
+                        String action,
+                        TransportRequest request,
+                        TransportRequestOptions options,
+                        DisruptableMockTransport destinationTransport
+                    ) {
+                        final TransportRequestOptions.Type chanType = options.type();
+                        switch (action) {
+                            case JoinHelper.JOIN_ACTION_NAME:
+                            case FollowersChecker.FOLLOWER_CHECK_ACTION_NAME:
+                            case LeaderChecker.LEADER_CHECK_ACTION_NAME:
+                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.PING));
+                                break;
+                            case JoinHelper.JOIN_VALIDATE_ACTION_NAME:
+                            case PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME:
+                            case PublicationTransportHandler.COMMIT_STATE_ACTION_NAME:
+                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.STATE));
+                                break;
+                            case JoinHelper.JOIN_PING_ACTION_NAME:
+                                assertThat(action, chanType, oneOf(TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.PING));
+                                break;
+                            default:
+                                assertThat(action, chanType, equalTo(TransportRequestOptions.Type.REG));
+                                break;
+                        }
+
+                        super.onSendRequest(requestId, action, request, options, destinationTransport);
+                    }
                 };
                 final Settings settings = nodeSettings.hasValue(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()) ?
                     nodeSettings : Settings.builder().put(nodeSettings)
@@ -970,10 +1032,24 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators =
                     Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
-                coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, getNamedWriteableRegistry(),
-                    allocationService, masterService, this::getPersistedState,
-                    Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get(), (s, p, r) -> {},
-                    getElectionStrategy(), nodeHealthService);
+                delegatingBigArrays = new DelegatingBigArrays(bigArrays);
+                coordinator = new Coordinator(
+                    "test_node",
+                    settings,
+                    clusterSettings,
+                    delegatingBigArrays,
+                    transportService,
+                    getNamedWriteableRegistry(),
+                    allocationService,
+                    masterService,
+                    this::getPersistedState,
+                    Cluster.this::provideSeedHosts,
+                    clusterApplierService,
+                    onJoinValidators,
+                    Randomness.get(),
+                    (s, p, r) -> {},
+                    getElectionStrategy(),
+                    nodeHealthService);
                 masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService
                     = new GatewayService(settings, allocationService, clusterService, threadPool, null, coordinator);
@@ -1012,9 +1088,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
                     localNode.isMasterNode() && DiscoveryNode.isMasterNode(nodeSettings)
                         ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
-                return new ClusterNode(nodeIndex, newLocalNode,
-                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm), nodeSettings,
-                    nodeHealthService);
+                try {
+                    return new ClusterNode(
+                        nodeIndex,
+                        newLocalNode,
+                        node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm),
+                        nodeSettings,
+                        nodeHealthService);
+                } finally {
+                    delegatingBigArrays.releaseAll();
+                }
             }
 
             private CoordinationState.PersistedState getPersistedState() {
@@ -1056,11 +1139,17 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 return new Runnable() {
                     @Override
                     public void run() {
-                        if (clusterNodes.contains(ClusterNode.this) == false) {
+                        if (clusterNodes.contains(ClusterNode.this)) {
+                            wrapped.run();
+                        } else if (runnable instanceof DisruptableMockTransport.RebootSensitiveRunnable) {
+                            logger.trace(
+                                "completing reboot-sensitive runnable {} from node {} as node has been removed from cluster",
+                                runnable,
+                                localNode);
+                            ((DisruptableMockTransport.RebootSensitiveRunnable) runnable).ifRebooted();
+                        } else {
                             logger.trace("ignoring runnable {} from node {} as node has been removed from cluster", runnable, localNode);
-                            return;
                         }
-                        wrapped.run();
                     }
 
                     @Override
@@ -1157,7 +1246,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                                 updateCommittedStates();
                                 ClusterState state = committedStatesByVersion.get(newState.version());
-                                assertNotNull("State not committed : " + newState.toString(), state);
+                                assertNotNull("State not committed : " + newState, state);
                                 assertStateEquals(state, newState);
                                 logger.trace("successfully published: [{}]", newState);
                                 taskListener.clusterStateProcessed(source, oldState, newState);
@@ -1201,6 +1290,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 return clusterApplierService.state();
             }
 
+            void addActionBlock(@SuppressWarnings("SameParameterValue") String actionName) {
+                mockTransport.addActionBlock(actionName);
+            }
+
+            void clearActionBlocks() {
+                mockTransport.clearActionBlocks();
+            }
+
             void applyInitialConfiguration() {
                 onNode(() -> {
                     final Set<String> nodeIdsWithPlaceholders = new HashSet<>(initialConfiguration.getNodeIds());
@@ -1231,6 +1328,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             void allowClusterStateApplicationFailure() {
                 clusterApplierService.allowClusterStateApplicationFailure();
+            }
+
+            boolean deliverBlackholedRequests() {
+                return mockTransport.deliverBlackholedRequests();
+            }
+
+            int getPendingTaskCount() {
+                return masterService.getFakeMasterServicePendingTaskCount();
             }
         }
 
@@ -1349,13 +1454,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         @Override
-        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
+        public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ActionListener<Void> listener) {
             if (clusterStateApplyResponse == ClusterStateApplyResponse.HANG) {
                 if (randomBoolean()) {
                     // apply cluster state, but don't notify listener
-                    super.onNewClusterState(source, clusterStateSupplier, e -> {
-                        // ignore result
-                    });
+                    super.onNewClusterState(
+                        source,
+                        clusterStateSupplier,
+                        ActionListener.wrap(() -> {
+                            // ignore result
+                        }));
                 }
             } else {
                 super.onNewClusterState(source, clusterStateSupplier, listener);
@@ -1364,7 +1472,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         protected void connectToNodesAndWait(ClusterState newClusterState) {
-            // don't do anything, and don't block
+            connectToNodesAsync(newClusterState, () -> {
+                // no need to block waiting for handshakes etc. to complete, it's enough to let the NodeConnectionsService take charge of
+                // these connections
+            });
         }
 
         @Override
@@ -1445,11 +1556,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     private final SequentialSpec spec = new LinearizabilityChecker.KeyedSpec() {
         @Override
         public Object getKey(Object value) {
+            //noinspection rawtypes
             return ((Tuple) value).v1();
         }
 
         @Override
         public Object getValue(Object value) {
+            //noinspection rawtypes
             return ((Tuple) value).v2();
         }
 
@@ -1466,14 +1579,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 if (output == null || currentState.equals(output)) {
                     return Optional.of(currentState);
                 }
-                return Optional.empty();
             } else {
                 if (output == null || currentState.equals(output)) {
                     // history is completed with null, simulating timeout, which assumes that write went through
                     return Optional.of(input);
                 }
-                return Optional.empty();
             }
+            return Optional.empty();
         }
     };
 
@@ -1486,4 +1598,108 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         assertThat(spec.nextState(7, null, 42), equalTo(Optional.empty()));
     }
 
+    /**
+     * A wrapper around a {@link BigArrays} which tracks the arrays it allocates so that they can be released if the node reboots. Only
+     * works for {@link ByteArray} allocations since that's all the {@link Coordinator} needs.
+     */
+    static class DelegatingBigArrays extends BigArrays {
+
+        private final BigArrays delegate;
+
+        private final Set<DelegatingByteArray> trackedArrays = new HashSet<>();
+
+        DelegatingBigArrays(BigArrays delegate) {
+            super(null, null, null);
+            this.delegate = delegate;
+        }
+
+        @Override
+        public ByteArray newByteArray(long size, boolean clearOnResize) {
+            return track(delegate.newByteArray(size, clearOnResize));
+        }
+
+        @Override
+        public ByteArray resize(ByteArray array, long size) {
+            assert array instanceof DelegatingByteArray;
+            trackedArrays.remove(array);
+            return track(delegate.resize(((DelegatingByteArray) array).getDelegate(), size));
+        }
+
+        private ByteArray track(ByteArray byteArray) {
+            final DelegatingByteArray wrapped = new DelegatingByteArray(byteArray);
+            trackedArrays.add(wrapped);
+            return wrapped;
+        }
+
+        void releaseAll() {
+            for (DelegatingByteArray trackedArray : new ArrayList<>(trackedArrays)) {
+                trackedArray.close();
+            }
+            assert trackedArrays.isEmpty() : trackedArrays;
+        }
+
+        private class DelegatingByteArray implements ByteArray {
+
+            private final ByteArray delegate;
+
+            DelegatingByteArray(ByteArray delegate) {
+                this.delegate = delegate;
+            }
+
+            ByteArray getDelegate() {
+                return delegate;
+            }
+
+            @Override
+            public void close() {
+                delegate.close();
+                trackedArrays.remove(this);
+            }
+
+            @Override
+            public long size() {
+                return delegate.size();
+            }
+
+            @Override
+            public byte get(long index) {
+                return delegate.get(index);
+            }
+
+            @Override
+            public byte set(long index, byte value) {
+                return delegate.set(index, value);
+            }
+
+            @Override
+            public boolean get(long index, int len, BytesRef ref) {
+                return delegate.get(index, len, ref);
+            }
+
+            @Override
+            public void set(long index, byte[] buf, int offset, int len) {
+                delegate.set(index, buf, offset, len);
+            }
+
+            @Override
+            public void fill(long fromIndex, long toIndex, byte value) {
+                delegate.fill(fromIndex, toIndex, value);
+            }
+
+            @Override
+            public boolean hasArray() {
+                return delegate.hasArray();
+            }
+
+            @Override
+            public byte[] array() {
+                return delegate.array();
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return delegate.ramBytesUsed();
+            }
+        }
+    }
 }

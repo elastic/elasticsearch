@@ -71,14 +71,14 @@ public class NamedXContentRegistry {
         entries = new ArrayList<>(entries);
         entries.sort((e1, e2) -> e1.categoryClass.getName().compareTo(e2.categoryClass.getName()));
 
-        Map<Class<?>, Map<String, Entry>> registry = new HashMap<>();
+        Map<Class<?>, Map<String, Entry>> newRegistry = new HashMap<>();
         Map<String, Entry> parsers = null;
         Class<?> currentCategory = null;
         for (Entry entry : entries) {
             if (currentCategory != entry.categoryClass) {
                 if (currentCategory != null) {
                     // we've seen the last of this category, put it into the big map
-                    registry.put(currentCategory, unmodifiableMap(parsers));
+                    newRegistry.put(currentCategory, unmodifiableMap(parsers));
                 }
                 parsers = new HashMap<>();
                 currentCategory = entry.categoryClass;
@@ -94,9 +94,9 @@ public class NamedXContentRegistry {
             }
         }
         // handle the last category
-        registry.put(currentCategory, unmodifiableMap(parsers));
+        newRegistry.put(currentCategory, unmodifiableMap(parsers));
 
-        this.registry = unmodifiableMap(registry);
+        this.registry = unmodifiableMap(newRegistry);
     }
 
     /**

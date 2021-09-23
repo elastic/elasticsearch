@@ -3,6 +3,55 @@
 
 The following pages have moved or been deleted.
 
+// [START] Remote clusters
+
+[role="exclude",id="ccs-clients-integrations"]
+== {ccs-cap}, clients, and integrations
+
+Refer to <<security-clients-integrations,Securing clients and integrations>>.
+
+[role="exclude",id="cross-cluster-configuring"]
+=== {ccs-cap} and security
+
+Refer to <<remote-clusters-security,configure remote clusters with security>>.
+
+[role="exclude",id="cross-cluster-kibana"]
+==== {ccs-cap} and {kib}
+
+Refer to <<clusters-privileges-ccs-kibana,Configure privileges for {ccs} and {kib}>>.
+
+[role="exclude",id="ccr-getting-started"]
+=== Configure {ccr}
+
+Refer to <<ccr-getting-started-tutorial,Set up {ccr}>>.
+
+[role="exclude",id="ccr-getting-started-remote-cluster"]
+==== Connect a remote cluster
+
+Refer to <<remote-clusters-connect,Connecting remote clusters>>.
+
+[role="exclude",id="modules-remote-clusters"]
+=== Remote clusters
+
+Refer to <<remote-clusters,Remote clusters>>.
+
+[role="exclude",id="configuring-remote-clusters"]
+==== Configuring remote clusters
+
+Refer to <<remote-clusters-connect,Connect remote clusters>>.
+
+[role="exclude",id="remote-cluster-settings"]
+==== Remote cluster settings
+
+Refer to <<remote-clusters-settings,Remote clusters settings>>.
+
+// [END] Remote clusters
+
+[role="exclude",id="restore-cluster-data"]
+=== Restore a cluster's data
+
+See <<restore-entire-cluster>>.
+
 [role="exclude",id="alias"]
 === Aliases
 
@@ -11,6 +60,7 @@ For field aliases, refer to the <<field-alias,alias field type>>.
 For index and data stream aliases, refer to <<aliases>>.
 
 [role="exclude",id="modules-scripting-other-layers"]
+
 === Other security layers
 
 Refer to <<modules-scripting-security>>.
@@ -1091,7 +1141,7 @@ For other information, see:
 * <<modules-threadpool>>
 * <<modules-node>>
 * <<modules-plugins>>
-* <<modules-remote-clusters>>
+* <<remote-clusters>>
 
 [role="exclude",id="modules-http"]
 === HTTP

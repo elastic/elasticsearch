@@ -82,8 +82,8 @@ dependencies {
   }
 
   // plugins manager
-  api "org.bouncycastle:bcpg-fips:1.0.4"
-  api "org.bouncycastle:bc-fips:1.0.2"
+  // api "org.bouncycastle:bcpg-fips:1.0.4"
+  // api "org.bouncycastle:bc-fips:1.0.2"
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -250,18 +250,18 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2LatLng',
 
             // plugins manager
-            'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
-            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
-            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
-            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
-            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
-            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
-            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
-            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
-            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
-            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
-            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
-            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
+            // 'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
+            // 'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
+            // 'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
+            // 'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
+            // 'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
+            // 'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
+            // 'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
+            // 'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
+            // 'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
+            // 'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
+            // 'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
+            // 'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }

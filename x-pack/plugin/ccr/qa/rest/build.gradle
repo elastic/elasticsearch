@@ -11,7 +11,7 @@ dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   // Disable assertions in FollowingEngineAssertions, otherwise an AssertionError is thrown before
   // indexing a document directly in a follower index. In a rest test we like to test the exception

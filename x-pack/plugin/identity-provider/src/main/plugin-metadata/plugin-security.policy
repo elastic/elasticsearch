@@ -13,7 +13,4 @@ grant {
 
   // needed for multiple server implementations used in tests
   permission java.net.SocketPermission "*", "accept,connect";
-
-  // Needed for OpenSAML to start a java.lang.ref.Cleaner
-  permission java.lang.RuntimePermission "org.elasticsearch.modifyInnocuousThread";
 };

@@ -9,6 +9,8 @@
 package org.elasticsearch.search.scroll;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -17,13 +19,14 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -38,6 +41,9 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -682,6 +688,54 @@ public class SearchScrollIT extends ESIntegTestCase {
             assertThat(shardSearchFailure.getCause().getMessage(), containsString("No search context found for id [1]"));
         }
         client().prepareSearchScroll(respFromProdIndex.getScrollId()).get();
+    }
+
+    public void testBigIndex() {
+        int numDocs = randomIntBetween(5000, 10000);
+        List<Long> timestamps = new ArrayList<>();
+        long currentTime = randomLongBetween(0, 1000);
+        for (int i = 0; i < numDocs; i++) {
+            int copies = randomIntBetween(0, 100) <= 5 ? randomIntBetween(2, 5) : 1;
+            for (int j = 0; j < copies; j++) {
+                timestamps.add(currentTime);
+            }
+            currentTime += randomIntBetween(1, 10);
+        }
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+            .setMapping("{\"properties\":{\"timestamp\":{\"type\": \"date\", \"format\": \"epoch_millis\"}}}"));
+        Randomness.shuffle(timestamps);
+        final BulkRequestBuilder bulk = client().prepareBulk();
+        bulk.setRefreshPolicy(IMMEDIATE);
+        for (long timestamp : timestamps) {
+            bulk.add(new IndexRequest("test").source("timestamp", timestamp));
+        }
+        bulk.get();
+        Collections.sort(timestamps);
+        SearchResponse resp = client().prepareSearch("test")
+            .setSize(randomIntBetween(50, 100))
+            .setQuery(new MatchAllQueryBuilder())
+            .addSort(new FieldSortBuilder("timestamp"))
+            .setScroll(TimeValue.timeValueMinutes(5))
+            .get();
+        int foundHits = 0;
+        try {
+            do {
+                for (SearchHit hit : resp.getHits().getHits()) {
+                    assertNotNull(hit.getSourceAsMap());
+                    final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                    assertNotNull(timestamp);
+                    assertThat(((Number) timestamp).longValue(), equalTo(timestamps.get(foundHits)));
+                    foundHits++;
+                }
+                resp = client().prepareSearchScroll(resp.getScrollId())
+                    .setScroll(TimeValue.timeValueMinutes(5))
+                    .get();
+            } while (resp.getHits().getHits().length > 0);
+        } finally {
+            client().prepareClearScroll().addScrollId(resp.getScrollId()).get();
+        }
+        assertThat(foundHits, equalTo(timestamps.size()));
     }
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {

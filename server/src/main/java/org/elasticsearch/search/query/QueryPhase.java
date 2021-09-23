@@ -19,6 +19,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
@@ -145,6 +146,12 @@ public class QueryPhase {
 
                 } else {
                     final ScoreDoc after = scrollContext.lastEmittedDoc;
+                    // Disable the sort optimization in scroll requests until LUCENE-10119 is integrated
+                    if (after != null && searchContext.sort() != null && searchContext.sort().sort.getSort().length == 1) {
+                        for (SortField sortField : searchContext.sort().sort.getSort()) {
+                            sortField.setOptimizeSortWithPoints(false);
+                        }
+                    }
                     if (canEarlyTerminate(reader, searchContext.sort())) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc

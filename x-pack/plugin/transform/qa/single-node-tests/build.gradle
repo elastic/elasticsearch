@@ -6,7 +6,7 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('transform'))
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

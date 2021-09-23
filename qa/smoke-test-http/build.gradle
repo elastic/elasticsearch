@@ -16,6 +16,6 @@ dependencies {
   testImplementation project(path: ':plugins:transport-nio') // for http
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }

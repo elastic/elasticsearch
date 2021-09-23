@@ -22,7 +22,7 @@ GET /my-index-000001/_field_usage_stats
 [[field-usage-stats-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_field_usage_stats
+`GET /<index>/_field_usage_stats`
 
 [[field-usage-stats-api-request-prereqs]]
 ==== {api-prereq-title}

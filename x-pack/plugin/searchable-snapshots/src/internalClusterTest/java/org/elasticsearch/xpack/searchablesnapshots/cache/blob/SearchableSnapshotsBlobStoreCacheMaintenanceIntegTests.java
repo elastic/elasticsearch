@@ -27,10 +27,11 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -154,8 +155,9 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             }
         });
 
-        final Set<String> remainingIndices = new HashSet<>(mountedIndices.keySet());
-        indicesToDelete.forEach(remainingIndices::remove);
+        final Set<String> remainingIndices = mountedIndices.keySet().stream()
+            .filter(Predicate.not(indicesToDelete::contains))
+            .collect(Collectors.toSet());
 
         if (remainingIndices.isEmpty() == false) {
             final List<String> moreIndicesToDelete = randomSubsetOf(randomIntBetween(1, remainingIndices.size()), remainingIndices);

@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -491,7 +490,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
-                        RoutingTable.shardRoutingTable(clusterState.routingTable().index(concreteIndex), shardId).getShardId(),
+                        new ShardId(concreteIndex, shardId),
                         shard -> new ArrayList<>()
                     );
                     shardRequests.add(new BulkItemRequest(i, docWriteRequest));

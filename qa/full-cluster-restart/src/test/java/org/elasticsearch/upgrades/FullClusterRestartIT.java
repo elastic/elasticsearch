@@ -196,6 +196,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             logger.info("Refreshing [{}]", index);
             client().performRequest(new Request("POST", "/" + index + "/_refresh"));
         } else {
+            // The test runs with two nodes so this should still go green.
             final int numReplicas = 1;
             final long startTime = System.currentTimeMillis();
             logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, index);
@@ -223,7 +224,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testSearchTimeSeriesMode() throws Exception {
-        assumeTrue("time series mode introduced in 8.0.0 to be backported to 7.15.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
+        assumeTrue("time series mode introduced in 8.0.0 to be backported to 7.16.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
         int numDocs;
         if (isRunningAgainstOldCluster()) {
             numDocs = createTimeSeriesModeIndex(1);
@@ -265,10 +266,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testNewReplicasTimeSeriesMode() throws Exception {
-        assumeTrue("time series mode introduced in 8.0.0 to be backported to 7.15.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
+        assumeTrue("time series mode introduced in 8.0.0 to be backported to 7.16.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
         if (isRunningAgainstOldCluster()) {
             createTimeSeriesModeIndex(0);
         } else {
+            // The test runs with two nodes so this should still go green.
             final int numReplicas = 1;
             final long startTime = System.currentTimeMillis();
             logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, index);

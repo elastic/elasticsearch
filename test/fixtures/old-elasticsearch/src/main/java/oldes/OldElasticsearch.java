@@ -71,7 +71,15 @@ public class OldElasticsearch {
         Path bin = esDir.resolve("bin").resolve("elasticsearch" + (Constants.WINDOWS ? ".bat" : ""));
         Path config = esDir.resolve("config").resolve("elasticsearch.yml");
 
-        Files.write(config, Arrays.asList("http.port: 0", "transport.tcp.port: 0", "network.host: 127.0.0.1"), StandardCharsets.UTF_8);
+        List<String> configOptions = new ArrayList<>();
+        configOptions.addAll(Arrays.asList("http.port: 0", "transport.tcp.port: 0", "network.host: 127.0.0.1"));
+        if (args.length > 3) {
+            for (int i = 3; i < args.length; i++) {
+                configOptions.add(args[i]);
+            }
+        }
+
+        Files.write(config, configOptions, StandardCharsets.UTF_8);
 
         List<String> command = new ArrayList<>();
         command.add(bin.toString());
@@ -79,7 +87,7 @@ public class OldElasticsearch {
             command.add("-f");
         }
         command.add("-p");
-        command.add("../pid");
+        command.add(baseDir.resolve("pid").toString());
         ProcessBuilder subprocess = new ProcessBuilder(command);
         Process process = subprocess.start();
         System.out.println("Running " + command);
@@ -88,7 +96,7 @@ public class OldElasticsearch {
         int port = 0;
 
         Pattern pidPattern = Pattern.compile("pid\\[(\\d+)\\]");
-        Pattern httpPortPattern = Pattern.compile("\\[http\\s+\\].+bound_address.+127\\.0\\.0\\.1:(\\d+)");
+        Pattern httpPortPattern = Pattern.compile("(\\[http\\s+\\]|Netty4HttpServerTransport).+bound_address.+127\\.0\\.0\\.1:(\\d+)");
         try (BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = stdout.readLine()) != null && (pid == 0 || port == 0)) {
@@ -101,7 +109,7 @@ public class OldElasticsearch {
                 }
                 m = httpPortPattern.matcher(line);
                 if (m.find()) {
-                    port = Integer.parseInt(m.group(1));
+                    port = Integer.parseInt(m.group(2));
                     System.out.println("Found port:  " + port);
                     continue;
                 }

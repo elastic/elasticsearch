@@ -1,0 +1,125 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.AntFixture
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.jdk-download'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+
+configurations {
+  oldesFixture
+}
+
+dependencies {
+  oldesFixture project(':test:fixtures:old-elasticsearch')
+}
+
+jdks {
+  legacy {
+    vendor = 'adoptium'
+    version = '8u302+b08'
+    platform = OS.current().name().toLowerCase()
+    architecture = Architecture.current().name().toLowerCase()
+  }
+}
+
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  logger.warn("Disabling repository-old-versions tests because we can't get the pid file on windows")
+} else if (rootProject.rootDir.toString().contains(" ")) {
+  logger.warn("Disabling repository-old-versions tests because Elasticsearch 1.7 won't start with spaces in the path")
+} else {
+  /* Set up tasks to unzip and run the old versions of ES before running the
+   * integration tests. */
+  for (String versionString : ['6.8.18', '5.6.16', '2.4.5', '1.7.6']) {
+    Version version = Version.fromString(versionString)
+    String packageName = version.major == 1 ? 'org.elasticsearch' : 'org.elasticsearch.distribution.zip'
+    String artifact = "${packageName}:elasticsearch:${version}@zip"
+    String versionNoDots = version.toString().replace('.', '_')
+    String configName = "es${versionNoDots}"
+
+    configurations.create(configName)
+
+    dependencies.add(configName, artifact)
+
+    // TODO Rene: we should be able to replace these unzip tasks with gradle artifact transforms
+    TaskProvider<Sync> unzip = tasks.register("unzipEs${versionNoDots}", Sync) {
+      Configuration oldEsDependency = configurations[configName]
+      dependsOn oldEsDependency
+      /* Use a closure here to delay resolution of the dependency until we need
+       * it */
+      from {
+        oldEsDependency.collect { zipTree(it) }
+      }
+      into temporaryDir
+    }
+
+    String repoLocation = "${buildDir}/cluster/shared/repo/${versionNoDots}"
+
+    String clusterName = versionNoDots
+
+    testClusters {
+      "${clusterName}" {
+        setting 'path.repo', repoLocation
+        setting 'xpack.security.enabled', 'false'
+      }
+    }
+
+    TaskProvider<AntFixture> fixture = tasks.register("oldES${versionNoDots}Fixture", AntFixture) {
+      dependsOn project.configurations.oldesFixture, jdks.legacy
+      dependsOn unzip
+      executable = "${BuildParams.runtimeJavaHome}/bin/java"
+      env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
+      // old versions of Elasticsearch need JAVA_HOME
+      env 'JAVA_HOME', jdks.legacy.javaHomePath
+      // If we are running on certain arm systems we need to explicitly set the stack size to overcome JDK page size bug
+      if (Architecture.current() == Architecture.AARCH64) {
+        env 'ES_JAVA_OPTS', '-Xss512k'
+      }
+      args 'oldes.OldElasticsearch',
+        baseDir,
+        unzip.get().temporaryDir,
+        false,
+        "path.repo: ${repoLocation}"
+      waitCondition = { fixture, ant ->
+        // the fixture writes the ports file when Elasticsearch's HTTP service
+        // is ready, so we can just wait for the file to exist
+        return fixture.portsFile.exists()
+      }
+    }
+
+    tasks.register("javaRestTest#${versionNoDots}", StandaloneRestIntegTestTask) {
+      useCluster testClusters."${clusterName}"
+      dependsOn fixture
+      doFirst {
+        delete(repoLocation)
+        mkdir(repoLocation)
+      }
+      systemProperty "tests.repo.location", repoLocation
+      systemProperty "tests.es.version", version.toString()
+      /* Use a closure on the string to delay evaluation until right before we
+       * run the integration tests so that we can be sure that the file is
+       * ready. */
+      nonInputProperties.systemProperty "tests.es.port", "${-> fixture.get().addressAndPort}"
+      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${clusterName}".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${clusterName}".getName()}")
+    }
+
+    tasks.named("check").configure {
+      dependsOn "javaRestTest#${versionNoDots}"
+    }
+  }
+}
+

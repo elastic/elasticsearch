@@ -22,6 +22,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -38,12 +39,14 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -55,7 +58,9 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.Lucene;
@@ -69,16 +74,21 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
@@ -111,10 +121,13 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -129,7 +142,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -141,6 +156,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -1521,9 +1537,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             Exception failure = null;
             SnapshotInfo snapshotInfo = null;
             try {
-                snapshotInfo = SNAPSHOT_FORMAT.read(metadata.name(), blobContainer(), snapshotId.getUUID(), namedXContentRegistry);
-            } catch (NoSuchFileException ex) {
-                failure = new SnapshotMissingException(metadata.name(), snapshotId, ex);
+                try {
+                    snapshotInfo = SNAPSHOT_FORMAT.read(metadata.name(), blobContainer(), snapshotId.getUUID(), namedXContentRegistry);
+                } catch (NoSuchFileException ex) {
+                    // try legacy format
+                    if (true /* legacy */) {
+                        try {
+                            snapshotInfo = SNAPSHOT_LEGACY_FORMAT.read(
+                                metadata.name(),
+                                blobContainer(),
+                                snapshotId.getName(),
+                                namedXContentRegistry
+                            );
+                        } catch (NoSuchFileException ex2) {
+                            failure = new SnapshotMissingException(metadata.name(), snapshotId, ex);
+                        }
+                    } else {
+                        failure = new SnapshotMissingException(metadata.name(), snapshotId, ex);
+                    }
+                }
             } catch (IOException | NotXContentException ex) {
                 failure = new SnapshotException(metadata.name(), snapshotId, "failed to get snapshot info" + snapshotId, ex);
             } catch (Exception e) {
@@ -1558,12 +1590,33 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException {
         try {
-            return INDEX_METADATA_FORMAT.read(
-                metadata.name(),
-                indexContainer(index),
-                repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, index),
-                namedXContentRegistry
-            );
+            IndexMetadata indexMetadata;
+            // read index metadata in compatibility mode first to figure out what its version is
+            try {
+                indexMetadata = BASIC_INDEX_METADATA_FORMAT.read(
+                    metadata.name(),
+                    indexContainer(index),
+                    repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, index),
+                    namedXContentRegistry
+                );
+            } catch (NoSuchFileException ex2) {
+                indexMetadata = LEGACY_INDEX_METADATA_FORMAT.read(
+                    metadata.name(),
+                    indexContainer(index),
+                    repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, index),
+                    namedXContentRegistry
+                );
+            }
+            if (indexMetadata.getCreationVersion().onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+                return INDEX_METADATA_FORMAT.read(
+                    metadata.name(),
+                    indexContainer(index),
+                    repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, index),
+                    namedXContentRegistry
+                );
+            } else {
+                return indexMetadata;
+            }
         } catch (NoSuchFileException e) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, e);
         }
@@ -2083,6 +2136,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private RepositoryData getRepositoryData(long indexGen) {
         if (indexGen == RepositoryData.EMPTY_REPO_GEN) {
+            // fall back to loading legacy snapshots
+            final List<SnapshotId> snapshotIds = snapshots();
+            if (snapshotIds.isEmpty() == false) {
+                return new RepositoryData(
+                    RepositoryData.MISSING_UUID,
+                    RepositoryData.UNKNOWN_REPO_GEN,
+                    snapshotIds.stream().collect(Collectors.toMap(s -> s.getUUID(), s -> s)),
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    ShardGenerations.EMPTY,
+                    IndexMetaDataGenerations.EMPTY,
+                    RepositoryData.MISSING_UUID
+                ) {
+
+                    @Override
+                    public IndexId resolveIndexId(final String indexName) {
+                        return new IndexId(indexName, indexName);
+                    }
+                };
+            }
             return RepositoryData.EMPTY;
         }
         try {
@@ -3303,9 +3376,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public BlobStoreIndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
         try {
-            return INDEX_SHARD_SNAPSHOT_FORMAT.read(metadata.name(), shardContainer, snapshotId.getUUID(), namedXContentRegistry);
-        } catch (NoSuchFileException ex) {
-            throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
+            try {
+                return INDEX_SHARD_SNAPSHOT_FORMAT.read(metadata.name(), shardContainer, snapshotId.getUUID(), namedXContentRegistry);
+            } catch (NoSuchFileException ex) {
+                // fallback to ES 1.x legacy format
+                try {
+                    return LEGACY_INDEX_SHARD_SNAPSHOT_FORMAT.read(
+                        metadata.name(),
+                        shardContainer,
+                        snapshotId.getUUID(),
+                        namedXContentRegistry
+                    );
+                } catch (NoSuchFileException ex2) {
+                    throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
+                }
+            }
         } catch (IOException ex) {
             throw new SnapshotException(
                 metadata.name(),
@@ -3492,4 +3577,295 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             this.blobsToDelete = blobsToDelete;
         }
     }
+
+    // Legacy blob store access
+    private static final String SNAPSHOT_SUFFIX = ".dat";
+    private static final String LEGACY_SNAPSHOT_PREFIX = "snapshot-";
+    private static final String LEGACY_SNAPSHOT_NAME_FORMAT = LEGACY_SNAPSHOT_PREFIX + "%s";
+    private static final String COMMON_SNAPSHOT_PREFIX = "snap";
+    private static final String SNAPSHOTS_INDEX_FILE = "index";
+
+    public List<SnapshotId> snapshots() {
+        final String repositoryName = metadata.name();
+        try {
+            List<SnapshotId> snapshots = new ArrayList<>();
+            Map<String, BlobMetadata> blobs;
+            try {
+                blobs = blobContainer().listBlobsByPrefix(COMMON_SNAPSHOT_PREFIX);
+            } catch (UnsupportedOperationException ex) {
+                // Fall back in case listBlobsByPrefix isn't supported by the blob store
+                return readSnapshotList();
+            }
+            int prefixLength = SNAPSHOT_PREFIX.length();
+            int suffixLength = SNAPSHOT_SUFFIX.length();
+            int legacyPrefixLength = LEGACY_SNAPSHOT_PREFIX.length();
+            for (BlobMetadata md : blobs.values()) {
+                String blobName = md.name();
+                final String name;
+                if (blobName.startsWith(SNAPSHOT_PREFIX) && blobName.length() > legacyPrefixLength) {
+                    name = blobName.substring(prefixLength, blobName.length() - suffixLength);
+                } else if (blobName.startsWith(LEGACY_SNAPSHOT_PREFIX) && blobName.length() > suffixLength + prefixLength) {
+                    name = blobName.substring(legacyPrefixLength);
+                } else {
+                    // not sure what it was - ignore
+                    continue;
+                }
+                snapshots.add(new SnapshotId(name, name));
+            }
+            return Collections.unmodifiableList(snapshots);
+        } catch (IOException ex) {
+            throw new RepositoryException(repositoryName, "failed to list snapshots in repository", ex);
+        }
+    }
+
+    protected List<SnapshotId> readSnapshotList() throws IOException {
+        final String repositoryName = metadata.name();
+        try (InputStream blob = blobContainer().readBlob(SNAPSHOTS_INDEX_FILE)) {
+            final byte[] data = Streams.readFully(blob).array();
+            ArrayList<SnapshotId> snapshots = new ArrayList<>();
+            try (
+                XContentParser parser = XContentHelper.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.IGNORE_DEPRECATIONS,
+                    new BytesArray(data)
+                )
+            ) {
+                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                    if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                        String currentFieldName = parser.currentName();
+                        if ("snapshots".equals(currentFieldName)) {
+                            if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                    snapshots.add(new SnapshotId(repositoryName, parser.text()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return Collections.unmodifiableList(snapshots);
+        }
+    }
+
+    public static class LegacyBlobStoreFormat<T extends ToXContent> {
+
+        private final String blobNameFormat;
+
+        private final CheckedBiFunction<String, XContentParser, T, IOException> reader;
+
+        public LegacyBlobStoreFormat(String blobNameFormat, CheckedBiFunction<String, XContentParser, T, IOException> reader) {
+            this.blobNameFormat = blobNameFormat;
+            this.reader = reader;
+        }
+
+        public T read(String repoName, BlobContainer blobContainer, String blobName, NamedXContentRegistry namedXContentRegistry)
+            throws IOException {
+            try (InputStream inputStream = blobContainer.readBlob(blobName(blobName))) {
+                final byte[] data = Streams.readFully(inputStream).array();
+                try (
+                    XContentParser parser = XContentHelper.createParser(
+                        namedXContentRegistry,
+                        LoggingDeprecationHandler.INSTANCE,
+                        new BytesArray(data)
+                    )
+                ) {
+                    return reader.apply(repoName, parser);
+                }
+            }
+        }
+
+        protected String blobName(String name) {
+            return String.format(Locale.ROOT, blobNameFormat, name);
+        }
+    }
+
+    private final LegacyBlobStoreFormat<SnapshotInfo> SNAPSHOT_LEGACY_FORMAT = new LegacyBlobStoreFormat<>(
+        LEGACY_SNAPSHOT_NAME_FORMAT,
+        BlobStoreRepository::fromLegacyXContent
+    );
+
+    private final ChecksumBlobStoreFormat<IndexMetadata> BASIC_INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
+        "index-metadata",
+        METADATA_NAME_FORMAT,
+        (repoName, parser) -> basicIndexMetadataFromXContent(parser)
+    );
+    private final LegacyBlobStoreFormat<IndexMetadata> LEGACY_INDEX_METADATA_FORMAT = new LegacyBlobStoreFormat<>(
+        LEGACY_SNAPSHOT_NAME_FORMAT,
+        (repoName, parser) -> basicIndexMetadataFromXContent(parser)
+    );
+
+    public static SnapshotInfo fromLegacyXContent(final String repoName, XContentParser parser) throws IOException {
+        String name = null;
+        Version version = Version.CURRENT;
+        SnapshotState state = SnapshotState.IN_PROGRESS;
+        String reason = null;
+        List<String> indices = Collections.emptyList();
+        long startTime = 0;
+        long endTime = 0;
+        int totalShard = 0;
+        int successfulShards = 0;
+        List<SnapshotShardFailure> shardFailures = Collections.emptyList();
+        if (parser.currentToken() == null) { // fresh parser? move to the first token
+            parser.nextToken();
+        }
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
+            parser.nextToken();
+        }
+        XContentParser.Token token;
+        if ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {
+            String currentFieldName = parser.currentName();
+            if ("snapshot".equals(currentFieldName)) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                        token = parser.nextToken();
+                        if (token.isValue()) {
+                            if ("name".equals(currentFieldName)) {
+                                name = parser.text();
+                            } else if ("state".equals(currentFieldName)) {
+                                state = SnapshotState.valueOf(parser.text());
+                            } else if ("reason".equals(currentFieldName)) {
+                                reason = parser.text();
+                            } else if ("start_time".equals(currentFieldName)) {
+                                startTime = parser.longValue();
+                            } else if ("end_time".equals(currentFieldName)) {
+                                endTime = parser.longValue();
+                            } else if ("total_shards".equals(currentFieldName)) {
+                                totalShard = parser.intValue();
+                            } else if ("successful_shards".equals(currentFieldName)) {
+                                successfulShards = parser.intValue();
+                            } else if ("version_id".equals(currentFieldName)) {
+                                version = Version.fromId(parser.intValue());
+                            }
+                        } else if (token == XContentParser.Token.START_ARRAY) {
+                            if ("indices".equals(currentFieldName)) {
+                                ArrayList<String> indicesArray = new ArrayList<>();
+                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                    indicesArray.add(parser.text());
+                                }
+                                indices = Collections.unmodifiableList(indicesArray);
+                            } else if ("failures".equals(currentFieldName)) {
+                                ArrayList<SnapshotShardFailure> shardFailureArrayList = new ArrayList<>();
+                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                    shardFailureArrayList.add(SnapshotShardFailure.fromXContent(parser));
+                                }
+                                shardFailures = Collections.unmodifiableList(shardFailureArrayList);
+                            } else {
+                                // It was probably created by newer version - ignoring
+                                parser.skipChildren();
+                            }
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            // It was probably created by newer version - ignoring
+                            parser.skipChildren();
+                        }
+                    }
+                }
+            }
+        } else {
+            throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+        }
+        return new SnapshotInfo(
+            new Snapshot(repoName, new SnapshotId(name, name)),
+            indices,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            reason,
+            version,
+            startTime,
+            endTime,
+            totalShard,
+            successfulShards,
+            shardFailures,
+            false,
+            Collections.emptyMap(),
+            state,
+            Collections.emptyMap()
+        );
+    }
+
+    public static IndexMetadata basicIndexMetadataFromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) { // fresh parser? move to the first token
+            parser.nextToken();
+        }
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
+            parser.nextToken();
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+        IndexMetadata.Builder builder = new IndexMetadata.Builder(parser.currentName());
+
+        String currentFieldName = null;
+        XContentParser.Token token = parser.nextToken();
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("settings".equals(currentFieldName)) {
+                    Settings settings = Settings.fromXContent(parser);
+                    builder.settings(settings);
+                } else if ("mappings".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            String mappingType = currentFieldName;
+                            Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder()
+                                .put(mappingType, parser.mapOrdered())
+                                .map();
+                            builder.putMapping(new MappingMetadata(mappingType, mappingSource));
+                        } else {
+                            throw new IllegalArgumentException("Unexpected token: " + token);
+                        }
+                    }
+                } else {
+                    // assume it's custom index metadata
+                    parser.skipChildren();
+                    // parser.mapStrings();
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("mappings".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                            assert false : "only called for newer ES versions";
+                            builder.putMapping(new MappingMetadata(new CompressedXContent(parser.binaryValue())));
+                        } else {
+                            Map<String, Object> mapping = parser.mapOrdered();
+                            // TODO: add support for _id, _type
+                            Map<String, Object> newMapping = new LinkedHashMap<>();
+                            newMapping.put("_meta", Map.of("original_mapping", mapping));
+                            // newMapping.put("runtime", createRuntimeFields(mapping));
+                            newMapping.put("properties", Map.of("_uid", Map.of("type", "keyword")));
+                            builder.putMapping(new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, newMapping));
+                        }
+                    }
+                } else {
+                    parser.skipChildren();
+                }
+            } else if (token.isValue()) {
+                if ("state".equals(currentFieldName)) {
+                    builder.state(IndexMetadata.State.fromString(parser.text()));
+                } else if ("version".equals(currentFieldName)) {
+                    builder.version(parser.longValue());
+                } else if ("mapping_version".equals(currentFieldName)) {
+                    builder.mappingVersion(parser.longValue());
+                } else if ("settings_version".equals(currentFieldName)) {
+                    builder.settingsVersion(parser.longValue());
+                } else if ("routing_num_shards".equals(currentFieldName)) {
+                    builder.setRoutingNumShards(parser.intValue());
+                } else {
+                    // nothing
+                }
+            } else {
+                throw new IllegalArgumentException("Unexpected token " + token);
+            }
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+
+        return builder.build();
+    }
+
+    private final LegacyBlobStoreFormat<BlobStoreIndexShardSnapshot> LEGACY_INDEX_SHARD_SNAPSHOT_FORMAT = new LegacyBlobStoreFormat<>(
+        LEGACY_SNAPSHOT_NAME_FORMAT,
+        (repoName, parser) -> BlobStoreIndexShardSnapshot.fromXContent(parser)
+    );
 }

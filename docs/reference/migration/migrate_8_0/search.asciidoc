@@ -21,7 +21,7 @@ The API no longer supports text files that contain:
 * An empty first line followed by another empty line.
 
 *Impact* +
-Discontinue use of unsupported files with the multi search API. Requests
+Discontinue use of unsupported text files with the multi search API. Requests
 that include an unsupported file will return an error.
 ====
 

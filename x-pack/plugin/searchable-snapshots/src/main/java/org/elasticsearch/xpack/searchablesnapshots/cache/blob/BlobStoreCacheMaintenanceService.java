@@ -34,11 +34,12 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -119,10 +120,10 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     }
 
     static QueryBuilder buildDeleteByQuery(int numberOfShards, String snapshotUuid, String indexUuid) {
-        final Set<String> paths = new HashSet<>(numberOfShards);
-        for (int shard = 0; shard < numberOfShards; shard++) {
-            paths.add(String.join("/", snapshotUuid, indexUuid, String.valueOf(shard)));
-        }
+        final Set<String> paths = IntStream.range(0, numberOfShards)
+            .mapToObj(shard -> String.join("/", snapshotUuid, indexUuid, String.valueOf(shard)))
+            .collect(Collectors.toSet());
+        assert paths.isEmpty() == false;
         return QueryBuilders.termsQuery("blob.path", paths);
     }
 

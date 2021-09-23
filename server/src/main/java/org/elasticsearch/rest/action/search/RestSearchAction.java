@@ -161,16 +161,7 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
         }
 
-        // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
-        // from the REST layer. these modes are an internal optimization and should
-        // not be specified explicitly by the user.
-        String searchType = request.param("search_type");
-        if ("query_and_fetch".equals(searchType) ||
-                "dfs_query_and_fetch".equals(searchType)) {
-            throw new IllegalArgumentException("Unsupported search type [" + searchType + "]");
-        } else {
-            searchRequest.searchType(searchType);
-        }
+        searchRequest.searchType(request.param("search_type"));
         parseSearchSource(searchRequest.source(), request, setSize);
         searchRequest.requestCache(request.paramAsBoolean("request_cache", searchRequest.requestCache()));
 

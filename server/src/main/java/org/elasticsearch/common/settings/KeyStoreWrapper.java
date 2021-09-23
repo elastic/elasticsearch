@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.settings;
 
-import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -108,7 +107,9 @@ public class KeyStoreWrapper implements SecureSettings {
     public static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
-    public static final int FORMAT_VERSION = 4;
+    //public static final int FORMAT_VERSION = 4;
+
+    public static final int FORMAT_VERSION = 5;
 
     /** The oldest metadata format version that can be read. */
     private static final int MIN_FORMAT_VERSION = 1;
@@ -234,7 +235,7 @@ public class KeyStoreWrapper implements SecureSettings {
         }
 
         Directory directory = new NIOFSDirectory(configDir);
-        try (ChecksumIndexInput input = EndiannessReverserUtil.openChecksumInput(directory, KEYSTORE_FILENAME, IOContext.READONCE)) {
+        try (ChecksumIndexInput input = directory.openChecksumInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
             final int formatVersion;
             try {
                 formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
@@ -291,7 +292,12 @@ public class KeyStoreWrapper implements SecureSettings {
                 }
                 dataBytes = bytes.toByteArray();
             } else {
-                int dataBytesLen = input.readInt();
+                int dataBytesLen;
+                //if (formatVersion < 5) {
+                //    dataBytesLen = Integer.reverseBytes(input.readInt());
+                //} else {
+                dataBytesLen = input.readInt();
+                //}
                 dataBytes = new byte[dataBytesLen];
                 input.readBytes(dataBytes, 0, dataBytesLen);
             }
@@ -513,7 +519,7 @@ public class KeyStoreWrapper implements SecureSettings {
         // write to tmp file first, then overwrite
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
         Path keystoreTempFile = configDir.resolve(tmpFile);
-        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, tmpFile, IOContext.DEFAULT)) {
+        try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
             output.writeByte(password.length == 0 ? (byte)0 : (byte)1);
 

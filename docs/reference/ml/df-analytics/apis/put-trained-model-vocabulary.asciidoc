@@ -37,9 +37,34 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `vocabulary`::
 (array)
-The model vocabulary. Must not be empty.
+The model vocabulary. Must not be empty. The vocabulary is then
+stored in the index as described in `inference_config.*.vocabulary` in the
+stored trained model definition.
 
-////
 [[ml-put-trained-model-vocabulary-example]]
 == {api-examples-title}
-////
+
+Here is an example of creating a model vocabulary for an previously
+stored trained model configuration.
+
+[source,console]
+--------------------------------------------------
+PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/vocabulary
+{
+    "vocabulary": [
+        "[PAD]",
+        "[unused0]",
+        ...
+        ]
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+    "acknowledged": true
+}
+----

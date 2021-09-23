@@ -11,16 +11,17 @@
 == {api-request-title}
 
 `POST _ml/trained_models/<model_id>/deployent/_start`
-////
+
 [[start-trained-model-deployment-prereq]]
 == {api-prereq-title}
+Requires the `manage_ml` cluster privilege. This privilege is included in the
+`machine_learning_admin` built-in role.
 
-////
-////
 [[start-trained-model-deployment-desc]]
 == {api-description-title}
-
-////
+This starts a new model deployment. Currently only `pytorch` models are supported
+for deployment. When deployed, the model attempts allocation to every machine learning
+node.
 
 [[start-trained-model-deployment-path-params]]
 == {api-path-parms-title}
@@ -45,19 +46,34 @@ indicating, respectively, deployment is starting but not yet on any
 node, the model has started on at least one node, the deployment has
 started on all valid nodes.
 
-////
-[role="child_attributes"]
-[[start-trained-model-deployment-results]]
-== {api-response-body-title}
-////
-
-////
-[[start-trained-models-response-codes]]
-== {api-response-codes-title}
-////
-
-////
 [[start-trained-model-deployment-example]]
 == {api-examples-title}
 
-////
+Here is an example for starting a new model deployment for an existing model.
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/deployment/_start?wait_for=started&timeout=1m
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+    "allocation": {
+        "task_parameters": {
+            "model_id": "elastic__distilbert-base-uncased-finetuned-conll03-english",
+            "model_bytes": 265632637
+        },
+        "routing_table": {
+            "uckeG3R8TLe2MMNBQ6AGrw": {
+                "routing_state": "started",
+                "reason": ""
+            }
+        },
+        "allocation_state": "started"
+    }
+}
+----

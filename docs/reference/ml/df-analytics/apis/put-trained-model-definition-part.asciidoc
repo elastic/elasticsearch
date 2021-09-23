@@ -52,7 +52,32 @@ The total uncompressed definition length.
 (Required, number)
 The total number of parts that will be uploaded. Must be greater than 0.
 
-////
 [[ml-put-trained-model-definition-part-example]]
 == {api-examples-title}
-////
+
+Here is an example of creating a model definition part for a previously
+stored model configuration. The definition part is stored in the index configured by
+`location.index.name`.
+ 
+
+NOTE: `definition` is elided as it is a very large base64 encoded string
+
+[source,console]
+--------------------------------------------------
+PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/part/0
+{
+    "definition": "...",
+    "total_definition_length": 265632637,
+    "total_parts": 64
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+    "acknowledged": true
+}
+----

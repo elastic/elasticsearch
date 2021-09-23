@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.transport;
+package org.elasticsearch.transport.netty4;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
@@ -25,7 +25,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.Transport;
 
 import java.util.Arrays;
 import java.util.Collections;

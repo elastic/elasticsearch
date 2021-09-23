@@ -5,8 +5,7 @@ Each {es} node has two different network interfaces. Clients send requests to
 {es}'s REST APIs using its <<http-settings,HTTP interface>>, but nodes
 communicate with other nodes using the <<transport-settings,transport
 interface>>. The transport interface is also used for communication with
-<<modules-remote-clusters,remote clusters>>, and by the deprecated
-{javaclient}/transport-client.html[Java transport client].
+<<remote-clusters,remote clusters>>.
 
 You can configure both of these interfaces at the same time using the
 `network.*` settings. If you have a more complicated network, you might need to
@@ -140,7 +139,7 @@ The only requirements are that each node must be:
 
 * Accessible at its transport publish address by all other
   nodes in its cluster, and by any remote clusters that will discover it using
-  <<sniff-mode>>.
+  <<sniff-mode-remote>>.
 
 * Accessible at its HTTP publish address by all clients
   that will discover it using sniffing.

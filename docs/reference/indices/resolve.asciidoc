@@ -71,7 +71,7 @@ for the target data stream, index, or index alias.
 --
 (Required, string) Comma-separated name(s) or index pattern(s) of the
 indices, aliases, and data streams to resolve. Resources on
-<<modules-remote-clusters,remote clusters>> can be specified using the
+<<remote-clusters,remote clusters>> can be specified using the
 `<cluster>:<name>` syntax.
 --
 

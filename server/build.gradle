@@ -282,7 +282,6 @@ tasks.named('splitPackagesAudit').configure {
     'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
     'org.apache.lucene.search.grouping.CollapsingDocValuesSource',
     'org.apache.lucene.search.grouping.CollapsingTopDocsCollector',
-    'org.apache.lucene.util.CombinedBitSet',
     'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
 
     // These are tricky because Lucene itself splits the index package,

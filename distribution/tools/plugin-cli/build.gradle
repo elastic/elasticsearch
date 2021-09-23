@@ -13,9 +13,9 @@ archivesBaseName = 'elasticsearch-plugin-cli'
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
   api "org.bouncycastle:bcpg-fips:1.0.4"
   api "org.bouncycastle:bc-fips:1.0.2"

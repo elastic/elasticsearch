@@ -300,9 +300,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 for (Path plugin : stream) {
                     final String fileName = plugin.getFileName().toString();
                     if (FileSystemUtils.isDesktopServicesStore(plugin) ||
-                        fileName.startsWith(".removing-") ||
-                        fileName.equals(".elasticsearch-plugins.yml.cache")
-                    ) {
+                        fileName.startsWith(".removing-")) {
                         continue;
                     }
                     if (seen.add(fileName) == false) {

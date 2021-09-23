@@ -8,9 +8,6 @@
 
 package org.elasticsearch.bootstrap.plugins;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.Objects;
 
 /**
@@ -18,7 +15,11 @@ import java.util.Objects;
  */
 public class PluginDescriptor {
     private String id;
-    private final String location;
+    private String location;
+
+    public PluginDescriptor() {
+
+    }
 
     /**
      * Creates a new descriptor instance.
@@ -27,8 +28,7 @@ public class PluginDescriptor {
      * @param location the location from which to fetch the plugin, e.g. a URL or Maven
      *                 coordinates. Can be null for official plugins.
      */
-    @JsonCreator
-    public PluginDescriptor(@JsonProperty("id") String id, @JsonProperty("url") String location) {
+    public PluginDescriptor(String id, String location) {
         this.id = Objects.requireNonNull(id, "id cannot be null");
         this.location = location;
     }
@@ -47,6 +47,10 @@ public class PluginDescriptor {
 
     public String getLocation() {
         return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
     }
 
     @Override

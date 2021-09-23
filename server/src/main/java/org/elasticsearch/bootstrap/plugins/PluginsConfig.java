@@ -8,11 +8,20 @@
 
 package org.elasticsearch.bootstrap.plugins;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -24,11 +33,23 @@ import java.util.Set;
  * Elasticsearch plugin.
  */
 public class PluginsConfig {
-    private final List<PluginDescriptor> plugins;
-    private final String proxy;
+    private List<PluginDescriptor> plugins;
+    private String proxy;
 
-    @JsonCreator
-    public PluginsConfig(@JsonProperty("plugins") List<PluginDescriptor> plugins, @JsonProperty("proxy") String proxy) {
+    public PluginsConfig() {
+        plugins = null;
+        proxy = null;
+    }
+
+    public void setPlugins(List<PluginDescriptor> plugins) {
+        this.plugins = plugins;
+    }
+
+    public void setProxy(String proxy) {
+        this.proxy = proxy;
+    }
+
+    public PluginsConfig(List<PluginDescriptor> plugins, String proxy) {
         this.plugins = plugins == null ? List.of() : plugins;
         this.proxy = proxy;
     }
@@ -119,5 +140,54 @@ public class PluginsConfig {
     @Override
     public String toString() {
         return "PluginsConfig{plugins=" + plugins + ", proxy='" + proxy + "'}";
+    }
+
+    /**
+     * Constructs a {@link PluginsConfig} instance from the config YAML file
+     *
+     * @param configPath the config file to load
+     * @return a validated config
+     */
+    static PluginsConfig parseConfig(Path configPath) throws IOException {
+        // Normally a parser is declared and built statically in the class, but we'll only
+        // use this when starting up Elasticsearch, so there's no point keeping one around.
+
+        final ObjectParser<PluginDescriptor, Void> descriptorParser = new ObjectParser<>("descriptor parser", PluginDescriptor::new);
+        descriptorParser.declareString(PluginDescriptor::setId, new ParseField("id"));
+        descriptorParser.declareStringOrNull(PluginDescriptor::setLocation, new ParseField("location"));
+
+        final ObjectParser<PluginsConfig, Void> parser = new ObjectParser<>("plugins parser", PluginsConfig::new);
+        parser.declareStringOrNull(PluginsConfig::setProxy, new ParseField("proxy"));
+        parser.declareObjectArrayOrNull(PluginsConfig::setPlugins, descriptorParser, new ParseField("plugins"));
+
+        final XContentParser yamlXContentParser = YamlXContent.yamlXContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            Files.newInputStream(configPath)
+        );
+
+        return parser.parse(yamlXContentParser, null);
+    }
+
+    static void writeConfig(PluginsConfig config, Path configPath) throws IOException {
+        final XContentBuilder builder = YamlXContent.contentBuilder();
+
+        builder.startObject();
+        builder.startArray("plugins");
+        for (PluginDescriptor p : config.getPlugins()) {
+            builder.startObject();
+            {
+                builder.field("id", p.getId());
+                builder.field("location", p.getLocation());
+            }
+            builder.endObject();
+        }
+        builder.endArray();
+        builder.field("proxy", config.getProxy());
+        builder.endObject();
+
+        final BytesReference bytes = BytesReference.bytes(builder);
+
+        Files.write(configPath, bytes.array());
     }
 }

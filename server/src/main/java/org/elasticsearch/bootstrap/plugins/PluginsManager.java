@@ -8,9 +8,6 @@
 
 package org.elasticsearch.bootstrap.plugins;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -47,7 +44,7 @@ public class PluginsManager {
 
     public void synchronizePlugins() throws Exception {
         final Path configPath = this.env.configFile().resolve("elasticsearch-plugins.yml");
-        final Path previousConfigPath = this.env.pluginsFile().resolve(".elasticsearch-plugins.yml.cache");
+        final Path previousConfigPath = this.env.configFile().resolve(".elasticsearch-plugins.yml.cache");
 
         if (Files.exists(configPath) == false) {
             return;
@@ -62,15 +59,13 @@ public class PluginsManager {
         // The official plugins that can be installed simply by name.
         final Set<String> officialPlugins = getFileFromClasspath("official plugins", "/plugins.txt");
 
-        final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-
         // 1. Parse descriptor file
-        final PluginsConfig pluginsConfig = parseConfig(yamlMapper, configPath);
+        final PluginsConfig pluginsConfig = PluginsConfig.parseConfig(configPath);
         pluginsConfig.validate(officialPlugins);
 
         // 2. Parse cached descriptor file, if it exists
-        Optional<PluginsConfig> cachedPluginsConfig = Files.exists(previousConfigPath)
-            ? Optional.of(parseConfig(yamlMapper, previousConfigPath))
+        final Optional<PluginsConfig> cachedPluginsConfig = Files.exists(previousConfigPath)
+            ? Optional.of(PluginsConfig.parseConfig(previousConfigPath))
             : Optional.empty();
 
         // 3. Get list of installed plugins
@@ -129,7 +124,7 @@ public class PluginsManager {
         }
 
         // 8. Cached the applied config so that we can diff it on the next run.
-        yamlMapper.writeValue(Files.newOutputStream(previousConfigPath), pluginsConfig);
+        PluginsConfig.writeConfig(pluginsConfig, previousConfigPath);
     }
 
     private Set<String> getFileFromClasspath(String description, String path) throws PluginSyncException {
@@ -261,25 +256,5 @@ public class PluginsManager {
             printSummary.accept("install", pluginsToInstall);
             printSummary.accept("upgrade", pluginsToUpgrade);
         }
-    }
-
-    /**
-     * Constructs a {@link PluginsConfig} instance from the config YAML file
-     *
-     * @param yamlMapper an ObjectMapper that has been created using {@link YAMLFactory}
-     * @param configPath the config file to load
-     * @return a validated config
-     * @throws PluginSyncException if there is a problem finding or parsing the file
-     */
-    public static PluginsConfig parseConfig(ObjectMapper yamlMapper, Path configPath) throws PluginSyncException {
-        PluginsConfig pluginsConfig;
-        try {
-            byte[] configBytes = Files.readAllBytes(configPath);
-            pluginsConfig = yamlMapper.readValue(configBytes, PluginsConfig.class);
-        } catch (IOException e) {
-            throw new PluginSyncException("Cannot parse plugins config file [" + configPath + "]: " + e.getMessage(), e);
-        }
-
-        return pluginsConfig;
     }
 }

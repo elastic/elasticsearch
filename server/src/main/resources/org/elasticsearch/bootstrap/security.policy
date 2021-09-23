@@ -24,6 +24,8 @@ grant codeBase "${codebase.elasticsearch}" {
   permission java.lang.RuntimePermission "setContextClassLoader";
   // needed for SPI class loading
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // needed by HotThreads to enable wait/block time accounting on demand
+  permission java.lang.management.ManagementPermission "control";
 };
 
 //// Very special jar permissions:

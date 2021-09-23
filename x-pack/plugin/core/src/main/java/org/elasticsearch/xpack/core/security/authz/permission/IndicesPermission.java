@@ -292,26 +292,26 @@ public final class IndicesPermission {
                         // propagate DLS and FLS permissions over the concrete indices
                         for (String index : concreteIndices) {
 
-                            Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.get(index);
-                            if (fieldPermissions == null) {
-                                // Most indices rely on the default (empty) field permissions object, so we optimize for that case
-                                // Using an immutable single item set is significantly faster because it avoids any of the hashing
-                                // and backing set creation.
-                                fieldPermissions = Set.of(group.getFieldPermissions());
-                                fieldPermissionsByIndex.put(index, fieldPermissions);
-                            } else if (fieldPermissions.size() == 1) {
-                                FieldPermissions fp = group.getFieldPermissions();
-                                if (fieldPermissions.contains(fp) == false) {
+                            final Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.compute(index, (k, existingSet) -> {
+                                if (existingSet == null) {
+                                    // Most indices rely on the default (empty) field permissions object, so we optimize for that case
+                                    // Using an immutable single item set is significantly faster because it avoids any of the hashing
+                                    // and backing set creation.
+                                    return Set.of(group.getFieldPermissions());
+                                } else if (existingSet.size() == 1) {
+                                    FieldPermissions fp = group.getFieldPermissions();
+                                    if (existingSet.contains(fp)) {
+                                        return existingSet;
+                                    }
                                     // This index doesn't have a single field permissions object, replace the singleton with a real Set
-                                    final FieldPermissions existing = fieldPermissions.iterator().next();
-                                    fieldPermissions = new HashSet<>();
-                                    fieldPermissions.add(existing);
-                                    fieldPermissions.add(fp);
-                                    fieldPermissionsByIndex.put(index, fieldPermissions);
+                                    final Set<FieldPermissions> hashSet = new HashSet<>(existingSet);
+                                    hashSet.add(fp);
+                                    return hashSet;
+                                } else {
+                                    existingSet.add(group.getFieldPermissions());
+                                    return existingSet;
                                 }
-                            } else {
-                                fieldPermissions.add(group.getFieldPermissions());
-                            }
+                            });
 
                             DocumentLevelPermissions docPermissions;
                             if (group.hasQuery()) {

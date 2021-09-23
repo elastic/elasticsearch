@@ -138,7 +138,7 @@ public class QueryPhase {
 
             final ScrollContext scrollContext = searchContext.scrollContext();
             if (searchContext.sort() != null && searchContext.sort().sort.getSort().length == 1) {
-                // We must disable the sort optimization with point for search_after or scroll requests until LUCENE-10119 is integrated.
+                // TODO: Enable the sort optimization with point for search_after and scroll requests when LUCENE-10119 is integrated.
                 if ((scrollContext != null && scrollContext.lastEmittedDoc != null) || searchContext.searchAfter() != null) {
                     for (SortField sortField : searchContext.sort().sort.getSort()) {
                         sortField.setOptimizeSortWithPoints(false);

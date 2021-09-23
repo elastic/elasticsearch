@@ -6,6 +6,20 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[[remove-unmapped-type-string]]
+.The `unmapped_type: string` sort option has been removed.
+[%collapsible]
+====
+*Details* +
+Search requests no longer support the `unmapped_type: string` sort option.
+Instead, use `unmapped_type: keyword` to handle an unmapped field as if it had
+the `keyword` field type but ignore its values for sorting.
+
+*Impact* +
+Discontinue use of `unmapped_type: string`. Search requests that include the
+`unmapped_type: string` sort option will return shard failures.
+====
+
 [[id-field-data]]
 .Aggregating and sorting on `_id` is disallowed by default.
 [%collapsible]

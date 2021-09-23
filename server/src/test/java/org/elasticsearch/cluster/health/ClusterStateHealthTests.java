@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.health;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
@@ -127,7 +128,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         clusterService.getClusterApplierService().onNewClusterState("restore master",
             () -> ClusterState.builder(currentState)
                 .nodes(DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId())).build(),
-            e -> {});
+            ActionListener.wrap(() -> {}));
 
         logger.info("--> waiting for listener to be called and cluster state being blocked");
         listenerCalled.await();

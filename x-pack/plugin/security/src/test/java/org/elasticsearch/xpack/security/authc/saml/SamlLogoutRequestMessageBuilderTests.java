@@ -83,9 +83,9 @@ public class SamlLogoutRequestMessageBuilderTests extends SamlTestCase {
         assertThat(logoutRequest.getConsent(), nullValue());
         assertThat(logoutRequest.getNotOnOrAfter(), nullValue());
         assertThat(logoutRequest.getIssueInstant(), notNullValue());
-        assertThat(logoutRequest.getIssueInstant().getMillis(), equalTo(fixedClock.millis()));
+        assertThat(logoutRequest.getIssueInstant(), equalTo(fixedClock.instant()));
         assertThat(logoutRequest.getSessionIndexes(), iterableWithSize(1));
-        assertThat(logoutRequest.getSessionIndexes().get(0).getSessionIndex(), equalTo(session));
+        assertThat(logoutRequest.getSessionIndexes().get(0).getValue(), equalTo(session));
         assertThat(logoutRequest.getDestination(), equalTo("http://idp.example.com/saml/logout/redirect"));
         assertThat(logoutRequest.getID(), notNullValue());
         assertThat(logoutRequest.getID().length(), greaterThan(20));

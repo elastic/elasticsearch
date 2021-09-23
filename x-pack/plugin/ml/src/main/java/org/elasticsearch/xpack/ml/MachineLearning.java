@@ -443,6 +443,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                                                        ShutdownAwarePlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
+    // Endpoints that were deprecated in 7.x can still be called in 8.x using the REST compatibility layer
+    public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
     public static final String JOB_COMMS_THREAD_POOL_NAME = NAME + "_job_comms";
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.Matchers;
-import org.joda.time.Duration;
 import org.mockito.Mockito;
 import org.opensaml.security.x509.X509Credential;
 
@@ -28,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.List;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
@@ -105,7 +105,7 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
             "organization_display_name", "https://idp.org")));
         assertThat(idp.getServiceProviderDefaults().applicationName, equalTo("my_super_idp"));
         assertThat(idp.getServiceProviderDefaults().nameIdFormat, equalTo(PERSISTENT));
-        assertThat(idp.getServiceProviderDefaults().authenticationExpiry, equalTo(Duration.standardMinutes(2)));
+        assertThat(idp.getServiceProviderDefaults().authenticationExpiry, equalTo(Duration.ofMinutes(2)));
         assertThat(idp.getSigningCredential().getEntityCertificate(), equalTo(signingCert));
         assertThat(idp.getSigningCredential().getPrivateKey(), equalTo(signingKey));
     }
@@ -130,8 +130,10 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
         final SamlServiceProviderResolver serviceResolver = Mockito.mock(SamlServiceProviderResolver.class);
         final WildcardServiceProviderResolver wildcardResolver = Mockito.mock(WildcardServiceProviderResolver.class);
         final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
-            randomAlphaOfLengthBetween(4, 8), randomFrom(TRANSIENT, PERSISTENT),
-            Duration.standardMinutes(randomIntBetween(2, 90)));
+            randomAlphaOfLengthBetween(4, 8),
+            randomFrom(TRANSIENT, PERSISTENT),
+            java.time.Duration.ofMinutes(randomIntBetween(2, 90))
+        );
         IllegalArgumentException e = LuceneTestCase.expectThrows(IllegalArgumentException.class,
             () -> SamlIdentityProvider.builder(serviceResolver, wildcardResolver)
                 .fromSettings(env)

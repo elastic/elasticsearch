@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -129,12 +128,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
             ActionRequestBuilder<Req, Res> req) throws Exception {
         // Wait for no publication in progress to not accidentally cancel a publication different from the one triggered by the given
         // request.
-        final Coordinator masterCoordinator = (Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class);
+        final Coordinator masterCoordinator = internalCluster().getCurrentMasterNodeInstance(Coordinator.class);
         assertBusy(() -> {
             assertFalse(masterCoordinator.publicationInProgress());
             final long applierVersion = masterCoordinator.getApplierState().version();
-            for (Discovery instance : internalCluster().getInstances(Discovery.class)) {
-                assertEquals(((Coordinator) instance).getApplierState().version(), applierVersion);
+            for (Coordinator instance : internalCluster().getInstances(Coordinator.class)) {
+                assertEquals(instance.getApplierState().version(), applierVersion);
             }
         });
         ActionFuture<Res> future = req.execute();

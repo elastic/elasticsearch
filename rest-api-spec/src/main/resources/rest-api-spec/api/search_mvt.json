@@ -76,6 +76,10 @@
         "type":"int",
         "description":"Maximum number of features to return in the hits layer. Accepts 0-10000.",
         "default":10000
+      },
+      "track_total_hits":{
+        "type":"boolean|long",
+        "description":"Indicate if the number of documents that match the query should be tracked. A number can also be specified, to accurately track the total hit count up to the number."
       }
     },
     "body":{

@@ -30,12 +30,12 @@ versions << [
   'hadoop': '3.3.1'
 ]
 
-final int minTestedHadopoVersion = 2;
-final int maxTestedHadopoVersion = 3;
+final int minTestedHadoopVersion = 2;
+final int maxTestedHadoopVersion = 3;
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
 
-for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadopoVersion; hadoopVersion++) {
+for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoopVersion; hadoopVersion++) {
   configurations.create("hdfs" + hadoopVersion + "Fixture")
 }
 
@@ -72,7 +72,7 @@ dependencies {
     }
   }
 }
-for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadopoVersion; hadoopVersion++) {
+for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoopVersion; hadoopVersion++) {
   dependencies.add("hdfs" + hadoopVersion + "Fixture", project(':test:fixtures:hdfs' + hadoopVersion + '-fixture'))
 }
 
@@ -108,7 +108,7 @@ String realm = "BUILD.ELASTIC.CO"
 String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
-for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadopoVersion; hadoopVersion++) {
+for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoopVersion; hadoopVersion++) {
   for (String fixtureName : ['hdfs' + hadoopVersion + 'Fixture', 'haHdfs' + hadoopVersion + 'Fixture', 'secureHdfs' + hadoopVersion + 'Fixture', 'secureHaHdfs' + hadoopVersion + 'Fixture']) {
     final int hadoopVer = hadoopVersion
     project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.AntFixture) {
@@ -165,7 +165,7 @@ def getNonSecureNamenodePortForVersion(hadoopVersion) {
 
 Set disabledIntegTestTaskNames = []
 
-for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadopoVersion; hadoopVersion++) {
+for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoopVersion; hadoopVersion++) {
   final int hadoopVer = hadoopVersion
   for (String integTestTaskName : ['integTest' + hadoopVersion, 'integTestHa' + hadoopVersion, 'integTestSecure' + hadoopVersion,
                                    'integTestSecureHa' + hadoopVersion]) {
@@ -284,7 +284,7 @@ if (legalPath == false) {
   fixtureSupported = false
 }
 
-for (int hadoopVersion = minTestedHadopoVersion; hadoopVersion <= maxTestedHadopoVersion; hadoopVersion++) {
+for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoopVersion; hadoopVersion++) {
   final int hadoopVer = hadoopVersion
   // Always ignore HA integration tests in the normal integration test runner, they are included below as
   // part of their own HA-specific integration test tasks.

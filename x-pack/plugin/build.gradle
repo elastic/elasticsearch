@@ -205,8 +205,6 @@ tasks.named("yamlRestTestV7CompatTest").configure {
       'ml/trained_model_cat_apis/Test cat trained models',
 
       // https://github.com/elastic/elasticsearch/pull/78180
-      'cluster.health/20_request_timeout/cluster/cluster health request timeout on waiting for nodes',
-      'cluster.health/20_request_timeout/cluster/cluster health request timeout waiting for active shards',
       'rollup/security_tests/Index-based access',
       'rollup/security_tests/Attribute-based access'
   ].join(',')

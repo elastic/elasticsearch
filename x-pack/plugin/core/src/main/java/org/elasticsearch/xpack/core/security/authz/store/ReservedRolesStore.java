@@ -443,8 +443,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Fleet package upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-*", "synthetics-*", "traces-*",
-                        "/metrics-.*&~(metrics-endpoint\\..*)/")
-                    .privileges("create_index", UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
+                        "/metrics-.*&~(metrics-endpoint\\.metadata.*)/")
+                    .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform
                 RoleDescriptor.IndicesPrivileges.builder()

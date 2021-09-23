@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -34,7 +35,9 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -134,9 +137,12 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         @Override
         protected void doRun() {
+            final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue = new LinkedList<>();
             final ClusterState state = event.state();
+
             for (Index deletedIndex : event.indicesDeleted()) {
                 final IndexMetadata indexMetadata = event.previousState().metadata().index(deletedIndex);
+                assert indexMetadata != null : "no previous metadata found for " + deletedIndex;
                 if (indexMetadata != null) {
                     final Settings indexSetting = indexMetadata.getSettings();
                     if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSetting)) {
@@ -164,12 +170,15 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
                         final DeleteByQueryRequest request = new DeleteByQueryRequest(systemIndexName);
                         request.setQuery(buildDeleteByQuery(indexMetadata.getNumberOfShards(), snapshotId.getUUID(), indexId.getId()));
-                        clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
+                        request.setRefresh(queue.isEmpty());
+
+                        queue.add(Tuple.tuple(request, new ActionListener<>() {
                             @Override
                             public void onResponse(BulkByScrollResponse response) {
                                 logger.debug(
-                                    "snapshot blob cache maintenance task deleted [{}] documents for snapshot [{}] of index {}",
+                                    "blob cache maintenance task deleted [{}] entries after deletion of {} (snapshot:{}, index:{})",
                                     response.getDeleted(),
+                                    deletedIndex,
                                     snapshotId,
                                     indexId
                                 );
@@ -179,17 +188,43 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                             public void onFailure(Exception e) {
                                 logger.debug(
                                     () -> new ParameterizedMessage(
-                                        "exception when executing snapshot blob cache maintenance task for snapshot [{}] of index {}",
+                                        "exception when executing blob cache maintenance task after deletion of {} (snapshot:{}, index:{})",
+                                        deletedIndex,
                                         snapshotId,
                                         indexId
                                     ),
                                     e
                                 );
                             }
-                        });
+                        }));
                     }
                 }
             }
+
+            if (queue.isEmpty() == false) {
+                executeNextCleanUp(queue);
+            }
+        }
+
+        void executeNextCleanUp(final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue) {
+            assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+            final Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>> next = queue.poll();
+            if (next != null) {
+                cleanUp(next.v1(), next.v2(), queue);
+            }
+        }
+
+        void cleanUp(
+            final DeleteByQueryRequest request,
+            final ActionListener<BulkByScrollResponse> listener,
+            final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue
+        ) {
+            assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+            clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, request, ActionListener.runAfter(listener, () -> {
+                if (queue.isEmpty() == false) {
+                    threadPool.generic().execute(() -> executeNextCleanUp(queue));
+                }
+            }));
         }
 
         @Override

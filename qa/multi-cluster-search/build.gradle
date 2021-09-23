@@ -21,16 +21,14 @@ tasks.register('remote-cluster', RestIntegTestTask) {
   systemProperty 'tests.rest.suite', 'remote_cluster'
 }
 
-testClusters {
-    'remote-cluster' {
-        numberOfNodes = 2
-        setting 'node.roles', '[data,ingest,master]'
-        setting 'xpack.security.enabled', 'false'
-    }
+testClusters.matching{ it.name == 'remote-cluster' }.configureEach {
+  numberOfNodes = 2
+  setting 'node.roles', '[data,ingest,master]'
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.register("mixedClusterTest", RestIntegTestTask) {
-    useCluster testClusters.'remote-cluster'
+    useCluster testClusters.named('remote-cluster')
     dependsOn 'remote-cluster'
     systemProperty 'tests.rest.suite', 'multi_cluster'
 }

@@ -11,6 +11,8 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -26,6 +28,9 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterUpdateSettingsAction.class);
+    static final String TRANSIENT_SETTINGS_DEPRECATION_MESSAGE = "[transientSettings removal]" +
+        " Updating cluster settings through transientSettings is deprecated.";
 
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";
@@ -52,6 +57,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             source = parser.map();
         }
         if (source.containsKey(TRANSIENT)) {
+            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "transient_settings", TRANSIENT_SETTINGS_DEPRECATION_MESSAGE);
             clusterUpdateSettingsRequest.transientSettings((Map<String, ?>) source.get(TRANSIENT));
         }
         if (source.containsKey(PERSISTENT)) {

@@ -65,6 +65,11 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         return validationException;
     }
 
+    /**
+     * @deprecated Transient settings are in the process of being removed. Prefer using
+     * persistent settings to update your cluster settings instead.
+     */
+    @Deprecated
     public Settings transientSettings() {
         return transientSettings;
     }
@@ -75,7 +80,11 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     /**
      * Sets the transient settings to be updated. They will not survive a full cluster restart
+     *
+     * @deprecated Transient settings are in the process of being removed. Prefer using
+     * persistent settings to update your cluster settings instead.
      */
+    @Deprecated
     public ClusterUpdateSettingsRequest transientSettings(Settings settings) {
         this.transientSettings = settings;
         return this;
@@ -83,7 +92,11 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     /**
      * Sets the transient settings to be updated. They will not survive a full cluster restart
+     *
+     * @deprecated Transient settings are in the process of being removed. Prefer using
+     * persistent settings to update your cluster settings instead.
      */
+    @Deprecated
     public ClusterUpdateSettingsRequest transientSettings(Settings.Builder settings) {
         this.transientSettings = settings.build();
         return this;
@@ -91,7 +104,11 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     /**
      * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
+     *
+     * @deprecated Transient settings are in the process of being removed. Prefer using
+     * persistent settings to update your cluster settings instead.
      */
+    @Deprecated
     public ClusterUpdateSettingsRequest transientSettings(String source, XContentType xContentType) {
         this.transientSettings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
@@ -99,7 +116,11 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     /**
      * Sets the transient settings to be updated. They will not survive a full cluster restart
+     *
+     * @deprecated Transient settings are in the process of being removed. Prefer using
+     * persistent settings to update your cluster settings instead.
      */
+    @Deprecated
     public ClusterUpdateSettingsRequest transientSettings(Map<String, ?> source) {
         this.transientSettings = Settings.builder().loadFromMap(source).build();
         return this;

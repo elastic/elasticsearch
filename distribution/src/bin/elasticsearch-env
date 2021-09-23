@@ -126,7 +126,7 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
       es_opt="-E${envvar_key}=${envvar_value}"
       es_arg_array+=("${es_opt}")
     fi
-  done <<< "$(env | grep -E '^[a-z0-9_]+(\.[a-z0-9_]+)+=')"
+  done <<< "$(env | grep -E '^[a-z0-9_]+(.[a-z0-9_]+)+=')"
 
   # b. be upper cased with underscore separators and prefixed with `ES_SETTING_`, e.g. `ES_SETTING_CLUSTER_NAME`.
   #    Underscores in setting names are escaped by writing them as a double-underscore e.g. "__"

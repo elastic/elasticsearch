@@ -20,6 +20,7 @@ The following APIs support {ccs}:
 * <<multi-search-template,Multi search template>>
 * <<search-field-caps,Field capabilities>>
 * experimental:[] <<eql-search-api,EQL search>>
+* experimental:[] <<search-vector-tile-api,Vector tile search>>
 
 [discrete]
 [[ccs-example]]
@@ -338,6 +339,9 @@ setting the <<ccs-minimize-roundtrips,`ccs_minimize_roundtrips`>> parameter to
 low latency.
 +
 See <<ccs-unmin-roundtrips>> to learn how this option works.
+
+NOTE: The <<search-vector-tile-api,vector tile search API>> always minimizes
+network roundtrips and doesn't include the `ccs_minimize_roundtrips` parameter.
 
 [discrete]
 [[ccs-min-roundtrips]]

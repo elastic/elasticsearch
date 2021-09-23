@@ -270,13 +270,14 @@ public abstract class MetadataStateFormat<T> {
             try (IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                final int format = CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, STATE_FILE_VERSION);
+                final int format =
+                    CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, STATE_FILE_VERSION);
                 final XContentType xContentType;
-                //if (format < 2) {
-                //    xContentType = XContentType.values()[Integer.reverseBytes(indexInput.readInt())];
-                //} else {
+                if (format < 2) {
+                    xContentType = XContentType.values()[Integer.reverseBytes(indexInput.readInt())];
+                } else {
                     xContentType = XContentType.values()[indexInput.readInt()];
-                //}
+                }
                 if (xContentType != FORMAT) {
                     throw new IllegalStateException("expected state in " + file + " to be " + FORMAT + " format but was " + xContentType);
                 }

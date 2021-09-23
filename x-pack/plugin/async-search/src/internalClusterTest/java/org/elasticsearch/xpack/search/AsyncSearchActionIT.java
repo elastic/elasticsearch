@@ -23,10 +23,8 @@ import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
-import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
 import java.util.ArrayList;
@@ -464,43 +462,31 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskNotRunning(response.getId());
     }
 
-    public void testFinalResponseLargerMaxSize() throws Exception {
+    public void testMaxResponseSize() throws Exception {
         SearchSourceBuilder source = new SearchSourceBuilder()
             .query(new MatchAllQueryBuilder())
             .aggregation(AggregationBuilders.terms("terms").field("terms.keyword").size(numKeywords));
 
-        int limit = 1000; // should be enough to store initial response, but not enough for final response
+        final SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(source, indexName)
+            .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(10))
+            .setKeepOnCompletion(true);
+
+        int limit = 1000; // is not big enough to store the response
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        final SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(source, indexName);
-        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(0));
+        ExecutionException e = expectThrows(ExecutionException.class,
+            () -> submitAsyncSearch(request));
+        assertNotNull(e.getCause());
 
-        // initial response – ok
-        final AsyncSearchResponse initialResponse = submitAsyncSearch(request);
-        assertTrue(initialResponse.isRunning());
-        assertNull(initialResponse.getFailure());
-
-        // final response – with failure; test that stored async search response is updated with this failure
-        assertBusy(() -> {
-            final AsyncSearchResponse finalResponse = client().execute(GetAsyncSearchAction.INSTANCE,
-                new GetAsyncResultRequest(initialResponse.getId())
-                    .setWaitForCompletionTimeout(TimeValue.timeValueMillis(300))).get();
-            assertNotNull(finalResponse.getFailure());
-            assertFalse(finalResponse.isRunning());
-            if (finalResponse.getFailure() != null) {
-                assertEquals("Can't store an async search response larger than [" + limit + "] bytes. " +
-                        "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.",
-                    finalResponse.getFailure().getMessage());
-            }
-        });
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertEquals("Can't store an async search response larger than [" + limit + "] bytes. " +
+                "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.",
+            e.getCause().getMessage());
 
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-
-        deleteAsyncSearch(initialResponse.getId());
-        ensureTaskRemoval(initialResponse.getId());
     }
 }

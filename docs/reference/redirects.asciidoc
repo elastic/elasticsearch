@@ -6,7 +6,7 @@ The following pages have moved or been deleted.
 // [START] Remote clusters
 
 [role="exclude",id="ccs-clients-integrations"]
-== {ccs-cap}, clients, and integrations
+=== {ccs-cap}, clients, and integrations
 
 Refer to <<security-clients-integrations,Securing clients and integrations>>.
 
@@ -34,6 +34,21 @@ Refer to <<remote-clusters-connect,Connecting remote clusters>>.
 === Remote clusters
 
 Refer to <<remote-clusters,Remote clusters>>.
+
+[role="exclude",id="proxy-mode"]
+==== Proxy mode
+
+Refer to <<proxy-mode-remote,Proxy mode>>.
+
+[role="exclude",id="sniff-mode"]
+==== Sniff mode
+
+Refer to <<sniff-mode-remote,Sniff mode>>.
+
+[role="exclude",id="gateway-nodes-selection"]
+==== Gateway node selection
+
+Refer to <<gateway-node-selection,Gateway nodes>>.
 
 [role="exclude",id="configuring-remote-clusters"]
 ==== Configuring remote clusters

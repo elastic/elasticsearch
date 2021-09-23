@@ -10,20 +10,19 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterLeafCollector;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
 import org.elasticsearch.script.DocValuesDocReader;
@@ -34,7 +33,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * A query that uses a script to compute documents' scores.
@@ -91,11 +89,6 @@ public class ScriptScoreQuery extends Query {
                 } else {
                     return super.bulkScorer(context);
                 }
-            }
-
-            @Override
-            public void extractTerms(Set<Term> terms) {
-                subQueryWeight.extractTerms(terms);
             }
 
             @Override

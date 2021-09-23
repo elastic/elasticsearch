@@ -21,7 +21,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
-  classname 'org.elasticsearch.index.reindex.ReindexPlugin'
+  classname 'org.elasticsearch.reindex.ReindexPlugin'
 }
 
 testClusters.all {
@@ -164,30 +164,4 @@ tasks.named("yamlRestTestV7CompatTest").configure {
           'reindex/20_validation/reindex without source gives useful error message', // exception with a type. Not much benefit adding _doc there.
           'update_by_query/20_validation/update_by_query without source gives useful error message' // exception with a type. Not much benefit adding _doc there.
         ].join(',')
-}
-
-tasks.named('splitPackagesAudit').configure {
-  // index is owned by server, move these to reindex specific
-  ignoreClasses 'org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction',
-    'org.elasticsearch.index.reindex.AbstractBaseReindexRestHandler',
-    'org.elasticsearch.index.reindex.AbstractBulkByQueryRestHandler',
-    'org.elasticsearch.index.reindex.AsyncDeleteByQueryAction',
-    'org.elasticsearch.index.reindex.BulkByScrollParallelizationHelper',
-    'org.elasticsearch.index.reindex.BulkIndexByScrollResponseContentListener',
-    'org.elasticsearch.index.reindex.ReindexPlugin',
-    'org.elasticsearch.index.reindex.ReindexSslConfig',
-    'org.elasticsearch.index.reindex.ReindexValidator',
-    'org.elasticsearch.index.reindex.Reindexer',
-    'org.elasticsearch.index.reindex.RestDeleteByQueryAction',
-    'org.elasticsearch.index.reindex.RestReindexAction',
-    'org.elasticsearch.index.reindex.RestRethrottleAction',
-    'org.elasticsearch.index.reindex.RestUpdateByQueryAction',
-    'org.elasticsearch.index.reindex.RethrottleAction',
-    'org.elasticsearch.index.reindex.RethrottleRequest',
-    'org.elasticsearch.index.reindex.RethrottleRequestBuilder',
-    'org.elasticsearch.index.reindex.TransportDeleteByQueryAction',
-    'org.elasticsearch.index.reindex.TransportReindexAction',
-    'org.elasticsearch.index.reindex.TransportRethrottleAction',
-    'org.elasticsearch.index.reindex.TransportUpdateByQueryAction',
-    'org.elasticsearch.index.reindex.package-info'
 }

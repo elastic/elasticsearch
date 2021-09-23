@@ -99,7 +99,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         // now try this when test2 is closed
         closeIndex("index2");
         rankEvalRequest.indicesOptions(IndicesOptions.fromParameters(null, "true", null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
-        response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
+        response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync, IGNORE_THROTTLED_WARNING);
     }
 
     private static List<RatedRequest> createTestEvaluationSpec() {

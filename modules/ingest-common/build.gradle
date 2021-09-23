@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -29,7 +29,7 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   // Needed in order to test ingest pipeline templating:
   // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
   module ':modules:lang-mustache'
@@ -44,12 +44,6 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-tasks.named("transformV7RestTests").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
-})
-
-tasks.named("yamlRestCompatTest").configure {
-  systemProperty 'tests.rest.blacklist', ([
-    'ingest/120_grok/Test Grok Patterns Retrieval' // un-mute this test after backporting
-  ]).join(',')
 }

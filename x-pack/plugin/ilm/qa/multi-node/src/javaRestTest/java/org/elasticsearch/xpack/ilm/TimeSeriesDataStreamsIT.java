@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
@@ -187,9 +186,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             TimeUnit.SECONDS);
 
         Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
-        assertThat(settings.get(IndexMetadata.SETTING_BLOCKS_WRITE), equalTo("true"));
-        assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
-        assertThat(settings.get("index.frozen"), equalTo("true"));
+        assertNull(settings.get("index.frozen"));
     }
 
     public void testForceMergeAction() throws Exception {

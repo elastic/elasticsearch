@@ -62,6 +62,13 @@ class IndexLifecycleRunner {
      */
     static Step getCurrentStep(PolicyStepsRegistry stepRegistry, String policy, IndexMetadata indexMetadata) {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        return getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
+    }
+
+    static Step getCurrentStep(PolicyStepsRegistry stepRegistry,
+                               String policy,
+                               IndexMetadata indexMetadata,
+                               LifecycleExecutionState lifecycleState) {
         StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
         logger.trace("[{}] retrieved current step key: {}", indexMetadata.getIndex().getName(), currentStepKey);
         if (currentStepKey == null) {
@@ -126,7 +133,7 @@ class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata);
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;
@@ -261,7 +268,7 @@ class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata);
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;
@@ -322,7 +329,7 @@ class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata);
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;

@@ -11,7 +11,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
@@ -65,7 +64,7 @@ public class NerProcessorTests extends ESTestCase {
         };
 
         List<String> classLabels = Arrays.stream(tags).map(NerProcessor.IobTag::toString).collect(Collectors.toList());
-        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index", "vocab"), null, classLabels);
+        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index"), null, classLabels);
 
         ValidationException ve = expectThrows(ValidationException.class, () -> new NerProcessor(mock(BertTokenizer.class), nerConfig));
         assertThat(ve.getMessage(),
@@ -74,7 +73,7 @@ public class NerProcessorTests extends ESTestCase {
 
     public void testValidate_NotAEntityLabel() {
         List<String> classLabels = List.of("foo", NerProcessor.IobTag.B_MISC.toString());
-        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index", "vocab"), null, classLabels);
+        NerConfig nerConfig = new NerConfig(new VocabularyConfig("test-index"), null, classLabels);
 
         ValidationException ve = expectThrows(ValidationException.class, () -> new NerProcessor(mock(BertTokenizer.class), nerConfig));
         assertThat(ve.getMessage(), containsString("classification label [foo] is not an entity I-O-B tag"));
@@ -95,7 +94,8 @@ public class NerProcessorTests extends ESTestCase {
             Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
             "Many use Elasticsearch in London"
         );
-        double[][] scores = {
+
+        double[][][] scores = {{
             { 7, 0, 0, 0, 0, 0, 0, 0, 0}, // many
             { 7, 0, 0, 0, 0, 0, 0, 0, 0}, // use
             { 0.01, 0.01, 0, 0.01, 0, 7, 0, 3, 0}, // el
@@ -103,7 +103,7 @@ public class NerProcessorTests extends ESTestCase {
             { 0, 0, 0, 0, 0, 0, 0, 0, 0}, // ##search
             { 0, 0, 0, 0, 0, 0, 0, 0, 0}, // in
             { 0, 0, 0, 0, 0, 0, 0, 6, 0} // london
-        };
+        }};
         NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 1L, null));
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
@@ -133,13 +133,13 @@ public class NerProcessorTests extends ESTestCase {
             "Elasticsearch in London"
         );
 
-        double[][] scores = {
+        double[][][] scores = {{
             { 0.01, 0.01, 0, 0.01, 0, 0, 7, 3, 0}, // el
             { 0.01, 0.01, 0, 0, 0, 0, 0, 0, 0}, // ##astic
             { 0, 0, 0, 0, 0, 0, 0, 0, 0}, // ##search
             { 0, 0, 0, 0, 0, 0, 0, 0, 5}, // in
             { 6, 0, 0, 0, 0, 0, 0, 0, 0} // london
-        };
+        }};
         NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 1L, null));
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
@@ -220,11 +220,8 @@ public class NerProcessorTests extends ESTestCase {
     private static TokenizationResult tokenize(List<String> vocab, String input) {
         BertTokenizer tokenizer = BertTokenizer.builder(
             vocab,
-            randomFrom(
-                new BertTokenization(true, false, null),
-                new DistilBertTokenization(true, false, null)
-            )
+            new BertTokenization(true, false, null)
         ).setDoLowerCase(true).setWithSpecialTokens(false).build();
-        return tokenizer.tokenize(input);
+        return tokenizer.tokenize(List.of(input));
     }
 }

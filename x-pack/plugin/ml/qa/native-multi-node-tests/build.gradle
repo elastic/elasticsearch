@@ -1,5 +1,5 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -28,7 +28,7 @@ tasks.named("javaRestTest").configure {
   dependsOn "copyKeyCerts"
 }
 
-testClusters.all {
+testClusters.configureEach {
   numberOfNodes = 3
   testDistribution = 'DEFAULT'
 

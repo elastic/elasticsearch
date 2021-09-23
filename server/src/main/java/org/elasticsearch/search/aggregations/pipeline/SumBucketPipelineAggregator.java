@@ -17,8 +17,13 @@ import java.util.Map;
 public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
     private double sum = 0;
 
-    SumBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat formatter,
-            Map<String, Object> metadata) {
+    SumBucketPipelineAggregator(
+        String name,
+        String[] bucketsPaths,
+        GapPolicy gapPolicy,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPaths, gapPolicy, formatter, metadata);
     }
 

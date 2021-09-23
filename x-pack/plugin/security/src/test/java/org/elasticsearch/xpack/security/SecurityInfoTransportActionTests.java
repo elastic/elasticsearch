@@ -117,7 +117,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             apiKeyServiceEnabled = randomBoolean();
             settings.put("xpack.security.authc.api_key.enabled", apiKeyServiceEnabled);
         } else {
-            apiKeyServiceEnabled = httpSSLEnabled;
+            apiKeyServiceEnabled = true; // this is the default
         }
 
         final boolean auditingEnabled = randomBoolean();

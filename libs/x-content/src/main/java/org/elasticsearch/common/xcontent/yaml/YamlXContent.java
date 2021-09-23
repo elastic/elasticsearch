@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -73,6 +74,24 @@ public class YamlXContent implements XContent {
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, InputStream is) throws IOException {
         return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(is));
+    }
+
+    @Override
+    public XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        InputStream is,
+        FilterPath[] includes,
+        FilterPath[] excludes
+    ) throws IOException {
+        return new YamlXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            yamlFactory.createParser(is),
+            RestApiVersion.current(),
+            includes,
+            excludes
+        );
     }
 
     @Override

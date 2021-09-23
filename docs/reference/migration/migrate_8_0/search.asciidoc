@@ -6,6 +6,56 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[[msearch-empty-line-support]]
+.The multi search API now parses an empty first line as action metadata in text files.
+[%collapsible]
+====
+*Details* +
+The multi search API now supports an empty first line when you provide the
+request body as a text file, such as when using curl's `--data-binary` flag. The
+API parses an empty first line as empty action metadata. For example, the API
+now supports a file with the following contents:
+
+[source,js]
+----
+
+{ "query": {"match": { "my-field": "foo" }}}
+
+{ "query": {"match_all": {}}}
+----
+// NOTCONSOLE
+
+The API no longer supports text files that contain:
+
+* An empty first line followed by a line containing only `{}`. For example:
++
+[source,js]
+----
+
+{}
+{ "query": {"match": { "my-field": "foo" }}}
+
+{ "query": {"match_all": {}}}
+----
+// NOTCONSOLE
+
+* An empty first line followed by another empty line. For example:
++
+[source,js]
+----
+
+
+{ "query": {"match": { "my-field": "foo" }}}
+
+{ "query": {"match_all": {}}}
+----
+// NOTCONSOLE
+
+*Impact* +
+Discontinue use of unsupported files with the multi search API. Requests
+that include an unsupported file will return an error.
+====
+
 [[remove-unmapped-type-string]]
 .The `unmapped_type: string` sort option has been removed.
 [%collapsible]

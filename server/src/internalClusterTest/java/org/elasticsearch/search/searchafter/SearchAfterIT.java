@@ -464,7 +464,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 client().prepareClearScroll().addScrollId(resp.getScrollId()).get();
             }
         }
-        // search_after with point in time
+        // search_after with sort with point in time
         String pitID;
         {
             OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
@@ -489,11 +489,45 @@ public class SearchAfterIT extends ESIntegTestCase {
                     }
                     searchRequest.source().size(randomIntBetween(50, 100));
                     assertNotNull(after);
-                    assertThat("Sorted by timestamp and shardDocID", after, arrayWithSize(2));
+                    assertThat("Sorted by timestamp and pit tier breaker", after, arrayWithSize(2));
                     searchRequest.source().searchAfter(after);
                     resp = client().search(searchRequest).actionGet();
                 } while (resp.getHits().getHits().length > 0);
                 assertThat(foundHits, equalTo(timestamps.size()));
+            } finally {
+                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitID)).actionGet();
+            }
+        }
+
+        // search_after without sort with point in time
+        {
+            OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
+            pitID = client().execute(OpenPointInTimeAction.INSTANCE, openPITRequest).actionGet().getPointInTimeId();
+            SearchRequest searchRequest = new SearchRequest("test")
+                .source(new SearchSourceBuilder()
+                    .pointInTimeBuilder(new PointInTimeBuilder(pitID).setKeepAlive(TimeValue.timeValueMinutes(5)))
+                    .sort(SortBuilders.pitTiebreaker()));
+            searchRequest.source().size(randomIntBetween(50, 100));
+            SearchResponse resp = client().search(searchRequest).actionGet();
+            List<Long> foundSeqNos = new ArrayList<>();
+            try {
+                do {
+                    Object[] after = null;
+                    for (SearchHit hit : resp.getHits().getHits()) {
+                        assertNotNull(hit.getSourceAsMap());
+                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        assertNotNull(timestamp);
+                        foundSeqNos.add(((Number) timestamp).longValue());
+                        after = hit.getSortValues();
+                    }
+                    searchRequest.source().size(randomIntBetween(50, 100));
+                    assertNotNull(after);
+                    assertThat("sorted by pit tie breaker", after, arrayWithSize(1));
+                    searchRequest.source().searchAfter(after);
+                    resp = client().search(searchRequest).actionGet();
+                } while (resp.getHits().getHits().length > 0);
+                Collections.sort(foundSeqNos);
+                assertThat(foundSeqNos, equalTo(timestamps));
             } finally {
                 client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitID)).actionGet();
             }

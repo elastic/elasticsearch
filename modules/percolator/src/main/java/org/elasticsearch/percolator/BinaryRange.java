@@ -5,15 +5,19 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.apache.lucene.document;
+package org.elasticsearch.percolator;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.RangeFieldQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 
 /**
  * A range field for binary encoded ranges
  */
-public final class BinaryRange extends Field {
+final class BinaryRange extends Field {
     /** The number of bytes per dimension, use {@link InetAddressPoint#BYTES} as max, because that is maximum we need to support */
     public static final int BYTES = InetAddressPoint.BYTES;
 
@@ -29,7 +33,7 @@ public final class BinaryRange extends Field {
      * @param name              field name. must not be null.
      * @param encodedRange      Encoded range
      */
-    public BinaryRange(String name, byte[] encodedRange) {
+    BinaryRange(String name, byte[] encodedRange) {
         super(name, TYPE);
         if (encodedRange.length != BYTES * 2) {
             throw new IllegalArgumentException("Unexpected encoded range length [" + encodedRange.length + "]");

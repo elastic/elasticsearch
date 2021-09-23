@@ -99,7 +99,7 @@ subprojects {
 
     // spatial dependency
     testRuntimeOnly project(path: xpackModule('spatial'))
-    testImplementation project(path: ':modules:legacy-geo')
+    testRuntimeOnly project(path: ':modules:legacy-geo')
   }
 
   if (project.name != 'security') {

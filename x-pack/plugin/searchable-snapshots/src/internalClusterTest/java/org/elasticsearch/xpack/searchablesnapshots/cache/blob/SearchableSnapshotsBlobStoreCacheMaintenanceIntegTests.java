@@ -155,7 +155,8 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             }
         });
 
-        final Set<String> remainingIndices = mountedIndices.keySet().stream()
+        final Set<String> remainingIndices = mountedIndices.keySet()
+            .stream()
             .filter(Predicate.not(indicesToDelete::contains))
             .collect(Collectors.toSet());
 

@@ -10,6 +10,7 @@ add time series mappings:
             settings:
               index:
                 mode: time_series
+                routing_path: metricset
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:

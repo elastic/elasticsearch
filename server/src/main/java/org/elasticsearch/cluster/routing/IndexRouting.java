@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,6 +66,11 @@ public abstract class IndexRouting {
         this.routingNumShards = routingNumShards;
         this.routingFactor = routingFactor;
     }
+
+    /**
+     * Should the routing generation calls be forked from the transport thread?
+     */
+    public abstract boolean mustForkFromTransportThread();
 
     /**
      * Called when indexing a document to generate the shard id that should contain
@@ -125,6 +131,11 @@ public abstract class IndexRouting {
         }
 
         protected abstract int shardId(String id, @Nullable String routing);
+
+        @Override
+        public boolean mustForkFromTransportThread() {
+            return false;
+        }
 
         @Override
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
@@ -206,10 +217,17 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public boolean mustForkFromTransportThread() {
+            return true;
+        }
+
+        @Override
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
             if (routing != null) {
                 throw new IllegalArgumentException(error("indexing with a specified routing"));
             }
+            assert Transports.assertNotTransportThread("parsing the _source can get slow");
+
             try {
                 try (
                     XContentParser parser = sourceType.xContent()

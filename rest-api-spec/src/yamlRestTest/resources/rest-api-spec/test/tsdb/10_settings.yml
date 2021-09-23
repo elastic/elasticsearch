@@ -1,7 +1,7 @@
 enable:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.create:
@@ -42,7 +42,7 @@ enable:
 no sort field:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       catch: /\[index.mode=time_series\] is incompatible with \[index.sort.field\]/

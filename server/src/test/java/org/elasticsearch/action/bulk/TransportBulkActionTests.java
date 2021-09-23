@@ -259,6 +259,18 @@ public class TransportBulkActionTests extends ESTestCase {
         assertFalse(bulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
+//    public void testAllRoutingOkOnTransportThread() {
+//        SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
+//        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+//        indicesLookup.put(".foo",
+//            new Index(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
+//        indicesLookup.put(".bar",
+//            new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build()));
+//        List<String> onlySystem = List.of(".foo", ".bar");
+//        assertTrue(bulkAction.allRoutingOkOnTransportThread(buildBulkRequest(onlySystem), indicesLookup));
+//
+//    }
+
     public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
         bulkAction.failIndexCreation = randomBoolean();

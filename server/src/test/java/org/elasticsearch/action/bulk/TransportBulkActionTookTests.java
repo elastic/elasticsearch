@@ -119,14 +119,26 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
                 @Override
                 void executeBulk(
-                        Task task,
-                        BulkRequest bulkRequest,
-                        long startTimeNanos,
-                        ActionListener<BulkResponse> listener,
-                        AtomicArray<BulkItemResponse> responses,
-                        Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+                    Task task,
+                    BulkRequest bulkRequest,
+                    long startTimeNanos,
+                    ActionListener<BulkResponse> listener,
+                    String executorName,
+                    boolean onTransportThread,
+                    AtomicArray<BulkItemResponse> responses,
+                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+                ) {
                     expected.set(1000000);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(
+                        task,
+                        bulkRequest,
+                        startTimeNanos,
+                        listener,
+                        executorName,
+                        onTransportThread,
+                        responses,
+                        indicesThatCannotBeCreated
+                    );
                 }
             };
         } else {
@@ -141,15 +153,27 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
                 @Override
                 void executeBulk(
-                        Task task,
-                        BulkRequest bulkRequest,
-                        long startTimeNanos,
-                        ActionListener<BulkResponse> listener,
-                        AtomicArray<BulkItemResponse> responses,
-                        Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+                    Task task,
+                    BulkRequest bulkRequest,
+                    long startTimeNanos,
+                    ActionListener<BulkResponse> listener,
+                    String executorName,
+                    boolean onTransportThread,
+                    AtomicArray<BulkItemResponse> responses,
+                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+                ) {
                     long elapsed = spinForAtLeastOneMillisecond();
                     expected.set(elapsed);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(
+                        task,
+                        bulkRequest,
+                        startTimeNanos,
+                        listener,
+                        executorName,
+                        onTransportThread,
+                        responses,
+                        indicesThatCannotBeCreated
+                    );
                 }
             };
         }

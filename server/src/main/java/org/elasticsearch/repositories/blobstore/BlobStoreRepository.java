@@ -3644,6 +3644,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             }
             return Collections.unmodifiableList(snapshots);
+        } catch (NoSuchFileException e) {
+            return Collections.emptyList();
         }
     }
 

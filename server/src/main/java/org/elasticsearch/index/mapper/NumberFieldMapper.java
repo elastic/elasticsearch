@@ -144,14 +144,13 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             });
 
-            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter)
-                .addValidator(v -> {
-                    if (v != null && hasDocValues.getValue() == false) {
-                        throw new IllegalArgumentException(
-                            "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
-                        );
-                    }
-                });
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter).addValidator(v -> {
+                if (v != null && hasDocValues.getValue() == false) {
+                    throw new IllegalArgumentException(
+                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
+                    );
+                }
+            }).precludesParameters(dimension);
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
@@ -1153,7 +1152,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final boolean dimension;
     private final ScriptCompiler scriptCompiler;
     private final Script script;
-    private final TimeSeriesParams.MetricType metricType;
+    private final MetricType metricType;
 
     private NumberFieldMapper(
             String simpleName,
@@ -1262,8 +1261,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault)
-            .dimension(dimension)
+        return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault).dimension(dimension)
             .metric(metricType)
             .init(this);
     }

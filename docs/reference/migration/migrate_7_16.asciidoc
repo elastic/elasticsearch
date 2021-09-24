@@ -63,4 +63,25 @@ has been removed in 8.0.
 *Impact* +
 Update your ILM policies to remove the `freeze` action from the `cold` phase.
 ====
+
+[discrete]
+[[breaking_716_settings_deprecations]]
+==== Settings deprecations
+
+[[deprecate-transient-cluster-settings]]
+.Transient cluster settings are now deprecated.
+[%collapsible]
+====
+*Details* +
+Transient cluster settings are now deprecated and will be removed in 8.0. This is because transient cluster
+settings have an unpredictable lifecycle. Transient cluster settings do not survive full cluster restarts, which
+can forcibly happen if enough master-eligible nodes fail. In such an event, the cluster state will be recovered
+from persistent storage, effectively erasing the transient settings. The loss of transient settings can happen
+unexpectedly, leading to potentially undesired cluster configuration.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of transient settings when modifying
+your cluster settings through the `PUT _cluster/settings` REST API. When modifying cluster settings
+use only persistent settings.
+====
 // end::notable-breaking-changes[]

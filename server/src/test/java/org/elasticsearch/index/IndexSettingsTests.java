@@ -15,11 +15,13 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -544,5 +546,67 @@ public class IndexSettingsTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         assertThat(indexSettings.hasCustomDataPath(), is(true));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexMetadata.INDEX_DATA_PATH_SETTING });
+    }
+
+    public void testUpdateTimeSeriesTimeRange() {
+        long startTime = Math.min(randomMillisUpToYear9999(), DateUtils.MAX_MILLIS_BEFORE_9999 - 86400000);
+        long endTime = startTime + randomLongBetween(1000, 86400000);
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime)
+            .build();
+        IndexMetadata metadata = newIndexMeta("test", settings);
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+
+        // test update start_time
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexSettings.updateTimeSeriesStartTime(startTime + randomLongBetween(10, 1000))
+            );
+            assertThat(e.getMessage(), Matchers.containsString("index.time_series.start_time must be smaller than pre value"));
+
+            // success
+            long newStartTime = Math.max(startTime - randomLongBetween(10, 1000), 0);
+            indexSettings.updateTimeSeriesStartTime(newStartTime);
+            assertEquals(newStartTime, indexSettings.getTimeSeriesStartTime());
+        }
+
+        // test update end_time
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexSettings.updateTimeSeriesEndTime(endTime - randomLongBetween(10, 1000))
+            );
+            assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than pre value"));
+
+            // success
+            long newEndTime = endTime + randomLongBetween(10, 1000);
+            indexSettings.updateTimeSeriesEndTime(newEndTime);
+            assertEquals(newEndTime, indexSettings.getTimeSeriesEndTime());
+        }
+    }
+
+    public void testUpdateTimeSeriesTimeRangeNotSet() {
+        final Settings settings = Settings.builder().build();
+        IndexMetadata metadata = newIndexMeta("test", settings);
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexSettings.updateTimeSeriesStartTime(randomLongBetween(10, 1000))
+            );
+            assertThat(e.getMessage(), Matchers.containsString("index.time_series.start_time not set before, can not update value"));
+        }
+
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexSettings.updateTimeSeriesEndTime(randomLongBetween(10, 1000))
+            );
+
+            assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time not set before, can not update value"));
+        }
     }
 }

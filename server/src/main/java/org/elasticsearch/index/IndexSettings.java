@@ -363,16 +363,18 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<TimeValue> TIME_SERIES_START_TIME = Setting.timeSetting(
+    public static final Setting<Long> TIME_SERIES_START_TIME = Setting.longSetting(
         "index.time_series.start_time",
-        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        -1L,
+        -1L,
         Property.IndexScope,
         Property.Dynamic
     );
 
-    public static final Setting<TimeValue> TIME_SERIES_END_TIME = Setting.timeSetting(
+    public static final Setting<Long> TIME_SERIES_END_TIME = Setting.longSetting(
         "index.time_series.end_time",
-        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        -1L,
+        -1L,
         Property.IndexScope,
         Property.Dynamic
     );
@@ -387,8 +389,8 @@ public final class IndexSettings {
      * The {@link IndexMode "mode"} of the index.
      */
     private final IndexMode mode;
-    private volatile TimeValue timeSeriesStartTime;
-    private volatile TimeValue timeSeriesEndTime;
+    private volatile long timeSeriesStartTime;
+    private volatile long timeSeriesEndTime;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -1113,32 +1115,34 @@ public final class IndexSettings {
         this.mappingDimensionFieldsLimit = value;
     }
 
-    public TimeValue getTimeSeriesStartTime() {
+    public long getTimeSeriesStartTime() {
         return timeSeriesStartTime;
     }
 
-    public void updateTimeSeriesStartTime(TimeValue startTime) {
-        if (true == this.timeSeriesStartTime.equals(TimeValue.MINUS_ONE)) {
+    public void updateTimeSeriesStartTime(long startTime) {
+        if (timeSeriesStartTime < 0) {
             throw new IllegalArgumentException("index.time_series.start_time not set before, can not update value");
         }
 
-        if (this.timeSeriesStartTime.getMicros() < startTime.getMicros()) {
-            throw new IllegalArgumentException("index.time_series.start_time must smaller then pre value [" + this.timeSeriesStartTime + "]");
+        if (this.timeSeriesStartTime < startTime) {
+            throw new IllegalArgumentException(
+                "index.time_series.start_time must be smaller than pre value [" + this.timeSeriesStartTime + "]"
+            );
         }
         this.timeSeriesStartTime = startTime;
     }
 
-    public TimeValue getTimeSeriesEndTime() {
+    public long getTimeSeriesEndTime() {
         return timeSeriesEndTime;
     }
 
-    public void updateTimeSeriesEndTime(TimeValue endTime) {
-        if (true == this.timeSeriesEndTime.equals(TimeValue.MINUS_ONE)) {
+    public void updateTimeSeriesEndTime(long endTime) {
+        if (timeSeriesEndTime < 0) {
             throw new IllegalArgumentException("index.time_series.end_time not set before, can not update value");
         }
 
-        if (this.timeSeriesEndTime.getMicros() > endTime.getMicros()) {
-            throw new IllegalArgumentException("index.time_series.end_time must large then pre value [" + this.timeSeriesEndTime + "]");
+        if (this.timeSeriesEndTime > endTime) {
+            throw new IllegalArgumentException("index.time_series.end_time must be larger than pre value [" + this.timeSeriesEndTime + "]");
         }
 
         this.timeSeriesEndTime = endTime;

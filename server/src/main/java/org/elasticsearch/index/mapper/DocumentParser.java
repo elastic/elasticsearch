@@ -139,6 +139,8 @@ public final class DocumentParser {
 
         executeIndexTimeScripts(context);
 
+        context.indexSettings().getMode().validateWithSource(context);
+
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.postParse(context);
         }

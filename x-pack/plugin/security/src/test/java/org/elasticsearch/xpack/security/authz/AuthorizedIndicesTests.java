@@ -20,6 +20,7 @@ import org.elasticsearch.core.List;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.Collections;
@@ -242,7 +244,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
         Role roles = future.actionGet();
         TransportRequest request = new ResolveIndexAction.Request(new String[]{"a*"});
-        AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(null, request, SearchAction.NAME);
+        AuthorizationEngine.RequestInfo requestInfo = getRequestInfo( request, SearchAction.NAME);
         Set<String> list =
             RBACEngine.resolveAuthorizedIndicesFromRole(roles, requestInfo, metadata.getIndicesLookup());
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex));
@@ -257,6 +259,16 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public static AuthorizationEngine.RequestInfo getRequestInfo(TransportRequest request, String action) {
-        return new AuthorizationEngine.RequestInfo(null, request, action);
+        final Authentication.RealmRef realm = new Authentication.RealmRef(
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(4),
+            "node0" + randomIntBetween(1, 9)
+        );
+        return new AuthorizationEngine.RequestInfo(
+            new Authentication(new User(randomAlphaOfLength(8)), realm, realm),
+            request,
+            action,
+            null
+        );
     }
 }

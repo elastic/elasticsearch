@@ -8,11 +8,13 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -106,13 +108,15 @@ public class KeyStoreWrapper implements SecureSettings {
     /** The name of the keystore file to read and write. */
     public static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
-    /** The version of the metadata written before the keystore data. */
-    //public static final int FORMAT_VERSION = 4;
-
-    public static final int FORMAT_VERSION = 5;
-
     /** The oldest metadata format version that can be read. */
     private static final int MIN_FORMAT_VERSION = 1;
+    /** Legacy versions of the metadata written before the keystore data. */
+    public static final int V2_VERSION = 2;
+    public static final int V3_VERSION = 3;
+    public static final int V4_VERSION = 4;
+    /** The version where lucene directory API changed from BE to LE. */
+    public static final int LE_VERSION = 5;
+    public static final int CURRENT_VERSION = LE_VERSION;
 
     /** The algorithm used to derive the cipher key from a password. */
     private static final String KDF_ALGO = "PBKDF2WithHmacSHA512";
@@ -146,6 +150,7 @@ public class KeyStoreWrapper implements SecureSettings {
     // 2: file setting, ES 5.4
     // 3: FIPS compliant algos, ES 6.3
     // 4: remove distinction between string/files, ES 6.8/7.1
+    // 5: Lucene directory API changed to LE, ES 8.0
 
     /** The metadata format version used to read the current keystore wrapper. */
     private final int formatVersion;
@@ -180,7 +185,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Constructs a new keystore with the given password. */
     public static KeyStoreWrapper create() {
-        KeyStoreWrapper wrapper = new KeyStoreWrapper(FORMAT_VERSION, false, null);
+        KeyStoreWrapper wrapper = new KeyStoreWrapper(CURRENT_VERSION, false, null);
         wrapper.entries.set(new HashMap<>());
         addBootstrapSeed(wrapper);
         return wrapper;
@@ -238,7 +243,7 @@ public class KeyStoreWrapper implements SecureSettings {
         try (ChecksumIndexInput input = directory.openChecksumInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
             final int formatVersion;
             try {
-                formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
+                formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, CURRENT_VERSION);
             } catch (IndexFormatTooOldException e) {
                 throw new IllegalStateException("The Elasticsearch keystore [" + keystoreFile + "] format is too old. " +
                     "You should delete and recreate it in order to upgrade.", e);
@@ -253,7 +258,7 @@ public class KeyStoreWrapper implements SecureSettings {
                     + String.format(Locale.ROOT, "%02x", hasPasswordByte));
             }
 
-            if (formatVersion <= 2) {
+            if (formatVersion <= V2_VERSION) {
                 String type = input.readString();
                 if (type.equals("PKCS12") == false) {
                     throw new IllegalStateException("Corrupted legacy keystore string encryption algorithm");
@@ -263,7 +268,7 @@ public class KeyStoreWrapper implements SecureSettings {
                 if (stringKeyAlgo.equals("PBE") == false) {
                     throw new IllegalStateException("Corrupted legacy keystore string encryption algorithm");
                 }
-                if (formatVersion == 2) {
+                if (formatVersion == V2_VERSION) {
                     final String fileKeyAlgo = input.readString();
                     if (fileKeyAlgo.equals("PBE") == false) {
                         throw new IllegalStateException("Corrupted legacy keystore file encryption algorithm");
@@ -272,7 +277,7 @@ public class KeyStoreWrapper implements SecureSettings {
             }
 
             final byte[] dataBytes;
-            if (formatVersion == 2) {
+            if (formatVersion == V2_VERSION) {
                 // For v2 we had a map of strings containing the types for each setting. In v3 this map is now
                 // part of the encrypted bytes. Unfortunately we cannot seek backwards with checksum input, so
                 // we cannot just read the map and find out how long it is. So instead we read the map and
@@ -293,11 +298,11 @@ public class KeyStoreWrapper implements SecureSettings {
                 dataBytes = bytes.toByteArray();
             } else {
                 int dataBytesLen;
-                //if (formatVersion < 5) {
-                //    dataBytesLen = Integer.reverseBytes(input.readInt());
-                //} else {
-                dataBytesLen = input.readInt();
-                //}
+                if (formatVersion < LE_VERSION) {
+                    dataBytesLen = Integer.reverseBytes(input.readInt());
+                } else {
+                  dataBytesLen = input.readInt();
+                }
                 dataBytes = new byte[dataBytesLen];
                 input.readBytes(dataBytes, 0, dataBytesLen);
             }
@@ -309,7 +314,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Upgrades the format of the keystore, if necessary. */
     public static void upgrade(KeyStoreWrapper wrapper, Path configDir, char[] password) throws Exception {
-        if (wrapper.getFormatVersion() == FORMAT_VERSION && wrapper.getSettingNames().contains(SEED_SETTING.getKey())) {
+        if (wrapper.getFormatVersion() == CURRENT_VERSION && wrapper.getSettingNames().contains(SEED_SETTING.getKey())) {
             return;
         }
         // add keystore.seed if necessary
@@ -358,7 +363,7 @@ public class KeyStoreWrapper implements SecureSettings {
         if (entries.get() != null) {
             throw new IllegalStateException("Keystore has already been decrypted");
         }
-        if (formatVersion <= 2) {
+        if (formatVersion <= V2_VERSION) {
             decryptLegacyEntries();
             if (password.length != 0) {
                 throw new IllegalArgumentException("Keystore format does not accept non-empty passwords");
@@ -371,16 +376,12 @@ public class KeyStoreWrapper implements SecureSettings {
         final byte[] encryptedBytes;
         try {
             final ByteArrayDataInput input = new ByteArrayDataInput(dataBytes);
-            // TODO: should wrap for older versions
-            int saltLen = input.readInt();
-            salt = new byte[saltLen];
-            input.readBytes(salt, 0, saltLen);
-            int ivLen = input.readInt();
-            iv = new byte[ivLen];
-            input.readBytes(iv, 0, ivLen);
-            int encryptedLen = input.readInt();
-            encryptedBytes = new byte[encryptedLen];
-            input.readBytes(encryptedBytes, 0, encryptedLen);
+            // Wrap the DataInput for old version that are written in BE
+            final DataInput maybeWrappedInput = formatVersion < LE_VERSION ? EndiannessReverserUtil.wrapDataInput(input) : input;
+            salt = readByteArray(maybeWrappedInput);
+            iv = readByteArray(maybeWrappedInput);
+            encryptedBytes = readByteArray(maybeWrappedInput);
+            // check we read all the buffer
             if (input.eof() == false) {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
             }
@@ -396,7 +397,7 @@ public class KeyStoreWrapper implements SecureSettings {
             int numEntries = input.readInt();
             while (numEntries-- > 0) {
                 String setting = input.readUTF();
-                if (formatVersion == 3) {
+                if (formatVersion == V3_VERSION) {
                     // legacy, the keystore format would previously store the entry type
                     input.readUTF();
                 }
@@ -414,6 +415,13 @@ public class KeyStoreWrapper implements SecureSettings {
             }
             throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
+    }
+
+    private byte[] readByteArray(DataInput input) throws IOException {
+        final int len = input.readInt();
+        final byte[] b = new byte[len];
+        input.readBytes(b, 0, len);
+        return b;
     }
 
     /** Encrypt the keystore entries and return the encrypted data. */
@@ -442,7 +450,7 @@ public class KeyStoreWrapper implements SecureSettings {
         ByteArrayInputStream inputBytes = new ByteArrayInputStream(dataBytes);
         try (DataInputStream input = new DataInputStream(inputBytes)) {
             // first read the setting types map
-            if (formatVersion == 2) {
+            if (formatVersion == V2_VERSION) {
                 int numSettings = input.readInt();
                 for (int i = 0; i < numSettings; ++i) {
                     String key = input.readUTF();
@@ -456,7 +464,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
         // verify the settings metadata matches the keystore entries
         Enumeration<String> aliases = keystore.aliases();
-        if (formatVersion == 1) {
+        if (formatVersion == MIN_FORMAT_VERSION) {
             while (aliases.hasMoreElements()) {
                 settingTypes.put(aliases.nextElement(), EntryType.STRING);
             }
@@ -521,7 +529,7 @@ public class KeyStoreWrapper implements SecureSettings {
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
         Path keystoreTempFile = configDir.resolve(tmpFile);
         try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
+            CodecUtil.writeHeader(output, KEYSTORE_FILENAME, CURRENT_VERSION);
             output.writeByte(password.length == 0 ? (byte)0 : (byte)1);
 
             // new cipher params

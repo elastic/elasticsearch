@@ -22,6 +22,9 @@ import java.util.Objects;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.MatcherAssert.assertThat;
 
+/**
+ * A utility class for constructing a {@code docker run} command line from Java.
+ */
 public class DockerRun {
 
     private Distribution distribution;
@@ -35,7 +38,9 @@ public class DockerRun {
     private DockerRun() {}
 
     public static DockerRun builder() {
-        return new DockerRun();
+        return new DockerRun()
+            // Disable this by default in the Docker tests
+            .envVar("ingest.geoip.downloader.enabled", "false");
     }
 
     public DockerRun distribution(Distribution distribution) {

@@ -65,6 +65,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.verifyContainerInst
 import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
 import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -102,10 +103,7 @@ public class DockerTests extends PackagingTestCase {
 
     @Before
     public void setupTest() throws IOException {
-        installation = runContainer(
-            distribution(),
-            builder().envVar("ingest.geoip.downloader.enabled", "false").envVar("ELASTIC_PASSWORD", PASSWORD)
-        );
+        installation = runContainer(distribution(), builder().envVar("ELASTIC_PASSWORD", PASSWORD));
         tempDir = createTempDir(DockerTests.class.getSimpleName());
     }
 
@@ -162,7 +160,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test021PluginsListWithPlugins() {
         assumeTrue(
-            "Only applies to non-Cloud images",
+            "Only applies to Cloud images",
             distribution.packaging == Packaging.DOCKER_CLOUD || distribution().packaging == Packaging.DOCKER_CLOUD_ESS
         );
 
@@ -225,7 +223,6 @@ public class DockerTests extends PackagingTestCase {
         runContainer(
             distribution(),
             builder().volumes(volumes)
-                .envVar("ingest.geoip.downloader.enabled", "false")
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
                 .envVar(
                     "ES_JAVA_OPTS",
@@ -305,10 +302,7 @@ public class DockerTests extends PackagingTestCase {
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/usr/share/elasticsearch/config"));
         runContainer(
             distribution(),
-            builder().volumes(volumes)
-                .envVar("ES_JAVA_OPTS", "-XX:-UseCompressedOops")
-                .envVar("ingest.geoip.downloader.enabled", "false")
-                .envVar("ELASTIC_PASSWORD", PASSWORD)
+            builder().volumes(volumes).envVar("ES_JAVA_OPTS", "-XX:-UseCompressedOops").envVar("ELASTIC_PASSWORD", PASSWORD)
         );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -337,10 +331,7 @@ public class DockerTests extends PackagingTestCase {
             // Restart the container
             final Map<Path, Path> volumes = Map.of(tempEsDataDir.toAbsolutePath(), installation.data);
 
-            runContainer(
-                distribution(),
-                builder().volumes(volumes).envVar("ingest.geoip.downloader.enabled", "false").envVar("ELASTIC_PASSWORD", PASSWORD)
-            );
+            runContainer(distribution(), builder().volumes(volumes).envVar("ELASTIC_PASSWORD", PASSWORD));
 
             waitForElasticsearch(installation, USERNAME, PASSWORD);
 
@@ -391,10 +382,7 @@ public class DockerTests extends PackagingTestCase {
         volumes.put(tempEsLogsDir.toAbsolutePath(), installation.logs);
 
         // Restart the container
-        runContainer(
-            distribution(),
-            builder().volumes(volumes).envVar("ingest.geoip.downloader.enabled", "false").envVar("ELASTIC_PASSWORD", PASSWORD).uid(501, 501)
-        );
+        runContainer(distribution(), builder().volumes(volumes).envVar("ELASTIC_PASSWORD", PASSWORD).uid(501, 501));
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
     }
@@ -405,13 +393,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test073RunEsAsDifferentUserAndGroupWithoutBindMounting() {
         // Restart the container
-        runContainer(
-            distribution(),
-            builder().extraArgs("--group-add 0")
-                .uid(501, 501)
-                .envVar("ingest.geoip.downloader.enabled", "false")
-                .envVar("ELASTIC_PASSWORD", PASSWORD)
-        );
+        runContainer(distribution(), builder().extraArgs("--group-add 0").uid(501, 501).envVar("ELASTIC_PASSWORD", PASSWORD));
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
     }
@@ -632,9 +614,9 @@ public class DockerTests extends PackagingTestCase {
         // Incomplete prefix
         envVars.put("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
         // Not underscore-separated
-        envVars.put("ES.XPACK.SECURITY.FIPS_MODE.ENABLED", "false");
+        envVars.put("ES.SETTING.XPACK.SECURITY.FIPS_MODE.ENABLED", "false");
         // Not uppercase
-        envVars.put("es_xpack_security_fips__mode_enabled", "false");
+        envVars.put("es_setting_xpack_security_fips__mode_enabled", "false");
         installation = runContainer(distribution(), builder().envVars(envVars));
 
         final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
@@ -644,6 +626,32 @@ public class DockerTests extends PackagingTestCase {
         assertThat(commandLine.isPresent(), equalTo(true));
 
         assertThat(commandLine.get(), not(containsString("-Expack.security.fips_mode.enabled=false")));
+    }
+
+    /**
+     * Check that settings are applied when they are supplied as environment variables with names that:
+     * <ul>
+     *     <li>Consist only of lowercase letters, numbers, underscores and hyphens</li>
+     *     <li>Separated by periods</li>
+     * </ul>
+     */
+    public void test088EnvironmentVariablesInDottedFormatArePassedThrough() {
+        // Note the double-underscore in the var name here, which retains the underscore in translation
+        installation = runContainer(
+            distribution(),
+            builder().envVar("xpack.security.fips_mode.enabled", "false").envVar("http.cors.allow-methods", "GET")
+        );
+
+        final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+            .findFirst();
+
+        assertThat(commandLine.isPresent(), equalTo(true));
+
+        assertThat(
+            commandLine.get(),
+            allOf(containsString("-Expack.security.fips_mode.enabled=false"), containsString("-Ehttp.cors.allow-methods=GET"))
+        );
     }
 
     /**
@@ -799,10 +807,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that it is possible to write logs to disk
      */
     public void test121CanUseStackLoggingConfig() {
-        runContainer(
-            distribution(),
-            builder().envVar("ES_LOG_STYLE", "file").envVar("ingest.geoip.downloader.enabled", "false").envVar("ELASTIC_PASSWORD", PASSWORD)
-        );
+        runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "file").envVar("ELASTIC_PASSWORD", PASSWORD));
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 
@@ -821,12 +826,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the default logging config can be explicitly selected.
      */
     public void test122CanUseDockerLoggingConfig() {
-        runContainer(
-            distribution(),
-            builder().envVar("ES_LOG_STYLE", "console")
-                .envVar("ingest.geoip.downloader.enabled", "false")
-                .envVar("ELASTIC_PASSWORD", PASSWORD)
-        );
+        runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "console").envVar("ELASTIC_PASSWORD", PASSWORD));
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 
@@ -926,10 +926,7 @@ public class DockerTests extends PackagingTestCase {
         // Now run the container, being explicit about the available memory
         runContainer(
             distribution(),
-            builder().memory("942m")
-                .volumes(Map.of(jvmOptionsPath, containerJvmOptionsPath))
-                .envVar("ingest.geoip.downloader.enabled", "false")
-                .envVar("ELASTIC_PASSWORD", PASSWORD)
+            builder().memory("942m").volumes(Map.of(jvmOptionsPath, containerJvmOptionsPath)).envVar("ELASTIC_PASSWORD", PASSWORD)
         );
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 

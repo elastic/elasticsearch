@@ -190,6 +190,8 @@ public class DockerBuildTask extends DefaultTask {
                 parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
             });
 
+            // Fetch the Docker image's hash, and write it to desk as the task's output. Doing this allows us
+            // to do proper up-to-date checks in Gradle.
             try {
                 final String checksum = getImageChecksum(tags.get(0));
                 Files.writeString(parameters.getMarkerFile().getAsFile().get().toPath(), checksum + "\n");

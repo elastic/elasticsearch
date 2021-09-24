@@ -12,17 +12,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
-//import org.bouncycastle.bcpg.ArmoredInputStream;
-//import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
-//import org.bouncycastle.openpgp.PGPException;
-//import org.bouncycastle.openpgp.PGPPublicKey;
-//import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
-//import org.bouncycastle.openpgp.PGPSignature;
-//import org.bouncycastle.openpgp.PGPSignatureList;
-//import org.bouncycastle.openpgp.PGPUtil;
-//import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
-//import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
-//import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
+import org.bouncycastle.bcpg.ArmoredInputStream;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
+import org.bouncycastle.openpgp.PGPException;
+import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
+import org.bouncycastle.openpgp.PGPSignature;
+import org.bouncycastle.openpgp.PGPSignatureList;
+import org.bouncycastle.openpgp.PGPUtil;
+import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
+import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
@@ -421,10 +421,11 @@ class PluginInstaller implements Closeable {
      * @param officialPlugin true if the plugin is an official plugin
      * @return the path to the downloaded plugin ZIP
      * @throws IOException   if an I/O exception occurs download or reading files and resources
+     * @throws PGPException  if an exception occurs verifying the downloaded ZIP signature
      * @throws PluginSyncException if checksum validation fails
      */
     private Path downloadAndValidate(final String urlString, final Path tmpDir, final boolean officialPlugin) throws IOException,
-        PluginSyncException {
+        PGPException, PluginSyncException {
         Path zip = downloadZip(urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
@@ -502,58 +503,58 @@ class PluginInstaller implements Closeable {
             }
         }
 
-//        if (officialPlugin) {
-//            verifySignature(zip, urlString);
-//        }
+        if (officialPlugin) {
+            verifySignature(zip, urlString);
+        }
 
         return zip;
     }
 
-//    /**
-//     * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
-//     * ".asc" to the URL. It is expected that the plugin is signed with the Elastic signing key with ID D27D666CD88E42B4.
-//     *
-//     * @param zip       the path to the downloaded plugin ZIP
-//     * @param urlString the URL source of the downloaded plugin ZIP
-//     * @throws IOException  if an I/O exception occurs reading from various input streams
-//     * @throws PGPException if the PGP implementation throws an internal exception during verification
-//     */
-//    void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
-//        final String ascUrlString = urlString + ".asc";
-//        final URL ascUrl = openUrl(ascUrlString);
-//        try (
-//            // fin is a file stream over the downloaded plugin zip whose signature to verify
-//            InputStream fin = pluginZipInputStream(zip);
-//            // sin is a URL stream to the signature corresponding to the downloaded plugin zip
-//            InputStream sin = urlOpenStream(ascUrl);
-//            // ain is a input stream to the public key in ASCII-Armor format (RFC4880)
-//            InputStream ain = new ArmoredInputStream(getPublicKey())
-//        ) {
-//            final JcaPGPObjectFactory factory = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(sin));
-//            final PGPSignature signature = ((PGPSignatureList) factory.nextObject()).get(0);
-//
-//            // validate the signature has key ID matching our public key ID
-//            final String keyId = Long.toHexString(signature.getKeyID()).toUpperCase(Locale.ROOT);
-//            if (getPublicKeyId().equals(keyId) == false) {
-//                throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
-//            }
-//
-//            // compute the signature of the downloaded plugin zip
-//            final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
-//            final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
-//            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
-//            final byte[] buffer = new byte[1024];
-//            int read;
-//            while ((read = fin.read(buffer)) != -1) {
-//                signature.update(buffer, 0, read);
-//            }
-//
-//            // finally we verify the signature of the downloaded plugin zip matches the expected signature
-//            if (signature.verify() == false) {
-//                throw new IllegalStateException("signature verification for [" + urlString + "] failed");
-//            }
-//        }
-//    }
+    /**
+     * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
+     * ".asc" to the URL. It is expected that the plugin is signed with the Elastic signing key with ID D27D666CD88E42B4.
+     *
+     * @param zip       the path to the downloaded plugin ZIP
+     * @param urlString the URL source of the downloaded plugin ZIP
+     * @throws IOException  if an I/O exception occurs reading from various input streams
+     * @throws PGPException if the PGP implementation throws an internal exception during verification
+     */
+    void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
+        final String ascUrlString = urlString + ".asc";
+        final URL ascUrl = openUrl(ascUrlString);
+        try (
+            // fin is a file stream over the downloaded plugin zip whose signature to verify
+            InputStream fin = pluginZipInputStream(zip);
+            // sin is a URL stream to the signature corresponding to the downloaded plugin zip
+            InputStream sin = urlOpenStream(ascUrl);
+            // ain is a input stream to the public key in ASCII-Armor format (RFC4880)
+            InputStream ain = new ArmoredInputStream(getPublicKey())
+        ) {
+            final JcaPGPObjectFactory factory = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(sin));
+            final PGPSignature signature = ((PGPSignatureList) factory.nextObject()).get(0);
+
+            // validate the signature has key ID matching our public key ID
+            final String keyId = Long.toHexString(signature.getKeyID()).toUpperCase(Locale.ROOT);
+            if (getPublicKeyId().equals(keyId) == false) {
+                throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
+            }
+
+            // compute the signature of the downloaded plugin zip
+            final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
+            final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
+            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
+            final byte[] buffer = new byte[1024];
+            int read;
+            while ((read = fin.read(buffer)) != -1) {
+                signature.update(buffer, 0, read);
+            }
+
+            // finally we verify the signature of the downloaded plugin zip matches the expected signature
+            if (signature.verify() == false) {
+                throw new IllegalStateException("signature verification for [" + urlString + "] failed");
+            }
+        }
+    }
 
     /**
      * An input stream to the raw bytes of the plugin ZIP.

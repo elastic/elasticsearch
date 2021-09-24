@@ -56,6 +56,9 @@ IF ERRORLEVEL 1 (
 	EXIT /B %ERRORLEVEL%
 )
 
+REM Add jars that only apply to the Elasticsearch server process
+SET ES_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!/lib/internal/*
+
 SET KEYSTORE_PASSWORD=
 IF "%checkpassword%"=="Y" (
   CALL "%~dp0elasticsearch-keystore.bat" has-passwd --silent

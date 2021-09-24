@@ -11,9 +11,9 @@
 [%collapsible]
 ====
 *Details* +
-The multi search API now supports an empty first line when you provide the
-request body as a text file, such as when using curl's `--data-binary` flag. The
-API parses an empty first line as empty action metadata.
+The multi search API now parses an empty first line as empty action metadata
+when you provide the request body as a text file, such as when using curl's
+`--data-binary` flag.
 
 The API no longer supports text files that contain:
 

@@ -54,7 +54,7 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
         execute();
         try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configFile())) {
             assertNotNull(afterUpgrade);
-            assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.FORMAT_VERSION));
+            assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.CURRENT_VERSION));
             afterUpgrade.decrypt(new char[0]);
             assertThat(afterUpgrade.getSettingNames(), hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
         }

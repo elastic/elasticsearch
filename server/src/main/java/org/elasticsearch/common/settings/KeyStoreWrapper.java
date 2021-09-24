@@ -290,7 +290,12 @@ public class KeyStoreWrapper implements SecureSettings {
                         output.writeUTF(entry.getKey());
                         output.writeUTF(entry.getValue());
                     }
-                    int keystoreLen = input.readInt();
+                    final int keystoreLen;
+                    if (formatVersion < LE_VERSION) {
+                        keystoreLen = Integer.reverseBytes(input.readInt());
+                    } else {
+                        keystoreLen = input.readInt();
+                    }
                     byte[] keystoreBytes = new byte[keystoreLen];
                     input.readBytes(keystoreBytes, 0, keystoreLen);
                     output.write(keystoreBytes);

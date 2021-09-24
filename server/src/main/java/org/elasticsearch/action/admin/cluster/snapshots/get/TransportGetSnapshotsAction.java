@@ -705,20 +705,19 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         };
     }
 
+    private static Predicate<SnapshotInfo> filterByLongOffset(ToLongFunction<SnapshotInfo> extractor, long after, SortOrder order) {
+        return order == SortOrder.ASC ? info -> after <= extractor.applyAsLong(info) : info -> after >= extractor.applyAsLong(info);
+    }
+
     private static Predicate<SnapshotInfo> filterByLongOffset(
         ToLongFunction<SnapshotInfo> extractor,
         long after,
-        @Nullable String snapshotName,
-        @Nullable String repoName,
+        String snapshotName,
+        String repoName,
         SortOrder order
     ) {
-        if (snapshotName == null) {
-            assert repoName == null : "no snapshot name given but saw repo name [" + repoName + "]";
-            return order == SortOrder.ASC ? info -> after <= extractor.applyAsLong(info) : info -> after >= extractor.applyAsLong(info);
-        }
         return order == SortOrder.ASC ? info -> {
             final long val = extractor.applyAsLong(info);
-
             return after < val || (after == val && compareName(snapshotName, repoName, info) < 0);
         } : info -> {
             final long val = extractor.applyAsLong(info);
@@ -771,7 +770,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                             final long startTime = getStartTime(snapshotId, repositoryData);
                             return startTime == -1 || after >= startTime;
                         };
-                        fromSortValuePredicate = filterByLongOffset(SnapshotInfo::startTime, after, null, null, order);
+                        fromSortValuePredicate = filterByLongOffset(SnapshotInfo::startTime, after, order);
                         break;
                     case NAME:
                         preflightPredicate = order == SortOrder.ASC
@@ -788,13 +787,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                             final long duration = getDuration(snapshotId, repositoryData);
                             return duration == -1 || afterDuration >= duration;
                         };
-                        fromSortValuePredicate = filterByLongOffset(
-                            info -> info.endTime() - info.startTime(),
-                            afterDuration,
-                            null,
-                            null,
-                            order
-                        );
+                        fromSortValuePredicate = filterByLongOffset(info -> info.endTime() - info.startTime(), afterDuration, order);
                         break;
                     case INDICES:
                         final int afterIndexCount = Integer.parseInt(fromSortValue);
@@ -809,23 +802,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         break;
                     case SHARDS:
                         preflightPredicate = null;
-                        fromSortValuePredicate = filterByLongOffset(
-                            SnapshotInfo::totalShards,
-                            Integer.parseInt(fromSortValue),
-                            null,
-                            null,
-                            order
-                        );
+                        fromSortValuePredicate = filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(fromSortValue), order);
                         break;
                     case FAILED_SHARDS:
                         preflightPredicate = null;
-                        fromSortValuePredicate = filterByLongOffset(
-                            SnapshotInfo::failedShards,
-                            Integer.parseInt(fromSortValue),
-                            null,
-                            null,
-                            order
-                        );
+                        fromSortValuePredicate = filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(fromSortValue), order);
                         break;
                     default:
                         throw new AssertionError("unexpected sort column [" + sortBy + "]");

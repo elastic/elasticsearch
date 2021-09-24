@@ -219,10 +219,9 @@ public class DockerTests extends PackagingTestCase {
         // Restart the container. This will run the `sync` plugins subcommand automatically. Also
         // stuff the proxy settings with garbage, so any attempt to go out to the internet would fail. The
         // command should instead use the bundled plugin archive.
-        final Map<Path, Path> volumes = Map.of(tempDir.resolve(filename), installation.config.resolve(filename));
         runContainer(
             distribution(),
-            builder().volumes(volumes)
+            builder().volume(tempDir.resolve(filename), installation.config.resolve(filename))
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
                 .envVar(
                     "ES_JAVA_OPTS",
@@ -299,10 +298,11 @@ public class DockerTests extends PackagingTestCase {
         Files.setPosixFilePermissions(tempDir.resolve("log4j2.properties"), p644);
 
         // Restart the container
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/usr/share/elasticsearch/config"));
         runContainer(
             distribution(),
-            builder().volumes(volumes).envVar("ES_JAVA_OPTS", "-XX:-UseCompressedOops").envVar("ELASTIC_PASSWORD", PASSWORD)
+            builder().volume(tempDir, "/usr/share/elasticsearch/config")
+                .envVar("ES_JAVA_OPTS", "-XX:-UseCompressedOops")
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
         );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
@@ -329,9 +329,10 @@ public class DockerTests extends PackagingTestCase {
             mkDirWithPrivilegeEscalation(tempEsDataDir, 1500, 0);
 
             // Restart the container
-            final Map<Path, Path> volumes = Map.of(tempEsDataDir.toAbsolutePath(), installation.data);
-
-            runContainer(distribution(), builder().volumes(volumes).envVar("ELASTIC_PASSWORD", PASSWORD));
+            runContainer(
+                distribution(),
+                builder().volume(tempEsDataDir.toAbsolutePath(), installation.data).envVar("ELASTIC_PASSWORD", PASSWORD)
+            );
 
             waitForElasticsearch(installation, USERNAME, PASSWORD);
 
@@ -375,14 +376,15 @@ public class DockerTests extends PackagingTestCase {
         chownWithPrivilegeEscalation(tempEsDataDir, "501:501");
         chownWithPrivilegeEscalation(tempEsLogsDir, "501:501");
 
-        // Define the bind mounts
-        final Map<Path, Path> volumes = new HashMap<>();
-        volumes.put(tempEsDataDir.toAbsolutePath(), installation.data);
-        volumes.put(tempEsConfigDir.toAbsolutePath(), installation.config);
-        volumes.put(tempEsLogsDir.toAbsolutePath(), installation.logs);
-
         // Restart the container
-        runContainer(distribution(), builder().volumes(volumes).envVar("ELASTIC_PASSWORD", PASSWORD).uid(501, 501));
+        runContainer(
+            distribution(),
+            builder().envVar("ELASTIC_PASSWORD", PASSWORD)
+                .uid(501, 501)
+                .volume(tempEsDataDir.toAbsolutePath(), installation.data)
+                .volume(tempEsConfigDir.toAbsolutePath(), installation.config)
+                .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
+        );
 
         waitForElasticsearch(installation, USERNAME, PASSWORD);
     }
@@ -414,10 +416,11 @@ public class DockerTests extends PackagingTestCase {
         // But when running in Vagrant, also ensure ES can actually access the file
         chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
         // Restart the container
-        runContainer(distribution(), builder().volumes(volumes).envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename));
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
 
         // If we configured security correctly, then this call will only work if we specify the correct credentials.
         try {
@@ -459,11 +462,12 @@ public class DockerTests extends PackagingTestCase {
         // and check the target's permissions.
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
         // Restart the container - this will check that Elasticsearch started correctly,
         // and didn't fail to follow the symlink and check the file permissions
-        runContainer(distribution(), builder().volumes(volumes).envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename));
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename)
+        );
     }
 
     /**
@@ -478,11 +482,9 @@ public class DockerTests extends PackagingTestCase {
         // them for populating env var values
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
         final Result dockerLogs = runContainerExpectingFailure(
             distribution,
-            builder().volumes(volumes)
+            builder().volume(tempDir, "/run/secrets")
                 .envVar("ELASTIC_PASSWORD", "hunter2")
                 .envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
         );
@@ -505,12 +507,10 @@ public class DockerTests extends PackagingTestCase {
         // Set invalid file permissions
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p660);
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
         // Restart the container
         final Result dockerLogs = runContainerExpectingFailure(
             distribution(),
-            builder().volumes(volumes).envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
         );
 
         assertThat(
@@ -543,12 +543,10 @@ public class DockerTests extends PackagingTestCase {
         // Set invalid permissions on the file that the symlink targets
         Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p775);
 
-        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
-
         // Restart the container
         final Result dockerLogs = runContainerExpectingFailure(
             distribution(),
-            builder().volumes(volumes).envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename)
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + symlinkFilename)
         );
 
         assertThat(
@@ -608,16 +606,18 @@ public class DockerTests extends PackagingTestCase {
      * Check that environment variables that do not match the criteria for translation to settings are ignored.
      */
     public void test087EnvironmentVariablesInIncorrectFormatAreIgnored() {
-        final Map<String, String> envVars = new HashMap<>();
-        // No ES_SETTING_ prefix
-        envVars.put("XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
-        // Incomplete prefix
-        envVars.put("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
-        // Not underscore-separated
-        envVars.put("ES.SETTING.XPACK.SECURITY.FIPS_MODE.ENABLED", "false");
-        // Not uppercase
-        envVars.put("es_setting_xpack_security_fips__mode_enabled", "false");
-        installation = runContainer(distribution(), builder().envVars(envVars));
+        installation = runContainer(
+            distribution(),
+            builder()
+                // No ES_SETTING_ prefix
+                .envVar("XPACK_SECURITY_FIPS__MODE_ENABLED", "false")
+                // Incomplete prefix
+                .envVar("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")
+                // Not underscore-separated
+                .envVar("ES.SETTING.XPACK.SECURITY.FIPS_MODE.ENABLED", "false")
+                // Not uppercase
+                .envVar("es_setting_xpack_security_fips__mode_enabled", "false")
+        );
 
         final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
             .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
@@ -926,7 +926,7 @@ public class DockerTests extends PackagingTestCase {
         // Now run the container, being explicit about the available memory
         runContainer(
             distribution(),
-            builder().memory("942m").volumes(Map.of(jvmOptionsPath, containerJvmOptionsPath)).envVar("ELASTIC_PASSWORD", PASSWORD)
+            builder().memory("942m").volume(jvmOptionsPath, containerJvmOptionsPath).envVar("ELASTIC_PASSWORD", PASSWORD)
         );
         waitForElasticsearch(installation, USERNAME, PASSWORD);
 

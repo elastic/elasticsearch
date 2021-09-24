@@ -17,8 +17,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.MatcherAssert.assertThat;
 
@@ -38,35 +38,37 @@ public class DockerRun {
     private DockerRun() {}
 
     public static DockerRun builder() {
-        return new DockerRun()
-            // Disable this by default in the Docker tests
-            .envVar("ingest.geoip.downloader.enabled", "false");
+        // Disable this setting by default in the Docker tests
+        return new DockerRun().envVar("ingest.geoip.downloader.enabled", "false");
     }
 
     public DockerRun distribution(Distribution distribution) {
-        this.distribution = Objects.requireNonNull(distribution);
+        this.distribution = requireNonNull(distribution);
         return this;
     }
 
     public DockerRun envVar(String key, String value) {
-        this.envVars.put(key, value);
+        this.envVars.put(requireNonNull(key), requireNonNull(value));
         return this;
     }
 
-    public DockerRun envVars(Map<String, String> envVars) {
-        if (envVars != null) {
-            this.envVars.putAll(envVars);
-        }
+    public DockerRun volume(Path from, String to) {
+        this.volumes.put(requireNonNull(from), Path.of(requireNonNull(to)));
         return this;
     }
 
-    public DockerRun volumes(Map<Path, Path> volumes) {
-        if (volumes != null) {
-            this.volumes.putAll(volumes);
-        }
+    public DockerRun volume(Path from, Path to) {
+        this.volumes.put(requireNonNull(from), requireNonNull(to));
         return this;
     }
 
+    /**
+     * Sets the UID that the container is run with, and the GID too if specified.
+     *
+     * @param uid the UID to use, or {@code null} to use the image default
+     * @param gid the GID to use, or {@code null} to use the image default
+     * @return the current builder
+     */
     public DockerRun uid(Integer uid, Integer gid) {
         if (uid == null) {
             if (gid != null) {
@@ -79,9 +81,7 @@ public class DockerRun {
     }
 
     public DockerRun memory(String memoryLimit) {
-        if (memoryLimit != null) {
-            this.memory = memoryLimit;
-        }
+        this.memory = requireNonNull(memoryLimit);
         return this;
     }
 

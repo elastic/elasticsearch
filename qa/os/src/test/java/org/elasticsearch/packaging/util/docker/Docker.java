@@ -461,6 +461,13 @@ public class Docker {
         withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
     }
 
+    /**
+     * Waits for the Elasticsearch cluster status to turn green.
+     *
+     * @param installation the installation to check
+     * @param username the username to authenticate with
+     * @param password the password to authenticate with
+     */
     public static void waitForElasticsearch(Installation installation, String username, String password) {
         try {
             waitForElasticsearch("green", null, installation, username, password);
@@ -515,6 +522,16 @@ public class Docker {
         return mapper.readTree(pluginsResponse);
     }
 
+    /**
+     * Fetches the resource from the specified {@code path} on {@code http://localhost:9200}, using
+     * the supplied authentication credentials.
+     *
+     * @param path the path to fetch
+     * @param user the user to authenticate with
+     * @param password the password to authenticate with
+     * @return a parsed JSON response
+     * @throws Exception if something goes wrong
+     */
     public static JsonNode getJson(String path, String user, String password) throws Exception {
         path = Objects.requireNonNull(path, "path can not be null").trim();
         if (path.isEmpty()) {
@@ -583,7 +600,7 @@ public class Docker {
         sh.run("docker restart " + containerId);
     }
 
-    public static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
+    static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
         final Shell.Result result = dockerShell.runIgnoreExitCode("stat -c \"%U %G %A\" " + path);
         if (result.isSuccess() == false) {
             throw new FileNotFoundException(path + " does not exist");

@@ -741,6 +741,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return repoName.compareTo(info.repository());
     }
 
+    /**
+     * A pair of predicates for the get snapshots action. The {@link #preflightPredicate()} is applied to combinations of snapshot id and
+     * repository data to determine which snapshots to fully load from the repository and rules out all snapshots that do not match the
+     * given {@link GetSnapshotsRequest} that can be ruled out through the information in {@link RepositoryData}.
+     * The predicate returned by {@link #snapshotPredicate()} is then applied the instances of {@link SnapshotInfo} that were loaded from
+     * the repository to filter out those remaining that did not match the request but could not be ruled out without loading their
+     * {@link SnapshotInfo}.
+     */
     private static final class SnapshotPredicates {
 
         private final Predicate<SnapshotInfo> snapshotPredicate;

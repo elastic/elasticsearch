@@ -41,8 +41,9 @@ final class Checkpoint {
     final long minTranslogGeneration;
     final long trimmedAboveSeqNo;
 
-    private static final int VERSION_LUCENE_8 = 3;      // int values written in BE format
-    private static final int CURRENT_VERSION = 4;
+    private static final int START_VERSION = 3;      // int values written in BE format
+    private static final int LE_VERSION = 4;      // int values written in LE format
+    private static final int CURRENT_VERSION = LE_VERSION;
 
     private static final String CHECKPOINT_CODEC = "ckp";
 
@@ -116,11 +117,7 @@ final class Checkpoint {
         return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
 
-    static Checkpoint readCheckpointV3(final DataInput in) throws IOException {
-        return readCheckpointV4(EndiannessReverserUtil.wrapDataInput(in));
-    }
-
-    static Checkpoint readCheckpointV4(final DataInput in) throws IOException {
+    static Checkpoint readCheckpoint(final DataInput in) throws IOException {
         final long offset = in.readLong();
         final int numOps = in.readInt();
         final long generation = in.readLong();
@@ -151,13 +148,10 @@ final class Checkpoint {
             try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, VERSION_LUCENE_8, CURRENT_VERSION);
-                assert fileVersion == VERSION_LUCENE_8 || fileVersion == CURRENT_VERSION;
+                final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, START_VERSION, CURRENT_VERSION);
+                assert fileVersion == START_VERSION || fileVersion == CURRENT_VERSION;
                 assert indexInput.length() == V4_FILE_SIZE : indexInput.length();
-                if (fileVersion == CURRENT_VERSION) {
-                    return Checkpoint.readCheckpointV4(indexInput);
-                }
-                return readCheckpointV3(indexInput);
+                return readCheckpoint(fileVersion < LE_VERSION ? EndiannessReverserUtil.wrapDataInput(indexInput) : indexInput);
             } catch (CorruptIndexException | NoSuchFileException | IndexFormatTooOldException | IndexFormatTooNewException e) {
                 throw new TranslogCorruptedException(path.toString(), e);
             }

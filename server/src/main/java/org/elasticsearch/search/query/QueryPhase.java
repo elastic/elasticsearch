@@ -19,7 +19,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
@@ -137,14 +136,6 @@ public class QueryPhase {
             assert query == searcher.rewrite(query); // already rewritten
 
             final ScrollContext scrollContext = searchContext.scrollContext();
-            if (searchContext.sort() != null && searchContext.sort().sort.getSort().length == 1) {
-                // TODO: Enable the sort optimization with point for search_after and scroll requests when LUCENE-10119 is integrated.
-                if ((scrollContext != null && scrollContext.lastEmittedDoc != null) || searchContext.searchAfter() != null) {
-                    for (SortField sortField : searchContext.sort().sort.getSort()) {
-                        sortField.setOptimizeSortWithPoints(false);
-                    }
-                }
-            }
             if (scrollContext != null) {
                 if (scrollContext.totalHits == null) {
                     // first round

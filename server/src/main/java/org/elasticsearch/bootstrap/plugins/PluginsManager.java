@@ -42,6 +42,10 @@ public class PluginsManager {
         this.logger = LogManager.getLogger(this.getClass());
     }
 
+    public static boolean configExists(Environment env) {
+        return Files.exists(env.configFile().resolve("elasticsearch-plugins.yml"));
+    }
+
     public void synchronizePlugins() throws Exception {
         final Path configPath = this.env.configFile().resolve("elasticsearch-plugins.yml");
         final Path previousConfigPath = this.env.configFile().resolve(".elasticsearch-plugins.yml.cache");

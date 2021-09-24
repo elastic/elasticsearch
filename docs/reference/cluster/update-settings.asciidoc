@@ -105,7 +105,8 @@ The response does not include settings that have been reset:
 --------------------------------------------------
 {
   ...
-  "persistent" : {}
+  "persistent" : {},
+  "transient" : {}
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"acknowledged": true,/]

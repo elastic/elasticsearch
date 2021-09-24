@@ -363,6 +363,9 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * in time series mode, the start time of the index, timestamp must larger than start_time
+     */
     public static final Setting<Long> TIME_SERIES_START_TIME = Setting.longSetting(
         "index.time_series.start_time",
         -1L,
@@ -371,6 +374,9 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    /**
+     * in time series mode, the end time of the index, timestamp must smaller than start_time
+     */
     public static final Setting<Long> TIME_SERIES_END_TIME = Setting.longSetting(
         "index.time_series.end_time",
         -1L,

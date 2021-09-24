@@ -14,8 +14,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -34,12 +37,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexSettings;
@@ -331,17 +334,56 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Stores the specified pipeline definition in the request.
      */
-    public void putPipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request,
-                            ActionListener<AcknowledgedResponse> listener) throws Exception {
-        // validates the pipeline and processor configuration before submitting a cluster update task:
-        validatePipeline(ingestInfos, request);
-        clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
-            new AckedClusterStateUpdateTask(request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return innerPut(request, currentState);
+    public void putPipeline(
+        PutPipelineRequest request,
+        ActionListener<AcknowledgedResponse> listener,
+        Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
+    ) throws Exception {
+
+        Map<String, Object> pipelineConfig = null;
+        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        if (currentIngestMetadata != null && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
+            pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+            var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
+            if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {
+                // existing pipeline matches request pipeline -- no need to update
+                listener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+        }
+
+        if (state.getNodes().getMinNodeVersion().before(Version.V_7_15_0)) {
+            pipelineConfig = pipelineConfig == null
+                ? XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2()
+                : pipelineConfig;
+            if (pipelineConfig.containsKey(Pipeline.META_KEY)) {
+                throw new IllegalStateException("pipelines with _meta field require minimum node version of " + Version.V_7_15_0);
+            }
+        }
+
+        final Map<String, Object> config = pipelineConfig == null
+            ? XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2()
+            : pipelineConfig;
+        nodeInfoListener.accept(ActionListener.wrap(
+            nodeInfos -> {
+                Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+                for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
+                    ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
                 }
-            });
+
+                validatePipeline(ingestInfos, request.getId(), config);
+                clusterService.submitStateUpdateTask(
+                    "put-pipeline-" + request.getId(),
+                    new AckedClusterStateUpdateTask(request, listener) {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            return innerPut(request, currentState);
+                        }
+                    }
+                );
+            },
+            listener::onFailure)
+        );
     }
 
     /**
@@ -417,13 +459,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return newState.build();
     }
 
-    void validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request) throws Exception {
+    void validatePipeline(
+        Map<DiscoveryNode, IngestInfo> ingestInfos,
+        String pipelineId,
+        Map<String, Object> pipelineConfig
+    ) throws Exception {
         if (ingestInfos.isEmpty()) {
             throw new IllegalStateException("Ingest info is empty");
         }
 
-        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-        Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, scriptService);
+        Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {

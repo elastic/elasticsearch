@@ -243,10 +243,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
             random.nextBytes(salt);
             byte[] iv = new byte[12];
             random.nextBytes(iv);
+
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             CipherOutputStream cipherStream = getCipherStream(bytes, salt, iv);
             DataOutputStream output = new DataOutputStream(cipherStream);
-
             possiblyAlterSecretString(output, 0);
             cipherStream.close();
             final byte[] encryptedBytes = bytes.toByteArray();
@@ -470,6 +470,42 @@ public class KeyStoreWrapperTests extends ESTestCase {
             }
             assertEquals(-1, fileInput.read());
         }
+    }
+
+    public void testBackcompatV4() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
+        Path configDir = env.configFile();
+        try (
+            Directory directory = newFSDirectory(configDir);
+            IndexOutput indexOutput = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT)
+        ) {
+            CodecUtil.writeHeader(indexOutput, "elasticsearch.keystore", KeyStoreWrapper.V4_VERSION);
+            indexOutput.writeByte((byte) 0); // No password
+            SecureRandom random = Randomness.createSecure();
+            byte[] salt = new byte[64];
+            random.nextBytes(salt);
+            byte[] iv = new byte[12];
+            random.nextBytes(iv);
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            CipherOutputStream cipherStream = getCipherStream(bytes, salt, iv);
+            DataOutputStream output = new DataOutputStream(cipherStream);
+            {
+                byte[] secret_value = "super_secret_value".getBytes(StandardCharsets.UTF_8);
+                output.writeInt(1); // One entry
+                output.writeUTF("string_setting");
+                output.writeInt(secret_value.length);
+                output.write(secret_value);
+            }
+            cipherStream.close();
+            final byte[] encryptedBytes = bytes.toByteArray();
+            possiblyAlterEncryptedBytes(indexOutput, salt, iv, encryptedBytes, 0);
+            CodecUtil.writeFooter(indexOutput);
+        }
+
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
+        keystore.decrypt(new char[0]);
+        SecureString testValue = keystore.getString("string_setting");
+        assertThat(testValue.toString(), equalTo("super_secret_value"));
     }
 
     public void testStringAndFileDistinction() throws Exception {

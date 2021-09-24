@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -133,34 +134,38 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         String nodeId = entry.getKey();
                         List<ShardId> shardIds = entry.getValue();
 
+                        ActionListener<FieldCapabilitiesNodeResponse> nodeListener = new ActionListener<FieldCapabilitiesNodeResponse>() {
+                            @Override
+                            public void onResponse(FieldCapabilitiesNodeResponse response) {
+                                for (FieldCapabilitiesIndexResponse indexResponse : response.getIndexResponses()) {
+                                    if (indexResponse.canMatch()) {
+                                        indexResponses.putIfAbsent(indexResponse.getIndexName(), indexResponse);
+                                    }
+                                }
+                                for (FieldCapabilitiesFailure indexFailure : response.getFailures()) {
+                                    indexFailures.collect(indexFailure.getException(), indexFailure.getIndices());
+                                }
+                                countDown.run();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                for (ShardId shardId : shardIds) {
+                                    indexFailures.collect(e, shardId.getIndexName());
+                                }
+                                countDown.run();
+                            }
+                        };
+
                         DiscoveryNode node = clusterState.getNodes().get(nodeId);
-                        assert node != null;
-
-                        FieldCapabilitiesNodeRequest nodeRequest = prepareLocalNodeRequest(request, shardIds, localIndices, nowInMillis);
-                        transportService.sendRequest(node, ACTION_NODE_NAME, nodeRequest, new ActionListenerResponseHandler<>(
-                            new ActionListener<FieldCapabilitiesNodeResponse>() {
-                                @Override
-                                public void onResponse(FieldCapabilitiesNodeResponse response) {
-                                    for (FieldCapabilitiesIndexResponse indexResponse : response.getIndexResponses()) {
-                                        if (indexResponse.canMatch()) {
-                                            indexResponses.putIfAbsent(indexResponse.getIndexName(), indexResponse);
-                                        }
-                                    }
-                                    for (FieldCapabilitiesFailure indexFailure : response.getFailures()) {
-                                        indexFailures.collect(indexFailure.getException(), indexFailure.getIndices());
-                                    }
-                                    countDown.run();
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    for (ShardId shardId : shardIds) {
-                                        indexFailures.collect(e, shardId.getIndexName());
-                                    }
-                                    countDown.run();
-                                }
-                            },
-                            FieldCapabilitiesNodeResponse::new));
+                        if (node == null) {
+                            nodeListener.onFailure(new NoNodeAvailableException("node [" + nodeId + "] is not available"));
+                        } else {
+                            FieldCapabilitiesNodeRequest nodeRequest = prepareLocalNodeRequest(
+                                request, shardIds, localIndices, nowInMillis);
+                            transportService.sendRequest(node, ACTION_NODE_NAME, nodeRequest, new ActionListenerResponseHandler<>(
+                                nodeListener, FieldCapabilitiesNodeResponse::new));
+                        }
                     }
                 } else {
                     for (String index : concreteIndices) {

@@ -58,7 +58,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private final Map<String, CircuitBreaker> breakers;
 
     public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING =
-        Setting.boolSetting("indices.breaker.total.use_real_memory", true, Property.NodeScope);
+        Setting.boolSetting("indices.breaker.total.use_real_memory", true, Property.Dynamic, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.memorySizeSetting("indices.breaker.total.limit", settings -> {
@@ -90,13 +90,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<CircuitBreaker.Type> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("network.breaker.inflight_requests.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
-    private final boolean trackRealMemoryUsage;
+    private volatile boolean trackRealMemoryUsage;
     private volatile BreakerSettings parentSettings;
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
-    private final OverLimitStrategy overLimitStrategy;
+    private volatile OverLimitStrategy overLimitStrategy;
 
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
         this(settings, customBreakers, clusterSettings, HierarchyCircuitBreakerService::createOverLimitStrategy);
@@ -158,6 +158,19 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             CIRCUIT_BREAKER_OVERHEAD_SETTING,
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
             (s, t) -> {});
+        clusterSettings.addSettingsUpdateConsumer(
+            (newSettings) -> {
+                this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
+                        TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(), 1.0,
+                        CircuitBreaker.Type.PARENT, null);
+                logger.trace(() -> new ParameterizedMessage("parent circuit breaker with settings {}", this.parentSettings));
+
+                this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(settings);
+
+                this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
+            },
+            List.of(USE_REAL_MEMORY_USAGE_SETTING)
+        );
 
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
     }

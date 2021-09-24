@@ -363,6 +363,20 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<TimeValue> TIME_SERIES_START_TIME = Setting.timeSetting(
+        "index.time_series.start_time",
+        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> TIME_SERIES_END_TIME = Setting.timeSetting(
+        "index.time_series.end_time",
+        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -373,6 +387,8 @@ public final class IndexSettings {
      * The {@link IndexMode "mode"} of the index.
      */
     private final IndexMode mode;
+    private volatile TimeValue timeSeriesStartTime;
+    private volatile TimeValue timeSeriesEndTime;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -515,6 +531,8 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
+        timeSeriesStartTime = TIME_SERIES_START_TIME.get(settings);
+        timeSeriesEndTime = TIME_SERIES_END_TIME.get(settings);
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -614,6 +632,8 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(TIME_SERIES_START_TIME, this::updateTimeSeriesStartTime);
+        scopedSettings.addSettingsUpdateConsumer(TIME_SERIES_END_TIME, this::updateTimeSeriesEndTime);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -1091,5 +1111,36 @@ public final class IndexSettings {
 
     private void setMappingDimensionFieldsLimit(long value) {
         this.mappingDimensionFieldsLimit = value;
+    }
+
+    public TimeValue getTimeSeriesStartTime() {
+        return timeSeriesStartTime;
+    }
+
+    public void updateTimeSeriesStartTime(TimeValue startTime) {
+        if (true == this.timeSeriesStartTime.equals(TimeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("index.time_series.start_time not set before, can not update value");
+        }
+
+        if (this.timeSeriesStartTime.getMicros() < startTime.getMicros()) {
+            throw new IllegalArgumentException("index.time_series.start_time must smaller then pre value [" + this.timeSeriesStartTime + "]");
+        }
+        this.timeSeriesStartTime = startTime;
+    }
+
+    public TimeValue getTimeSeriesEndTime() {
+        return timeSeriesEndTime;
+    }
+
+    public void updateTimeSeriesEndTime(TimeValue endTime) {
+        if (true == this.timeSeriesEndTime.equals(TimeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("index.time_series.end_time not set before, can not update value");
+        }
+
+        if (this.timeSeriesEndTime.getMicros() > endTime.getMicros()) {
+            throw new IllegalArgumentException("index.time_series.end_time must large then pre value [" + this.timeSeriesEndTime + "]");
+        }
+
+        this.timeSeriesEndTime = endTime;
     }
 }

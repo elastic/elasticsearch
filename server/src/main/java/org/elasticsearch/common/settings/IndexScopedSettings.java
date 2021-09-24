@@ -185,6 +185,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         }
         Set<Setting<?>> result = new HashSet<>(ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS);
         result.add(IndexSettings.MODE);
+        result.add(IndexSettings.TIME_SERIES_START_TIME);
+        result.add(IndexSettings.TIME_SERIES_END_TIME);
         return Set.copyOf(result);
     }
 

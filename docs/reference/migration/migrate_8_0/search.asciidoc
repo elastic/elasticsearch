@@ -12,7 +12,7 @@
 ====
 *Details* +
 The multi search API now parses an empty first line as empty action metadata
-when you provide the request body as a text file, such as when using curl's
+when you provide a text file as the request body, such as when using curl's
 `--data-binary` flag.
 
 The API no longer supports text files that contain:
@@ -21,8 +21,8 @@ The API no longer supports text files that contain:
 * An empty first line followed by another empty line.
 
 *Impact* +
-Discontinue use of unsupported text files with the multi search API. Requests
-that include an unsupported file will return an error.
+Don't provide an unsupported text file to the multi search API. Requests that
+include an unsupported file will return an error.
 ====
 
 [[remove-unmapped-type-string]]

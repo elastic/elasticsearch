@@ -45,6 +45,18 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
     }
 
     /**
+    * Check that if there are no files in the current checkout, then the task does nothing.
+    */
+    @Test
+    public void findAndDeleteFiles_withNoFiles_doesNothing() {
+        // when:
+        findAndDeleteFiles(gitWrapper, deleteHelper, null, Set.of(), false, Path.of("rootDir"));
+
+        // then:
+        verify(gitWrapper, never()).listVersions(anyString());
+    }
+
+    /**
      * Check that if there are files in the checkout, but no prior versions in the git
      * history, the task deletes nothing.
      */

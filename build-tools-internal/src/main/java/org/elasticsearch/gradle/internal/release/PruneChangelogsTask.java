@@ -57,7 +57,6 @@ public class PruneChangelogsTask extends DefaultTask {
     }
 
     @Internal
-    @SkipWhenEmpty
     public FileCollection getChangelogs() {
         return changelogs;
     }
@@ -97,6 +96,11 @@ public class PruneChangelogsTask extends DefaultTask {
         boolean dryRun,
         Path rootDir
     ) {
+        if (allFilesInCheckout.isEmpty()) {
+            LOGGER.warn("No changelog files in checkout, so nothing to delete.");
+            return;
+        }
+
         final Set<String> earlierFiles = findAllFilesInEarlierVersions(gitWrapper, version);
 
         if (earlierFiles.isEmpty()) {

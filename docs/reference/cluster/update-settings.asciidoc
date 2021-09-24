@@ -63,7 +63,7 @@ An example of a persistent update:
 
 [source,console]
 --------------------------------------------------
-PUT /_cluster/settings
+PUT /_cluster/settings?flat_settings=true
 {
   "persistent" : {
     "indices.recovery.max_bytes_per_sec" : "50mb"
@@ -80,7 +80,8 @@ the example:
   ...
   "persistent" : {
     "indices.recovery.max_bytes_per_sec" : "50mb"
-  }
+  },
+  "transient" : {}
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"acknowledged": true,/]

@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.inOrder;
@@ -31,11 +32,11 @@ import static org.mockito.Mockito.when;
 public class HotThreadsTests extends ESTestCase {
 
     public void testSupportedThreadsReportType() {
-        for (String type : new String[]{"unsupported", "", null, "CPU", "WAIT", "BLOCK"}) {
+        for (String type : new String[]{"unsupported", "", null, "CPU", "WAIT", "BLOCK", "MEM"}) {
             expectThrows(IllegalArgumentException.class, () -> new HotThreads().type(HotThreads.ReportType.of(type)));
         }
 
-        for (String type : new String[]{"cpu", "wait", "block"}) {
+        for (String type : new String[]{"cpu", "wait", "block", "mem"}) {
             try {
                 new HotThreads().type(HotThreads.ReportType.of(type));
             } catch (IllegalArgumentException e) {
@@ -366,11 +367,12 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedThreadInfo.getBlockedTime()).thenReturn(2L).thenReturn(0L);
         when(mockedThreadInfo.getWaitedTime()).thenReturn(3L).thenReturn(0L);
 
-        HotThreads.ThreadTimeAccumulator info = new HotThreads.ThreadTimeAccumulator(mockedThreadInfo, 1L);
+        HotThreads.ThreadTimeAccumulator info = new HotThreads.ThreadTimeAccumulator(mockedThreadInfo, 1L,4L);
 
         assertEquals(1L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.CPU).applyAsLong(info));
         assertEquals(3L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.WAIT).applyAsLong(info));
         assertEquals(2L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.BLOCK).applyAsLong(info));
+        assertEquals(4L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.MEM).applyAsLong(info));
 
         //Ensure all enum types have a report type getter
         for (HotThreads.ReportType type : HotThreads.ReportType.values()) {
@@ -523,25 +525,27 @@ public class HotThreadsTests extends ESTestCase {
         ThreadInfo threadOne = makeThreadInfoMocksHelper(mockedMXBean, 1L);
         ThreadInfo threadTwo = makeThreadInfoMocksHelper(mockedMXBean, 2L);
 
-        HotThreads.ThreadTimeAccumulator acc = new HotThreads.ThreadTimeAccumulator(threadOne, 100L);
-        HotThreads.ThreadTimeAccumulator accNext = new HotThreads.ThreadTimeAccumulator(threadOne, 250L);
+        HotThreads.ThreadTimeAccumulator acc = new HotThreads.ThreadTimeAccumulator(threadOne, 100L,1000L);
+        HotThreads.ThreadTimeAccumulator accNext = new HotThreads.ThreadTimeAccumulator(threadOne, 250L,2500L);
         accNext.subtractPrevious(acc);
 
+        assertEquals(1500, accNext.getAllocatedBytes());
         assertEquals(150, accNext.getCpuTime());
         assertEquals(0, accNext.getWaitedTime());
         assertEquals(1, accNext.getBlockedTime());
 
-        HotThreads.ThreadTimeAccumulator accNotMoving = new HotThreads.ThreadTimeAccumulator(threadOne, 250L);
-        HotThreads.ThreadTimeAccumulator accNotMovingNext = new HotThreads.ThreadTimeAccumulator(threadOne, 250L);
+        HotThreads.ThreadTimeAccumulator accNotMoving = new HotThreads.ThreadTimeAccumulator(threadOne, 250L,2500L);
+        HotThreads.ThreadTimeAccumulator accNotMovingNext = new HotThreads.ThreadTimeAccumulator(threadOne, 250L,2500L);
 
         accNotMovingNext.subtractPrevious(accNotMoving);
 
+        assertEquals(0, accNotMovingNext.getAllocatedBytes());
         assertEquals(0, accNotMovingNext.getCpuTime());
         assertEquals(0, accNotMovingNext.getWaitedTime());
         assertEquals(0, accNotMovingNext.getBlockedTime());
 
-        HotThreads.ThreadTimeAccumulator accOne = new HotThreads.ThreadTimeAccumulator(threadOne, 250L);
-        HotThreads.ThreadTimeAccumulator accTwo = new HotThreads.ThreadTimeAccumulator(threadTwo, 350L);
+        HotThreads.ThreadTimeAccumulator accOne = new HotThreads.ThreadTimeAccumulator(threadOne, 250L,2500L);
+        HotThreads.ThreadTimeAccumulator accTwo = new HotThreads.ThreadTimeAccumulator(threadTwo, 350L,3500L);
 
         expectThrows(IllegalStateException.class, () -> accTwo.subtractPrevious(accOne));
     }
@@ -605,5 +609,11 @@ public class HotThreadsTests extends ESTestCase {
         InOrder orderVerifier = inOrder(mockedMXBean);
         orderVerifier.verify(mockedMXBean).setThreadContentionMonitoringEnabled(true);
         orderVerifier.verify(mockedMXBean).setThreadContentionMonitoringEnabled(false);
+    }
+
+    public void testGetThreadAllocatedBytes() {
+        if (SunThreadInfo.isThreadAllocatedMemorySupported() && SunThreadInfo.isThreadAllocatedMemoryEnabled()) {
+            assertThat(SunThreadInfo.getThreadAllocatedBytes(Thread.currentThread().getId()), greaterThan(0L));
+        }
     }
 }

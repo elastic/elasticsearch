@@ -615,15 +615,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         if (after != null) {
             assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
-            final Predicate<SnapshotInfo> predicate = buildFromSortValuePredicate(
-                sortBy,
-                after.value(),
-                order,
-                after.snapshotName(),
-                after.repoName()
-            );
-            assert predicate != null : "should always be != null when snapshot name and repo name are given";
-            infos = infos.filter(predicate);
+            infos = infos.filter(buildAfterPredicate(sortBy, after, order));
         }
         infos = infos.sorted(order == SortOrder.DESC ? comparator.reversed() : comparator).skip(offset);
         final List<SnapshotInfo> allSnapshots = infos.collect(Collectors.toUnmodifiableList());
@@ -639,35 +631,32 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return new SnapshotsInRepo(resultSet, snapshotInfos.size(), allSnapshots.size() - resultSet.size());
     }
 
-    @Nullable
-    private static Predicate<SnapshotInfo> buildFromSortValuePredicate(
+    private static Predicate<SnapshotInfo> buildAfterPredicate(
         GetSnapshotsRequest.SortBy sortBy,
-        String after,
-        SortOrder order,
-        @Nullable String snapshotName,
-        @Nullable String repoName
+        GetSnapshotsRequest.After after,
+        SortOrder order
     ) {
+        final String snapshotName = after.snapshotName();
+        final String repoName = after.repoName();
+        final String value = after.value();
         switch (sortBy) {
             case START_TIME:
-                return filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(after), snapshotName, repoName, order);
+                return filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(value), snapshotName, repoName, order);
             case NAME:
-                assert snapshotName != null;
                 // TODO: cover via pre-flight predicate
                 return order == SortOrder.ASC
                     ? (info -> compareName(snapshotName, repoName, info) < 0)
                     : (info -> compareName(snapshotName, repoName, info) > 0);
             case DURATION:
-                return filterByLongOffset(info -> info.endTime() - info.startTime(), Long.parseLong(after), snapshotName, repoName, order);
+                return filterByLongOffset(info -> info.endTime() - info.startTime(), Long.parseLong(value), snapshotName, repoName, order);
             case INDICES:
-                assert snapshotName != null;
                 // TODO: cover via pre-flight predicate
-                return filterByLongOffset(info -> info.indices().size(), Integer.parseInt(after), snapshotName, repoName, order);
+                return filterByLongOffset(info -> info.indices().size(), Integer.parseInt(value), snapshotName, repoName, order);
             case SHARDS:
-                return filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(after), snapshotName, repoName, order);
+                return filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(value), snapshotName, repoName, order);
             case FAILED_SHARDS:
-                return filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(after), snapshotName, repoName, order);
+                return filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(value), snapshotName, repoName, order);
             case REPOSITORY:
-                assert snapshotName != null;
                 // TODO: cover via pre-flight predicate
                 return order == SortOrder.ASC
                     ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
@@ -782,13 +771,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                             final long startTime = getStartTime(snapshotId, repositoryData);
                             return startTime == -1 || after >= startTime;
                         };
-                        fromSortValuePredicate = buildFromSortValuePredicate(
-                            GetSnapshotsRequest.SortBy.START_TIME,
-                            fromSortValue,
-                            order,
-                            null,
-                            null
-                        );
+                        fromSortValuePredicate = filterByLongOffset(SnapshotInfo::startTime, after, null, null, order);
                         break;
                     case NAME:
                         preflightPredicate = order == SortOrder.ASC
@@ -805,12 +788,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                             final long duration = getDuration(snapshotId, repositoryData);
                             return duration == -1 || afterDuration >= duration;
                         };
-                        fromSortValuePredicate = buildFromSortValuePredicate(
-                            GetSnapshotsRequest.SortBy.DURATION,
-                            fromSortValue,
-                            order,
+                        fromSortValuePredicate = filterByLongOffset(
+                            info -> info.endTime() - info.startTime(),
+                            afterDuration,
                             null,
-                            null
+                            null,
+                            order
                         );
                         break;
                     case INDICES:
@@ -824,9 +807,28 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         preflightPredicate = null;
                         fromSortValuePredicate = null;
                         break;
-                    default:
-                        fromSortValuePredicate = buildFromSortValuePredicate(sortBy, fromSortValue, order, null, null);
+                    case SHARDS:
                         preflightPredicate = null;
+                        fromSortValuePredicate = filterByLongOffset(
+                            SnapshotInfo::totalShards,
+                            Integer.parseInt(fromSortValue),
+                            null,
+                            null,
+                            order
+                        );
+                        break;
+                    case FAILED_SHARDS:
+                        preflightPredicate = null;
+                        fromSortValuePredicate = filterByLongOffset(
+                            SnapshotInfo::failedShards,
+                            Integer.parseInt(fromSortValue),
+                            null,
+                            null,
+                            order
+                        );
+                        break;
+                    default:
+                        throw new AssertionError("unexpected sort column [" + sortBy + "]");
                 }
 
                 if (snapshotPredicate == null) {

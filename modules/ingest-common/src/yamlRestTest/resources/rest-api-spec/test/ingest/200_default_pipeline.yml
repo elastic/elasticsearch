@@ -187,3 +187,8 @@ teardown:
         id: 10
         pipeline: ""
         body: {bytes_source_field: "1kb"}
+
+  # Delete the index
+  - do:
+      indices.delete:
+        index: test

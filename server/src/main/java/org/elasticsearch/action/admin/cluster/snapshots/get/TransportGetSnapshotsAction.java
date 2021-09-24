@@ -123,8 +123,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.offset(),
             request.size(),
             request.order(),
-            buildSnapshotPredicate(request.sort(), request.order(), request.policies(), request.fromSortValue()),
-            buildSnapshotPreflightPredicate(request.sort(), request.order(), request.fromSortValue()),
+            new SnapshotPredicates(request),
             listener
         );
     }
@@ -162,8 +161,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         int offset,
         int size,
         SortOrder order,
-        @Nullable Predicate<SnapshotInfo> predicate,
-        @Nullable BiPredicate<SnapshotId, RepositoryData> preflightPredicate,
+        SnapshotPredicates predicates,
         ActionListener<GetSnapshotsResponse> listener
     ) {
         // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
@@ -207,8 +205,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 snapshotsInProgress,
                 repoName,
                 snapshots,
-                predicate,
-                preflightPredicate,
+                predicates,
                 ignoreUnavailable,
                 verbose,
                 cancellableTask,
@@ -230,8 +227,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         SnapshotsInProgress snapshotsInProgress,
         String repo,
         String[] snapshots,
-        @Nullable Predicate<SnapshotInfo> predicate,
-        @Nullable BiPredicate<SnapshotId, RepositoryData> preflightPredicate,
+        SnapshotPredicates predicates,
         boolean ignoreUnavailable,
         boolean verbose,
         CancellableTask task,
@@ -269,8 +265,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 sortBy,
                 after,
                 order,
-                predicate,
-                preflightPredicate,
+                predicates,
                 listener
             ),
             listener::onFailure
@@ -310,14 +305,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         GetSnapshotsRequest.SortBy sortBy,
         @Nullable final GetSnapshotsRequest.After after,
         SortOrder order,
-        @Nullable Predicate<SnapshotInfo> predicate,
-        @Nullable BiPredicate<SnapshotId, RepositoryData> preflightPredicate,
+        SnapshotPredicates predicates,
         ActionListener<SnapshotsInRepo> listener
     ) {
         if (task.notifyIfCancelled(listener)) {
             return;
         }
 
+        final BiPredicate<SnapshotId, RepositoryData> preflightPredicate = predicates.preflightPredicate();
         if (repositoryData != null) {
             for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
                 if (preflightPredicate == null || preflightPredicate.test(snapshotId, repositoryData)) {
@@ -385,11 +380,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 sortBy,
                 after,
                 order,
-                predicate,
+                predicates.snapshotPredicate(),
                 listener
             );
         } else {
-            assert predicate == null : "filtering is not supported in non-verbose mode";
+            assert predicates.snapshotPredicate() == null : "filtering is not supported in non-verbose mode";
             final SnapshotsInRepo snapshotInfos;
             if (repositoryData != null) {
                 // want non-current snapshots as well, which are found in the repository data
@@ -549,75 +544,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     private static final Comparator<SnapshotInfo> BY_REPOSITORY = Comparator.comparing(SnapshotInfo::repository)
         .thenComparing(SnapshotInfo::snapshotId);
 
-    @Nullable
-    private static Predicate<SnapshotInfo> buildSnapshotPredicate(
-        GetSnapshotsRequest.SortBy sortBy,
-        SortOrder order,
-        String[] slmPolicies,
-        String fromSortValue
-    ) {
-        Predicate<SnapshotInfo> predicate = null;
-        if (slmPolicies.length > 0) {
-            predicate = filterBySLMPolicies(slmPolicies);
-        }
-        if (fromSortValue != null) {
-            final Predicate<SnapshotInfo> fromSortValuePredicate = buildFromSortValuePredicate(sortBy, fromSortValue, order, null, null);
-            if (predicate == null) {
-                predicate = fromSortValuePredicate;
-            } else if (fromSortValuePredicate != null) {
-                predicate = fromSortValuePredicate.and(predicate);
-            }
-        }
-        return predicate;
-    }
-
-    /**
-     * Builds a predicate that can be applied to a combination of snapshot id and repository data to filter out snapshots that are not
-     * required to answer the request before loading their SnapshotInfo from the repository.
-     * TODO: extend this method to cover the pagination after value as well where possible
-     */
-    @Nullable
-    private static BiPredicate<SnapshotId, RepositoryData> buildSnapshotPreflightPredicate(
-        GetSnapshotsRequest.SortBy sortBy,
-        SortOrder order,
-        String fromSortValue
-    ) {
-        if (fromSortValue == null) {
-            return null;
-        }
-        switch (sortBy) {
-            case START_TIME:
-                final long after = Long.parseLong(fromSortValue);
-                return order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
-                    final long startTime = getStartTime(snapshotId, repositoryData);
-                    return startTime == -1 || after <= startTime;
-                } : (snapshotId, repositoryData) -> {
-                    final long startTime = getStartTime(snapshotId, repositoryData);
-                    return startTime == -1 || after >= startTime;
-                };
-            case NAME:
-                return order == SortOrder.ASC
-                    ? (snapshotId, repositoryData) -> fromSortValue.compareTo(snapshotId.getName()) <= 0
-                    : (snapshotId, repositoryData) -> fromSortValue.compareTo(snapshotId.getName()) >= 0;
-            case DURATION:
-                final long afterDuration = Long.parseLong(fromSortValue);
-                return order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
-                    final long duration = getDuration(snapshotId, repositoryData);
-                    return duration == -1 || afterDuration <= duration;
-                } : (snapshotId, repositoryData) -> {
-                    final long duration = getDuration(snapshotId, repositoryData);
-                    return duration == -1 || afterDuration >= duration;
-                };
-            case INDICES:
-                final int afterIndexCount = Integer.parseInt(fromSortValue);
-                return order == SortOrder.ASC
-                    ? (snapshotId, repositoryData) -> afterIndexCount <= indexCount(snapshotId, repositoryData)
-                    : (snapshotId, repositoryData) -> afterIndexCount >= indexCount(snapshotId, repositoryData);
-            default:
-                return null;
-        }
-    }
-
     private static long getDuration(SnapshotId snapshotId, RepositoryData repositoryData) {
         final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
         if (details == null) {
@@ -725,22 +651,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             case START_TIME:
                 return filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(after), snapshotName, repoName, order);
             case NAME:
-                if (snapshotName == null) {
-                    // already covered by preflight filtering
-                    return null;
-                } else {
-                    // TODO: cover via pre-flight predicate
-                    return order == SortOrder.ASC
-                        ? (info -> compareName(snapshotName, repoName, info) < 0)
-                        : (info -> compareName(snapshotName, repoName, info) > 0);
-                }
+                assert snapshotName != null;
+                // TODO: cover via pre-flight predicate
+                return order == SortOrder.ASC
+                    ? (info -> compareName(snapshotName, repoName, info) < 0)
+                    : (info -> compareName(snapshotName, repoName, info) > 0);
             case DURATION:
                 return filterByLongOffset(info -> info.endTime() - info.startTime(), Long.parseLong(after), snapshotName, repoName, order);
             case INDICES:
-                if (snapshotName == null) {
-                    // already covered by preflight filtering
-                    return null;
-                }
+                assert snapshotName != null;
                 // TODO: cover via pre-flight predicate
                 return filterByLongOffset(info -> info.indices().size(), Integer.parseInt(after), snapshotName, repoName, order);
             case SHARDS:
@@ -748,15 +667,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             case FAILED_SHARDS:
                 return filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(after), snapshotName, repoName, order);
             case REPOSITORY:
-                if (snapshotName == null) {
-                    // already covered by preflight filtering
-                    return null;
-                } else {
-                    // TODO: cover via pre-flight predicate
-                    return order == SortOrder.ASC
-                        ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
-                        : (info -> compareRepositoryName(snapshotName, repoName, info) > 0);
-                }
+                assert snapshotName != null;
+                // TODO: cover via pre-flight predicate
+                return order == SortOrder.ASC
+                    ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
+                    : (info -> compareRepositoryName(snapshotName, repoName, info) > 0);
             default:
                 throw new AssertionError("unexpected sort column [" + sortBy + "]");
         }
@@ -836,6 +751,103 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return res;
         }
         return repoName.compareTo(info.repository());
+    }
+
+    private static final class SnapshotPredicates {
+
+        private final Predicate<SnapshotInfo> snapshotPredicate;
+
+        private final BiPredicate<SnapshotId, RepositoryData> preflightPredicate;
+
+        SnapshotPredicates(GetSnapshotsRequest request) {
+            Predicate<SnapshotInfo> snapshotPredicate = null;
+            final String[] slmPolicies = request.policies();
+            final String fromSortValue = request.fromSortValue();
+            if (slmPolicies.length > 0) {
+                snapshotPredicate = filterBySLMPolicies(slmPolicies);
+            }
+            final GetSnapshotsRequest.SortBy sortBy = request.sort();
+            final SortOrder order = request.order();
+            if (fromSortValue == null) {
+                preflightPredicate = null;
+            } else {
+                final Predicate<SnapshotInfo> fromSortValuePredicate;
+                switch (sortBy) {
+                    case START_TIME:
+                        final long after = Long.parseLong(fromSortValue);
+                        preflightPredicate = order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
+                            final long startTime = getStartTime(snapshotId, repositoryData);
+                            return startTime == -1 || after <= startTime;
+                        } : (snapshotId, repositoryData) -> {
+                            final long startTime = getStartTime(snapshotId, repositoryData);
+                            return startTime == -1 || after >= startTime;
+                        };
+                        fromSortValuePredicate = buildFromSortValuePredicate(
+                            GetSnapshotsRequest.SortBy.START_TIME,
+                            fromSortValue,
+                            order,
+                            null,
+                            null
+                        );
+                        break;
+                    case NAME:
+                        preflightPredicate = order == SortOrder.ASC
+                            ? (snapshotId, repositoryData) -> fromSortValue.compareTo(snapshotId.getName()) <= 0
+                            : (snapshotId, repositoryData) -> fromSortValue.compareTo(snapshotId.getName()) >= 0;
+                        fromSortValuePredicate = null;
+                        break;
+                    case DURATION:
+                        final long afterDuration = Long.parseLong(fromSortValue);
+                        preflightPredicate = order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
+                            final long duration = getDuration(snapshotId, repositoryData);
+                            return duration == -1 || afterDuration <= duration;
+                        } : (snapshotId, repositoryData) -> {
+                            final long duration = getDuration(snapshotId, repositoryData);
+                            return duration == -1 || afterDuration >= duration;
+                        };
+                        fromSortValuePredicate = buildFromSortValuePredicate(
+                            GetSnapshotsRequest.SortBy.DURATION,
+                            fromSortValue,
+                            order,
+                            null,
+                            null
+                        );
+                        break;
+                    case INDICES:
+                        final int afterIndexCount = Integer.parseInt(fromSortValue);
+                        preflightPredicate = order == SortOrder.ASC
+                            ? (snapshotId, repositoryData) -> afterIndexCount <= indexCount(snapshotId, repositoryData)
+                            : (snapshotId, repositoryData) -> afterIndexCount >= indexCount(snapshotId, repositoryData);
+                        fromSortValuePredicate = null;
+                        break;
+                    case REPOSITORY:
+                        preflightPredicate = null;
+                        fromSortValuePredicate = null;
+                        break;
+                    default:
+                        fromSortValuePredicate = buildFromSortValuePredicate(sortBy, fromSortValue, order, null, null);
+                        preflightPredicate = null;
+                }
+
+                if (snapshotPredicate == null) {
+                    snapshotPredicate = fromSortValuePredicate;
+                } else if (fromSortValuePredicate != null) {
+                    snapshotPredicate = fromSortValuePredicate.and(snapshotPredicate);
+                }
+            }
+            this.snapshotPredicate = snapshotPredicate;
+        }
+
+        @Nullable
+        public Predicate<SnapshotInfo> snapshotPredicate() {
+            return snapshotPredicate;
+        }
+
+        @Nullable
+        public BiPredicate<SnapshotId, RepositoryData> preflightPredicate() {
+            return preflightPredicate;
+        }
+
     }
 
     private static final class SnapshotsInRepo {

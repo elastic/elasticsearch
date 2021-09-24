@@ -153,8 +153,7 @@ public class Map {
      * @param map a {@code Map} from which entries are drawn, must be non-null
      * @return a {@code Map} containing the entries of the given {@code Map}
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public static <K, V> java.util.Map<K, V> copyOf(java.util.Map<? extends K, ? extends V> map) {
-        return (java.util.Map<K, V>) Map.ofEntries(map.entrySet().toArray(new java.util.Map.Entry[0]));
+        return Collections.unmodifiableMap(new HashMap<>(map));
     }
 }

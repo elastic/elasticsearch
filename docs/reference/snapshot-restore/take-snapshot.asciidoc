@@ -110,7 +110,7 @@ regardless of whether those system indices are named in the `indices` section
 of the request. You can also use the create snapshot
 API's <<create-snapshot-api-feature-states,`feature_states`>> parameter to
 include only a subset of system indices in the snapshot. Snapshots do not
-store transient settings or registered snapshot repositories.
+store the deprecated transient settings or registered snapshot repositories.
 
 While a snapshot of a particular shard is being created, the shard cannot be
 moved to another node, which can interfere with rebalancing and allocation

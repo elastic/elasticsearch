@@ -521,7 +521,7 @@ lowers the `indices.lifecycle.poll_interval` setting to `1m` (one minute).
 ----
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "indices.lifecycle.poll_interval": "1m"
   }
 }
@@ -657,7 +657,7 @@ The following update cluster settings API request resets the
 ----
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "indices.lifecycle.poll_interval": null
   }
 }

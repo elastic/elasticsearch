@@ -66,7 +66,7 @@ For primary shards that have not been started and are not currently relocating, 
 
 IMPORTANT: While a snapshot of a particular shard is being created, this shard cannot be moved to another node. Relocating a shard during the snapshot process can interfere with rebalancing and allocation filtering. {es} can move a shard to another node (according to the current allocation filtering settings and rebalancing algorithm) only after the snapshot process completes.
 
-Besides creating a copy of each data stream and index, the snapshot process can also store global cluster metadata, including persistent cluster settings and templates. The transient settings and registered snapshot repositories are not stored as part of the snapshot.
+Besides creating a copy of each data stream and index, the snapshot process can also store global cluster metadata, including persistent cluster settings and templates. The deprecated transient settings and registered snapshot repositories are not stored as part of the snapshot.
 
 [[create-snapshot-api-path-params]]
 ==== {api-path-parms-title}

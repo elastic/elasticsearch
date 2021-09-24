@@ -12,7 +12,7 @@ This processor comes packaged with many
 https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns[reusable patterns].
 
 If you need help building patterns to match your logs, you will find the
-{kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! 
+{kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful!
 The https://grokconstructor.appspot.com[Grok Constructor] is also a useful tool.
 
 [[using-grok]]
@@ -331,7 +331,7 @@ server log.
 --------------------------------------------------
 PUT _cluster/settings
 {
-  "transient": {
+  "persistent": {
     "logger.org.elasticsearch.ingest.common.GrokProcessor": "debug"
   }
 }

@@ -416,7 +416,7 @@ public class ClusterDeprecationChecks {
         if (state.metadata().transientSettings().isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Transient cluster settings are in the process of being removed.",
-                "https://ela.st/es-deprecation-7-multiple-types",
+                "https://ela.st/es-deprecation-7-transient-cluster-settings",
                 "Prefer using persistent settings to define your cluster settings instead.",
                 false,
                 null);

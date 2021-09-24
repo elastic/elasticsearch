@@ -159,7 +159,7 @@ The settings which control logging can be updated <<dynamic-cluster-setting,dyna
 -------------------------------
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "logger.org.elasticsearch.indices.recovery": "DEBUG"
   }
 }

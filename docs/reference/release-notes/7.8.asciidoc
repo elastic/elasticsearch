@@ -378,7 +378,7 @@ Mapping::
 * Merge V2 index/component template mappings in specific manner {es-pull}55607[#55607] (issue: {es-issue}53101[#53101])
 
 Recovery::
-* Avoid copying file chunks in peer covery {es-pull}56072[#56072] (issue: {es-issue}55353[#55353])
+* Avoid copying file chunks in peer recovery {es-pull}56072[#56072] (issue: {es-issue}55353[#55353])
 * Retry failed peer recovery due to transient errors {es-pull}55353[#55353]
 
 SQL::

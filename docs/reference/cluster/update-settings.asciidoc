@@ -4,7 +4,7 @@
 <titleabbrev>Cluster update settings</titleabbrev>
 ++++
 
-Updates cluster-wide settings. 
+Updates cluster-wide settings.
 
 
 [[cluster-update-settings-api-request]]
@@ -21,23 +21,21 @@ Updates cluster-wide settings.
 [[cluster-update-settings-api-desc]]
 ==== {api-description-title}
 
-With specifications in the request body, this API call can update cluster 
-settings. Updates to settings can be persistent, meaning they apply across 
-restarts, or transient, where they don't survive a full cluster restart.
+With specifications in the request body, this API call can update cluster
+settings. Updates to settings are persistent, meaning they apply across
+restarts.
 
-You can reset persistent or transient settings by assigning a `null` value. If a 
-transient setting is reset, the first one of these values that is defined is 
+You can reset persistent settings by assigning a `null` value. If a
+persistent setting is reset, the first one of these values that is defined is
 applied:
 
-* the persistent setting
 * the setting in the configuration file
-* the default value. 
+* the default value.
 
 The order of precedence for cluster settings is:
 
-1. transient cluster settings 
-2. persistent cluster settings
-3. settings in the `elasticsearch.yml` configuration file.
+1. persistent cluster settings
+2. settings in the `elasticsearch.yml` configuration file.
 
 It's best to set all cluster-wide settings with the `settings` API and use the
 `elasticsearch.yml` file only for local configurations. This way you can be sure that
@@ -52,7 +50,7 @@ difficult to notice these discrepancies.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 `include_defaults`::
-    (Optional, Boolean) If `true`, returns all default cluster settings. 
+    (Optional, Boolean) If `true`, returns all default cluster settings.
     Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
@@ -73,30 +71,15 @@ PUT /_cluster/settings
 }
 --------------------------------------------------
 
-
-An example of a transient update:
-
-[source,console]
---------------------------------------------------
-PUT /_cluster/settings?flat_settings=true
-{
-  "transient" : {
-    "indices.recovery.max_bytes_per_sec" : "20mb"
-  }
-}
---------------------------------------------------
-
-
-The response to an update returns the changed setting, as in this response to 
-the transient example:
+The response to an update returns the changed setting, as in this response to
+the example:
 
 [source,console-result]
 --------------------------------------------------
 {
   ...
-  "persistent" : { },
-  "transient" : {
-    "indices.recovery.max_bytes_per_sec" : "20mb"
+  "persistent" : {
+    "indices.recovery.max_bytes_per_sec" : "50mb"
   }
 }
 --------------------------------------------------
@@ -109,7 +92,7 @@ This example resets a setting:
 --------------------------------------------------
 PUT /_cluster/settings
 {
-  "transient" : {
+  "persistent" : {
     "indices.recovery.max_bytes_per_sec" : null
   }
 }
@@ -122,8 +105,7 @@ The response does not include settings that have been reset:
 --------------------------------------------------
 {
   ...
-  "persistent" : {},
-  "transient" : {}
+  "persistent" : {}
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"acknowledged": true,/]
@@ -136,7 +118,7 @@ all dynamic `indices.recovery` settings:
 --------------------------------------------------
 PUT /_cluster/settings
 {
-  "transient" : {
+  "persistent" : {
     "indices.recovery.*" : null
   }
 }

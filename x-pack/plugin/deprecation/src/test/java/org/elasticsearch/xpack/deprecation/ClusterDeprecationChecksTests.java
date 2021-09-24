@@ -553,4 +553,34 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                 "remove freeze action from the following ilm policies: [policy1,policy2]", false, null)
         ));
     }
+
+    public void testCheckTransientSettingsExistence() {
+        Settings transientSettings = Settings.builder()
+            .put("indices.recovery.max_bytes_per_sec", "20mb")
+            .build();
+        Metadata metadataWithTransientSettings = Metadata.builder()
+            .transientSettings(transientSettings)
+            .build();
+
+        ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(metadataWithTransientSettings).build();
+        DeprecationIssue issue = ClusterDeprecationChecks.checkTransientSettingsExistence(badState);
+        assertThat(issue, equalTo(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Transient cluster settings are in the process of being removed.",
+                "https://ela.st/es-deprecation-7-transient-cluster-settings",
+                "Prefer using persistent settings to define your cluster settings instead.",
+                false, null)
+        ));
+
+        Settings persistentSettings = Settings.builder()
+            .put("indices.recovery.max_bytes_per_sec", "20mb")
+            .build();
+        Metadata metadataWithoutTransientSettings = Metadata.builder()
+            .persistentSettings(persistentSettings)
+            .build();
+
+        ClusterState okState = ClusterState.builder(new ClusterName("test")).metadata(metadataWithoutTransientSettings).build();
+        issue = ClusterDeprecationChecks.checkTransientSettingsExistence(okState);
+        assertNull(issue);
+    }
 }

@@ -55,9 +55,9 @@ The total number of parts that will be uploaded. Must be greater than 0.
 [[ml-put-trained-model-definition-part-example]]
 == {api-examples-title}
 
-Here is an example of creating a model definition part for a previously
-stored model configuration. The definition part is stored in the index configured by
-`location.index.name`.
+The following example creates a model definition part for a previously
+stored model configuration. The definition part is stored in the index
+that is configured by the `location.index.name`.
  
 
 NOTE: `definition` is elided as it is a very large base64 encoded string

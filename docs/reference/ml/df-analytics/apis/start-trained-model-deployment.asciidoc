@@ -7,6 +7,8 @@
 <titleabbrev>Start trained model deployment</titleabbrev>
 ++++
 
+Starts a new trained model deployment.
+
 [[start-trained-model-deployment-request]]
 == {api-request-title}
 
@@ -19,9 +21,9 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 
 [[start-trained-model-deployment-desc]]
 == {api-description-title}
-This starts a new model deployment. Currently only `pytorch` models are supported
-for deployment. When deployed, the model attempts allocation to every machine learning
-node.
+
+Currently only `pytorch` models are supported for deployment. When deployed,
+the model attempts allocation to every machine learning node.
 
 [[start-trained-model-deployment-path-params]]
 == {api-path-parms-title}
@@ -40,16 +42,17 @@ to 20 seconds.
 
 `wait_for`::
 (Optional, string)
-Which allocation status to wait for before returning. Defaults to "started".
-Valid values are: "starting", "started", and "fully_allocated". Each
-indicating, respectively, deployment is starting but not yet on any
-node, the model has started on at least one node, the deployment has
-started on all valid nodes.
+Specifies the allocation status to wait for before returning. Defaults to
+`started`. The value `starting` indicates deployment is starting but not yet on
+any node. The value `started` indicates the model has started on at least one
+node. The value `fully_allocated` indicates the deployment has started on all
+valid nodes.
 
 [[start-trained-model-deployment-example]]
 == {api-examples-title}
 
-Here is an example for starting a new model deployment for an existing model.
+The following example starts a new deployment for a
+`elastic__d`istilbert-base-uncased-finetuned-conll03-english` trained model: 
 
 [source,console]
 --------------------------------------------------

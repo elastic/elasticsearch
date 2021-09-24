@@ -8,7 +8,7 @@
 ++++
 
 Creates a trained model vocabulary.
-This is only supported on NLP type models.
+This is supported only for natural language processing (NLP) models.
 
 experimental::[]
 
@@ -25,6 +25,13 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 
 
+[[ml-put-trained-model-vocabulary-desc]]
+== {api-description-title}
+
+The vocabulary is stored in the index as described in
+`inference_config.*.vocabulary` of the trained model definition.
+
+
 [[ml-put-trained-model-vocabulary-path-params]]
 == {api-path-parms-title}
 
@@ -37,9 +44,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `vocabulary`::
 (array)
-The model vocabulary. Must not be empty. The vocabulary is then
-stored in the index as described in `inference_config.*.vocabulary` in the
-stored trained model definition.
+The model vocabulary. Must not be empty.
 
 [[ml-put-trained-model-vocabulary-example]]
 == {api-examples-title}

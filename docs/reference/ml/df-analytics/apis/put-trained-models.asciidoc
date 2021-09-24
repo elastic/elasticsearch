@@ -376,31 +376,15 @@ A human-readable description of the {infer} trained model.
 //Begin inference_config
 `inference_config`::
 (Required, object)
-The default configuration for inference. This can be: `regression`, `classification`,
-`fill_mask`, `ner`, `text_classification`, or `text_embedding`. 
-If `regression` or `classification`, it must match the underlying `definition.trained_model`'s `target_type`.
-
-If `fill_mask`, `ner`, `text_classification`, or `text_embedding`; the `model_type` must be `pytorch`.
+The default configuration for inference. This can be: `regression`,
+`classification`, `fill_mask`, `ner`, `text_classification`, or `text_embedding`. 
+If `regression` or `classification`, it must match the `target_type` of the
+underlying `definition.trained_model`. If `fill_mask`, `ner`,
+`text_classification`, or `text_embedding`; the `model_type` must be `pytorch`.
 +
 .Properties of `inference_config`
 [%collapsible%open]
 ====
-`regression`:::
-(Optional, object)
-Regression configuration for inference.
-+
-.Properties of regression inference
-[%collapsible%open]
-=====
-`num_top_feature_importance_values`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
-
-`results_field`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
-=====
-
 `classification`:::
 (Optional, object)
 Classification configuration for inference.
@@ -432,7 +416,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification
 `fill_mask`:::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-fill-mask]
-
 +
 .Properties of fill_mask inference
 [%collapsible%open]
@@ -470,7 +453,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `ner`:::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-ner]
-
 +
 .Properties of ner inference
 [%collapsible%open]
@@ -482,7 +464,6 @@ Example: ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
-
 +
 .Properties of tokenization
 [%collapsible%open]
@@ -490,7 +471,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `bert`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-
 +
 .Properties of bert
 [%collapsible%open]
@@ -519,7 +499,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-pass-through]
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
-
 +
 .Properties of tokenization
 [%collapsible%open]
@@ -527,7 +506,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `bert`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-
 +
 .Properties of bert
 [%collapsible%open]
@@ -546,10 +524,25 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 ======
 =====
 
+`regression`:::
+(Optional, object)
+Regression configuration for inference.
++
+.Properties of regression inference
+[%collapsible%open]
+=====
+`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+
+`results_field`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+=====
+
 `text_classification`:::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classification]
-
 +
 .Properties of text_classification inference
 [%collapsible%open]
@@ -564,7 +557,6 @@ Specifies the number of top class predictions to return. Defaults to all classes
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
-
 +
 .Properties of tokenization
 [%collapsible%open]
@@ -572,7 +564,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `bert`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-
 +
 .Properties of bert
 [%collapsible%open]
@@ -600,7 +591,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-embedding
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
-
 +
 .Properties of tokenization
 [%collapsible%open]
@@ -608,7 +598,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `bert`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-
 +
 .Properties of bert
 [%collapsible%open]
@@ -626,7 +615,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 =======
 ======
 =====
-
 ====
 //End of inference_config
 
@@ -647,18 +635,19 @@ An array of input field names for the model.
 // Begin location
 `location`::
 (Optional, object)
-The model definition location. Must be provided if the `definition` or `compressed_definition` are not
-provided.
+The model definition location. If the `definition` or `compressed_definition`
+are not specified, the `location` is required.
 +
 .Properties of `location`
 [%collapsible%open]
 ====
 `index`:::
 (Required, object)
-Indicates that the model definition is stored in an index. This object is required to be empty as 
-the index for storing model definitions is configured automatically.
+Indicates that the model definition is stored in an index. This object must be
+empty as the index for storing model definitions is configured automatically.
 ====
 // End location
+
 `metadata`::
 (Optional, object)
 An object map that contains metadata about the model.

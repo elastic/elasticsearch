@@ -31,12 +31,8 @@ Requires the `monitor_ml` cluster privilege. This privilege is included in the
 `machine_learning_user` built-in role.
 
 
-[[ml-get-trained-models-desc]]
-== {api-description-title}
-
-You can get information for multiple trained models in a single API request by
-using a comma-separated list of model IDs or a wildcard expression.
-
+//[[ml-get-trained-models-desc]]
+//== {api-description-title}
 
 [[ml-get-trained-models-path-params]]
 == {api-path-parms-title}
@@ -44,7 +40,9 @@ using a comma-separated list of model IDs or a wildcard expression.
 `<model_id>`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
-
++
+You can get information for multiple trained models in a single API request by
+using a comma-separated list of model IDs or a wildcard expression.
 
 [[ml-get-trained-models-query-params]]
 == {api-query-parms-title}
@@ -168,6 +166,151 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
 ======
+
+`fill_mask`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-fill-mask]
++
+.Properties of fill_mask inference
+[%collapsible%open]
+======
+`tokenization`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
++
+.Properties of tokenization
+[%collapsible%open]
+=======
+`bert`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
++
+.Properties of bert
+[%collapsible%open]
+========
+`do_lower_case`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
+
+`max_sequence_length`::::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
+
+`with_special_tokens`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
+========
+=======
+`vocabulary`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary]
++
+.Properties of vocabulary
+[%collapsible%open]
+=======
+`index`::::
+(Required, string)
+The index where the vocabulary is stored
+=======
+======
+
+`ner`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-ner]
++
+.Properties of ner inference
+[%collapsible%open]
+======
+`classification_labels`::::
+(Optional, string) An array of classification labels. NER supports only 
+Inside-Outside-Beginning labels (IOB) and only persons, organizations, locations,
+and miscelanious. For example:
+`["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"]`.
+
+`tokenization`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
++
+.Properties of tokenization
+[%collapsible%open]
+=======
+`bert`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
++
+.Properties of bert
+[%collapsible%open]
+========
+`do_lower_case`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
+
+`max_sequence_length`::::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
+
+`with_special_tokens`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
+========
+=======
+`vocabulary`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary]
++
+.Properties of vocabulary
+[%collapsible%open]
+=======
+`index`::::
+(Required, string)
+The index where the vocabulary is stored
+=======
+======
+
+`pass_through`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-pass-through]
++
+.Properties of pass_through inference
+[%collapsible%open]
+======
+`tokenization`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
++
+.Properties of tokenization
+[%collapsible%open]
+=======
+`bert`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
++
+.Properties of bert
+[%collapsible%open]
+========
+`do_lower_case`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
+
+`max_sequence_length`::::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
+
+`with_special_tokens`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
+========
+=======
+`vocabulary`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary]
++
+.Properties of vocabulary
+[%collapsible%open]
+=======
+`index`::::
+(Required, string)
+The index where the vocabulary is stored
+=======
+======
+
 `regression`::::
 (object)
 Regression configuration for inference.
@@ -183,164 +326,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 ======
-
-`fill_mask`:::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-fill-mask]
-
-+
-.Properties of fill_mask inference
-[%collapsible%open]
-======
-`tokenization`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
-
-+
-.Properties of tokenization
-[%collapsible%open]
-=======
-`bert`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-
-+
-.Properties of bert
-[%collapsible%open]
-========
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
-
-`max_sequence_length`::::
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
-========
-=======
-
-`vocabulary`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary]
-+
-.Properties of vocabulary
-[%collapsible%open]
-=======
-`index`::::
-(Required, string)
-The index where the vocabulary is stored
-=======
-======
-
-`ner`:::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-ner]
-
-+
-.Properties of ner inference
-[%collapsible%open]
-======
-`classification_labels`::::
-(Optional, string) An array of classification labels. NER only supports Inside-Outside-Beginning labels (IOB)
-and only persons, organizations, locations, and miscelanious.
-Example: ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"]
-`tokenization`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
-
-+
-.Properties of tokenization
-[%collapsible%open]
-=======
-`bert`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-
-+
-.Properties of bert
-[%collapsible%open]
-========
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
-
-`max_sequence_length`::::
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
-========
-=======
-
-`vocabulary`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary]
-+
-.Properties of vocabulary
-[%collapsible%open]
-=======
-`index`::::
-(Required, string)
-The index where the vocabulary is stored
-=======
-======
-
-`pass_through`:::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-pass-through]
-+
-.Properties of pass_through inference
-[%collapsible%open]
-======
-`tokenization`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
-
-+
-.Properties of tokenization
-[%collapsible%open]
-=======
-`bert`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-
-+
-.Properties of bert
-[%collapsible%open]
-========
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
-
-`max_sequence_length`::::
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
-========
-=======
-
-`vocabulary`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary]
-+
-.Properties of vocabulary
-[%collapsible%open]
-=======
-`index`::::
-(Required, string)
-The index where the vocabulary is stored
-=======
-======
-
-`text_classification`:::
+`text_classification`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classification]
-
 +
 .Properties of text_classification inference
 [%collapsible%open]
@@ -355,7 +343,6 @@ Specifies the number of top class predictions to return. Defaults to all classes
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
-
 +
 .Properties of tokenization
 [%collapsible%open]
@@ -363,7 +350,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `bert`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-
 +
 .Properties of bert
 [%collapsible%open]
@@ -393,7 +379,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary
 The index where the vocabulary is stored
 =======
 ======
-`text_embedding`:::
+`text_embedding`::::
 (Object, optional)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-embedding]
 +
@@ -403,7 +389,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-embedding
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
-
 +
 .Properties of tokenization
 [%collapsible%open]
@@ -411,7 +396,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 `bert`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-
 +
 .Properties of bert
 [%collapsible%open]
@@ -444,7 +428,7 @@ The index where the vocabulary is stored
 
 `input`:::
 (object)
-The input field names for the model definition.+
+The input field names for the model definition.
 +
 .Properties of `input`
 [%collapsible%open]
@@ -462,19 +446,19 @@ provided.
 +
 .Properties of `location`
 [%collapsible%open]
-====
+=====
 `index`:::
 (Required, object)
 Indicates that the model definition is stored in an index. This object is required to be empty as 
 the index for storing model definitions is configured automatically.
-====
+=====
 // End location
 
-`license_level`:::
+`license_level`::
 (string)
 The license level of the trained model.
 
-`metadata`:::
+`metadata`::
 (object)
 An object containing metadata about the trained model. For example, models
 created by {dfanalytics} contain `analysis_config` and `input` objects.
@@ -604,7 +588,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-metadata-feature-impo
 ======
 =====
 
-`model_id`:::
+`model_id`::
 (string)
 Identifier for the trained model.
 
@@ -620,12 +604,11 @@ Appropriate types are:
 NLP models are supported.
 --
 
-
-`tags`:::
+`tags`::
 (string)
 A comma delimited string of tags. A trained model can have many tags, or none.
 
-`version`:::
+`version`::
 (string)
 The {es} version number in which the trained model was created.
 

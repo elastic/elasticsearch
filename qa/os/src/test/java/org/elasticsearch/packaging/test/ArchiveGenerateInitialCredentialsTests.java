@@ -15,8 +15,6 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,14 +22,22 @@ import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
-public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
+public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
 
-    private static final Pattern PASSWORD_REGEX = Pattern.compile("Password for the (\\w+) user is: (.+)$", Pattern.MULTILINE);
+    private static final Pattern PASSWORD_REGEX = Pattern.compile("Password for the elastic user is: (.+)$", Pattern.MULTILINE);
+    private static final Pattern TOKEN_REGEX = Pattern.compile(
+        "Enrollment token for kibana, valid for the next 30 minutes:\n(.+)$",
+        Pattern.MULTILINE
+    );
+    private static final Pattern FINGERPRINT_REGEX = Pattern.compile(
+        "Fingerprint of the generated CA certificate for HTTP:\n(.+)$",
+        Pattern.MULTILINE
+    );
 
     @BeforeClass
     public static void filterDistros() {
@@ -43,74 +49,87 @@ public class ArchiveGenerateInitialPasswordTests extends PackagingTestCase {
         // Enable security for these tests only where it is necessary, until we can enable it for all
         ServerUtils.enableSecurityFeatures(installation);
         verifyArchiveInstallation(installation, distribution());
+        // Remove this when https://github.com/elastic/elasticsearch/pull/77231 is merged
+        installation.executables().securityConfigTool.run("");
     }
 
-    public void test20NoAutoGenerationWhenBootstrapPassword() throws Exception {
+    public void test20NoAutoGenerationWhenAutoConfigurationDisabled() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
-        installation.executables().keystoreTool.run("create");
-        installation.executables().keystoreTool.run("add --stdin bootstrap.password", "some-password-here");
-        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
-        Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);
-        assertThat(usersAndPasswords.isEmpty(), is(true));
-        String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), "elastic", "some-password-here", null);
-        assertThat(response, containsString("You Know, for Search"));
-    }
-
-    public void test30NoAutoGenerationWhenAutoConfigurationDisabled() throws Exception {
-        /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
-        assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
-        stopElasticsearch();
-        installation.executables().keystoreTool.run("remove bootstrap.password");
         ServerUtils.disableSecurityAutoConfiguration(installation);
         Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
-        Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);
-        assertThat(usersAndPasswords.isEmpty(), is(true));
+        assertThat(parseElasticPassword(result.stdout), nullValue());
+        assertThat(parseKibanaToken(result.stdout), nullValue());
+        assertThat(parseFingerprint(result.stdout), nullValue());
+        stopElasticsearch();
     }
 
-    public void test40NoAutogenerationWhenDaemonized() throws Exception {
+    public void test30NoAutogenerationWhenDaemonized() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
-        stopElasticsearch();
         ServerUtils.enableSecurityAutoConfiguration(installation);
         awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, true));
         assertThat(installation.logs.resolve("elasticsearch.log"), fileExists());
         String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
         assertThat(logfile, not(containsString("Password for the elastic user is")));
+        assertThat(logfile, not(containsString("Enrollment token for kibana (valid for the next 30 minutes) :")));
     }
 
-    public void test50VerifyAutogeneratedCredentials() throws Exception {
+    public void test40VerifyAutogeneratedCredentials() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         stopElasticsearch();
         ServerUtils.enableSecurityAutoConfiguration(installation);
         Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
-        Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);
-        assertThat(usersAndPasswords.size(), equalTo(2));
-        assertThat(usersAndPasswords.containsKey("elastic"), is(true));
-        assertThat(usersAndPasswords.containsKey("kibana_system"), is(true));
-        for (Map.Entry<String, String> userpass : usersAndPasswords.entrySet()) {
-            String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue(), null);
-            assertThat(response, containsString("You Know, for Search"));
-        }
+        assertThat(parseElasticPassword(result.stdout), notNullValue());
+        assertThat(parseKibanaToken(result.stdout), notNullValue());
+        assertThat(parseFingerprint(result.stdout), notNullValue());
+        String response = ServerUtils.makeRequest(
+            Request.Get("https://localhost:9200"),
+            "elastic",
+            parseElasticPassword(result.stdout),
+            ServerUtils.getCaCert(installation.config)
+        );
+        assertThat(response, containsString("You Know, for Search"));
     }
 
-    public void test60PasswordAutogenerationOnlyOnce() throws Exception {
+    public void test50CredentialAutogenerationOnlyOnce() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         stopElasticsearch();
         Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
-        Map<String, String> usersAndPasswords = parseUsersAndPasswords(result.stdout);
-        assertThat(usersAndPasswords.isEmpty(), is(true));
+        assertThat(parseElasticPassword(result.stdout), nullValue());
+        assertThat(parseKibanaToken(result.stdout), nullValue());
+        assertThat(parseFingerprint(result.stdout), nullValue());
     }
 
-    private Map<String, String> parseUsersAndPasswords(String output) {
+    private String parseElasticPassword(String output) {
         Matcher matcher = PASSWORD_REGEX.matcher(output);
         assertNotNull(matcher);
-        Map<String, String> usersAndPasswords = new HashMap<>();
-        while (matcher.find()) {
-            usersAndPasswords.put(matcher.group(1), matcher.group(2));
+        if (matcher.find()) {
+            return matcher.group(1);
+        } else {
+            return null;
         }
-        return usersAndPasswords;
+    }
+
+    private String parseKibanaToken(String output) {
+        Matcher matcher = TOKEN_REGEX.matcher(output);
+        assertNotNull(matcher);
+        if (matcher.find()) {
+            return matcher.group(1);
+        } else {
+            return null;
+        }
+    }
+
+    private String parseFingerprint(String output) {
+        Matcher matcher = FINGERPRINT_REGEX.matcher(output);
+        assertNotNull(matcher);
+        if (matcher.find()) {
+            return matcher.group(1);
+        } else {
+            return null;
+        }
     }
 }

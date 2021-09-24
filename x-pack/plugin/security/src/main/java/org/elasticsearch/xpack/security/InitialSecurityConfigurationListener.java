@@ -11,16 +11,19 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.elasticsearch.xpack.security.enrollment.EnrollmentTokenGenerator;
+import org.elasticsearch.xpack.security.enrollment.InternalEnrollmentTokenGenerator;
+import org.elasticsearch.xpack.security.enrollment.tool.BaseEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.PrintStream;
@@ -31,18 +34,24 @@ import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePasswor
 
 public class InitialSecurityConfigurationListener implements BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> {
 
-    private static final Logger LOGGER  = LogManager.getLogger(InitialSecurityConfigurationListener.class);
+    private static final Logger LOGGER = LogManager.getLogger(InitialSecurityConfigurationListener.class);
     private final NativeUsersStore nativeUsersStore;
     private final SecurityIndexManager securityIndexManager;
     private final Environment environment;
+    private final SSLService sslService;
+    private final Client client;
 
     public InitialSecurityConfigurationListener(
         NativeUsersStore nativeUsersStore,
         SecurityIndexManager securityIndexManager,
+        SSLService sslService,
+        Client client,
         Environment environment
     ) {
         this.nativeUsersStore = nativeUsersStore;
         this.securityIndexManager = securityIndexManager;
+        this.sslService = sslService;
+        this.client = client;
         this.environment = environment;
     }
 
@@ -58,95 +67,103 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
         if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
             && currentState.equals(SecurityIndexManager.State.UNRECOVERED_STATE) == false
             && securityIndexManager.indexExists() == false) {
-            if (BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())) {
+
+            GroupedActionListener<String> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(results -> {
+                String password = null;
+                String token = null;
+                String caCertFingerprint = null;
+                try {
+                    caCertFingerprint = BaseEnrollmentTokenGenerator.getCaFingerprint(sslService);
+                } catch (Exception e) {
+                    // do nothing, we will log this in the InternalEnrollmentTokenGenerator
+                }
+                for (String result: results){
+                    if (result.startsWith("password:")){
+                        password = result.replace("password:","");
+                    } else if (result.startsWith("token:")){
+                        token = result.replace("token:","");
+                    }
+                }
+                outputInformationToConsole(password, token, caCertFingerprint, out);
+            }, this::outputOnError),2);
+
+            if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())) {
                 final SecureString elasticPassword = new SecureString(generatePassword(20));
                 nativeUsersStore.updateReservedUser(
                     ElasticUser.NAME,
                     elasticPassword.getChars(),
                     DocWriteRequest.OpType.CREATE,
                     WriteRequest.RefreshPolicy.IMMEDIATE,
-                    ActionListener.wrap(result -> {
-                        try {
-                            final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment);
-                            final EnrollmentToken enrollmentToken = enrollmentTokenGenerator.createKibanaEnrollmentToken(
-                                ElasticUser.NAME,
-                                elasticPassword
-                            );
-                            final String encodedToken = enrollmentToken.getEncoded();
-                            final String httpCaFingerprint = enrollmentToken.getFingerprint();
-                            outputAllInformationOnSuccess(elasticPassword, encodedToken, httpCaFingerprint, out);
-                        } catch (Exception e) {
-                            outputOnError(e);
-                        }
-                    }, this::outputOnError));
+                    groupedActionListener.map(ignore -> "password:" + elasticPassword)
+                );
             } else {
-                try {
-                    final EnrollmentTokenGenerator enrollmentTokenGenerator = new EnrollmentTokenGenerator(environment);
-                    final EnrollmentToken enrollmentToken = enrollmentTokenGenerator.createKibanaEnrollmentToken(
-                        ElasticUser.NAME,
-                        BOOTSTRAP_ELASTIC_PASSWORD.get(environment.settings())
-                    );
-                    final String encodedToken = enrollmentToken.getEncoded();
-                    final String httpCaFingerprint = enrollmentToken.getFingerprint();
-                    outputEnrollmentTokenOnSuccess(encodedToken, httpCaFingerprint, out);
-                } catch (Exception e) {
-                    outputOnError(e);
-                }
+                groupedActionListener.onResponse(null);
             }
+            final InternalEnrollmentTokenGenerator enrollmentTokenGenerator = new InternalEnrollmentTokenGenerator(
+                environment,
+                sslService,
+                client
+            );
+            enrollmentTokenGenerator.createKibanaEnrollmentToken(
+                groupedActionListener.map(token -> token == null ? null : "token:" + token.getEncoded())
+            );
             securityIndexManager.removeStateListener(this);
         }
     }
 
-    private void outputAllInformationOnSuccess(SecureString elasticPassword, String enrollmentToken, String httpCaFingerprint, PrintStream out) {
-        out.println();
-        out.println("-----------------------------------------------------------------");
-        out.println();
-        out.println("Password for the elastic user is: " + elasticPassword);
-        out.println();
-        out.println("Enrollment token for kibana:");
-        out.println(enrollmentToken);
-        out.println();
-        out.println("Fingerprint of the generated CA certificate for HTTP:");
-        out.println(httpCaFingerprint);
-        out.println();
-        out.println("Please note these down as they will not be shown again.");
-        out.println();
-        out.println();
-        out.println("You can use 'bin/elasticsearch-reset-elastic-password' at any time");
-        out.println("in order to reset the password for the elastic user.");
-        out.println();
-        out.println("The enrollment token for kibana is valid for the next 30 minutes.");
-        out.println("After that, you can use");
-        out.println("'bin/elasticsearch-create-enrollment-token -s kibana' at any time");
-        out.println("in order to get a new, valid, enrollment token.");
-        out.println();
-        out.println("-----------------------------------------------------------------");
-        out.println();
-    }
 
-    private void outputEnrollmentTokenOnSuccess(String enrollmentToken, String httpCaFingerprint, PrintStream out) {
-        out.println();
-        out.println("-----------------------------------------------------------------");
-        out.println();
-        out.println("Enrollment token for kibana:");
-        out.println(enrollmentToken);
-        out.println();
-        out.println("Fingerprint of the generated CA certificate for HTTP:");
-        out.println(httpCaFingerprint);
-        out.println();
-        out.println("Please note these down as they will not be shown again.");
-        out.println();
-        out.println();
-        out.println("You can use 'bin/elasticsearch-reset-elastic-password' at any time");
-        out.println("in order to reset the password for the elastic user.");
-        out.println();
-        out.println("The enrollment token for kibana is valid for the next 30 minutes.");
-        out.println("After that, you can use");
-        out.println("'bin/elasticsearch-create-enrollment-token -s kibana' at any time");
-        out.println("in order to get a new, valid, enrollment token.");
-        out.println();
-        out.println("-----------------------------------------------------------------");
-        out.println();
+    private void outputInformationToConsole(String elasticPassword, String enrollmentToken, String caCertFingerprint, PrintStream out) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        builder.append("-----------------------------------------------------------------");
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        if (null != elasticPassword) {
+            builder.append("Password for the elastic user is: ");
+            builder.append(elasticPassword);
+        } else {
+            builder.append("Unable to set the password for the elastic user automatically");
+        }
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        if (null != enrollmentToken) {
+            builder.append("Enrollment token for kibana, valid for the next 30 minutes:");
+            builder.append(System.lineSeparator());
+            builder.append(enrollmentToken);
+            builder.append(System.lineSeparator());
+        } else {
+            builder.append("Unable to generate an enrollment token for kibana automatically");
+            builder.append(System.lineSeparator());
+        }
+        builder.append(System.lineSeparator());
+        if (null != caCertFingerprint) {
+            builder.append("Fingerprint of the generated CA certificate for HTTP:");
+            builder.append(System.lineSeparator());
+            builder.append(caCertFingerprint);
+            builder.append(System.lineSeparator());
+        }
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        builder.append("You can use 'bin/elasticsearch-reset-elastic-password' at any time");
+        builder.append(System.lineSeparator());
+        builder.append("in order to set or reset the password for the elastic user.");
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        builder.append("You can use 'bin/elasticsearch-create-enrollment-token -s kibana' at any time");
+        builder.append(System.lineSeparator());
+        builder.append("in order to get a new, valid, enrollment token for kibana.");
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        builder.append("You can use 'bin/elasticsearch-create-enrollment-token -s node' at any time");
+        builder.append(System.lineSeparator());
+        builder.append("in order to get a new, valid, enrollment token for new elasticsearch nodes.");
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        builder.append("-----------------------------------------------------------------");
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        out.println(builder);
     }
 
     private void outputOnError(@Nullable Exception e) {
@@ -163,10 +180,13 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
             LOGGER.info("You can use 'bin/elasticsearch-create-enrollment-token -s kibana'");
             LOGGER.info("in order to generate an enrollment token for kibana.");
             LOGGER.info("");
+            LOGGER.info("You can use 'bin/elasticsearch-create-enrollment-token -s node'");
+            LOGGER.info("in order to generate an enrollment token for new elasticsearch nodes.");
+            LOGGER.info("");
             LOGGER.info("-----------------------------------------------------------------");
             LOGGER.info("");
         }
-        if (null != e)  {
+        if (null != e) {
             LOGGER.warn("Error setting initial password for elastic and generating a kibana enrollment token", e);
         }
     }

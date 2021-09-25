@@ -246,13 +246,13 @@ public final class IndicesPermission {
 
         public Collection<String> resolveConcreteIndices() {
             if (indexAbstraction == null) {
-                return List.of();
+                return org.elasticsearch.core.List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
-                return List.of(indexAbstraction.getName());
+                return org.elasticsearch.core.List.of(indexAbstraction.getName());
             } else {
                 final List<IndexMetadata> indices = indexAbstraction.getIndices();
                 final List<String> concreteIndices = new ArrayList<>(indices.size());
-                for (var idx : indices) {
+                for (final IndexMetadata idx : indices) {
                     concreteIndices.add(idx.getIndex().getName());
                 }
                 return concreteIndices;

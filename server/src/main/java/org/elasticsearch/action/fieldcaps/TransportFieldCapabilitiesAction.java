@@ -451,16 +451,24 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             List<FieldCapabilitiesIndexResponse> indexResponses = new ArrayList<>();
             List<FieldCapabilitiesFailure> indexFailures = new ArrayList<>();
 
+            // If the request has an index filter, it may contain several shards belonging to the same
+            // index. We make sure to skip over a shard if we already found a match for that index.
+            Set<String> matchedIndices = new HashSet<>();
             for (ShardId shardId : request.shardIds()) {
-                FieldCapabilitiesIndexRequest indexRequest = new FieldCapabilitiesIndexRequest(request.fields(), shardId.getIndexName(),
-                    request.originalIndices(), request.indexFilter(), request.nowInMillis(), request.runtimeFields());
-                indexRequest.shardId(shardId);
-                try {
-                    FieldCapabilitiesIndexResponse indexResponse = fieldCapabilitiesFetcher.fetch(indexRequest);
-                    indexResponses.add(indexResponse);
-                } catch (Exception e) {
-                    FieldCapabilitiesFailure failure = new FieldCapabilitiesFailure(new String[] {shardId.getIndexName()}, e);
-                    indexFailures.add(failure);
+                if (matchedIndices.contains(shardId.getIndexName()) == false) {
+                    FieldCapabilitiesIndexRequest indexRequest = new FieldCapabilitiesIndexRequest(request.fields(), shardId.getIndexName(),
+                        request.originalIndices(), request.indexFilter(), request.nowInMillis(), request.runtimeFields());
+                    indexRequest.shardId(shardId);
+                    try {
+                        FieldCapabilitiesIndexResponse indexResponse = fieldCapabilitiesFetcher.fetch(indexRequest);
+                        indexResponses.add(indexResponse);
+                        if (indexResponse.canMatch()) {
+                            matchedIndices.add(shardId.getIndexName());
+                        }
+                    } catch (Exception e) {
+                        FieldCapabilitiesFailure failure = new FieldCapabilitiesFailure(new String[]{shardId.getIndexName()}, e);
+                        indexFailures.add(failure);
+                    }
                 }
             }
 

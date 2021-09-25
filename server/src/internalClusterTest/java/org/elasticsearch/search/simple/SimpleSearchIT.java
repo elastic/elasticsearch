@@ -326,6 +326,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertFalse(searchResponse.isTerminatedEarly());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78080")
     public void testSimpleIndexSortEarlyTerminate() throws Exception {
         prepareCreate("test")
             .setSettings(Settings.builder()

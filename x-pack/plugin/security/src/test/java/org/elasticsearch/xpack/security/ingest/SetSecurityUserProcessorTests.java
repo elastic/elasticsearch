@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -108,7 +109,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         // Still holds data for realm and authentication type
-        assertThat(result.size(), equalTo(2));
+        assertThat(result, aMapWithSize(2));
         assertThat(((Map) result.get("realm")).get("name"), equalTo("_name"));
         assertThat(((Map) result.get("realm")).get("type"), equalTo("_type"));
         assertThat(result.get("authentication_type"), equalTo("REALM"));
@@ -144,7 +145,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        assertThat(result.size(), equalTo(1));
+        assertThat(result, aMapWithSize(1));
         assertThat(result.get("username"), equalTo(authentication.getUser().principal()));
     }
 
@@ -162,7 +163,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         if (authentication.getUser().roles().length == 0) {
             assertThat(result, not(hasKey("roles")));
         } else {
-            assertThat(result.size(), equalTo(1));
+            assertThat(result, aMapWithSize(1));
             assertThat(result.get("roles"), equalTo(Arrays.asList(authentication.getUser().roles())));
         }
     }
@@ -178,7 +179,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        assertThat(result.size(), equalTo(1));
+        assertThat(result, aMapWithSize(1));
         assertThat(result.get("full_name"), equalTo(authentication.getUser().fullName()));
     }
 
@@ -194,7 +195,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         if (authentication.getUser().email() != null) {
-            assertThat(result.size(), equalTo(1));
+            assertThat(result, aMapWithSize(1));
             assertThat(result.get("email"), equalTo(authentication.getUser().email()));
         } else {
             assertThat(result, not(hasKey("email")));
@@ -215,7 +216,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         if (authentication.getUser().metadata().isEmpty()) {
             assertThat(result, not(hasKey("metadata")));
         } else {
-            assertThat(result.size(), equalTo(1));
+            assertThat(result, aMapWithSize(1));
             assertThat(result.get("metadata"), equalTo(authentication.getUser().metadata()));
         }
     }
@@ -233,7 +234,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        assertThat(result.size(), equalTo(1));
+        assertThat(result, aMapWithSize(1));
         assertThat(result.get("username"), equalTo(authentication.getUser().principal()));
 
         ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
@@ -243,7 +244,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> result2 = ingestDocument.getFieldValue("_field", Map.class);
-        assertThat(result2.size(), equalTo(2));
+        assertThat(result2, aMapWithSize(2));
         assertThat(result2.get("username"), equalTo(authentication.getUser().principal()));
         assertThat(result2.get("other"), equalTo("test"));
     }
@@ -275,7 +276,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        assertThat(result.size(), equalTo(4));
+        assertThat(result, aMapWithSize(4));
         final Map<String, Object> apiKeyMap = (Map<String, Object>) result.get("api_key");
         assertThat(apiKeyMap.get("name"), equalTo("api_key_name"));
         assertThat(apiKeyMap.get("id"), equalTo("api_key_id"));
@@ -321,7 +322,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        assertThat(result.size(), equalTo(4));
+        assertThat(result, aMapWithSize(4));
         assertThat(((Map<String, Integer>) result.get("api_key")).get("version"), equalTo(42));
         assertThat(((Map<String, Integer>) result.get("realm")).get("id"), equalTo(7));
     }
@@ -344,7 +345,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        assertThat(result.size(), equalTo(3));
+        assertThat(result, aMapWithSize(3));
         assertThat(((Map<String, String>) result.get("realm")).get("name"), equalTo(lookedUpRealmRef.getName()));
         assertThat(((Map<String, String>) result.get("realm")).get("type"), equalTo(lookedUpRealmRef.getType()));
     }

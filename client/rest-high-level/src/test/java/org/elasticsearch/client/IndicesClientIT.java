@@ -882,13 +882,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         OpenIndexRequest lenientOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         lenientOpenIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         OpenIndexResponse lenientOpenIndexResponse = execute(lenientOpenIndexRequest, highLevelClient().indices()::open,
-                highLevelClient().indices()::openAsync);
+                highLevelClient().indices()::openAsync, IGNORE_THROTTLED_WARNING);
         assertThat(lenientOpenIndexResponse.isAcknowledged(), equalTo(true));
 
         OpenIndexRequest strictOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         strictOpenIndexRequest.indicesOptions(IndicesOptions.strictExpandOpen());
         ElasticsearchException strictException = expectThrows(ElasticsearchException.class,
-                () -> execute(openIndexRequest, highLevelClient().indices()::open, highLevelClient().indices()::openAsync));
+                () -> execute(openIndexRequest, highLevelClient().indices()::open,
+                    highLevelClient().indices()::openAsync, IGNORE_THROTTLED_WARNING));
         assertEquals(RestStatus.NOT_FOUND, strictException.status());
     }
 
@@ -1002,7 +1003,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(index);
             SyncedFlushResponse flushResponse =
                     execute(syncedFlushRequest, highLevelClient().indices()::flushSynced, highLevelClient().indices()::flushSyncedAsync,
-                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE));
+                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE, IGNORE_THROTTLED_DEPRECATION_WARNING));
             assertThat(flushResponse.totalShards(), equalTo(1));
             assertThat(flushResponse.successfulShards(), equalTo(1));
             assertThat(flushResponse.failedShards(), equalTo(0));
@@ -1018,7 +1019,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                         syncedFlushRequest,
                         highLevelClient().indices()::flushSynced,
                         highLevelClient().indices()::flushSyncedAsync,
-                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)
+                        expectWarnings(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE, IGNORE_THROTTLED_DEPRECATION_WARNING)
                     )
             );
             assertEquals(RestStatus.NOT_FOUND, exception.status());

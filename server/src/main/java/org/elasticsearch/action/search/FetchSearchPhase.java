@@ -8,6 +8,7 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
@@ -122,6 +123,8 @@ final class FetchSearchPhase extends SearchPhase {
                 final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
                     docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
                     finishPhase, context);
+
+                FieldsOptionSourceAdapter fieldsOptionAdapter = new FieldsOptionSourceAdapter(context.getRequest());
                 for (int i = 0; i < docIdsToLoad.length; i++) {
                     IntArrayList entry = docIdsToLoad[i];
                     SearchPhaseResult queryResult = queryResults.get(i);
@@ -143,7 +146,7 @@ final class FetchSearchPhase extends SearchPhase {
                             lastEmittedDocPerShard, searchShardTarget.getOriginalIndices(), queryResult.getShardSearchRequest(),
                             queryResult.getRescoreDocIds());
                         executeFetch(queryResult.getShardIndex(), searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(),
-                            connection);
+                            connection, fieldsOptionAdapter);
                     }
                 }
             }
@@ -161,12 +164,14 @@ final class FetchSearchPhase extends SearchPhase {
     private void executeFetch(final int shardIndex, final SearchShardTarget shardTarget,
                               final CountedCollector<FetchSearchResult> counter,
                               final ShardFetchSearchRequest fetchSearchRequest, final QuerySearchResult querySearchResult,
-                              final Transport.Connection connection) {
+                              final Transport.Connection connection,
+                              final FieldsOptionSourceAdapter fieldsOptionAdapter) {
         context.getSearchTransport().sendExecuteFetch(connection, fetchSearchRequest, context.getTask(),
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
                     try {
+                        fieldsOptionAdapter.adaptResponse(connection.getVersion(), result.hits().getHits());
                         progressListener.notifyFetchResult(shardIndex);
                         counter.onResult(result);
                     } catch (Exception e) {

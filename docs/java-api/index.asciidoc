@@ -1,4 +1,4 @@
-= Java API (deprecated)
+= Java Transport Client (deprecated)
 
 include::{elasticsearch-root}/docs/Versions.asciidoc[]
 
@@ -8,8 +8,8 @@ include::{elasticsearch-root}/docs/Versions.asciidoc[]
 
 deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client] and will be removed in Elasticsearch 8.0. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
 
-This section describes the Java API that Elasticsearch provides. All
-Elasticsearch operations are executed using a
+This section describes the Java Transport Client that Elasticsearch provides. 
+All Elasticsearch operations are executed using a
 <<client,Client>> object. All
 operations are completely asynchronous in nature (either accepts a
 listener, or returns a future).

@@ -1,0 +1,146 @@
+[[migrating-7.15]]
+== Migrating to 7.15
+++++
+<titleabbrev>7.15</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 7.15.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+* <<breaking_715_indices_deprecations>>
+* <<breaking_715_security_deprecations>>
+* <<breaking_715_settings_deprecations>>
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+[discrete]
+[[breaking-changes-7.15]]
+=== Breaking changes
+
+The following changes in {es} 7.15 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 7.15, review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
+[[deprecated-7.15]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 7.15 and will be removed
+in 8.0. While this won't have an immediate impact on your applications, we
+strongly encourage you take the described steps to update your code after
+upgrading to 7.15.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and the
+old behavior is supported until the next major release. To find out if you are
+using any deprecated functionality, enable <<deprecation-logging, deprecation
+logging>>.
+
+// tag::notable-breaking-changes[]
+[discrete]
+[[breaking_715_indices_deprecations]]
+==== Indices deprecations
+
+[[deprecate-6x-indices]]
+.Indices created in Elasticsearch 6.x and earlier versions are deprecated.
+[%collapsible]
+====
+*Details* +
+In 8.x, {es} will only read indices created in version 7.0 or above. An 8.x node
+will not start in the presence of indices created in 6.x or earlier versions of
+{es}.
+
+*Impact* +
+Before upgrading to an 8.x version, reindex any index created in 6.x or earlier
+versions with {es} 7.x. If you no longer need the index, delete it instead.
+You can use the get index API to check the {es} version in which an index
+was created.
+
+[source,console]
+----
+GET *,-.*?human=true&filter_path=**.settings.index.version.created_string
+----
+====
+
+[[deprecate-simpleifs]]
+.The `simpleifs` index store type is deprecated.
+[%collapsible]
+====
+*Details* +
+The `simplefs` value for the {ref}/index-modules-store.html[`index.store.type`]
+index setting is now deprecated. Use the `niofs` value for superior or
+equivalent performance instead.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `simpleifs` store type in
+new indices or index templates. Reindex any index using `simplefs` into one with
+another store type.
+====
+
+[discrete]
+[[breaking_715_security_deprecations]]
+==== Security deprecations
+
+[[deprecate-accept_default_password]]
+.The `accept_default_password` setting is deprecated.
+[%collapsible]
+====
+*Details* +
+In 6.0, we deprecated the `accept_default_password` cluster setting. We removed
+support for default passwords in 6.0 but did not remove the setting for
+backwards compatibility. In 8.0, we will remove the setting.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the setting.
+====
+
+[[deprecate-native-role-cache-settings]]
+.Native role cache settings are deprecated.
+[%collapsible]
+====
+*Details* +
+In 5.2, we deprecated the following cluster settings:
+
+* `xpack.security.authz.store.roles.index.cache.max_size`
+* `xpack.security.authz.store.roles.index.cache.ttl`
+
+These native role cache settings have been unused since 5.2, but we did not
+remove the settings for backwards compatibility. In 8.0, we will remove the
+settings.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the settings.
+====
+
+[discrete]
+[[breaking_715_settings_deprecations]]
+==== Settings deprecations
+
+[[deprecate-fractional-byte-settings]]
+.Fractional byte size values are deprecated.
+[%collapsible]
+====
+*Details* +
+In 6.2, we deprecated support for fractional byte size values, such as `23.5pb`,
+in:
+
+* Cluster settings
+* Index settings
+* Cluster state metadata, such as an {ilm-init} policy, that support byte size
+values
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of fractional byte size values in
+your configurations. Update any existing configurations to use whole values.
+====
+// end::notable-breaking-changes[]

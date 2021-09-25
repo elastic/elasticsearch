@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -173,7 +174,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
 
     }
 
-
     /**
      * Test that accept_z_value parameter correctly parses
      */
@@ -310,6 +310,32 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
     }
 
+    public void testGeoShapeLegacyMerge() throws Exception {
+        MapperService m = createMapperService(fieldMapping(b -> b.field("type", "geo_shape")));
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> merge(m, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive"))));
+
+        assertThat(e.getMessage(),
+            containsString("mapper [field] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
+        assertFieldWarnings("strategy");
+
+        MapperService lm = createMapperService(fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive")));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> merge(lm, fieldMapping(b -> b.field("type", "geo_shape"))));
+        assertThat(e.getMessage(),
+            containsString("mapper [field] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
+        assertFieldWarnings("strategy");
+    }
+
+    private void assertFieldWarnings(String... fieldNames) {
+        String[] warnings = new String[fieldNames.length];
+        for (int i = 0; i < fieldNames.length; ++i) {
+            warnings[i] = "Parameter [" + fieldNames[i] + "] "
+                + "is deprecated and will be removed in a future version";
+        }
+        assertWarnings(warnings);
+    }
+
     public void testSerializeDefaults() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) defaultMapper.mappers().getMapper("field"));
@@ -364,6 +390,17 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
         assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
+    }
+
+    public void testRandomVersionMapping() throws Exception {
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        DocumentMapper defaultMapper = createDocumentMapper(version, fieldMapping(this::minimalMapping));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
+        if (version.before(Version.V_6_6_0)) {
+            assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
+        } else {
+            assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
+        }
     }
 
     public String toXContentString(GeoShapeWithDocValuesFieldMapper mapper, boolean includeDefaults) {

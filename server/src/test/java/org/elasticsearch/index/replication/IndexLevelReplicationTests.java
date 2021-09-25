@@ -581,7 +581,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.promoteReplicaToPrimary(replica2).get();
             logger.info("--> Recover replica3 from replica2");
             recoverReplica(replica3, replica2, true);
-            try (Translog.Snapshot snapshot = replica3.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
+            try (Translog.Snapshot snapshot = replica3.getHistoryOperations("test", Engine.HistorySource.INDEX, 0)) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
                 final List<Translog.Operation> expectedOps = new ArrayList<>(initOperations);
                 expectedOps.add(op2);

@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -93,18 +92,20 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             );
             pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(
                 deprecationIssues -> {
-                    final DeprecationInfoAction.Response finalResponse;
-                    try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().newStoredContext(false)) {
-                        // We store the context here and drop any new response headers to prevent getting a deprecation warning on the
-                        // deprecation info API call when we resolve indices.
-                        finalResponse = DeprecationInfoAction.Response.from(state, indexNameExpressionResolver,
-                            request, response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS, deprecationIssues);
-                    }
-                    listener.onResponse(finalResponse);
+                    listener.onResponse(
+                        DeprecationInfoAction.Response.from(
+                            state,
+                            indexNameExpressionResolver,
+                            request,
+                            response,
+                            INDEX_SETTINGS_CHECKS,
+                            CLUSTER_SETTINGS_CHECKS,
+                            deprecationIssues
+                        )
+                    );
                 },
                 listener::onFailure
             ));
-
         }, listener::onFailure));
     }
 

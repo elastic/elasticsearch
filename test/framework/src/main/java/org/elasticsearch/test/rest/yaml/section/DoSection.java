@@ -31,7 +31,6 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -46,6 +45,7 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toCollection;
+import static org.elasticsearch.core.Map.entry;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
@@ -335,8 +335,8 @@ public class DoSection implements ExecutableSection {
                     apiCallSection.getBodies(), apiCallSection.getHeaders(), apiCallSection.getNodeSelector());
             if (Strings.hasLength(catchParam)) {
                 String catchStatusCode;
-                if (catches.containsKey(catchParam)) {
-                    catchStatusCode = catches.get(catchParam).v1();
+                if (CATCHES.containsKey(catchParam)) {
+                    catchStatusCode = CATCHES.get(catchParam).v1();
                 } else if (catchParam.startsWith("/") && catchParam.endsWith("/")) {
                     catchStatusCode = "4xx|5xx";
                 } else {
@@ -352,7 +352,7 @@ public class DoSection implements ExecutableSection {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (Strings.hasLength(catchParam) == false) {
                 fail(formatStatusCodeMessage(restTestResponse, "2xx"));
-            } else if (catches.containsKey(catchParam)) {
+            } else if (CATCHES.containsKey(catchParam)) {
                 assertStatusCode(restTestResponse);
             } else if (catchParam.length() > 2 && catchParam.startsWith("/") && catchParam.endsWith("/")) {
                 //the text of the error message matches regular expression
@@ -488,7 +488,7 @@ public class DoSection implements ExecutableSection {
     }
 
     private void assertStatusCode(ClientYamlTestResponse restTestResponse) {
-        Tuple<String, org.hamcrest.Matcher<Integer>> stringMatcherTuple = catches.get(catchParam);
+        Tuple<String, org.hamcrest.Matcher<Integer>> stringMatcherTuple = CATCHES.get(catchParam);
         assertThat(formatStatusCodeMessage(restTestResponse, stringMatcherTuple.v1()),
                 restTestResponse.getStatusCode(), stringMatcherTuple.v2());
     }
@@ -502,24 +502,21 @@ public class DoSection implements ExecutableSection {
                 " " + restTestResponse.getReasonPhrase() + "] [" + restTestResponse.getBodyAsString() + "]";
     }
 
-    private static Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> catches = new HashMap<>();
-
-    static {
-        catches.put("bad_request", tuple("400", equalTo(400)));
-        catches.put("unauthorized", tuple("401", equalTo(401)));
-        catches.put("forbidden", tuple("403", equalTo(403)));
-        catches.put("missing", tuple("404", equalTo(404)));
-        catches.put("request_timeout", tuple("408", equalTo(408)));
-        catches.put("conflict", tuple("409", equalTo(409)));
-        catches.put("unavailable", tuple("503", equalTo(503)));
-        catches.put("request", tuple("4xx|5xx", allOf(greaterThanOrEqualTo(400),
-                not(equalTo(400)),
-                not(equalTo(401)),
-                not(equalTo(403)),
-                not(equalTo(404)),
-                not(equalTo(408)),
-                not(equalTo(409)))));
-    }
+    private static final Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> CATCHES = org.elasticsearch.core.Map.ofEntries(
+        entry("bad_request", tuple("400", equalTo(400))),
+        entry("unauthorized", tuple("401", equalTo(401))),
+        entry("forbidden", tuple("403", equalTo(403))),
+        entry("missing", tuple("404", equalTo(404))),
+        entry("request_timeout", tuple("408", equalTo(408))),
+        entry("conflict", tuple("409", equalTo(409))),
+        entry("unavailable", tuple("503", equalTo(503))),
+        entry("request", tuple("4xx|5xx", allOf(greaterThanOrEqualTo(400),
+            not(equalTo(400)),
+            not(equalTo(401)),
+            not(equalTo(403)),
+            not(equalTo(404)),
+            not(equalTo(408)),
+            not(equalTo(409))))));
 
     private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
         switch (name) {

@@ -1134,7 +1134,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private CoordinationMetadata coordinationMetadata = CoordinationMetadata.EMPTY_METADATA;
         private Settings transientSettings = Settings.Builder.EMPTY_SETTINGS;
         private Settings persistentSettings = Settings.Builder.EMPTY_SETTINGS;
-        private DiffableStringMap hashesOfConsistentSettings = new DiffableStringMap(Collections.emptyMap());
+        private DiffableStringMap hashesOfConsistentSettings = DiffableStringMap.EMPTY;
 
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;

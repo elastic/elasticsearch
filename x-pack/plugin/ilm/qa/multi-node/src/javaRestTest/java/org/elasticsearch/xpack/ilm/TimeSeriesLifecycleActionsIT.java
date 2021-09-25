@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
@@ -145,7 +146,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testRetryFreezeDeleteAction() throws Exception {
-        createNewSingletonPolicy(client(), policy, "cold", new FreezeAction());
+        createNewSingletonPolicy(client(), policy, "cold", new FreezeAction(),
+            expectWarnings(TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING));
 
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -423,7 +425,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testFreezeAction() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy(client(), policy, "cold", new FreezeAction());
+        createNewSingletonPolicy(client(), policy, "cold", new FreezeAction(),
+            expectWarnings(TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING));
         updatePolicy(client(), index, policy);
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
@@ -449,7 +452,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .endObject()));
         assertOK(client().performRequest(request));
         // create delete policy
-        createNewSingletonPolicy(client(), policy, "cold", new FreezeAction(), TimeValue.timeValueMillis(0));
+        createNewSingletonPolicy(client(), policy, "cold", new FreezeAction(), TimeValue.timeValueMillis(0),
+            expectWarnings(TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING));
         // create index without policy
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));

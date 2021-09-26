@@ -76,7 +76,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         setStateToKey(currentStepKey);
 
         MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
-            (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey), state -> {});
+            (state, idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey), state -> {});
         ClusterState newState = task.execute(clusterState);
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
         StepKey actualKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
@@ -102,7 +102,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
         setStateToKey(notCurrentStepKey);
         MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
-            (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
+            (state, idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
     }
@@ -114,7 +114,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         setStateToKey(currentStepKey);
         setStatePolicy("not-" + policy);
         MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
-            (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
+            (state, idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
     }

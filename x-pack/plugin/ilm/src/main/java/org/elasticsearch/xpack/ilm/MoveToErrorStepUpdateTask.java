@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
@@ -34,13 +34,13 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     private final Index index;
     private final String policy;
     private final Step.StepKey currentStepKey;
-    private final BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction;
+    private final TriFunction<ClusterState, IndexMetadata, Step.StepKey, Step> stepLookupFunction;
     private final Consumer<ClusterState> stateChangeConsumer;
     private final LongSupplier nowSupplier;
     private final Exception cause;
 
     public MoveToErrorStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Exception cause, LongSupplier nowSupplier,
-                                     BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction,
+                                     TriFunction<ClusterState, IndexMetadata, Step.StepKey, Step> stepLookupFunction,
                                      Consumer<ClusterState> stateChangeConsumer) {
         this.index = index;
         this.policy = policy;

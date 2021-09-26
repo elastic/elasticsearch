@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -36,15 +35,11 @@ import java.util.List;
 
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
-    private final MetadataIndexTemplateService templateService;
-
     @Inject
     public TransportGetLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       MetadataIndexTemplateService metadataIndexTemplateService) {
+                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
             indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
-        this.templateService = metadataIndexTemplateService;
     }
 
     @Override

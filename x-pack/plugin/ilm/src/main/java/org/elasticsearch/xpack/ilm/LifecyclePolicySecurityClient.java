@@ -29,9 +29,9 @@ import java.util.Map;
  */
 public class LifecyclePolicySecurityClient extends AbstractClient {
 
-    private Client client;
-    private Map<String, String> headers;
-    private String origin;
+    private final Client client;
+    private final Map<String, String> headers;
+    private final String origin;
 
     public LifecyclePolicySecurityClient(Client client, String origin, Map<String, String> headers) {
         super(client.settings(), client.threadPool());

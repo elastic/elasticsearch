@@ -126,7 +126,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, threadPool,
             clock, () -> now, null, null, null);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
-        Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
     }
 
     @After
@@ -163,7 +162,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
-        indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());
         assertThat(mockStep.getExecuteCount(), equalTo(0L));
     }
@@ -206,7 +204,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             changedOperationMode.set(true);
             return null;
         }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class));
-        indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertNull(changedOperationMode.get());
     }
@@ -260,7 +257,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             return null;
         }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update {OperationMode STOPPED}"),
             any(OperationModeUpdateTask.class));
-        indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertTrue(changedOperationMode.get());
     }
@@ -314,7 +310,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update {OperationMode STOPPED}"),
             any(OperationModeUpdateTask.class));
 
-        indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());
         assertNull(ranPolicy.get());
         assertTrue(moveToMaintenance.get());

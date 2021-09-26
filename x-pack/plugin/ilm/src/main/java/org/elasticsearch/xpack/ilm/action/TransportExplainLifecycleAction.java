@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.ilm.IndexLifecycleService;
+import org.elasticsearch.xpack.ilm.PolicyStepsRegistry;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -47,16 +47,14 @@ public class TransportExplainLifecycleAction
         extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
 
     private final NamedXContentRegistry xContentRegistry;
-    private final IndexLifecycleService indexLifecycleService;
 
     @Inject
     public TransportExplainLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                           NamedXContentRegistry xContentRegistry, IndexLifecycleService indexLifecycleService) {
+                                           NamedXContentRegistry xContentRegistry) {
         super(ExplainLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, ExplainLifecycleRequest::new,
             indexNameExpressionResolver, ExplainLifecycleResponse::new);
         this.xContentRegistry = xContentRegistry;
-        this.indexLifecycleService = indexLifecycleService;
     }
 
     @Override
@@ -67,8 +65,8 @@ public class TransportExplainLifecycleAction
             IndexMetadata idxMetadata = state.metadata().index(index);
             final IndexLifecycleExplainResponse indexResponse;
             try {
-                indexResponse = getIndexLifecycleExplainResponse(idxMetadata, request.onlyErrors(), request.onlyManaged(),
-                    indexLifecycleService, xContentRegistry);
+                indexResponse = getIndexLifecycleExplainResponse(state, idxMetadata, request.onlyErrors(), request.onlyManaged(),
+                    xContentRegistry);
             } catch (IOException e) {
                 listener.onFailure(new ElasticsearchParseException("failed to parse phase definition for index [" + index + "]", e));
                 return;
@@ -82,8 +80,10 @@ public class TransportExplainLifecycleAction
     }
 
     @Nullable
-    static IndexLifecycleExplainResponse getIndexLifecycleExplainResponse(IndexMetadata indexMetadata, boolean onlyErrors,
-                                                                          boolean onlyManaged, IndexLifecycleService indexLifecycleService,
+    static IndexLifecycleExplainResponse getIndexLifecycleExplainResponse(ClusterState state,
+                                                                          IndexMetadata indexMetadata,
+                                                                          boolean onlyErrors,
+                                                                          boolean onlyManaged,
                                                                           NamedXContentRegistry xContentRegistry) throws IOException {
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
@@ -110,7 +110,7 @@ public class TransportExplainLifecycleAction
         if (Strings.hasLength(policyName)) {
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
             if (onlyErrors == false
-                || (ErrorStep.NAME.equals(lifecycleState.getStep()) || indexLifecycleService.policyExists(policyName) == false)) {
+                || (ErrorStep.NAME.equals(lifecycleState.getStep()) || PolicyStepsRegistry.policyExists(state, policyName) == false)) {
                 Long originationDate = idxSettings.getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
                 indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(indexName, policyName,
                     originationDate != -1L ? originationDate : lifecycleState.getLifecycleDate(),

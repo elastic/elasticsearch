@@ -60,21 +60,22 @@ class IndexLifecycleRunner {
     /**
      * Retrieve the index's current step.
      */
-    static Step getCurrentStep(PolicyStepsRegistry stepRegistry, String policy, IndexMetadata indexMetadata) {
+    static Step getCurrentStep(ClusterState currentState, PolicyStepsRegistry stepRegistry, String policy, IndexMetadata indexMetadata) {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        return getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
+        return getCurrentStep(currentState, stepRegistry, policy, indexMetadata, lifecycleState);
     }
 
-    static Step getCurrentStep(PolicyStepsRegistry stepRegistry,
+    static Step getCurrentStep(ClusterState currentState,
+                               PolicyStepsRegistry stepRegistry,
                                String policy,
                                IndexMetadata indexMetadata,
                                LifecycleExecutionState lifecycleState) {
         StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
         logger.trace("[{}] retrieved current step key: {}", indexMetadata.getIndex().getName(), currentStepKey);
         if (currentStepKey == null) {
-            return stepRegistry.getFirstStep(policy);
+            return stepRegistry.getFirstStep(currentState, policy);
         } else {
-            return stepRegistry.getStep(indexMetadata, currentStepKey);
+            return stepRegistry.getStep(currentState, indexMetadata, currentStepKey);
         }
     }
 
@@ -96,13 +97,14 @@ class IndexLifecycleRunner {
     /**
      * Return true or false depending on whether the index is ready to be in {@code phase}
      */
-    boolean isReadyToTransitionToThisPhase(final String policy, final IndexMetadata indexMetadata, final String phase) {
+    boolean isReadyToTransitionToThisPhase(final ClusterState state, final String policy, final IndexMetadata indexMetadata,
+                                           final String phase) {
         final Long lifecycleDate = calculateOriginationMillis(indexMetadata);
         if (lifecycleDate == null) {
             logger.trace("[{}] no index creation or origination date has been set yet", indexMetadata.getIndex().getName());
             return true;
         }
-        final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
+        final TimeValue after = PolicyStepsRegistry.getIndexAgeForPhase(state, policy, phase);
         final long now = nowSupplier.getAsLong();
         final long ageMillis = now - lifecycleDate;
         final TimeValue age;
@@ -128,19 +130,19 @@ class IndexLifecycleRunner {
      * Run the current step, only if it is an asynchronous wait step. These
      * wait criteria are checked periodically from the ILM scheduler
      */
-    void runPeriodicStep(String policy, Metadata metadata, IndexMetadata indexMetadata) {
+    void runPeriodicStep(ClusterState currentState, String policy, Metadata metadata, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
+            currentStep = getCurrentStep(currentState, stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;
         }
 
         if (currentStep == null) {
-            if (stepRegistry.policyExists(policy) == false) {
+            if (PolicyStepsRegistry.policyExists(currentState, policy) == false) {
                 markPolicyDoesNotExist(policy, indexMetadata.getIndex(), lifecycleState);
                 return;
             } else {
@@ -161,7 +163,7 @@ class IndexLifecycleRunner {
             logger.debug("policy [{}] for index [{}] complete, skipping execution", policy, index);
             return;
         } else if (currentStep instanceof ErrorStep) {
-            onErrorMaybeRetryFailedStep(policy, indexMetadata);
+             onErrorMaybeRetryFailedStep(currentState, policy, indexMetadata);
             return;
         }
 
@@ -175,7 +177,7 @@ class IndexLifecycleRunner {
                 return;
             }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
-            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().getPhase())) {
+            if (isReadyToTransitionToThisPhase(currentState, policy, indexMetadata, currentStep.getNextStepKey().getPhase())) {
                 moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
             }
         } else if (currentStep instanceof AsyncWaitStep) {
@@ -207,10 +209,10 @@ class IndexLifecycleRunner {
      * execution state to the previously failed step, incrementing the retry
      * counter.
      */
-    void onErrorMaybeRetryFailedStep(String policy, IndexMetadata indexMetadata) {
+    void onErrorMaybeRetryFailedStep(ClusterState state, String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        Step failedStep = stepRegistry.getStep(indexMetadata, new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(),
+        Step failedStep = stepRegistry.getStep(state, indexMetadata, new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(),
             lifecycleState.getFailedStep()));
         if (failedStep == null) {
             logger.warn("failed step [{}] for index [{}] is not part of policy [{}] anymore, or it is invalid. skipping execution",
@@ -245,7 +247,7 @@ class IndexLifecycleRunner {
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         if (oldState.equals(newState) == false) {
                             IndexMetadata newIndexMeta = newState.metadata().index(index);
-                            Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);
+                            Step indexMetaCurrentStep = getCurrentStep(newState, stepRegistry, policy, newIndexMeta);
                             StepKey stepKey = indexMetaCurrentStep.getKey();
                             if (stepKey != null && stepKey != TerminalPolicyStep.KEY && newIndexMeta != null) {
                                 logger.trace("policy [{}] for index [{}] was moved back on the failed step for as part of an automatic " +
@@ -268,7 +270,7 @@ class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
+            currentStep = getCurrentStep(currentState, stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;
@@ -324,18 +326,18 @@ class IndexLifecycleRunner {
      * Run the current step that either waits for index age, or updates/waits-on cluster state.
      * Invoked after the cluster state has been changed
      */
-    void runPolicyAfterStateChange(String policy, IndexMetadata indexMetadata) {
+    void runPolicyAfterStateChange(ClusterState currentState, String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
+            currentStep = getCurrentStep(currentState, stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;
         }
         if (currentStep == null) {
-            if (stepRegistry.policyExists(policy) == false) {
+            if (PolicyStepsRegistry.policyExists(currentState, policy) == false) {
                 markPolicyDoesNotExist(policy, indexMetadata.getIndex(), lifecycleState);
                 return;
             } else {
@@ -369,7 +371,7 @@ class IndexLifecycleRunner {
                 return;
             }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
-            if (isReadyToTransitionToThisPhase(policy, indexMetadata, currentStep.getNextStepKey().getPhase())) {
+            if (isReadyToTransitionToThisPhase(currentState,policy, indexMetadata, currentStep.getNextStepKey().getPhase())) {
                 moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
             }
         } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {

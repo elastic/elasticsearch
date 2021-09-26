@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -44,7 +45,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
@@ -67,7 +67,7 @@ public final class IndexLifecycleTransition {
      * Validates that the given transition from {@code currentStepKey} to {@code newStepKey} can be accomplished
      * @throws IllegalArgumentException when the transition is not valid
      */
-    public static void validateTransition(IndexMetadata idxMeta, Step.StepKey currentStepKey,
+    public static void validateTransition(ClusterState state, IndexMetadata idxMeta, Step.StepKey currentStepKey,
                                           Step.StepKey newStepKey, PolicyStepsRegistry stepRegistry) {
         String indexName = idxMeta.getIndex().getName();
         Settings indexSettings = idxMeta.getSettings();
@@ -91,7 +91,8 @@ public final class IndexLifecycleTransition {
 
         // Always allow moving to the terminal step or to a step that's present in the cached phase, even if it doesn't exist in the policy
         if (isNewStepCached == false &&
-            (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false)) {
+            (stepRegistry.stepExists(state, indexPolicySetting, newStepKey) == false
+                && newStepKey.equals(TerminalPolicyStep.KEY) == false)) {
             throw new IllegalArgumentException("step [" + newStepKey + "] for index [" + idxMeta.getIndex().getName() +
                 "] with policy [" + indexPolicySetting + "] does not exist");
         }
@@ -113,7 +114,7 @@ public final class IndexLifecycleTransition {
                                                PolicyStepsRegistry stepRegistry, boolean forcePhaseDefinitionRefresh) {
         IndexMetadata idxMeta = state.getMetadata().index(index);
         Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(LifecycleExecutionState.fromIndexMetadata(idxMeta));
-        validateTransition(idxMeta, currentStepKey, newStepKey, stepRegistry);
+        validateTransition(state, idxMeta, currentStepKey, newStepKey, stepRegistry);
 
         Settings indexSettings = idxMeta.getSettings();
         String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
@@ -135,7 +136,8 @@ public final class IndexLifecycleTransition {
      * action, but use the {@link ErrorStep#NAME} as the name in the lifecycle execution state.
      */
     static ClusterState moveClusterStateToErrorStep(Index index, ClusterState clusterState, Exception cause, LongSupplier nowSupplier,
-                                                    BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction) throws IOException {
+                                                    TriFunction<ClusterState, IndexMetadata,
+                                                    Step.StepKey, Step> stepLookupFunction) throws IOException {
         IndexMetadata idxMeta = clusterState.getMetadata().index(index);
         IndexLifecycleMetadata ilmMeta = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()
@@ -161,7 +163,7 @@ public final class IndexLifecycleTransition {
         LifecycleExecutionState.Builder failedState = LifecycleExecutionState.builder(nextStepState);
         failedState.setFailedStep(currentStep.getName());
         failedState.setStepInfo(BytesReference.bytes(causeXContentBuilder).utf8ToString());
-        Step failedStep = stepLookupFunction.apply(idxMeta, currentStep);
+        Step failedStep = stepLookupFunction.apply(clusterState, idxMeta, currentStep);
 
         if (failedStep != null) {
             // as an initial step we'll mark the failed step as auto retryable without actually looking at the cause to determine
@@ -194,7 +196,7 @@ public final class IndexLifecycleTransition {
         String failedStep = lifecycleState.getFailedStep();
         if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName()) && Strings.isNullOrEmpty(failedStep) == false) {
             Step.StepKey nextStepKey = new Step.StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
-            IndexLifecycleTransition.validateTransition(indexMetadata, currentStepKey, nextStepKey, stepRegistry);
+            IndexLifecycleTransition.validateTransition(currentState, indexMetadata, currentStepKey, nextStepKey, stepRegistry);
             IndexLifecycleMetadata ilmMeta = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
 
             LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()

@@ -11,12 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -48,8 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 public class PolicyStepsRegistry {
@@ -57,93 +51,12 @@ public class PolicyStepsRegistry {
 
     private final Client client;
     private final XPackLicenseState licenseState;
-    // keeps track of existing policies in the cluster state
-    private final SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap;
-    // keeps track of what the first step in a policy is, the key is policy name
-    private final Map<String, Step> firstStepMap;
-    // keeps track of a mapping from policy/step-name to respective Step, the key is policy name
-    private final Map<String, Map<Step.StepKey, Step>> stepMap;
     private final NamedXContentRegistry xContentRegistry;
 
-    public PolicyStepsRegistry(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
-        this(new TreeMap<>(), new HashMap<>(), new HashMap<>(), xContentRegistry, client, licenseState);
-    }
-
-    PolicyStepsRegistry(SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap,
-                        Map<String, Step> firstStepMap, Map<String, Map<Step.StepKey, Step>> stepMap,
-                        NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
-        this.lifecyclePolicyMap = lifecyclePolicyMap;
-        this.firstStepMap = firstStepMap;
-        this.stepMap = stepMap;
+    PolicyStepsRegistry(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.licenseState = licenseState;
-    }
-
-    SortedMap<String, LifecyclePolicyMetadata> getLifecyclePolicyMap() {
-        return lifecyclePolicyMap;
-    }
-
-    Map<String, Step> getFirstStepMap() {
-        return firstStepMap;
-    }
-
-    Map<String, Map<Step.StepKey, Step>> getStepMap() {
-        return stepMap;
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void update(ClusterState clusterState) {
-        final IndexLifecycleMetadata meta = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
-
-        assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";
-
-        Diff<Map<String, LifecyclePolicyMetadata>> diff = DiffableUtils.diff(lifecyclePolicyMap, meta.getPolicyMetadatas(),
-            DiffableUtils.getStringKeySerializer(),
-            // Use a non-diffable value serializer. Otherwise actions in the same
-            // action and phase that are changed show up as diffs instead of upserts.
-            // We want to treat any change in the policy as an upsert so the map is
-            // correctly rebuilt
-            new DiffableUtils.NonDiffableValueSerializer<String, LifecyclePolicyMetadata>() {
-                @Override
-                public void write(LifecyclePolicyMetadata value, StreamOutput out) {
-                    // This is never called
-                    throw new UnsupportedOperationException("should never be called");
-                }
-
-                @Override
-                public LifecyclePolicyMetadata read(StreamInput in, String key) {
-                    // This is never called
-                    throw new UnsupportedOperationException("should never be called");
-                }
-            });
-        DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, DiffableUtils.KeySerializer<String>> mapDiff = (DiffableUtils.MapDiff) diff;
-
-        for (String deletedPolicyName : mapDiff.getDeletes()) {
-            lifecyclePolicyMap.remove(deletedPolicyName);
-            firstStepMap.remove(deletedPolicyName);
-            stepMap.remove(deletedPolicyName);
-        }
-
-        if (mapDiff.getUpserts().isEmpty() == false) {
-            for (LifecyclePolicyMetadata policyMetadata : mapDiff.getUpserts().values()) {
-                LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
-                        policyMetadata.getHeaders());
-                lifecyclePolicyMap.put(policyMetadata.getName(), policyMetadata);
-                List<Step> policyAsSteps = policyMetadata.getPolicy().toSteps(policyClient, licenseState);
-                if (policyAsSteps.isEmpty() == false) {
-                    firstStepMap.put(policyMetadata.getName(), policyAsSteps.get(0));
-                    final Map<Step.StepKey, Step> stepMapForPolicy = new LinkedHashMap<>();
-                    for (Step step : policyAsSteps) {
-                        assert ErrorStep.NAME.equals(step.getKey().getName()) == false : "unexpected error step in policy";
-                        stepMapForPolicy.put(step.getKey(), step);
-                    }
-                    logger.trace("updating cached steps for [{}] policy, new steps: {}",
-                        policyMetadata.getName(), stepMapForPolicy.keySet());
-                    stepMap.put(policyMetadata.getName(), stepMapForPolicy);
-                }
-            }
-        }
     }
 
     /**
@@ -155,9 +68,10 @@ public class PolicyStepsRegistry {
         if (metadata.hasIndex(index) == false) {
             throw new IllegalArgumentException("index " + index + " does not exist in the current cluster state");
         }
+        final IndexLifecycleMetadata meta = metadata.custom(IndexLifecycleMetadata.TYPE);
         final IndexMetadata indexMetadata = metadata.index(index);
         final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
-        final LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policyName);
+        final LifecyclePolicyMetadata policyMetadata = meta.getPolicyMetadatas().get(policyName);
         if (policyMetadata == null) {
             throw new IllegalArgumentException("the policy [" + policyName + "] for index" + index + " does not exist");
         }
@@ -202,9 +116,10 @@ public class PolicyStepsRegistry {
         return PhaseCacheManagement.readStepKeys(xContentRegistry, client, phaseDef, currentPhase, licenseState);
     }
 
-    private List<Step> parseStepsFromPhase(String policy, String currentPhase, String phaseDef) throws IOException {
+    private List<Step> parseStepsFromPhase(ClusterState state, String policy, String currentPhase, String phaseDef) throws IOException {
         final PhaseExecutionInfo phaseExecutionInfo;
-        LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policy);
+        final IndexLifecycleMetadata meta = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+        LifecyclePolicyMetadata policyMetadata = meta.getPolicyMetadatas().get(policy);
         if (policyMetadata == null) {
             throw new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist");
         }
@@ -226,8 +141,8 @@ public class PolicyStepsRegistry {
             }
             policyToExecute = new LifecyclePolicy(currentPolicy.getType(), currentPolicy.getName(), phaseMap, currentPolicy.getMetadata());
         }
-        LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client,
-            ClientHelper.INDEX_LIFECYCLE_ORIGIN, lifecyclePolicyMap.get(policy).getHeaders());
+        LifecyclePolicySecurityClient policyClient =
+            new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, policyMetadata.getHeaders());
         final List<Step> steps = policyToExecute.toSteps(policyClient, licenseState);
         // Build a list of steps that correspond with the phase the index is currently in
         final List<Step> phaseSteps;
@@ -244,7 +159,7 @@ public class PolicyStepsRegistry {
     }
 
     @Nullable
-    public Step getStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
+    public Step getStep(final ClusterState currentState, final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
         if (ErrorStep.NAME.equals(stepKey.getName())) {
             return new ErrorStep(new Step.StepKey(stepKey.getPhase(), stepKey.getAction(), ErrorStep.NAME));
         }
@@ -263,7 +178,7 @@ public class PolicyStepsRegistry {
 
         final List<Step> phaseSteps;
         try {
-            phaseSteps = parseStepsFromPhase(policyName, phase, phaseJson);
+            phaseSteps = parseStepsFromPhase(currentState, policyName, phase, phaseJson);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load cached steps for " + stepKey, e);
         } catch (XContentParseException parseErr) {
@@ -282,7 +197,26 @@ public class PolicyStepsRegistry {
     /**
      * Given a policy and stepkey, return true if a step exists, false otherwise
      */
-    public boolean stepExists(final String policy, final Step.StepKey stepKey) {
+    public boolean stepExists(final ClusterState state, final String policy, final Step.StepKey stepKey) {
+        final IndexLifecycleMetadata meta = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+        final LifecyclePolicyMetadata policyMetadata = meta.getPolicyMetadatas().get(policy);
+        if (policyMetadata == null) {
+            return false;
+        }
+        LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+            policyMetadata.getHeaders());
+        final List<Step> policyAsSteps = meta.getPolicies().get(policy).toSteps(policyClient, licenseState);
+        final Map<String, Map<Step.StepKey, Step>> stepMap = new HashMap<>();
+        if (policyAsSteps.isEmpty() == false) {
+            final Map<Step.StepKey, Step> stepMapForPolicy = new LinkedHashMap<>();
+            for (Step step : policyAsSteps) {
+                assert ErrorStep.NAME.equals(step.getKey().getName()) == false : "unexpected error step in policy";
+                stepMapForPolicy.put(step.getKey(), step);
+            }
+            logger.trace("updating cached steps for [{}] policy, new steps: {}",
+                policyMetadata.getName(), stepMapForPolicy.keySet());
+            stepMap.put(policyMetadata.getName(), stepMapForPolicy);
+        }
         Map<Step.StepKey, Step> steps = stepMap.get(policy);
         if (steps == null) {
             return false;
@@ -291,20 +225,34 @@ public class PolicyStepsRegistry {
         }
     }
 
-    public boolean policyExists(final String policy) {
-        return lifecyclePolicyMap.containsKey(policy);
+    public static boolean policyExists(final ClusterState currentState, final String policy) {
+        final IndexLifecycleMetadata ilmMeta = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        return ilmMeta.getPolicies().containsKey(policy);
     }
 
-    public Step getFirstStep(String policy) {
-        return firstStepMap.get(policy);
+    @Nullable
+    public Step getFirstStep(ClusterState currentState, String policy) {
+        final IndexLifecycleMetadata ilmMeta = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        final LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(policy);
+        if (policyMetadata == null) {
+            return null;
+        }
+        LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+            policyMetadata.getHeaders());
+        final List<Step> steps = ilmMeta.getPolicies().get(policy).toSteps(policyClient, licenseState);
+        if (steps.isEmpty()) {
+            return  null;
+        }
+        return steps.get(0);
     }
 
-    public TimeValue getIndexAgeForPhase(final String policy, final String phase) {
+    public static TimeValue getIndexAgeForPhase(ClusterState currentState, final String policy, final String phase) {
         // These built in phases should never wait
         if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(phase) || TerminalPolicyStep.COMPLETED_PHASE.equals(phase)) {
             return TimeValue.ZERO;
         }
-        final LifecyclePolicyMetadata meta = lifecyclePolicyMap.get(policy);
+        final IndexLifecycleMetadata ilmMeta = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        final LifecyclePolicyMetadata meta = ilmMeta.getPolicyMetadatas().get(policy);
         if (meta == null) {
             throw new IllegalArgumentException("no policy found with name \"" + policy + "\"");
         } else {

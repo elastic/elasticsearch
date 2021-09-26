@@ -1,6 +1,11 @@
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
+
+task deleteTestFolder (type: Delete) {
+  delete "build/rest/rest-api-spec/test"
+}
+
 /* List of files that have snippets that probably should be converted to
  * `// CONSOLE` and `// TESTRESPONSE` but have yet to be converted. Try and
  * only remove entries from this list. When it is empty we'll remove it
@@ -14,6 +19,8 @@ tasks.named("buildRestTests").configure {
           'en/rest-api/watcher/stats.asciidoc',
           'en/watcher/example-watches/watching-time-series-data.asciidoc',
   ]
+
+  dependsOn deleteTestFolder
 }
 
 dependencies {

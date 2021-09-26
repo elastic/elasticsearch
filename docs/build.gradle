@@ -33,6 +33,10 @@ ext.docsFileTree = fileTree(projectDir) {
   }
 }
 
+task deleteTestFolder (type: Delete) {
+  delete "build/rest/rest-api-spec/test"
+}
+
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 tasks.named("buildRestTests").configure {
   expectedUnconvertedCandidates = [
@@ -51,6 +55,8 @@ tasks.named("buildRestTests").configure {
           'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
           'reference/ml/anomaly-detection/apis/update-job.asciidoc'
   ]
+
+  dependsOn deleteTestFolder
 }
 
 restResources {

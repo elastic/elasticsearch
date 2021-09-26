@@ -117,3 +117,50 @@ no partitioning:
                 mode: time_series
                 shards: 5
                 routing_partition_size: 2
+
+---
+set start_time and end_time:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              time_series:
+                start_time: 1632625782000
+                end_time: 1632625792000
+
+  - do:
+      indices.put_settings:
+        index: test_index
+        body:
+          index:
+            time_series:
+              start_time: 1632625781000
+              end_time: 1632625793000
+
+  - do:
+      catch: /index.time_series.start_time must be smaller than pre value \[1632625781000\]/
+      indices.put_settings:
+        index: test_index
+        body:
+          index:
+            time_series:
+              start_time: 1632625783000
+
+  - do:
+      catch: /index.time_series.end_time must be larger than pre value \[1632625793000\]/
+      indices.put_settings:
+        index: test_index
+        body:
+          index:
+            time_series:
+              end_time: 1632625792000
+
+  - do:
+      indices.delete:
+        index: test_index

@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.testclusters;
 import org.gradle.api.Action;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Nested;
 
 import java.util.Collection;
@@ -29,6 +30,10 @@ public interface TestClustersAware extends Task {
                 .forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
         cluster.getNodes().all(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
         getClusters().add(cluster);
+    }
+
+    default void useCluster(Provider<ElasticsearchCluster> cluster) {
+        useCluster(cluster.get());
     }
 
     default void beforeStart() {}

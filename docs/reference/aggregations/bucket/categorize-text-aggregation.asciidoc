@@ -218,7 +218,12 @@ category results
 }
 --------------------------------------------------
 
-Here is an example using `categorization_filters`
+Here is an example using `categorization_filters`.
+The default analyzer is a whitespace analyzer with a custom token filter
+which filters out tokens that start with any number.
+But, it may be that a token is a known highly-variable token (formatted usernames, emails, etc.). In that case, it is good to supply
+custom `categorization_filters` to filter out those tokens for better categories. These filters will also reduce memory usage as fewer
+tokens are held in memory for the categories.
 
 [source,console]
 --------------------------------------------------
@@ -266,7 +271,8 @@ and merging the log groups.
 }
 --------------------------------------------------
 
-This aggregation can have both sub-aggregations and itself be a sub-aggregation.
+This aggregation can have both sub-aggregations and itself be a sub-aggregation. This allows gathering the top daily categories and the
+top sample doc as below.
 
 [source,console]
 --------------------------------------------------

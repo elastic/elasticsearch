@@ -12,10 +12,10 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -75,27 +74,25 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         this.fieldType = fieldType;
         CategorizationAnalyzerConfig analyzerConfig = Optional.ofNullable(categorizationAnalyzerConfig)
             .orElse(CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(Collections.emptyList()));
-        String analyzer = analyzerConfig.getAnalyzer();
-        final boolean shouldClose;
-        final Analyzer innerAnalyzer;
-        if (analyzer != null) {
-            Analyzer globalAnalyzer = context.getNamedAnalyzer(analyzer);
+        final String analyzerName = analyzerConfig.getAnalyzer();
+        if (analyzerName != null) {
+            Analyzer globalAnalyzer = context.getNamedAnalyzer(analyzerName);
             if (globalAnalyzer == null) {
-                throw new IllegalArgumentException("Failed to find global analyzer [" + analyzer + "]");
+                throw new IllegalArgumentException("Failed to find global analyzer [" + analyzerName + "]");
             }
-            innerAnalyzer = globalAnalyzer;
-            shouldClose = false;
+            this.analyzer = new CategorizationAnalyzer(globalAnalyzer, false);
         } else {
-            innerAnalyzer = context.buildCustomAnalyzer(
-                context.getIndexSettings(),
-                false,
-                analyzerConfig.getTokenizer(),
-                analyzerConfig.getCharFilters(),
-                analyzerConfig.getTokenFilters()
+            this.analyzer = new CategorizationAnalyzer(
+                context.buildCustomAnalyzer(
+                    context.getIndexSettings(),
+                    false,
+                    analyzerConfig.getTokenizer(),
+                    analyzerConfig.getCharFilters(),
+                    analyzerConfig.getTokenFilters()
+                ),
+                true
             );
-            shouldClose = true;
         }
-        this.analyzer = new CategorizationAnalyzer(innerAnalyzer, shouldClose);
         this.categorizers = bigArrays().newObjectArray(1);
         this.maxUniqueTokens = maxUniqueTokens;
         this.maxMatchTokens = maxMatchTokens;
@@ -108,13 +105,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     @Override
     protected void doClose() {
         super.doClose();
-        this.analyzer.close();
-        try {
-            this.bytesRefHash.close();
-        } catch (IOException ex) {
-            //TODO Should we just eat the exception?
-            throw new UncheckedIOException(ex);
-        }
+        Releasables.close(this.analyzer, this.bytesRefHash);
     }
 
     @Override
@@ -176,14 +167,19 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
-            private final BytesRefBuilder scratch = new BytesRefBuilder();
-
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                collectFromSource(doc, owningBucketOrd);
+                categorizers = bigArrays().grow(categorizers, owningBucketOrd + 1);
+                CategorizationTokenTree categorizer = categorizers.get(owningBucketOrd);
+                if (categorizer == null) {
+                    categorizer = new CategorizationTokenTree(maxUniqueTokens, maxMatchTokens, similarityThreshold);
+                    addRequestCircuitBreakerBytes(categorizer.ramBytesUsed());
+                    categorizers.set(owningBucketOrd, categorizer);
+                }
+                collectFromSource(doc, owningBucketOrd, categorizer);
             }
 
-            private void collectFromSource(int doc, long owningBucketOrd) throws IOException {
+            private void collectFromSource(int doc, long owningBucketOrd, CategorizationTokenTree categorizer) throws IOException {
                 sourceLookup.setSegmentAndDocument(ctx, doc);
                 Iterator<String> itr = sourceLookup.extractRawValues(sourceFieldName).stream().map(obj -> {
                     if (obj == null) {
@@ -196,11 +192,16 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 }).iterator();
                 while (itr.hasNext()) {
                     TokenStream ts = analyzer.tokenStream(fieldType.name(), itr.next());
-                    processTokenStream(owningBucketOrd, ts, doc);
+                    processTokenStream(owningBucketOrd, ts, doc, categorizer);
                 }
             }
 
-            private void processTokenStream(long owningBucketOrd, TokenStream ts, int doc) throws IOException {
+            private void processTokenStream(
+                long owningBucketOrd,
+                TokenStream ts,
+                int doc,
+                CategorizationTokenTree categorizer
+            ) throws IOException {
                 ArrayList<Integer> tokens = new ArrayList<>();
                 try {
                     CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
@@ -213,13 +214,6 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                     }
                 } finally {
                     ts.close();
-                }
-                categorizers = bigArrays().grow(categorizers, owningBucketOrd + 1);
-                CategorizationTokenTree categorizer = categorizers.get(owningBucketOrd);
-                if (categorizer == null) {
-                    categorizer = new CategorizationTokenTree(maxUniqueTokens, maxMatchTokens, similarityThreshold);
-                    addRequestCircuitBreakerBytes(categorizer.ramBytesUsed());
-                    categorizers.set(owningBucketOrd, categorizer);
                 }
                 long previousSize = categorizer.ramBytesUsed();
                 TextCategorization lg = categorizer.parseLogLine(

@@ -13,8 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-
 import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash.WILD_CARD_ID;
 import static org.elasticsearch.xpack.ml.aggs.categorization.TextCategorizationTests.getTokens;
 import static org.elasticsearch.xpack.ml.aggs.categorization.TextCategorizationTests.mockBigArrays;
@@ -23,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 
 public class InnerTreeNodeTests extends ESTestCase {
 
-    private final TreeNodeFactory factory = new CategorizationTokenTree(3, 4, 60);
+    private final CategorizationTokenTree factory = new CategorizationTokenTree(3, 4, 60);
     private CategorizationBytesRefHash bytesRefHash;
 
     @Before
@@ -32,7 +30,7 @@ public class InnerTreeNodeTests extends ESTestCase {
     }
 
     @After
-    public void closeRefHash() throws IOException {
+    public void closeRefHash() {
         bytesRefHash.close();
     }
 

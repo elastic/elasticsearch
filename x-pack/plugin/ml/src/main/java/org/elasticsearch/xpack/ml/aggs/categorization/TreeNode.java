@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -37,8 +35,6 @@ import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytes
  */
 abstract class TreeNode implements Accountable {
 
-    private static final Logger LOGGER = LogManager.getLogger(TreeNode.class);
-
     private long count;
 
     TreeNode(long count) {
@@ -58,7 +54,7 @@ abstract class TreeNode implements Accountable {
     }
 
     // TODO add option for calculating the cost of adding the new group
-    abstract TextCategorization addLog(int[] logTokenIds, long docCount, TreeNodeFactory treeNodeFactory);
+    abstract TextCategorization addLog(int[] logTokenIds, long docCount, CategorizationTokenTree treeNodeFactory);
 
     abstract TextCategorization getLogGroup(int[] logTokens);
 
@@ -79,6 +75,7 @@ abstract class TreeNode implements Accountable {
             }
         }
 
+        @Override
         public boolean isLeaf() {
             return true;
         }
@@ -111,7 +108,7 @@ abstract class TreeNode implements Accountable {
         }
 
         @Override
-        public TextCategorization addLog(int[] logTokenIds, long docCount, TreeNodeFactory treeNodeFactory) {
+        public TextCategorization addLog(int[] logTokenIds, long docCount, CategorizationTokenTree treeNodeFactory) {
             return getAndUpdateLogGroup(logTokenIds, docCount).orElseGet(() -> {
                 // Need to update the tree if possible
                 return putNewLogGroup(treeNodeFactory.newGroup(docCount, logTokenIds));
@@ -198,6 +195,7 @@ abstract class TreeNode implements Accountable {
             this.smallestChild = new PriorityQueue<>(maxChildren, Comparator.comparing(NativeLongPair::count));
         }
 
+        @Override
         boolean isLeaf() {
             return false;
         }
@@ -222,7 +220,7 @@ abstract class TreeNode implements Accountable {
         }
 
         @Override
-        public TextCategorization addLog(final int[] logTokenIds, final long docCount, final TreeNodeFactory treeNodeFactory) {
+        public TextCategorization addLog(final int[] logTokenIds, final long docCount, final CategorizationTokenTree treeNodeFactory) {
             final long currentToken = logTokenIds[childrenTokenPos];
             TreeNode child = getChild(currentToken).map(node -> {
                 node.incCount(docCount);
@@ -390,10 +388,6 @@ abstract class TreeNode implements Accountable {
         NativeLongPair(long tokenId, long count) {
             this.tokenId = tokenId;
             this.count = count;
-        }
-
-        public long tokenId() {
-            return tokenId;
         }
 
         public long count() {

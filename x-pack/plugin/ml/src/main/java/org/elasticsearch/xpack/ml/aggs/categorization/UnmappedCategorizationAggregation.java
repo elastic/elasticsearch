@@ -31,11 +31,11 @@ class UnmappedCategorizationAggregation extends InternalCategorizationAggregatio
     public InternalCategorizationAggregation create(List<Bucket> buckets) {
         return new UnmappedCategorizationAggregation(
             name,
-            requiredSize,
-            minDocCount,
-            maxUniqueTokens,
-            maxMatchTokens,
-            similarityThreshold,
+            getRequiredSize(),
+            getMinDocCount(),
+            getMaxUniqueTokens(),
+            getMaxMatchTokens(),
+            getSimilarityThreshold(),
             super.metadata
         );
     }
@@ -49,11 +49,11 @@ class UnmappedCategorizationAggregation extends InternalCategorizationAggregatio
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         return new UnmappedCategorizationAggregation(
             name,
-            requiredSize,
-            minDocCount,
-            maxUniqueTokens,
-            maxMatchTokens,
-            similarityThreshold,
+            getRequiredSize(),
+            getMinDocCount(),
+            getMaxUniqueTokens(),
+            getMaxMatchTokens(),
+            getSimilarityThreshold(),
             super.metadata
         );
     }

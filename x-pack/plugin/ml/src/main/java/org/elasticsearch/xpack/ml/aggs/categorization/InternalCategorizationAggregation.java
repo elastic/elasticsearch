@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -193,6 +192,13 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         }
 
         @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            key.writeTo(out);
+            out.writeVLong(getDocCount());
+            aggregations.writeTo(out);
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
@@ -228,13 +234,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            key.writeTo(out);
-            out.writeVLong(getDocCount());
-            aggregations.writeTo(out);
-        }
-
-        @Override
         public String toString() {
             return "Bucket{" + "key=" + getKeyAsString() + ", docCount=" + docCount + ", aggregations=" + aggregations.asMap() + "}\n";
         }
@@ -247,11 +246,11 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     private final List<Bucket> buckets;
-    protected final int maxUniqueTokens;
-    protected final int similarityThreshold;
-    protected final int maxMatchTokens;
-    protected final int requiredSize;
-    protected final long minDocCount;
+    private final int maxUniqueTokens;
+    private final int similarityThreshold;
+    private final int maxMatchTokens;
+    private final int requiredSize;
+    private final long minDocCount;
 
     protected InternalCategorizationAggregation(
         String name,
@@ -295,6 +294,26 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeVInt(maxUniqueTokens);
+        out.writeVInt(maxMatchTokens);
+        out.writeVInt(similarityThreshold);
+        out.writeList(buckets);
+        writeSize(requiredSize, out);
+        out.writeVLong(minDocCount);
+    }
+
+    @Override
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.startArray(CommonFields.BUCKETS.getPreferredName());
+        for (Bucket bucket : buckets) {
+            bucket.toXContent(builder, params);
+        }
+        builder.endArray();
+        return builder;
+    }
+
+    @Override
     public InternalCategorizationAggregation create(List<Bucket> buckets) {
         return new InternalCategorizationAggregation(
             name,
@@ -329,16 +348,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(maxUniqueTokens);
-        out.writeVInt(maxMatchTokens);
-        out.writeVInt(similarityThreshold);
-        out.writeList(buckets);
-        writeSize(requiredSize, out);
-        out.writeVLong(minDocCount);
-    }
-
-    @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         try (CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()))) {
             CategorizationTokenTree categorizationTokenTree = new CategorizationTokenTree(
@@ -367,12 +376,12 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             categorizationTokenTree.mergeSmallestChildren();
             Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>();
             for (DelayedCategorizationBucket delayedBucket : reduced.values()) {
-                TextCategorization group = categorizationTokenTree.parseLogLineConst(hash.getIds(delayedBucket.key.keyAsTokens()));
-                if (group == null) {
-                    throw new AggregationExecutionException(
-                        "Unexpected null categorization group for bucket [" + delayedBucket.key.asString() + "]"
+                TextCategorization group = categorizationTokenTree.parseLogLineConst(hash.getIds(delayedBucket.key.keyAsTokens()))
+                    .orElseThrow(
+                        () -> new AggregationExecutionException(
+                            "Unexpected null categorization group for bucket [" + delayedBucket.key.asString() + "]"
+                        )
                     );
-                }
                 BytesRef[] categoryTokens = hash.getDeeps(group.getCategorization());
 
                 BucketKey key = reduceContext.isFinalReduce() ?
@@ -419,18 +428,26 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 metadata,
                 Arrays.asList(bucketList)
             );
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
         }
     }
 
-    @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(CommonFields.BUCKETS.getPreferredName());
-        for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
+    public int getMaxUniqueTokens() {
+        return maxUniqueTokens;
+    }
+
+    public int getSimilarityThreshold() {
+        return similarityThreshold;
+    }
+
+    public int getMaxMatchTokens() {
+        return maxMatchTokens;
+    }
+
+    public int getRequiredSize() {
+        return requiredSize;
+    }
+
+    public long getMinDocCount() {
+        return minDocCount;
     }
 }

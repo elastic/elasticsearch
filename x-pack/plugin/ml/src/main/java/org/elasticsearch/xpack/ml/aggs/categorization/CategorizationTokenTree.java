@@ -15,14 +15,13 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 
 /**
  * Categorized semi-structured text utilizing the drain algorithm: https://arxiv.org/pdf/1806.04356.pdf
- * With the following key differntiators
+ * With the following key differences
  *  - This structure keeps track of the "smallest" sub-tree. So, instead of naively adding a new "*" node, the smallest sub-tree
  *    is transformed if the incoming token has a higher doc_count.
  *  - Additionally, similarities are weighted, which allows for nicer merging of existing log categories
@@ -51,13 +50,13 @@ import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
  * If the similarityThreshold was less than 0.6, the result would be a single category [Node is *]
  *
  */
-public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
+public class CategorizationTokenTree implements Accountable {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CategorizationTokenTree.class);
     private final int maxMatchTokens;
     private final int maxUniqueTokens;
     private final int similarityThreshold;
-    private final AtomicLong idGen = new AtomicLong();
-    // TODO statically allocate an array like DuplicateByteSequenceSpotter ???
+    private long idGenerator;
     private final Map<Integer, TreeNode> root = new HashMap<>();
     private long sizeInBytes;
 
@@ -66,12 +65,7 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
         this.maxUniqueTokens = maxUniqueTokens;
         this.maxMatchTokens = maxMatchTokens;
         this.similarityThreshold = similarityThreshold;
-        this.sizeInBytes = Integer.BYTES // maxDepth
-            + Integer.BYTES // maxChildren
-            + Double.BYTES // similarityThreshold
-            + NUM_BYTES_OBJECT_REF + Long.BYTES // idGen
-            + NUM_BYTES_OBJECT_REF // tree map
-            + Long.BYTES; // sizeInBytes
+        this.sizeInBytes = SHALLOW_SIZE;
     }
 
     public List<InternalCategorizationAggregation.Bucket> toIntermediateBuckets(CategorizationBytesRefHash hash) {
@@ -95,18 +89,26 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
         root.values().forEach(TreeNode::collapseTinyChildren);
     }
 
-    public TextCategorization parseLogLine(final int[] logTokenIds) {
-        return parseLogLine(logTokenIds, 1);
-    }
-
-    public TextCategorization parseLogLineConst(final int[] logTokenIds) {
+    /**
+     * This method does not mutate the underlying structure. Meaning, if a matching categories isn't found, it may return empty.
+     *
+     * @param logTokenIds The tokens to categorize
+     * @return The log category or `Optional.empty()` if one doesn't exist
+     */
+    public Optional<TextCategorization> parseLogLineConst(final int[] logTokenIds) {
         TreeNode currentNode = this.root.get(logTokenIds.length);
         if (currentNode == null) { // we are missing an entire sub tree. New log length found
-            return null;
+            return Optional.empty();
         }
-        return currentNode.getLogGroup(logTokenIds);
+        return Optional.ofNullable(currentNode.getLogGroup(logTokenIds));
     }
 
+    /**
+     * This categorizes the passed tokens, potentially mutating the structure by expanding an existing category or adding a new one.
+     * @param logTokenIds The log tokens to categorize
+     * @param docCount The count of docs for the given tokens
+     * @return An existing categorization or a newly created one
+     */
     public TextCategorization parseLogLine(final int[] logTokenIds, long docCount) {
         TreeNode currentNode = this.root.get(logTokenIds.length);
         if (currentNode == null) { // we are missing an entire sub tree. New log length found
@@ -118,8 +120,7 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
         return currentNode.addLog(logTokenIds, docCount, this);
     }
 
-    @Override
-    public TreeNode newNode(long docCount, int tokenPos, int[] logTokenIds) {
+    TreeNode newNode(long docCount, int tokenPos, int[] logTokenIds) {
         TreeNode node = tokenPos < maxMatchTokens - 1 && tokenPos < logTokenIds.length
             ? new TreeNode.InnerTreeNode(docCount, tokenPos, maxUniqueTokens)
             : new TreeNode.LeafTreeNode(docCount, similarityThreshold);
@@ -128,9 +129,8 @@ public class CategorizationTokenTree implements Accountable, TreeNodeFactory {
         return node;
     }
 
-    @Override
-    public TextCategorization newGroup(long docCount, int[] logTokenIds) {
-        TextCategorization group = new TextCategorization(logTokenIds, docCount, idGen.incrementAndGet());
+    TextCategorization newGroup(long docCount, int[] logTokenIds) {
+        TextCategorization group = new TextCategorization(logTokenIds, docCount, idGenerator++);
         // Get the regular size bytes from the LogGroup and how much it costs to reference it
         sizeInBytes += group.ramBytesUsed() + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
         return group;

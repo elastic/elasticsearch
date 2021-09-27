@@ -12,8 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-
 import static org.elasticsearch.xpack.ml.aggs.categorization.TextCategorizationTests.getTokens;
 import static org.elasticsearch.xpack.ml.aggs.categorization.TextCategorizationTests.mockBigArrays;
 import static org.hamcrest.Matchers.equalTo;
@@ -22,7 +20,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class LeafTreeNodeTests extends ESTestCase {
 
-    private final TreeNodeFactory factory = new CategorizationTokenTree(10, 10, 60);
+    private final CategorizationTokenTree factory = new CategorizationTokenTree(10, 10, 60);
 
     private CategorizationBytesRefHash bytesRefHash;
 
@@ -32,7 +30,7 @@ public class LeafTreeNodeTests extends ESTestCase {
     }
 
     @After
-    public void closeRefHash() throws IOException {
+    public void closeRefHash() {
         bytesRefHash.close();
     }
 

@@ -10,14 +10,18 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
-import java.io.Closeable;
-import java.io.IOException;
+class CategorizationBytesRefHash implements Releasable {
 
-class CategorizationBytesRefHash implements Closeable {
-
+    /**
+     * Our special wild card value.
+     */
     static final BytesRef WILD_CARD_REF = new BytesRef("*");
+    /**
+     * For all WILD_CARD references, the token ID is always -1
+     */
     static final int WILD_CARD_ID = -1;
     private final BytesRefHash bytesRefHash;
 
@@ -73,7 +77,7 @@ class CategorizationBytesRefHash implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         bytesRefHash.close();
     }
 }

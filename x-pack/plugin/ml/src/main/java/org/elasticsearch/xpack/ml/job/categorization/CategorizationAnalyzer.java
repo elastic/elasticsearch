@@ -10,6 +10,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
@@ -25,7 +26,7 @@ import java.util.List;
  * Converts messages to lists of tokens that will be fed to the ML categorization algorithm.
  *
  */
-public class CategorizationAnalyzer implements Closeable {
+public class CategorizationAnalyzer implements Closeable, Releasable {
 
     private final Analyzer analyzer;
     private final boolean closeAnalyzer;

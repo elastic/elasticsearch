@@ -21,6 +21,7 @@ import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytes
  */
 class TextCategorization implements Accountable {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TextCategorization.class);
     private final long id;
     private final int[] categorization;
     private final long[] tokenCounts;
@@ -81,12 +82,9 @@ class TextCategorization implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return Long.BYTES // id
-            + RamUsageEstimator.NUM_BYTES_OBJECT_REF // categorization reference
+        return SHALLOW_SIZE
             + RamUsageEstimator.sizeOf(categorization) // categorization token Ids
-            + RamUsageEstimator.NUM_BYTES_OBJECT_REF // tokenCounts reference
-            + RamUsageEstimator.sizeOf(tokenCounts) // tokenCounts
-            + Long.BYTES; // count
+            + RamUsageEstimator.sizeOf(tokenCounts); // tokenCounts
     }
 
     static class Similarity implements Comparable<Similarity> {

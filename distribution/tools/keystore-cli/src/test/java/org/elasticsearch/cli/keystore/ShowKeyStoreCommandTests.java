@@ -39,7 +39,9 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testErrorOnMissingParameter() throws Exception {
-        createKeystore("");
+        final String password = getPossibleKeystorePassword();
+        createKeystore(password);
+        terminal.addSecretInput(password);
         final UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertThat(e.getMessage(), containsString("Must provide a single setting name to show"));

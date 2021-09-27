@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
@@ -66,8 +67,8 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
         }
         if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
             && currentState.equals(SecurityIndexManager.State.UNRECOVERED_STATE) == false
-            && securityIndexManager.indexExists() == false) {
-
+            && securityIndexManager.indexExists() == false
+            && XPackSettings.ENROLLMENT_ENABLED.get(environment.settings())) {
             GroupedActionListener<String> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(results -> {
                 String password = null;
                 String token = null;

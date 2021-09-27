@@ -50,7 +50,7 @@ public class ZeroShotClassificationConfigTests extends InferenceConfigItemTestCa
 
     public static ZeroShotClassificationConfig createRandom() {
         return new ZeroShotClassificationConfig(
-            randomFrom(List.of("entailment", "neutral", "contradiction"), List.of("entailment", "neutral", "contradiction")),
+            randomFrom(List.of("entailment", "neutral", "contradiction"), List.of("contradiction", "neutral", "entailment")),
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean() ? null : BertTokenizationTests.createRandom(),
             randomAlphaOfLength(10),

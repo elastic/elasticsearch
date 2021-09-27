@@ -121,9 +121,10 @@ public class ZeroShotClassificationConfig implements NlpConfig {
             .collect(Collectors.toList());
         if (badLabels.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] must contain exactly the three values {}",
+                "[{}] must contain exactly the three values {}. Invalid labels {}",
                 CLASSIFICATION_LABELS.getPreferredName(),
-                REQUIRED_CLASSIFICATION_LABELS
+                REQUIRED_CLASSIFICATION_LABELS,
+                badLabels
             );
         }
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)

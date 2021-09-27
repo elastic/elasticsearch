@@ -53,11 +53,6 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
         this.labels = Optional.ofNullable(config.getLabels()).orElse(List.of()).toArray(String[]::new);
         this.hypothesisTemplate = config.getHypothesisTemplate();
         this.isMultiLabel = config.isMultiLabel();
-        validate();
-    }
-
-    private void validate() {
-
     }
 
     @Override
@@ -142,7 +137,7 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
         @Override
         public InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
             if (pyTorchResult.getInferenceResult().length < 1) {
-                return new WarningInferenceResults("Text classification result has no data");
+                return new WarningInferenceResults("Zero shot classification result has no data");
             }
             // TODO only the first entry in the batch result is verified and
             // checked. Implement for all in batch

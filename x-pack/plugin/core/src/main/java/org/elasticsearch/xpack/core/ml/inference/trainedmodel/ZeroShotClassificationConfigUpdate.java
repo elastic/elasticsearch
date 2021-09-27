@@ -131,7 +131,7 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
 
     boolean isNoop(ZeroShotClassificationConfig originalConfig) {
         return (labels == null || labels.equals(originalConfig.getClassificationLabels()))
-            && (isMultiLabel == null || originalConfig.isMultiLabel() == isMultiLabel);
+            && (isMultiLabel == null || isMultiLabel.equals(originalConfig.isMultiLabel()));
     }
 
     @Override

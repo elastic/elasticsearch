@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -75,6 +76,7 @@ public class ReservedRealmTests extends ESTestCase {
         usersStore = mock(NativeUsersStore.class);
         securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
         mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -88,6 +90,8 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(invalidAlgoId));
         assertThat(exception.getMessage(), containsString("Invalid algorithm"));
     }
+
+    // TODO check Reserved Realm auto config hash error
 
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
         final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME, UsernamesField.LOGSTASH_NAME,
@@ -432,8 +436,9 @@ public class ReservedRealmTests extends ESTestCase {
         mockSecureSettings.setString("bootstrap.password", password);
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
         when(securityIndex.indexExists()).thenReturn(false);
+        NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, mock(NodeClient.class), securityIndex);
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, nativeUsersStore,
             new AnonymousUser(Settings.EMPTY), threadPool);
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 

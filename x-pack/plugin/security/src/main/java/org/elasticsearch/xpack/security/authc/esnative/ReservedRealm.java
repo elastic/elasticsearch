@@ -64,8 +64,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     // we do not document this setting on the website because it mustn't be set by the users
     // it is only set by various installation scripts
-    // TODO validate that it is not empty
-    // TODO validate that hash is recognized
     public static final Setting<SecureString> AUTOCONFIG_ELASTIC_PASSWORD_HASH =
         SecureSetting.secureString("autoconfiguration.password_hash", null);
 
@@ -140,7 +138,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                                 hashCleanupListener.onResponse(AuthenticationResult.success(user));
                             }
                         } else {
-                            hashCleanupListener.onResponse(AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]"));
+                            hashCleanupListener.onResponse(AuthenticationResult.terminate("failed to authenticate user [" +
+                                token.principal() + "]"));
                         }
                     }
                 } else {

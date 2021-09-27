@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Collection;
 import java.util.Collections;

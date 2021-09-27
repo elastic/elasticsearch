@@ -176,7 +176,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
                     @Override
                     public void addClosedListener(ClosedListener listener) {
-                        closedListeners.add(listener);
+                        closedListeners.add(Objects.requireNonNull(listener));
                     }
                 });
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
@@ -288,7 +288,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
         super.closeNoLock(reason, closedLatch);
         synchronized(closedListeners) {
             IOUtils.closeWhileHandlingException(
-                closedListeners.stream().filter(Objects::nonNull).map(t -> (Closeable) () -> t.onClose(cacheIdentity))::iterator);
+                closedListeners.stream().map(t -> (Closeable) () -> t.onClose(cacheIdentity))::iterator);
+            closedListeners.clear();
         }
     }
 

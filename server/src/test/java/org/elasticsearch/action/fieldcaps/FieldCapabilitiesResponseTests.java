@@ -51,7 +51,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         return FieldCapabilitiesResponse::new;
     }
 
-    private FieldCapabilitiesIndexResponse createRandomIndexResponse() {
+    static FieldCapabilitiesIndexResponse createRandomIndexResponse() {
         Map<String, IndexFieldCapabilities> responses = new HashMap<>();
 
         String[] fields = generateRandomStringArray(5, 10, false, true);

@@ -29,7 +29,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -298,9 +297,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(2, response.getFailedIndices().length);
         assertThat(response.getFailures().get(0).getIndices(), arrayContainingInAnyOrder("index1-error", "index2-error"));
         Exception failure = response.getFailures().get(0).getException();
-        assertEquals(RemoteTransportException.class, failure.getClass());
-        assertEquals(IllegalArgumentException.class, failure.getCause().getClass());
-        assertEquals("I throw because I choose to.", failure.getCause().getMessage());
+        assertEquals(IllegalArgumentException.class, failure.getClass());
+        assertEquals("I throw because I choose to.", failure.getMessage());
 
         // the "indices" section should not include failed ones
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder("old_index", "new_index"));

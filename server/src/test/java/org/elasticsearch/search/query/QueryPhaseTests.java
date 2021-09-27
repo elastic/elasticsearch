@@ -726,23 +726,26 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 2. Test sort optimization on long field with after
         {
+            SortField longField = new SortField(fieldNameLong, SortField.Type.LONG);
+            longField.setMissingValue(Long.MAX_VALUE);
             TestSearchContext searchContext = new TestSearchContext(
                 searchExecutionContext, indexShard, newContextSearcher(reader));
             int afterDoc = (int) randomLongBetween(0, 30);
             long afterValue = startLongValue + afterDoc;
             FieldDoc after = new FieldDoc(afterDoc, Float.NaN, new Long[] {afterValue});
             searchContext.searchAfter(after);
-            searchContext.sort(formatsLong);
+            searchContext.sort(new SortAndFormats(new Sort(longField), new DocValueFormat[]{DocValueFormat.RAW}));
             searchContext.parsedQuery(query);
             searchContext.setTask(task);
             searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
-            assertTrue(searchContext.sort().sort.getSort()[0].getCanUsePoints());
+            assertFalse(searchContext.sort().sort.getSort()[0].getCanUsePoints());
             final TopDocs topDocs = searchContext.queryResult().topDocs().topDocs;
             long firstResult = (long) ((FieldDoc) topDocs.scoreDocs[0]).fields[0];
             assertThat(firstResult, greaterThan(afterValue));
-            assertSortResults(topDocs, numDocs, false);
+            assertThat(topDocs.totalHits.value, equalTo((long)numDocs));
+            // assertSortResults(topDocs, numDocs, false);
         }
 
         // 3. Test sort optimization on long field + date field

@@ -116,7 +116,7 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
             }
 
             if (percent == previousPercent) {
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.AGGREGATIONS,
                     "percents",
                     "percent [{}] has been specified more than once, percents must be unique",

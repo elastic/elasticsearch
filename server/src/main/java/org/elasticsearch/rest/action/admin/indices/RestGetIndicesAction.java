@@ -62,7 +62,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         // starting with 7.0 we don't include types by default in the response to GET requests
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) && request.method().equals(GET)) {
-            deprecationLogger.deprecate(DeprecationCategory.TYPES, "get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.TYPES, "get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         final GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(indices);

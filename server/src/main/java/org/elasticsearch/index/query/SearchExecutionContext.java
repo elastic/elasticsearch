@@ -412,7 +412,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappedFieldType buildAnonymousFieldType(String type) {
         if (type.equals("string")) {
-            deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "unmapped_type_string",
+            deprecationLogger.critical(DeprecationCategory.MAPPINGS, "unmapped_type_string",
                 "[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
             type = "keyword";
         }

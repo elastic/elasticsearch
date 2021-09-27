@@ -89,7 +89,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index("foofoo"));
         }
         PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-        RequestInfo requestInfo = new RequestInfo(authentication, indicesAliasesRequest, action);
+        RequestInfo requestInfo = new RequestInfo(authentication, indicesAliasesRequest, action, null);
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         doAnswer(invocationOnMock -> {
             ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
@@ -135,7 +135,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-            RequestInfo requestInfo = new RequestInfo(authentication, indicesAliasesRequest, action);
+            RequestInfo requestInfo = new RequestInfo(authentication, indicesAliasesRequest, action, null);
             doAnswer(invocationOnMock -> {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.deny());
@@ -163,7 +163,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
 
         {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-            RequestInfo requestInfo = new RequestInfo(authentication, successRequest, action);
+            RequestInfo requestInfo = new RequestInfo(authentication, successRequest, action, null);
             doAnswer(invocationOnMock -> {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.granted());

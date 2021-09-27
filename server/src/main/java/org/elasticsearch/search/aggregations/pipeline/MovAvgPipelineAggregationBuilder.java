@@ -291,7 +291,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
         Integer predict = null;
         Boolean minimize = null;
 
-        DEPRECATION_LOGGER.deprecate(
+        DEPRECATION_LOGGER.critical(
             DeprecationCategory.AGGREGATIONS,
             "moving_avg_aggregation",
             "The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation."

@@ -642,7 +642,7 @@ public abstract class InternalOrder extends BucketOrder {
             }
             // _term and _time order deprecated in 6.0; replaced by _key
             if ("_term".equals(orderKey) || "_time".equals(orderKey)) {
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.AGGREGATIONS,
                     "aggregation_order_key",
                     "Deprecated aggregation order key [{}] used, replaced by [_key]",

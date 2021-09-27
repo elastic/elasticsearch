@@ -114,6 +114,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<Boolean> dimension;
 
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
@@ -124,6 +125,20 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
+
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
+                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + hasDocValues.name
+                            + "] are true"
+                    );
+                }
+            }).precludesParameters(normalizer, ignoreAbove);
         }
 
         public Builder(String name) {
@@ -150,6 +165,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder dimension(boolean dimension) {
+            this.dimension.setValue(dimension);
+            return this;
+        }
+
         private FieldValues<String> scriptValues() {
             if (script.get() == null) {
                 return null;
@@ -165,7 +185,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         protected List<Parameter<?>> getParameters() {
             return Arrays.asList(indexed, hasDocValues, stored, nullValue, eagerGlobalOrdinals, ignoreAbove,
                 indexOptions, hasNorms, similarity, normalizer, splitQueriesOnWhitespace,
-                script, onScriptError, boost, meta);
+                script, onScriptError, boost, meta, dimension);
         }
 
         private KeywordFieldType buildFieldType(MapperBuilderContext context, FieldType fieldType) {
@@ -211,6 +231,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final NamedAnalyzer normalizer;
         private final boolean eagerGlobalOrdinals;
         private final FieldValues<String> scriptValues;
+        private final boolean isDimension;
 
         public KeywordFieldType(String name, FieldType fieldType,
                                 NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, NamedAnalyzer quoteAnalyzer,
@@ -227,6 +248,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
+            this.isDimension = builder.dimension.getValue();
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
@@ -236,6 +258,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
+            this.isDimension = false;
         }
 
         public KeywordFieldType(String name) {
@@ -252,6 +275,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
+            this.isDimension = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -261,6 +285,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
+            this.isDimension = false;
         }
 
         @Override
@@ -408,7 +433,16 @@ public final class KeywordFieldMapper extends FieldMapper {
             return ignoreAbove;
         }
 
+        /**
+         * @return true if field has been marked as a dimension field
+         */
+        public boolean isDimension() {
+            return isDimension;
+        }
     }
+
+    /** The maximum keyword length allowed for a dimension field */
+    private static final int DIMENSION_MAX_BYTES = 1024;
 
     private final boolean indexed;
     private final boolean hasDocValues;
@@ -423,7 +457,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final Script script;
     private final FieldValues<String> scriptValues;
     private final ScriptCompiler scriptCompiler;
-
+    private final boolean dimension;
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -446,6 +480,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.scriptValues = builder.scriptValues();
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
+        this.dimension = builder.dimension.getValue();
     }
 
     @Override
@@ -487,9 +522,24 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
+        if (dimension && binaryValue.length > DIMENSION_MAX_BYTES) {
+            throw new IllegalArgumentException(
+                "Dimension field [" + fieldType().name() + "] cannot be more than [" + DIMENSION_MAX_BYTES + "] bytes long."
+            );
+        }
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            context.doc().add(field);
+            if (dimension) {
+                // Check that a dimension field is single-valued and not an array
+                if (context.doc().getByKey(fieldType().name()) != null) {
+                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+                }
+                // Add dimension field with key so that we ensure it is single-valued.
+                // Dimension fields are always indexed.
+                context.doc().addWithKey(fieldType().name(), field);
+            } else {
+                context.doc().add(field);
+            }
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
@@ -534,7 +584,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers, scriptCompiler).init(this);
+        return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
     }
 
 }

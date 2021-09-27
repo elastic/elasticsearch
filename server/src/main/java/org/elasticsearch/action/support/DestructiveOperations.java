@@ -85,7 +85,7 @@ public final class DestructiveOperations {
 
     private void checkWildCardOK() {
         if (this.isDestructiveRequiresNameSet == false) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SETTINGS,
                 "destructive_requires_name_default",
                 DESTRUCTIVE_REQUIRES_NAME_DEPRECATION_WARNING

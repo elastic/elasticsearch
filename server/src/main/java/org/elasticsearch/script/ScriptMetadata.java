@@ -208,10 +208,10 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
 
                         if (source.getSource().isEmpty()) {
                             if (source.getLang().equals(Script.DEFAULT_TEMPLATE_LANG)) {
-                                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "empty_templates",
+                                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "empty_templates",
                                     "empty templates should no longer be used");
                             } else {
-                                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "empty_scripts",
+                                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "empty_scripts",
                                     "empty scripts should no longer be used");
                             }
                         }

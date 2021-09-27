@@ -50,7 +50,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
             DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecate(DeprecationCategory.TYPES, "create_index_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.TYPES, "create_index_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));

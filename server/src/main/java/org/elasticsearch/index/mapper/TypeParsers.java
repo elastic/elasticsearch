@@ -88,7 +88,7 @@ public class TypeParsers {
                                           MappingParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("fields")) {
             if (parserContext.isWithinMultiField()) {
-                deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "multifield_within_multifield",
+                deprecationLogger.critical(DeprecationCategory.MAPPINGS, "multifield_within_multifield",
                     "At least one multi-field, [" + name + "], was " +
                     "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
                     "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +

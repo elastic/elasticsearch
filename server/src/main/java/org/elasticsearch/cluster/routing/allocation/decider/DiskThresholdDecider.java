@@ -84,7 +84,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 @Override
                 public void validate(Boolean value, Map<Setting<?>, Object> settings, boolean isPresent) {
                     if (value == Boolean.FALSE && isPresent) {
-                        deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "watermark_enable_for_single_data_node",
+                        deprecationLogger.critical(DeprecationCategory.SETTINGS, "watermark_enable_for_single_data_node",
                             "setting [{}=false] is deprecated and will not be available in a future version",
                             ENABLE_FOR_SINGLE_DATA_NODE.getKey());
                     }

@@ -1162,7 +1162,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     if (parsedSize != -1) {
                         size(parsedSize);
                     } else {
-                        deprecationLogger.deprecate(
+                        deprecationLogger.critical(
                             DeprecationCategory.API,
                             "search-api-size-1",
                             "Using search size of -1 is deprecated and will be removed in future versions. "
@@ -1217,7 +1217,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         scriptFields.add(new ScriptField(parser));
                     }
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecate(DeprecationCategory.API, "indices_boost_object_format",
+                    deprecationLogger.critical(DeprecationCategory.API, "indices_boost_object_format",
                         "Object format in indices_boost is deprecated, please use array format instead");
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {

@@ -245,7 +245,7 @@ public class TransportService extends AbstractLifecycleComponent
         if (PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS) {
             logger.warn("transport handshakes from incompatible builds are unsafely permitted on this node; remove system property [" +
                     PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] to resolve this warning");
-            DeprecationLogger.getLogger(TransportService.class).deprecate(DeprecationCategory.OTHER,
+            DeprecationLogger.getLogger(TransportService.class).critical(DeprecationCategory.OTHER,
                 "permit_handshake_from_incompatible_builds",
                 "system property [" + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] is deprecated and should be removed");
         }

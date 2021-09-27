@@ -309,7 +309,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     private void logDeprecationWarningForFreezeAction(Collection<Phase> phases) {
         if (phases.stream().anyMatch(phase -> phase.getActions().containsKey(FreezeAction.NAME))) {
-            deprecationLogger.deprecate(DeprecationCategory.OTHER, "ilm_freee_action", FREEZE_ACTION_DEPRECATION_WARNING);
+            deprecationLogger.critical(DeprecationCategory.OTHER, "ilm_freee_action", FREEZE_ACTION_DEPRECATION_WARNING);
         }
     }
 

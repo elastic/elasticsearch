@@ -117,7 +117,7 @@ public class RestGraphAction extends XPackRestHandler {
         }
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate(DeprecationCategory.TYPES, "graph_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.TYPES, "graph_with_types", TYPES_DEPRECATION_MESSAGE);
             graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
         return channel -> client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));

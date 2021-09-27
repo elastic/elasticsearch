@@ -44,8 +44,8 @@ testClusters.configureEach {
     user username: 'admin', password: 'admin-password', role: 'superuser'
 }
 
-tasks.withType(RunTask).configureEach {
-  jvmArgs '-Xms8g', '-Xmx8g'
+def runTaskCluster = testClusters.register('runTask') {
+    jvmArgs '-Xms8g', '-Xmx8g'
 }
 
 tasks.named('javaRestTest').configure {
@@ -57,6 +57,6 @@ tasks.named('javaRestTest').configure {
 }
 
 tasks.register("runEqlCorrectnessNode", RunTask) {
-  useCluster testClusters.named('runTask')
+  useCluster runTaskCluster
   description = 'Runs elasticsearch in the foreground with gcs plugin and keystore credentials'
 }

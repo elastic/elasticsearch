@@ -94,7 +94,7 @@ The following conditions apply for restoring snapshots and indices across versio
 The one caveat is that snapshots taken by {es} 2.0 can be restored in clusters running {es} 5.0.
 ====
 
-ifeval::["{release-state}"=="unreleased"]
+ifeval::["{release-state}"!="unreleased"]
 [[snapshot-prerelease-build-compatibility]]
 NOTE: This documentation is for {es} {version} which is not yet released. The
 compatibility table above applies only to snapshots taken in a released version

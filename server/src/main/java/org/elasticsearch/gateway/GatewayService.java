@@ -11,14 +11,12 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -28,9 +26,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -62,14 +59,16 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     private final int recoverAfterDataNodes;
     private final int expectedDataNodes;
 
-    private final Runnable recoveryRunnable;
-
     private final AtomicBoolean recoveryInProgress = new AtomicBoolean();
     private final AtomicBoolean scheduledRecovery = new AtomicBoolean();
 
     @Inject
-    public GatewayService(final Settings settings, final AllocationService allocationService, final ClusterService clusterService,
-                          final ThreadPool threadPool, final Discovery discovery, final NodeClient client) {
+    public GatewayService(
+        final Settings settings,
+        final AllocationService allocationService,
+        final ClusterService clusterService,
+        final ThreadPool threadPool
+    ) {
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -83,15 +82,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             recoverAfterTime = null;
         }
         this.recoverAfterDataNodes = RECOVER_AFTER_DATA_NODES_SETTING.get(settings);
-
-        if (discovery instanceof Coordinator) {
-            recoveryRunnable = () ->
-                    clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask());
-        } else {
-            final Gateway gateway = new Gateway(clusterService, client);
-            recoveryRunnable = () ->
-                    gateway.performStateRecovery(new GatewayRecoveryListener());
-        }
     }
 
     @Override
@@ -169,7 +159,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                     protected void doRun() {
                         if (recoveryInProgress.compareAndSet(false, true)) {
                             logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
-                            recoveryRunnable.run();
+                            runRecovery();
                         }
                     }
                 }, recoverAfterTime, ThreadPool.Names.GENERIC);
@@ -186,7 +176,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                     @Override
                     protected void doRun() {
                         logger.debug("performing state recovery...");
-                        recoveryRunnable.run();
+                        runRecovery();
                     }
                 });
             }
@@ -236,31 +226,12 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         }
     }
 
-    class GatewayRecoveryListener implements Gateway.GatewayStateRecoveredListener {
-
-        @Override
-        public void onSuccess(final ClusterState recoveredState) {
-            logger.trace("successful state recovery, importing cluster state...");
-            clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask() {
-                @Override
-                public ClusterState execute(final ClusterState currentState) {
-                    final ClusterState updatedState = ClusterStateUpdaters.mixCurrentStateAndRecoveredState(currentState, recoveredState);
-                    return super.execute(ClusterStateUpdaters.recoverClusterBlocks(updatedState));
-                }
-            });
-        }
-
-        @Override
-        public void onFailure(final String msg) {
-            logger.info("state recovery failed: {}", msg);
-            resetRecoveredFlags();
-        }
-
-    }
-
     // used for testing
     TimeValue recoverAfterTime() {
         return recoverAfterTime;
     }
 
+    private void runRecovery() {
+        clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask());
+    }
 }

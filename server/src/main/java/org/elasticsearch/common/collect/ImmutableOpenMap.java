@@ -152,6 +152,12 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             public int size() {
                 return map.size();
             }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean contains(Object o) {
+                return map.containsKey((KType) o);
+            }
         };
     }
 

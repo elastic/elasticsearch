@@ -117,7 +117,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testEmptyKeySetWorks() {
-        assertThat(ImmutableOpenMap.of().keySet().size(), equalTo(0L));
+        assertThat(ImmutableOpenMap.of().keySet().size(), equalTo(0));
     }
 
     private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {

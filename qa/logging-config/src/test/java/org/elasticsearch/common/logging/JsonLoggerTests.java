@@ -90,7 +90,6 @@ public class JsonLoggerTests extends ESTestCase {
                 allOf(
                     hasEntry("level", "WARN"),
                     hasEntry("component", "o.e.d.test"),
-//                    hasEntry("category", "other"), fix this..
                     hasEntry("message", "deprecated warn message1")
                     ))
             );

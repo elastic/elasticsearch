@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,6 +45,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * A realm for predefined users. These users can only be modified in terms of changing their passwords; no other modifications are allowed.
@@ -57,21 +58,26 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     public static final String NAME = "reserved";
 
     private final ReservedUserInfo bootstrapUserInfo;
+    private final ReservedUserInfo autoconfigUserInfo;
     public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password",
             KeyStoreWrapper.SEED_SETTING);
-    public static final Setting<SecureString> AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH =
-        SecureSetting.secureString("autoconfig.password_hash", null);
+
+    // we do not document this setting on the website because it mustn't be set by the users
+    // it is only set by various installation scripts
+    // TODO validate that it is not empty
+    // TODO validate that hash is recognized
+    public static final Setting<SecureString> AUTOCONFIG_ELASTIC_PASSWORD_HASH =
+        SecureSetting.secureString("autoconfiguration.password_hash", null);
 
     private final NativeUsersStore nativeUsersStore;
     private final AnonymousUser anonymousUser;
     private final boolean realmEnabled;
     private final boolean anonymousEnabled;
-    private final SecurityIndexManager securityIndex;
 
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
-                         SecurityIndexManager securityIndex, ThreadPool threadPool) {
+                         ThreadPool threadPool) {
         super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, NAME),
             Settings.builder()
                 .put(settings)
@@ -81,11 +87,21 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
-        this.securityIndex = securityIndex;
-        final Hasher reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
-        final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? new char[0] :
-            reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
-        bootstrapUserInfo = new ReservedUserInfo(hash, true);
+        if (AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(settings) && false == BOOTSTRAP_ELASTIC_PASSWORD.exists(settings)) {
+            char[] autoconfigPasswordHash = AUTOCONFIG_ELASTIC_PASSWORD_HASH.get(settings).getChars();
+            if (autoconfigPasswordHash.length == 0 || Set.of(Hasher.SHA1, Hasher.MD5, Hasher.SSHA256, Hasher.NOOP)
+                .contains(Hasher.resolveFromHash(autoconfigPasswordHash))) {
+                throw new IllegalArgumentException("Invalid password hash for elastic user auto configuration");
+            }
+            autoconfigUserInfo = new ReservedUserInfo(autoconfigPasswordHash, true);
+            bootstrapUserInfo = null;
+        } else {
+            autoconfigUserInfo = null;
+            final Hasher reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+            final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? new char[0] :
+                reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
+            bootstrapUserInfo = new ReservedUserInfo(hash, true);
+        }
     }
 
     @Override
@@ -95,29 +111,42 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         } else if (ClientReservedRealm.isReserved(token.principal(), config.settings()) == false) {
             listener.onResponse(AuthenticationResult.notHandled());
         } else {
-            getUserInfo(token.principal(), ActionListener.wrap((userInfo) -> {
-                AuthenticationResult result;
+            getUserInfo(token.principal(), (userInfo) -> {
                 if (userInfo != null) {
-                    try {
-                        if (userInfo.hasEmptyPassword()) {
-                            result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
-                        } else if (userInfo.verifyPassword(token.credentials())) {
+                    if (userInfo.hasEmptyPassword()) {
+                        listener.onResponse(AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]"));
+                    } else {
+                        ActionListener<AuthenticationResult> hashCleanupListener = ActionListener.runBefore(listener, () -> {
+                            if (userInfo != null && userInfo != bootstrapUserInfo && userInfo != autoconfigUserInfo) {
+                                Arrays.fill(userInfo.passwordHash, (char) 0);
+                            }
+                        });
+                        if (userInfo.verifyPassword(token.credentials())) {
                             final User user = getUser(token.principal(), userInfo);
                             logDeprecatedUser(user);
-                            result = AuthenticationResult.success(user);
+                            // promote the auto-configured password as the elastic user password
+                            if (userInfo == autoconfigUserInfo) {
+                                nativeUsersStore.createElasticUser(userInfo.passwordHash, ActionListener.wrap(aVoid -> {
+                                    hashCleanupListener.onResponse(AuthenticationResult.success(user));
+                                }, e -> {
+                                    // exceptionally, we must propagate a 500 or a 503 error if the auto config password hash
+                                    // can't be promoted as the elastic user password, otherwise, such errors will
+                                    // implicitly translate to 401s, which is wrong because the presented password was successfully
+                                    // verified by the auto-config hash; the client must retry the request.
+                                    listener.onFailure(Exceptions.authenticationProcessError("failed to promote the auto-configured " +
+                                        "elastic password hash", e));
+                                }));
+                            } else {
+                                hashCleanupListener.onResponse(AuthenticationResult.success(user));
+                            }
                         } else {
-                            result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
+                            hashCleanupListener.onResponse(AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]"));
                         }
-                    } finally {
-                        assert userInfo.passwordHash != bootstrapUserInfo.passwordHash : "bootstrap user info must be cloned";
-                        Arrays.fill(userInfo.passwordHash, (char) 0);
                     }
                 } else {
-                    result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
+                    listener.onResponse(AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]"));
                 }
-                // we want the finally block to clear out the chars before we proceed further so we handle the result here
-                listener.onResponse(result);
-            }, listener::onFailure));
+            });
         }
     }
 
@@ -134,14 +163,14 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         } else if (AnonymousUser.isAnonymousUsername(username, config.settings())) {
             listener.onResponse(anonymousEnabled ? anonymousUser : null);
         } else {
-            getUserInfo(username, ActionListener.wrap((userInfo) -> {
+            getUserInfo(username, (userInfo) -> {
                 if (userInfo != null) {
                     listener.onResponse(getUser(username, userInfo));
                 } else {
                     // this was a reserved username - don't allow this to go to another realm...
                     listener.onFailure(Exceptions.authenticationError("failed to lookup user [{}]", username));
                 }
-            }, listener::onFailure));
+            });
         }
     }
 
@@ -211,23 +240,18 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-
-    private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
-        if (securityIndex.indexExists() == false) {
-            listener.onResponse(getDefaultUserInfo(username));
-        } else {
-            nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
-                if (userInfo == null) {
-                    listener.onResponse(getDefaultUserInfo(username));
-                } else {
-                    listener.onResponse(userInfo);
-                }
-            }, (e) -> {
-                logger.error((Supplier<?>) () ->
-                        new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
-                listener.onResponse(null);
-            }));
-        }
+    private void getUserInfo(final String username, Consumer<ReservedUserInfo> consumer) {
+        nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
+            if (userInfo == null) {
+                consumer.accept(getDefaultUserInfo(username));
+            } else {
+                consumer.accept(userInfo);
+            }
+        }, (e) -> {
+            logger.error((Supplier<?>) () ->
+                new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
+            consumer.accept(null);
+        }));
     }
 
     private void logDeprecatedUser(final User user){
@@ -242,7 +266,13 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private ReservedUserInfo getDefaultUserInfo(String username) {
         if (ElasticUser.NAME.equals(username)) {
-            return bootstrapUserInfo.deepClone();
+            if (autoconfigUserInfo != null) {
+                assert bootstrapUserInfo == null;
+                return autoconfigUserInfo;
+            } else {
+                assert bootstrapUserInfo != null;
+                return bootstrapUserInfo;
+            }
         } else {
             return ReservedUserInfo.defaultEnabledUserInfo();
         }
@@ -250,5 +280,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static void addSettings(List<Setting<?>> settingsList) {
         settingsList.add(BOOTSTRAP_ELASTIC_PASSWORD);
+        settingsList.add(AUTOCONFIG_ELASTIC_PASSWORD_HASH);
     }
 }

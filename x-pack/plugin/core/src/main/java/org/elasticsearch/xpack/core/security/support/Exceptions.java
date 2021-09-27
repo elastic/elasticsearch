@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
+import org.elasticsearch.ElasticsearchAuthenticationProcessException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -33,5 +35,13 @@ public class Exceptions {
 
     public static ElasticsearchSecurityException authorizationError(String msg, Exception cause, Object... args) {
         return new ElasticsearchSecurityException(msg, RestStatus.FORBIDDEN, cause, args);
+    }
+
+    public static ElasticsearchAuthenticationProcessException authenticationProcessError(String msg, Exception cause, Object... args) {
+        RestStatus restStatus = RestStatus.SERVICE_UNAVAILABLE;
+        if (RestStatus.INTERNAL_SERVER_ERROR == ExceptionsHelper.status(ExceptionsHelper.unwrapCause(cause))) {
+            restStatus = RestStatus.INTERNAL_SERVER_ERROR;
+        }
+        return new ElasticsearchAuthenticationProcessException(msg, restStatus, cause, args);
     }
 }

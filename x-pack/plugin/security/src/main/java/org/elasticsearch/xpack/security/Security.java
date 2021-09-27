@@ -503,8 +503,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
-        final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore,
-                anonymousUser, securityIndex.get(), threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore, anonymousUser, threadPool);
         final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(environment, client, clusterService,
             resourceWatcherService, nativeRoleMappingStore);
         Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,

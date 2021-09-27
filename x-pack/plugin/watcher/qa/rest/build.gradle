@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
@@ -21,7 +21,7 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
@@ -53,4 +53,3 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
     "Test webhook action with mustache integration")
 
 })
-

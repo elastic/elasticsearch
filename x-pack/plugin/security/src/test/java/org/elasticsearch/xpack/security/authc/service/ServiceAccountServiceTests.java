@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -21,22 +19,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesRequest;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesRequest;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesResponse;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
@@ -44,13 +39,11 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -82,7 +75,6 @@ public class ServiceAccountServiceTests extends ESTestCase {
     private FileServiceAccountTokenStore fileServiceAccountTokenStore;
     private IndexServiceAccountTokenStore indexServiceAccountTokenStore;
     private ServiceAccountService serviceAccountService;
-    private Transport transport;
 
     @Before
     @SuppressForbidden(reason = "Allow accessing localhost")
@@ -94,25 +86,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
         when(indexServiceAccountTokenStore.getTokenSource()).thenReturn(TokenInfo.TokenSource.INDEX);
         final Settings.Builder builder = Settings.builder()
             .put("xpack.security.enabled", true);
-        transport = mock(Transport.class);
-        final TransportAddress transportAddress;
-        if (randomBoolean()) {
-            transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
-        } else {
-            transportAddress = new TransportAddress(InetAddress.getLocalHost(), 9300);
-        }
-        if (randomBoolean()) {
-            builder.put("xpack.security.http.ssl.enabled", true);
-        } else {
-            builder.put("discovery.type", "single-node");
-        }
-        when(transport.boundAddress()).thenReturn(
-            new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        serviceAccountService = new ServiceAccountService(client,
-            fileServiceAccountTokenStore, indexServiceAccountTokenStore,
-            new HttpTlsRuntimeCheck(builder.build(), new SetOnce<>(transport)));
+        serviceAccountService = new ServiceAccountService(client, fileServiceAccountTokenStore, indexServiceAccountTokenStore);
     }
 
     @After
@@ -534,53 +510,6 @@ public class ServiceAccountServiceTests extends ESTestCase {
         assertThat(response.getPrincipal(), equalTo(accountId.asPrincipal()));
         assertThat(response.getNodesResponse(), is(fileTokensResponse));
         assertThat(response.getIndexTokenInfos(), equalTo(indexTokenInfos));
-    }
-
-    public void testTlsRequired() {
-        final Settings settings = Settings.builder()
-            .put("xpack.security.http.ssl.enabled", false)
-            .build();
-        final TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
-        when(transport.boundAddress()).thenReturn(
-            new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
-
-        final ServiceAccountService service = new ServiceAccountService(client,
-            fileServiceAccountTokenStore,indexServiceAccountTokenStore,
-            new HttpTlsRuntimeCheck(settings, new SetOnce<>(transport)));
-
-        final PlainActionFuture<Authentication> future1 = new PlainActionFuture<>();
-        service.authenticateToken(mock(ServiceAccountToken.class), randomAlphaOfLengthBetween(3, 8), future1);
-        final ElasticsearchException e1 = expectThrows(ElasticsearchException.class, future1::actionGet);
-        assertThat(e1.getMessage(), containsString("[service account authentication] requires TLS for the HTTP interface"));
-
-        final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
-        final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
-        final Authentication authentication = new Authentication(mock(User.class),
-            new Authentication.RealmRef(
-                ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE,
-                randomAlphaOfLengthBetween(3, 8)),
-            null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.TOKEN,
-            Map.of("_token_name", randomAlphaOfLengthBetween(3, 8), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
-        service.getRoleDescriptor(authentication, future2);
-        final ElasticsearchException e2 = expectThrows(ElasticsearchException.class, future2::actionGet);
-        assertThat(e2.getMessage(), containsString("[service account role descriptor resolving] requires TLS for the HTTP interface"));
-
-        final PlainActionFuture<CreateServiceAccountTokenResponse> future3 = new PlainActionFuture<>();
-        service.createIndexToken(authentication, mock(CreateServiceAccountTokenRequest.class), future3);
-        final ElasticsearchException e3 = expectThrows(ElasticsearchException.class, future3::actionGet);
-        assertThat(e3.getMessage(), containsString("[create index-backed service token] requires TLS for the HTTP interface"));
-
-        final PlainActionFuture<Boolean> future4 = new PlainActionFuture<>();
-        service.deleteIndexToken(mock(DeleteServiceAccountTokenRequest.class), future4);
-        final ElasticsearchException e4 = expectThrows(ElasticsearchException.class, future4::actionGet);
-        assertThat(e4.getMessage(), containsString("[delete index-backed service token] requires TLS for the HTTP interface"));
-
-        final PlainActionFuture<GetServiceAccountCredentialsResponse> future5 = new PlainActionFuture<>();
-        service.findTokensFor(mock(GetServiceAccountCredentialsRequest.class), future5);
-        final ElasticsearchException e5 = expectThrows(ElasticsearchException.class, future5::actionGet);
-        assertThat(e5.getMessage(), containsString("[find service tokens] requires TLS for the HTTP interface"));
     }
 
     private SecureString createBearerString(List<byte[]> bytesList) throws IOException {

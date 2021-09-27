@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -24,6 +23,7 @@ import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
@@ -430,7 +430,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
-     * <p>
+     *
      * @param splitLeavesIntoSeparateAggregators If true this creates a new {@link Aggregator}
      *          for each leaf as though it were a separate index. If false this aggregates
      *          all leaves together, like we do in production.

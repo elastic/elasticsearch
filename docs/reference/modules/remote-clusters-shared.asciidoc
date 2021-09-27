@@ -12,7 +12,7 @@ h| Remote cluster | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
 | 7.1->7.x      | {no-icon} | {no-icon} | {no-icon} | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon}
 |====
 
-ifeval::["{release-state}"!="unreleased"]
+ifeval::["{release-state}"!="released"]
 NOTE: This documentation is for {es} {version} which is not yet released. The
 compatibility table above applies if either the local or the remote cluster is
 running a released version of {es}. A local cluster running a pre-release build

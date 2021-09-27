@@ -87,7 +87,7 @@ When upgrading to a new version of {es}, you need to upgrade each
 of the products in your Elastic Stack. For more information, see the
 {stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
 
-ifeval::["{release-state}"!="unreleased"]
+ifeval::["{release-state}"!="released"]
 [[upgrade-pre-release]]
 NOTE: This documentation is for {es} {version} which is not yet released. You
 may run a pre-release build of {es} for testing, and you may upgrade from an

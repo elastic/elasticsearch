@@ -109,6 +109,53 @@ class IndicesAndAliasesResolver {
         return resolveIndicesAndAliases(action, (IndicesRequest) request, metadata, authorizedIndices);
     }
 
+    boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {
+        if (indicesRequest instanceof IndicesAliasesRequest) {
+            return true;
+        } else {
+            return indicesRequest instanceof IndicesRequest.Replaceable;
+        }
+    }
+
+    ResolvedIndices resolveIndicesAndAliases(String action, IndicesRequest indicesRequest) {
+        assert false == requiresWildcardExpansion(indicesRequest) : "indices must not require wildcard expansion";
+        final String[] indices = indicesRequest.indices();
+        if (indices == null || indices.length == 0) {
+            throw new IllegalArgumentException("the action " + action + " requires explicit index names, but none were provided");
+        }
+        if (IndexNameExpressionResolver.isAllIndices(Arrays.asList(indices))) {
+            throw new IllegalArgumentException(
+                "the action "
+                    + action
+                    + " does not support accessing all indices;"
+                    + " the provided index expression ["
+                    + Strings.arrayToCommaDelimitedString(indices)
+                    + "] is not allowed"
+            );
+        }
+        final List<String> wildcards = Stream.of(indices).filter(Regex::isSimpleMatchPattern).collect(Collectors.toList());
+        if (wildcards.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "the action "
+                    + action
+                    + " does not support wildcards;"
+                    + " the provided index expression(s) ["
+                    + Strings.collectionToCommaDelimitedString(wildcards)
+                    + "] are not allowed"
+            );
+        }
+
+        //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
+        // replacing their indices.
+        //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
+        //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
+        // shard level requests.
+        final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
+        for (String name : indices) {
+            resolvedIndicesBuilder.addLocal(nameExpressionResolver.resolveDateMathExpression(name));
+        }
+        return resolvedIndicesBuilder.build();
+    }
 
     ResolvedIndices resolveIndicesAndAliases(String action, IndicesRequest indicesRequest, Metadata metadata,
                                              Set<String> authorizedIndices) {
@@ -173,40 +220,7 @@ class IndicesAndAliasesResolver {
                 replaceable.indices(resolvedIndicesBuilder.build().toArray());
             }
         } else {
-            final String[] indices = indicesRequest.indices();
-            if (indices == null || indices.length == 0) {
-                throw new IllegalArgumentException("the action " + action + " requires explicit index names, but none were provided");
-            }
-            if (IndexNameExpressionResolver.isAllIndices(Arrays.asList(indices))) {
-                throw new IllegalArgumentException(
-                    "the action "
-                        + action
-                        + " does not support accessing all indices;"
-                        + " the provided index expression ["
-                        + Strings.arrayToCommaDelimitedString(indices)
-                        + "] is not allowed"
-                );
-            }
-            final List<String> wildcards = Stream.of(indices).filter(Regex::isSimpleMatchPattern).collect(Collectors.toList());
-            if (wildcards.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    "the action "
-                        + action
-                        + " does not support wildcards;"
-                        + " the provided index expression(s) ["
-                        + Strings.collectionToCommaDelimitedString(wildcards)
-                        + "] are not allowed"
-                );
-            }
-
-            //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
-            // replacing their indices.
-            //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
-            //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
-            // shard level requests.
-            for (String name : indices) {
-                resolvedIndicesBuilder.addLocal(nameExpressionResolver.resolveDateMathExpression(name));
-            }
+            throw new IllegalStateException("Request [" + indicesRequest + "] is not a replaceable request, but should be.");
         }
 
         if (indicesRequest instanceof AliasesRequest) {

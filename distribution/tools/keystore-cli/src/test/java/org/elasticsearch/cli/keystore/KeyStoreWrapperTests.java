@@ -341,13 +341,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
         output.write(secret_value);
     }
 
-    private void possiblyAlterEncryptedBytes(
-        IndexOutput out,
-        byte[] salt,
-        byte[] iv,
-        byte[] encryptedBytes,
-        int truncEncryptedDataLength
-    ) throws Exception {
+    private void possiblyAlterEncryptedBytes(IndexOutput out, byte[] salt, byte[] iv, byte[] encryptedBytes, int truncEncryptedDataLength)
+        throws Exception {
         out.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
         out.writeInt(salt.length);
         out.writeBytes(salt, salt.length);

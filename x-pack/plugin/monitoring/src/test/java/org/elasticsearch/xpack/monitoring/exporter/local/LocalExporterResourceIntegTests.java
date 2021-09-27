@@ -61,7 +61,8 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             .build();
     }
 
-    private final MonitoredSystem system = randomFrom(MonitoredSystem.values());
+    private final MonitoredSystem system = randomFrom(MonitoredSystem.ES, MonitoredSystem.BEATS, MonitoredSystem.KIBANA,
+        MonitoredSystem.LOGSTASH);
 
     public void testCreateWhenResourcesNeedToBeAddedOrUpdated() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/68608", Constants.MAC_OS_X);

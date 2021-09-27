@@ -32,8 +32,8 @@
   - do:
       cluster.get_settings: {}
 
-  - is_true: transient.custom.bool
-  - match: { transient.custom.validated: "updated" }
+  - is_true: persistent.custom.bool
+  - match: { persistent.custom.validated: "updated" }
 
   # Try to update the "validated" setting with a forbidden value
   - do:

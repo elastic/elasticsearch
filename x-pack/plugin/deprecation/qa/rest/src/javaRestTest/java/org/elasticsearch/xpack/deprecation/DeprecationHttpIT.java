@@ -68,7 +68,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
     public void testDeprecatedSettingsReturnWarnings() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder()
             .startObject()
-            .startObject("transient")
+            .startObject("persistent")
             .field(
                 TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey(),
                 TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY) == false
@@ -460,7 +460,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 }
 
                 logger.warn(documents);
-                assertThat(documents, hasSize(2));
+                assertThat(documents, hasSize(3));
 
                 assertThat(
                     documents,
@@ -512,7 +512,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     private void configureWriteDeprecationLogsToIndex(Boolean value) throws IOException {
         final Request request = new Request("PUT", "_cluster/settings");
-        request.setJsonEntity("{ \"transient\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
+        request.setJsonEntity("{ \"persistent\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
         final Response response = client().performRequest(request);
         assertOK(response);
     }

@@ -30,7 +30,7 @@ public class RareTermsIT extends ESRestTestCase {
     private void setupMaxBuckets() throws Exception {
         // increases the max bucket limit for this test
         final Request request = new Request("PUT", "_cluster/settings");
-        request.setJsonEntity("{ \"transient\" : { \"search.max_buckets\" : 65356 } }");
+        request.setJsonEntity("{ \"persistent\" : { \"search.max_buckets\" : 65356 } }");
         assertOK(client().performRequest(request));
     }
 

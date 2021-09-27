@@ -69,7 +69,7 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
     private void configureAutoCreateIndex(boolean value) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder()
             .startObject()
-            .startObject("transient")
+            .startObject("persistent")
             .field(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), value)
             .endObject()
             .endObject();

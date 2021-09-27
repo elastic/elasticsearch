@@ -31,7 +31,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
     public void enableLogging() throws IOException {
         Request setTrace = new Request("PUT", "_cluster/settings");
         setTrace.setJsonEntity(
-            "{\"transient\": {\"logger.org.elasticsearch.xpack.ml.inference\": \"TRACE\"}}"
+            "{\"persistent\": {\"logger.org.elasticsearch.xpack.ml.inference\": \"TRACE\"}}"
         );
         assertThat(client().performRequest(setTrace).getStatusLine().getStatusCode(), equalTo(200));
     }

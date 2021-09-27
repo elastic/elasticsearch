@@ -97,6 +97,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
     public static final Setting<Long> INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING =
         Setting.longSetting("index.mapping.field_name_length.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Long> INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING =
+        Setting.longSetting("index.mapping.dimension_fields.limit", 16, 0, Property.Dynamic, Property.IndexScope);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     @Deprecated
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
@@ -467,7 +469,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException(DEFAULT_MAPPING_ERROR_MESSAGE);
             } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
-                deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
+                deprecationLogger.critical(DeprecationCategory.MAPPINGS, "default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
             }
             assert defaultMapping.type().equals(DEFAULT_MAPPING);
         }

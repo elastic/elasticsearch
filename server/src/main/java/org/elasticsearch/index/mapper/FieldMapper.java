@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -905,6 +906,67 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         /**
+         * Defines a parameter that takes any of the values of an enumeration.
+         *
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         * @param enumClass     the enumeration class the parameter takes values from
+         */
+        public static <T extends Enum<T>> Parameter<T> enumParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, T> initializer,
+            T defaultValue,
+            Class<T> enumClass
+        ) {
+            Set<T> acceptedValues = EnumSet.allOf(enumClass);
+            return restrictedEnumParam(name, updateable, initializer, defaultValue, enumClass, acceptedValues);
+        }
+
+        /**
+         * Defines a parameter that takes one of a restricted set of values from an enumeration.
+         *
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         * @param enumClass     the enumeration class the parameter takes values from
+         * @param values        the set of values that the parameter can take
+         */
+        public static <T extends Enum<T>> Parameter<T> restrictedEnumParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, T> initializer,
+            T defaultValue,
+            Class<T> enumClass,
+            Set<T> values
+        ) {
+            assert values.size() > 0;
+            return new Parameter<T>(name, updateable, () -> defaultValue, (n, c, o) -> {
+                if (o == null) {
+                    return defaultValue;
+                }
+                try {
+                    @SuppressWarnings("unchecked")
+                    T enumValue = Enum.valueOf(enumClass, (String) o);
+                    return enumValue;
+                } catch (IllegalArgumentException e) {
+                    throw new MapperParsingException(
+                        "Unknown value [" + o + "] for field [" + name + "] - accepted values are " + values
+                    );
+                }
+            }, initializer).addValidator(v -> {
+                if (v != null && values.contains(v) == false) {
+                    throw new MapperParsingException(
+                        "Unknown value [" + v + "] for field [" + name + "] - accepted values are " + values
+                    );
+                }
+            });
+        }
+
+        /**
          * Defines a parameter that takes an analyzer name
          * @param name              the parameter name
          * @param updateable        whether the parameter can be changed by a mapping update
@@ -1133,7 +1195,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
-                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, propName,
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, propName,
                         "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
                         propName, name, parameter.name);
                 } else {
@@ -1141,7 +1203,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 if (parameter == null) {
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
-                        deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, propName,
+                        deprecationLogger.critical(DeprecationCategory.MAPPINGS, propName,
                             "Parameter [{}] has no effect on type [{}] and will be removed in future", propName, type);
                         iterator.remove();
                         continue;
@@ -1149,7 +1211,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     if (parserContext.isFromDynamicTemplate()) {
                         // The parameter is unknown, but this mapping is from a dynamic template.
                         // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
-                        deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, propName,
+                        deprecationLogger.critical(DeprecationCategory.TEMPLATES, propName,
                             "Parameter [{}] is used in a dynamic template mapping and has no effect on type [{}]. "
                             + "Usage will result in an error in future major versions and should be removed.",
                             propName,
@@ -1163,14 +1225,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     );
                 }
                 if (Objects.equals("boost", propName)) {
-                    deprecationLogger.deprecate(
+                    deprecationLogger.critical(
                         DeprecationCategory.MAPPINGS,
                         "boost",
                         "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
                         name);
                 }
                 if (parameter.deprecated) {
-                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, propName,
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, propName,
                         "Parameter [{}] is deprecated and will be removed in a future version",
                         propName);
                 }

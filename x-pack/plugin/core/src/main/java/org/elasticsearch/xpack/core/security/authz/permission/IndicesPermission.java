@@ -312,27 +312,51 @@ public final class IndicesPermission {
                     if (actionCheck || bwcMappingActionCheck) {
                         // propagate DLS and FLS permissions over the concrete indices
                         for (String index : concreteIndices) {
-                            Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
-                            fieldPermissionsByIndex.put(resource.name, fieldPermissions);
-                            fieldPermissions.add(group.getFieldPermissions());
+                            final Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.compute(index, (k, existingSet) -> {
+                                if (existingSet == null) {
+                                    // Most indices rely on the default (empty) field permissions object, so we optimize for that case
+                                    // Using an immutable single item set is significantly faster because it avoids any of the hashing
+                                    // and backing set creation.
+                                    return org.elasticsearch.core.Set.of(group.getFieldPermissions());
+                                } else if (existingSet.size() == 1) {
+                                    FieldPermissions fp = group.getFieldPermissions();
+                                    if (existingSet.contains(fp)) {
+                                        return existingSet;
+                                    }
+                                    // This index doesn't have a single field permissions object, replace the singleton with a real Set
+                                    final Set<FieldPermissions> hashSet = new HashSet<>(existingSet);
+                                    hashSet.add(fp);
+                                    return hashSet;
+                                } else {
+                                    existingSet.add(group.getFieldPermissions());
+                                    return existingSet;
+                                }
+                            });
 
-                            DocumentLevelPermissions permissions =
-                                    roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
-                            roleQueriesByIndex.putIfAbsent(resource.name, permissions);
+                            DocumentLevelPermissions docPermissions;
                             if (group.hasQuery()) {
-                                permissions.addAll(group.getQuery());
+                                docPermissions = roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
+                                docPermissions.addAll(group.getQuery());
                             } else {
                                 // if more than one permission matches for a concrete index here and if
                                 // a single permission doesn't have a role query then DLS will not be
                                 // applied even when other permissions do have a role query
-                                permissions.setAllowAll(true);
+                                docPermissions = DocumentLevelPermissions.ALLOW_ALL;
+                                // don't worry about what's already there - just overwrite it, it avoids doing a 2nd hash lookup.
+                                roleQueriesByIndex.put(index, docPermissions);
                             }
+
+                            if (index.equals(resource.name) == false) {
+                                fieldPermissionsByIndex.put(resource.name, fieldPermissions);
+                                roleQueriesByIndex.put(resource.name, docPermissions);
+                            }
+
                         }
                         if (false == actionCheck) {
                             for (String privilegeName : group.privilege.name()) {
                                 if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
                                     bwcDeprecationLogActions.add(() -> {
-                                        deprecationLogger.deprecate(
+                                        deprecationLogger.critical(
                                             DeprecationCategory.SECURITY,
                                             "[" + resource.name + "] mapping update for ingest privilege [" + privilegeName + "]",
                                             "the index privilege ["
@@ -509,6 +533,11 @@ public final class IndicesPermission {
 
     private static class DocumentLevelPermissions {
 
+        public static final DocumentLevelPermissions ALLOW_ALL = new DocumentLevelPermissions();
+        static {
+            ALLOW_ALL.allowAll = true;
+        }
+
         private Set<BytesReference> queries = null;
         private boolean allowAll = false;
 
@@ -523,10 +552,6 @@ public final class IndicesPermission {
 
         private boolean isAllowAll() {
             return allowAll;
-        }
-
-        private void setAllowAll(boolean allowAll) {
-            this.allowAll = allowAll;
         }
     }
 }

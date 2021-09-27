@@ -38,7 +38,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         "in queries and aggregations is deprecated, prefer to use a field instead.";
 
     public static void emitTypesDeprecationWarning() {
-        deprecationLogger.deprecate(DeprecationCategory.TYPES, "query_with_types", TYPES_DEPRECATION_MESSAGE);
+        deprecationLogger.critical(DeprecationCategory.TYPES, "query_with_types", TYPES_DEPRECATION_MESSAGE);
     }
 
     public static final String NAME = "_type";

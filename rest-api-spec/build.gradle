@@ -32,7 +32,7 @@ artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-testClusters.all {
+testClusters.configureEach {
   module ':modules:mapper-extras'
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'

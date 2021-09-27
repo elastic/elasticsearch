@@ -125,7 +125,10 @@ settings belong in the `elasticsearch.yml` file.
 `protocol`::
 
     The protocol to use to connect to S3. Valid values are either `http` or
-    `https`. Defaults to `https`.
+    `https`. Defaults to `https`. When using HTTPS, this plugin validates the
+    repository's certificate chain using the JVM-wide truststore. Ensure that
+    the root certificate authority is in this truststore using the JVM's
+    `keytool` tool.
 
 `proxy.host`::
 

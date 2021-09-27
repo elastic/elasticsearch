@@ -929,7 +929,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
     public void testMergeNestedMappingsFromDynamicUpdate() throws IOException {
 
-        // Check that dynamic mappings have redundant includes removed
+        // Check that dynamic mappings from multiple shards will merge correctly
 
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.startArray("dynamic_templates");
@@ -949,12 +949,14 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.startObject("object").endObject()));
 
+        // From shard 1
         merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
+        // From shard 2
         merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
 
         assertThat(
             Strings.toString(mapperService.documentMapper().mapping()),
-            containsString("\"properties\":{\"object\":{\"type\":\"nested\",\"include_in_parent\":true}}")
+            containsString("\"properties\":{\"object\":{\"type\":\"nested\",\"include_in_parent\":true")
         );
     }
 }

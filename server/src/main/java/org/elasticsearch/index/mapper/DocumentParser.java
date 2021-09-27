@@ -262,7 +262,6 @@ public final class DocumentParser {
         RootObjectMapper root;
         if (dynamicMappers.isEmpty() == false) {
             root = createDynamicUpdate(mappingLookup, dynamicMappers);
-            root.fixRedundantIncludes();
         } else {
             root = mappingLookup.getMapping().getRoot().copyAndReset();
         }
@@ -490,13 +489,23 @@ public final class DocumentParser {
         if (nested.isIncludeInParent()) {
             addFields(indexVersion, nestedDoc, parentDoc);
         }
-        if (nested.isIncludeInRoot()) {
+        if (nested.isIncludeInRoot() && parentIncludedInRoot(context, nested) == false) {
             LuceneDocument rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
             if (nested.isIncludeInParent() == false || parentDoc != rootDoc) {
                 addFields(indexVersion, nestedDoc, rootDoc);
             }
         }
+    }
+
+    private static boolean parentIncludedInRoot(DocumentParserContext context, NestedObjectMapper nested) {
+        String parent = context.mappingLookup().getNestedParent(nested.name());
+        if (parent == null) {
+            return false;
+        }
+        NestedObjectMapper parentMapper = (NestedObjectMapper) context.mappingLookup().objectMappers().get(parent);
+        assert parentMapper != null;
+        return parentMapper.isIncludeInRoot();
     }
 
     private static void addFields(Version indexCreatedVersion, LuceneDocument nestedDoc, LuceneDocument rootDoc) {

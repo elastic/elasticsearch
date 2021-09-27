@@ -129,16 +129,8 @@ public class NestedObjectMapper extends ObjectMapper {
         return this.includeInParent.value();
     }
 
-    public void setIncludeInParent(boolean includeInParent) {
-        this.includeInParent = new Explicit<>(includeInParent, true);
-    }
-
     public boolean isIncludeInRoot() {
         return this.includeInRoot.value();
-    }
-
-    public void setIncludeInRoot(boolean includeInRoot) {
-        this.includeInRoot = new Explicit<>(includeInRoot, true);
     }
 
     public Map<String, Mapper> getChildren() {

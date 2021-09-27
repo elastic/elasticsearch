@@ -33,6 +33,7 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   String bwcVersionString = bwcVersion.toString()
   String baseName = "v" + bwcVersionString
+  Version currentBwcVersion = bwcVersion
 
   // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
   String searchableSnapshotRepository = "${buildDir}/cluster/shared/searchable-snapshots-repo/${baseName}"
@@ -55,7 +56,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
     keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
-    if (bwcVersion.onOrAfter('7.0.0')) {
+    if (currentBwcVersion.onOrAfter('7.0.0')) {
       setting 'xpack.security.authc.realms.file.file1.order', '0'
       setting 'xpack.security.authc.realms.native.native1.order', '1'
     } else {
@@ -64,7 +65,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       setting 'xpack.security.authc.realms.native1.type', 'native'
       setting 'xpack.security.authc.realms.native1.order', '1'
     }
-    if (bwcVersion.onOrAfter('6.6.0')) {
+    if (currentBwcVersion.onOrAfter('6.6.0')) {
       setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
     }
 
@@ -82,12 +83,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     // However, released versions run without assertions, so end users won't
     // be suffering the effects.  This argument effectively removes the
     // incorrect assertion from the older versions used in the BWC tests.
-    if (bwcVersion.before('5.6.9') || (bwcVersion.onOrAfter('6.0.0') && bwcVersion.before('6.2.4'))) {
+    if (currentBwcVersion.before('5.6.9') || (currentBwcVersion.onOrAfter('6.0.0') && currentBwcVersion.before('6.2.4'))) {
       jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
     }
     setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
 
-    if (bwcVersion.onOrAfter('7.12.0')) {
+    if (currentBwcVersion.onOrAfter('7.12.0')) {
       setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
     }
   }

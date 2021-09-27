@@ -65,17 +65,17 @@ public class UnsignedLongField extends LongField {
 
             @Override
             public BigInteger getNonPrimitiveValue() {
-                return toBigInteger(values.getLongValue());
+                return toBigInteger(values.getNonPrimitiveValue());
             }
 
             @Override
             public long getLongValue() {
-                return values.getLongValue();
+                return toBigInteger(values.getNonPrimitiveValue()).longValue();
             }
 
             @Override
             public double getDoubleValue() {
-                return values.getDoubleValue();
+                return toBigInteger(values.getNonPrimitiveValue()).doubleValue();
             }
         });
     }

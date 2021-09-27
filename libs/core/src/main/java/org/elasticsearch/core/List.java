@@ -77,6 +77,18 @@ public class List {
      */
     @SuppressWarnings("unchecked")
     public static <T> java.util.List<T> copyOf(Collection<? extends T> coll) {
+        if (coll.getClass().isAssignableFrom(UNMODIFIABLE_LIST)) {
+            return (java.util.List<T>) coll;
+        }
         return (java.util.List<T>) List.of(coll.toArray());
+    }
+
+    static Class<?> UNMODIFIABLE_LIST;
+    static {
+        try {
+            UNMODIFIABLE_LIST = Class.forName("java.util.Collections.UnmodifiableList");
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError(e);
+        }
     }
 }

@@ -86,7 +86,7 @@ public class List {
     static Class<?> UNMODIFIABLE_LIST;
     static {
         try {
-            UNMODIFIABLE_LIST = Class.forName("java.util.Collections.UnmodifiableList");
+            UNMODIFIABLE_LIST = Class.forName("java.util.Collections$UnmodifiableList");
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e);
         }

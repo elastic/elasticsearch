@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.ElasticsearchAuthenticationProcessException;
+import org.elasticsearch.ElasticsearchAuthenticationProcessingError;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
@@ -102,8 +102,8 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     @Override
     public ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e, ThreadContext context) {
         // a couple of authn processing errors can also return 500 & 503, besides the obvious 401
-        if (e instanceof ElasticsearchAuthenticationProcessException) {
-            return (ElasticsearchAuthenticationProcessException) e;
+        if (e instanceof ElasticsearchAuthenticationProcessingError) {
+            return (ElasticsearchAuthenticationProcessingError) e;
         }
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);
     }
@@ -112,8 +112,8 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     public ElasticsearchSecurityException exceptionProcessingRequest(TransportMessage message, String action, Exception e,
             ThreadContext context) {
         // a couple of authn processing errors can also return 500 & 503, besides the obvious 401
-        if (e instanceof ElasticsearchAuthenticationProcessException) {
-            return (ElasticsearchAuthenticationProcessException) e;
+        if (e instanceof ElasticsearchAuthenticationProcessingError) {
+            return (ElasticsearchAuthenticationProcessingError) e;
         }
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);
     }
@@ -164,8 +164,8 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
                  * 'WWW-Authenticate' header value to communicate outToken to peer.
                  */
                 containsNegotiateWithToken =
-                    ese.getHeader("WWW-Authenticate").stream()
-                        .anyMatch(s -> s != null && s.regionMatches(true, 0, "Negotiate ", 0, "Negotiate ".length()));
+                        ese.getHeader("WWW-Authenticate").stream()
+                                .anyMatch(s -> s != null && s.regionMatches(true, 0, "Negotiate ", 0, "Negotiate ".length()));
             } else {
                 containsNegotiateWithToken = false;
             }

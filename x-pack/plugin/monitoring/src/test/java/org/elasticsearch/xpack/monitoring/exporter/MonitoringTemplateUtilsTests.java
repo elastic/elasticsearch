@@ -18,64 +18,14 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.indexName;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.oldTemplateName;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
-import static org.elasticsearch.xpack.core.template.TemplateUtilsTests.assertTemplate;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class MonitoringTemplateUtilsTests extends ESTestCase {
-
-    public void testTemplateName() {
-        assertThat(templateName("abc"), equalTo(".monitoring-abc"));
-        assertThat(templateName("XYZ"), equalTo(".monitoring-XYZ"));
-        assertThat(templateName("es"), equalTo(".monitoring-es"));
-        assertThat(templateName("kibana"), equalTo(".monitoring-kibana"));
-        assertThat(templateName("logstash"), equalTo(".monitoring-logstash"));
-        assertThat(templateName("beats"), equalTo(".monitoring-beats"));
-    }
-
-    public void testOldTemplateName() {
-        assertThat(oldTemplateName("abc"), equalTo(".monitoring-abc-" + OLD_TEMPLATE_VERSION));
-        assertThat(oldTemplateName("XYZ"), equalTo(".monitoring-XYZ-" + OLD_TEMPLATE_VERSION));
-        assertThat(oldTemplateName("es"), equalTo(".monitoring-es-" + OLD_TEMPLATE_VERSION));
-        assertThat(oldTemplateName("kibana"), equalTo(".monitoring-kibana-" + OLD_TEMPLATE_VERSION));
-        assertThat(oldTemplateName("logstash"), equalTo(".monitoring-logstash-" + OLD_TEMPLATE_VERSION));
-        assertThat(oldTemplateName("beats"), equalTo(".monitoring-beats-" + OLD_TEMPLATE_VERSION));
-    }
-
-    public void testLoadTemplate() throws IOException {
-        String source = MonitoringTemplateUtils.loadTemplate("test");
-
-        assertThat(source, notNullValue());
-        assertThat(source.length(), greaterThan(0));
-        assertTemplate(source, equalTo("{\n" +
-                "  \"index_patterns\": \".monitoring-data-" + TEMPLATE_VERSION + "\",\n" +
-                "  \"mappings\": {\n" +
-                "    \"_doc\": {\n" +
-                "      \"_meta\": {\n" +
-                "        \"template.version\": \"" + TEMPLATE_VERSION + "\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}\n"));
-    }
-
-    public void testCreateEmptyTemplate() throws IOException {
-        final String id = randomFrom(OLD_TEMPLATE_IDS);
-        final String json = MonitoringTemplateUtils.createEmptyTemplate(id);
-
-        // ensure that the index is created with the proper ID
-        assertThat(json, containsString("\".monitoring-" + id + "-" + OLD_TEMPLATE_VERSION + "*\""));
-        assertThat(json, containsString("\"version\":" + LAST_UPDATED_VERSION));
-    }
 
     public void testPipelineName() {
         assertThat(pipelineName("aBc123"), equalTo("xpack_monitoring_aBc123"));

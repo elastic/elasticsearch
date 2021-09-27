@@ -224,7 +224,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testSearchTimeSeriesMode() throws Exception {
-        assumeTrue("time series mode introduced in 8.0.0 to be backported to 7.16.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
+        assumeTrue("time series mode introduced in 8.0.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
         int numDocs;
         if (isRunningAgainstOldCluster()) {
             numDocs = createTimeSeriesModeIndex(1);
@@ -266,7 +266,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testNewReplicasTimeSeriesMode() throws Exception {
-        assumeTrue("time series mode introduced in 8.0.0 to be backported to 7.16.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
+        assumeTrue("time series mode introduced in 8.0.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
         if (isRunningAgainstOldCluster()) {
             createTimeSeriesModeIndex(0);
         } else {
@@ -313,7 +313,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.startObject("properties");
             {
                 mappingsAndSettings.startObject("@timestamp").field("type", "date").endObject();
-                mappingsAndSettings.startObject("dim").field("type", "keyword").field("dimension", true).endObject();
+                mappingsAndSettings.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             }
             mappingsAndSettings.endObject();
             mappingsAndSettings.endObject();

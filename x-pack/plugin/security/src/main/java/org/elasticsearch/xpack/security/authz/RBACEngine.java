@@ -19,6 +19,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexRequest;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.ClearScrollAction;
@@ -35,6 +36,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
@@ -92,6 +95,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction.getApplicationNames;
@@ -325,7 +329,7 @@ public class RBACEngine implements AuthorizationEngine {
                     listener.onResponse(authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES));
                 } else {
                     listener.onResponse(buildIndicesAccessControl(
-                        action, authorizationInfo, Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup));
+                        action, request, authorizationInfo, Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup));
                 }
             }, listener::onFailure));
         } else {
@@ -342,7 +346,7 @@ public class RBACEngine implements AuthorizationEngine {
                             listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                         } else {
                             listener.onResponse(buildIndicesAccessControl(
-                                action, authorizationInfo, Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup));
+                                action, request, authorizationInfo, Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup));
                         }
                     }, listener::onFailure));
                 } else {
@@ -626,12 +630,43 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private IndexAuthorizationResult buildIndicesAccessControl(String action,
+                                                               TransportRequest request,
                                                                AuthorizationInfo authorizationInfo,
                                                                Set<String> indices,
                                                                Map<String, IndexAbstraction> aliasAndIndexLookup) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
-        final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
+
+        final Set<String> effectiveIndices;
+        final String targetIndex = getSingleTargetIndex(request);
+        if (targetIndex != null) {
+            effectiveIndices = indices.stream().filter(name -> {
+                if (name.equals(targetIndex)) {
+                    return true;
+                }
+                final IndexAbstraction indexAbstraction = aliasAndIndexLookup.get(name);
+                if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
+                    return indexAbstraction.getIndices().stream().anyMatch(im -> im.getIndex().getName().equals(targetIndex));
+                }
+                return false;
+            }).collect(Collectors.toUnmodifiableSet());
+        } else {
+            effectiveIndices = indices;
+        }
+
+        final IndicesAccessControl accessControl = role.authorize(action, effectiveIndices, aliasAndIndexLookup, fieldPermissionsCache);
         return new IndexAuthorizationResult(true, accessControl);
+    }
+
+    // An allowlist of requests that have only a single concrete target index regardless of the original indices
+    private String getSingleTargetIndex(TransportRequest request) {
+        if (request instanceof ShardSearchRequest) {
+            return ((ShardSearchRequest) request).shardId().getIndexName();
+        } else if (request instanceof FieldCapabilitiesIndexRequest) {
+            return ((FieldCapabilitiesIndexRequest) request).index();
+        } else if (request instanceof ShardFetchSearchRequest) {
+            return ((ShardFetchSearchRequest) request).getShardSearchRequest().shardId().getIndexName();
+        }
+        return null;
     }
 
     private static RBACAuthorizationInfo ensureRBAC(AuthorizationInfo authorizationInfo) {

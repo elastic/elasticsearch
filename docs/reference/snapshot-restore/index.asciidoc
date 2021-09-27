@@ -94,6 +94,17 @@ The following conditions apply for restoring snapshots and indices across versio
 The one caveat is that snapshots taken by {es} 2.0 can be restored in clusters running {es} 5.0.
 ====
 
+ifeval::["{release-state}"=="unreleased"]
+[[snapshot-prerelease-build-compatibility]]
+NOTE: This documentation is for {es} {version} which is not yet released. The
+compatibility table above applies only to snapshots taken in a released version
+of {es}. If you are testing a pre-release build of {es} then you can also take
+and restore snapshots as normal, but once a pre-release build of {es} has
+written to a repository it may not be possible to use this repository with any
+other build of {es}. You should discard the repository when moving to a
+different build.
+endif::[]
+
 Each snapshot can contain indices created in various versions of {es}. This
 includes backing indices created for data streams. When restoring a snapshot, it
 must be possible to restore all of these indices into the target cluster. If any

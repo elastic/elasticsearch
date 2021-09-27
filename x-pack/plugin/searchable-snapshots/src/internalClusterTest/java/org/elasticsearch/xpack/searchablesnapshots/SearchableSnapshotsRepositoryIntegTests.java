@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 
@@ -102,16 +103,16 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         }
 
         for (int i = 0; i < nbMountedIndices; i++) {
-            IllegalStateException exception = expectThrows(
-                IllegalStateException.class,
+            RepositoryConflictException exception = expectThrows(
+                RepositoryConflictException.class,
                 () -> clusterAdmin().prepareDeleteRepository(updatedRepositoryName).get()
             );
             assertThat(
                 exception.getMessage(),
                 containsString(
-                    "trying to modify or unregister repository ["
+                    "["
                         + updatedRepositoryName
-                        + "] that is currently used (found "
+                        + "] trying to modify or unregister repository that is currently used (found "
                         + (nbMountedIndices - i)
                         + " searchable snapshots indices that use the repository:"
                 )

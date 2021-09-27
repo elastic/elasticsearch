@@ -964,7 +964,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             logger.info("--> in-use repository deletion failed");
             assertThat(
                 ex.getMessage(),
-                equalTo("trying to modify or unregister repository [test-repo] that is currently used (snapshot is in progress)")
+                equalTo("[test-repo] trying to modify or unregister repository that is currently used (snapshot is in progress)")
             );
         }
 

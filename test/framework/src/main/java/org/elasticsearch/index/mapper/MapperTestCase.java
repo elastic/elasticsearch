@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -168,6 +169,29 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         for (IndexableField indexableField : fields) {
             assertEquals(DocValuesType.NONE, indexableField.fieldType().docValuesType());
         }
+    }
+
+    protected <T> void assertDimension(boolean isDimension, Function<T, Boolean> checker) throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", isDimension);
+        }));
+
+        @SuppressWarnings("unchecked") // Syntactic sugar in tests
+        T fieldType = (T) mapperService.fieldType("field");
+        assertThat(checker.apply(fieldType), equalTo(isDimension));
+    }
+
+    protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker)
+        throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", metricType);
+        }));
+
+        @SuppressWarnings("unchecked") // Syntactic sugar in tests
+        T fieldType = (T) mapperService.fieldType("field");
+        assertThat(checker.apply(fieldType).name(), equalTo(metricType));
     }
 
     public final void testEmptyName() {
@@ -515,6 +539,33 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected String randomFetchTestFormat() {
         return null;
+    }
+
+    /**
+     * Test that dimension parameter is not updateable
+     */
+    protected void registerDimensionChecks(ParameterChecker checker) throws IOException {
+        // dimension cannot be updated
+        checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", true));
+        checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", false));
+        checker.registerConflictCheck("time_series_dimension",
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimension", false);
+            }),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimension", true);
+            }));
+        checker.registerConflictCheck("time_series_dimension",
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimension", true);
+            }),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimension", false);
+            }));
     }
 
     /**

@@ -435,7 +435,7 @@ public class Realms implements Iterable<Realm> {
 
     private void logDeprecationIfFound(Set<String> missingOrderRealmSettingKeys, Map<String, Set<String>> orderToRealmOrderSettingKeys) {
         if (missingOrderRealmSettingKeys.size() > 0) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "unordered_realm_config",
                 "Found realms without order config: [{}]. In next major release, node will fail to start with missing realm order.",
@@ -449,7 +449,7 @@ public class Realms implements Iterable<Realm> {
             .sorted()
             .collect(Collectors.toList());
         if (false == duplicatedRealmOrderSettingKeys.isEmpty()) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "duplicate_realm_order",
                 "Found multiple realms configured with the same order: [{}]. "
@@ -468,7 +468,7 @@ public class Realms implements Iterable<Realm> {
             if (explicitlyDisabledBasicRealms.isEmpty()) {
                 return;
             }
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "implicitly_disabled_basic_realms",
                 "Found explicitly disabled basic {}: [{}]. But {} will be enabled because no other realms are configured or enabled. "
@@ -481,7 +481,7 @@ public class Realms implements Iterable<Realm> {
             if (unconfiguredBasicRealms.isEmpty()) {
                 return;
             }
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "implicitly_disabled_basic_realms",
                 "Found implicitly disabled basic {}: [{}]. {} disabled because there are other explicitly configured realms. "
@@ -495,7 +495,7 @@ public class Realms implements Iterable<Realm> {
 
     private void logDeprecationForReservedPrefixedRealmNames(List<RealmConfig.RealmIdentifier> realmIdentifiers) {
         if (false == realmIdentifiers.isEmpty()) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "realm_name_with_reserved_prefix",
                 "Found realm "

@@ -28,7 +28,7 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   // Needed in order to test ingest pipeline templating:
   // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
   module ':modules:lang-mustache'

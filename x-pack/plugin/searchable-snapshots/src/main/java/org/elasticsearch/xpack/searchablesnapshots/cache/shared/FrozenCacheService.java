@@ -134,7 +134,7 @@ public class FrozenCacheService implements Releasable {
                     @SuppressWarnings("unchecked")
                     final List<DiscoveryNodeRole> roles = (List<DiscoveryNodeRole>) settings.get(NodeRoleSettings.NODE_ROLES_SETTING);
                     if (DataTier.isFrozenNode(new HashSet<>(roles)) == false) {
-                        deprecationLogger.deprecate(
+                        deprecationLogger.critical(
                             DeprecationCategory.SETTINGS,
                             "shared_cache",
                             "setting [{}] to be positive [{}] on node without the data_frozen role is deprecated, roles are [{}]",

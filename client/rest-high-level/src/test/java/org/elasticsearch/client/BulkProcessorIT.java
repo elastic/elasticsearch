@@ -51,10 +51,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasType;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -89,7 +91,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
             assertThat(listener.beforeCounts.get(), equalTo(1));
             assertThat(listener.afterCounts.get(), equalTo(1));
-            assertThat(listener.bulkFailures.size(), equalTo(0));
+            assertThat(listener.bulkFailures, empty());
             assertResponseItems(listener.bulkItems, numDocs);
             assertMultiGetResponse(highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT), numDocs);
         }
@@ -115,7 +117,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
             assertThat(listener.beforeCounts.get(), equalTo(1));
             assertThat(listener.afterCounts.get(), equalTo(1));
-            assertThat(listener.bulkFailures.size(), equalTo(0));
+            assertThat(listener.bulkFailures, empty());
             assertResponseItems(listener.bulkItems, numDocs);
             assertMultiGetResponse(highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT), numDocs);
         }
@@ -147,16 +149,16 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
             assertThat(listener.beforeCounts.get(), equalTo(expectedBulkActions));
             assertThat(listener.afterCounts.get(), equalTo(expectedBulkActions));
-            assertThat(listener.bulkFailures.size(), equalTo(0));
-            assertThat(listener.bulkItems.size(), equalTo(numDocs - numDocs % bulkActions));
+            assertThat(listener.bulkFailures, empty());
+            assertThat(listener.bulkItems, hasSize(numDocs - numDocs % bulkActions));
         }
 
         closeLatch.await();
 
         assertThat(listener.beforeCounts.get(), equalTo(totalExpectedBulkActions));
         assertThat(listener.afterCounts.get(), equalTo(totalExpectedBulkActions));
-        assertThat(listener.bulkFailures.size(), equalTo(0));
-        assertThat(listener.bulkItems.size(), equalTo(numDocs));
+        assertThat(listener.bulkFailures, empty());
+        assertThat(listener.bulkItems, hasSize(numDocs));
 
         Set<String> ids = new HashSet<>();
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {
@@ -198,7 +200,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         for (Throwable bulkFailure : listener.bulkFailures) {
             logger.error("bulk failure", bulkFailure);
         }
-        assertThat(listener.bulkFailures.size(), equalTo(0));
+        assertThat(listener.bulkFailures, empty());
         assertResponseItems(listener.bulkItems, numDocs);
         assertMultiGetResponse(highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT), numDocs);
     }
@@ -255,8 +257,8 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
         assertThat(listener.beforeCounts.get(), equalTo(totalExpectedBulkActions));
         assertThat(listener.afterCounts.get(), equalTo(totalExpectedBulkActions));
-        assertThat(listener.bulkFailures.size(), equalTo(0));
-        assertThat(listener.bulkItems.size(), equalTo(testDocs + testReadOnlyDocs));
+        assertThat(listener.bulkFailures, empty());
+        assertThat(listener.bulkItems, hasSize(testDocs + testReadOnlyDocs));
 
         Set<String> ids = new HashSet<>();
         Set<String> readOnlyIds = new HashSet<>();

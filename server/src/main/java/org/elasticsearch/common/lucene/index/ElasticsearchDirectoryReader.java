@@ -67,6 +67,15 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         return wrap(reader, shardId, null);
     }
 
+    /**
+     * Wraps the given reader in a {@link ElasticsearchDirectoryReader} as
+     * well as all it's sub-readers in {@link ElasticsearchLeafReader} to
+     * expose the given shard Id.
+     * @param reader        the reader to wrap
+     * @param shardId       the shard ID to expose via the elasticsearch internal reader wrappers.
+     * @param esCacheHelper the custom {@link ESCacheHelper} implementation that doesn't tie
+     *                      its lifecycle to that of the underlying reader
+     */
     public static ElasticsearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId, @Nullable ESCacheHelper esCacheHelper)
         throws IOException {
         return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId, esCacheHelper);
@@ -77,6 +86,9 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
      */
     public static ESCacheHelper getESReaderCacheHelper(DirectoryReader reader) {
         ElasticsearchDirectoryReader esReader = getElasticsearchDirectoryReader(reader);
+        assert esReader != null;
+        // even though we assert that the reader is non-null, we are a bit lenient here,
+        // as falling back to the underlying cache helper does not affect correctness
         if (esReader == null || esReader.esCacheHelper == null) {
             return new ESCacheHelper.Wrapper(reader.getReaderCacheHelper());
         }

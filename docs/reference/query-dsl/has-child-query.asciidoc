@@ -16,7 +16,7 @@ unique parent documents increases. Each `has_child` query in a search can
 increase query time significantly.
 
 If you care about query performance, do not use this query. If you need to use
-the `has_child` query, use it as rarely as possible.
+the `has_child` query, use it as rarely as possible. 
 ====
 
 [[has-child-query-ex-request]]
@@ -59,7 +59,7 @@ GET /_search
       "query": {
         "match_all": {}
       },
-      "max_unique_tokens": 10,
+      "max_children": 10,
       "min_children": 2,
       "score_mode": "min"
     }

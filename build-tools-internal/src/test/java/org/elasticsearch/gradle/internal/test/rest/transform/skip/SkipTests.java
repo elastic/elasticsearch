@@ -21,18 +21,6 @@ import java.util.List;
 
 public class SkipTests extends TransformTests {
 
-//
-//    @Override
-//    protected List<RestTestTransform<?>> getTransformations() {
-//        return Collections.singletonList(new Skip("my reason"));
-//    }
-
-    @Override
-    protected boolean getHumanDebug() {
-        return true;
-    }
-
-
 
     @Test
     public void testAddGlobalSetup() throws Exception {
@@ -111,72 +99,7 @@ public class SkipTests extends TransformTests {
             List.of(new Skip("Two Test", "my reason"), new Skip("Three Test", "another reason"))
         );
 
-printTest("x", transformedTests);
         AssertObjectNodes.areEqual(transformedTests, expectedTransformation);
     }
-
-
-//    /**
-//     * test file does not have a setup
-//     */
-//    @Test
-//    public void testInjectSkipWithoutSetup() throws Exception {
-//        String testName = "/rest/transform/skip/without_setup_original.yml";
-//        List<ObjectNode> tests = getTests(testName);
-//        validateSetupDoesNotExist(tests);
-//        List<ObjectNode> transformedTests = transformTests(tests);
-//        printTest(testName, transformedTests);
-//        validateGlobalSkipVersion(transformedTests, "all");
-//        validateGlobalSkipReason(transformedTests, "my reason");
-//    }
-//
-//    /**
-//     * test file has features existing feature
-//     */
-//    @Test
-//    public void testInjectSkipWithFeatures() throws Exception {
-//        String testName = "/rest/transform/skip/with_features_original.yml";
-//        List<ObjectNode> tests = getTests(testName);
-//        validateSetupExist(tests);
-//        validateGlobalSkipNodesExist(tests);
-//        List<ObjectNode> transformedTests = transformTests(tests);
-//        printTest(testName, transformedTests);
-//        validateGlobalSkipVersion(transformedTests, "all");
-//        validateGlobalSkipReason(transformedTests, "my reason");
-//    }
-//
-//    /**
-//     * test file has a setup, but no skip
-//     */
-//    @Test
-//    public void testInjectSkipWithExistingSkip() throws Exception {
-//        String testName = "/rest/transform/skip/with_skip_original.yml";
-//        List<ObjectNode> tests = getTests(testName);
-//        validateSetupExist(tests);
-//        validateGlobalSkipNodesExist(tests);
-//        validateGlobalSkipVersionExist(tests);
-//        validateGlobalSkipReasonExist(tests);
-//        List<ObjectNode> transformedTests = transformTests(tests);
-//        printTest(testName, transformedTests);
-//        validateGlobalSkipVersionExist(tests);
-//        validateGlobalSkipReasonExist(tests);
-//        validateGlobalSkipVersion(transformedTests, "all");
-//        validateGlobalSkipReason(transformedTests, "my reason");
-//    }
-//
-//    /**
-//     * test file has a setup but no skip
-//     */
-//    @Test
-//    public void testInjectSkipWithSetup() throws Exception {
-//        String testName = "/rest/transform/feature/with_setup_no_skip_original.yml";
-//        List<ObjectNode> tests = getTests(testName);
-//        validateSetupExist(tests);
-//        validateGlobalSkipNodesDoesNotExist(tests);
-//        List<ObjectNode> transformedTests = transformTests(tests);
-//        printTest(testName, transformedTests);
-//        validateGlobalSkipVersion(transformedTests, "all");
-//        validateGlobalSkipReason(transformedTests, "my reason");
-//    }
 
 }

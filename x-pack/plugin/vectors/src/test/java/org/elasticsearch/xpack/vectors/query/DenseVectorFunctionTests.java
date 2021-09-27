@@ -35,8 +35,8 @@ public class DenseVectorFunctionTests extends ESTestCase {
         List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);
 
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
-            BinaryDocValues docValues = DenseVectorScriptDocValuesTests.wrap(new float[][]{docVector}, indexVersion);
-            DenseVectorScriptDocValues scriptDocValues = new DenseVectorScriptDocValues(docValues, indexVersion, dims);
+            BinaryDocValues docValues = BinaryDenseVectorScriptDocValuesTests.wrap(new float[][]{docVector}, indexVersion);
+            DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(docValues, indexVersion, dims);
 
             ScoreScript scoreScript = mock(ScoreScript.class);
             when(scoreScript.getDoc()).thenReturn(Collections.singletonMap(field, scriptDocValues));

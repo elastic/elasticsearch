@@ -105,7 +105,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Version indexVersionCreated;
 
         public DenseVectorFieldType(String name, Version indexVersionCreated, int dims, boolean indexed, Map<String, String> meta) {
-            super(name, indexed, false, true, TextSearchInfo.NONE, meta);
+            super(name, indexed, false, false, TextSearchInfo.NONE, meta);
             this.dims = dims;
             this.indexed = indexed;
             this.indexVersionCreated = indexVersionCreated;
@@ -142,7 +142,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, indexVersionCreated, dims);
+            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, indexVersionCreated, dims, indexed);
         }
 
         @Override

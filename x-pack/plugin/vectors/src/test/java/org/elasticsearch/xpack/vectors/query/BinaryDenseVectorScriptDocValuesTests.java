@@ -19,16 +19,16 @@ import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class DenseVectorScriptDocValuesTests extends ESTestCase {
+public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
 
     public void testGetVectorValueAndGetMagnitude() throws IOException {
-        final int dims = 3;
+        int dims = 3;
         float[][] vectors = {{ 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
 
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BinaryDocValues docValues = wrap(vectors, indexVersion);
-            final DenseVectorScriptDocValues scriptDocValues = new DenseVectorScriptDocValues(docValues, indexVersion, dims);
+            DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(docValues, indexVersion, dims);
             for (int i = 0; i < vectors.length; i++) {
                 scriptDocValues.setNextDocId(i);
                 assertArrayEquals(vectors[i], scriptDocValues.getVectorValue(), 0.0001f);
@@ -38,10 +38,10 @@ public class DenseVectorScriptDocValuesTests extends ESTestCase {
     }
 
     public void testMissingValues() throws IOException {
-        final int dims = 3;
+        int dims = 3;
         float[][] vectors = {{ 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         BinaryDocValues docValues = wrap(vectors, Version.CURRENT);
-        final DenseVectorScriptDocValues scriptDocValues = new DenseVectorScriptDocValues(docValues, Version.CURRENT, dims);
+        DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(docValues, Version.CURRENT, dims);
 
         scriptDocValues.setNextDocId(3);
         Exception e = expectThrows(IllegalArgumentException.class, () -> scriptDocValues.getVectorValue());
@@ -52,10 +52,10 @@ public class DenseVectorScriptDocValuesTests extends ESTestCase {
     }
 
     public void testGetFunctionIsNotAccessible() throws IOException {
-        final int dims = 3;
+        int dims = 3;
         float[][] vectors = {{ 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         BinaryDocValues docValues = wrap(vectors, Version.CURRENT);
-        final DenseVectorScriptDocValues scriptDocValues = new DenseVectorScriptDocValues(docValues, Version.CURRENT, dims);
+        DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(docValues, Version.CURRENT, dims);
 
         scriptDocValues.setNextDocId(0);
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));
@@ -69,7 +69,7 @@ public class DenseVectorScriptDocValuesTests extends ESTestCase {
 
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BinaryDocValues docValues = wrap(new float[][]{docVector}, indexVersion);
-            DenseVectorScriptDocValues scriptDocValues = new DenseVectorScriptDocValues(docValues, Version.CURRENT, dims);
+            DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(docValues, Version.CURRENT, dims);
 
             scriptDocValues.setNextDocId(0);
 

@@ -31,12 +31,14 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
     protected final ValuesSourceType valuesSourceType;
     private final Version indexVersion;
     private final int dims;
+    private final boolean indexed;
 
-    public VectorIndexFieldData(String fieldName, ValuesSourceType valuesSourceType, Version indexVersion, int dims) {
+    public VectorIndexFieldData(String fieldName, ValuesSourceType valuesSourceType, Version indexVersion, int dims, boolean indexed) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.indexVersion = indexVersion;
         this.dims = dims;
+        this.indexed = indexed;
     }
 
     @Override
@@ -63,7 +65,7 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
 
     @Override
     public VectorDVLeafFieldData load(LeafReaderContext context) {
-        return new VectorDVLeafFieldData(context.reader(), fieldName, indexVersion, dims);
+        return new VectorDVLeafFieldData(context.reader(), fieldName, indexVersion, dims, indexed);
     }
 
     @Override
@@ -76,18 +78,19 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
         private final ValuesSourceType valuesSourceType;
         private final Version indexVersion;
         private final int dims;
+        private final boolean indexed;
 
-        public Builder(String name, ValuesSourceType valuesSourceType, Version indexVersion, int dims) {
+        public Builder(String name, ValuesSourceType valuesSourceType, Version indexVersion, int dims, boolean indexed) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
             this.indexVersion = indexVersion;
             this.dims = dims;
+            this.indexed = indexed;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new VectorIndexFieldData(name, valuesSourceType, indexVersion, dims);
+            return new VectorIndexFieldData(name, valuesSourceType, indexVersion, dims, indexed);
         }
-
     }
 }

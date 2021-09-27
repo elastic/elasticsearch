@@ -52,7 +52,7 @@ The model vocabulary. Must not be empty.
 The following example shows how to create a model vocabulary for a 
 previously stored trained model configuration.
 
-[source,js]
+[source,sh]
 --------------------------------------------------
 PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/vocabulary
 {

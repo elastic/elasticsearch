@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 
@@ -183,7 +184,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     }
 
     private void putTemplate(final Integer version) throws Exception {
-        final String templateName = MonitoringTemplateUtils.templateName(system.getSystem());
+        final String templateName = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(system).getTemplateName();
         final BytesReference source = generateTemplateSource(templateName, version);
 
         assertAcked(client().admin().indices().preparePutTemplate(templateName).setSource(source, XContentType.JSON).get());
@@ -292,7 +293,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     }
 
     private void assertTemplatesExist() {
-        for (String templateName : monitoringTemplateNames()) {
+        for (String templateName : MonitoringTemplateRegistry.TEMPLATE_NAMES) {
             assertTemplateInstalled(templateName);
         }
     }
@@ -364,7 +365,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
     }
 
     private void assertTemplateNotUpdated() {
-        final String name = MonitoringTemplateUtils.templateName(system.getSystem());
+        final String name = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(system).getTemplateName();
 
         for (IndexTemplateMetadata template : client().admin().indices().prepareGetTemplates(name).get().getIndexTemplates()) {
             final String docMapping = template.getMappings().toString();

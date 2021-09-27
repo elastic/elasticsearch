@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 import org.junit.Before;
 
@@ -240,8 +240,9 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         builder.value(status);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
+        byte[] loadedTemplate = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(MonitoredSystem.ES).loadBytes();
         Map<String, Object> template =
-            XContentHelper.convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
+            XContentHelper.convertToMap(XContentType.JSON.xContent(), loadedTemplate, 0, loadedTemplate.length, false);
         Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues
             .extractValue("mappings._doc.properties.ccr_stats.properties", template);
         assertThat(serializedStatus.size(), equalTo(followStatsMapping.size()));

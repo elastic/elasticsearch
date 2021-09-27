@@ -186,7 +186,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             .get(ccrSettings.getRecoveryActionTimeout());
         Metadata metadata = response.getState().metadata();
         ImmutableOpenMap<String, IndexMetadata> indicesMap = metadata.indices();
-        List<String> indices = new ArrayList<>(indicesMap.keysSet());
+        List<String> indices = new ArrayList<>(indicesMap.keySet());
 
         // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
         threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> context.onResponse(

@@ -538,7 +538,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     case CONCRETE_INDEX:
                         IndexAbstraction.Index index = (IndexAbstraction.Index) ia;
 
-                        String[] aliasNames = index.getWriteIndex().getAliases().keysSet().stream().sorted().toArray(String[]::new);
+                        String[] aliasNames = index.getWriteIndex().getAliases().keySet().stream().sorted().toArray(String[]::new);
 
                         List<String> attributes = new ArrayList<>();
                         attributes.add(index.getWriteIndex().getState() == IndexMetadata.State.OPEN ? "open" : "closed");

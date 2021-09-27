@@ -349,7 +349,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     @Override
     public List<String> getMatchingIndices(Metadata metadata) {
-        return metadata.indices().keysSet()
+        return metadata.indices().keySet()
             .stream()
             .filter(this::matchesIndexPattern)
             .collect(Collectors.toUnmodifiableList());

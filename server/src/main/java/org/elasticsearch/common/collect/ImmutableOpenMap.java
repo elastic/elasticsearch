@@ -139,9 +139,9 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     /**
-     * Returns a direct stream over the keys.
+     * Returns a {@link Set} view of the keys contained in this map.
      */
-    public Set<KType> keysSet() {
+    public Set<KType> keySet() {
         final Iterator<KType> keysIterator = keysIt();
         return new AbstractSet<>() {
             @Override

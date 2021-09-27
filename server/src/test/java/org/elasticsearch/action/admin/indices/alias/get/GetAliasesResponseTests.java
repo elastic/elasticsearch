@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<GetAliasesResponse> {
 
@@ -52,7 +51,7 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
             return builder.build();
         }
 
-        Set<String> indices = aliases.keysSet();
+        Set<String> indices = aliases.keySet();
         List<String> indicesToBeModified = randomSubsetOf(randomIntBetween(1, indices.size()), indices);
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder();
 

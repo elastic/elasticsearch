@@ -412,6 +412,6 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     private static String[] ingestNodes(final ClusterState clusterState) {
-        return clusterState.nodes().getIngestNodes().keysSet().toArray(String[]::new);
+        return clusterState.nodes().getIngestNodes().keySet().toArray(String[]::new);
     }
 }

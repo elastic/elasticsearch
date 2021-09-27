@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -80,12 +79,12 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testKeySetStreamOperationsAreSupported() {
-        assertThat(regionCurrencySymbols.keysSet().stream().filter(e -> e.startsWith("U") == false).collect(Collectors.toSet()),
+        assertThat(regionCurrencySymbols.keySet().stream().filter(e -> e.startsWith("U") == false).collect(Collectors.toSet()),
             equalTo(Set.of("Japan", "EU", "Korea")));
     }
 
     public void testSortedKeysSet() {
-        assertThat(regionCurrencySymbols.keysSet(),
+        assertThat(regionCurrencySymbols.keySet(),
             equalTo(Set.of("EU", "Japan", "Korea", "UK", "USA")));
     }
 
@@ -93,7 +92,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
         ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
 
         int limit = randomIntBetween(0, map.size());
-        List<Long> collectedViaStream = map.keysSet()
+        List<Long> collectedViaStream = map.keySet()
             .stream()
             .filter(e -> e > 0)
             .sorted()
@@ -118,7 +117,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testEmptyKeySetWorks() {
-        assertThat(ImmutableOpenMap.of().keysSet().size(), equalTo(0L));
+        assertThat(ImmutableOpenMap.of().keySet().size(), equalTo(0L));
     }
 
     private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {

@@ -272,6 +272,14 @@ _keep_values_::
                 This option is similar to skip, except if the metric provides a non-null, non-NaN value this value is
                 used, otherwise the empty bucket is skipped.
 
+[discrete]
+[[pipeline-agg-validation-errors]]
+==== Validation errors
+
+An invalid pipeline aggregation returns a `400` HTTP status code and a list of
+related validation errors. Prior to 7.7, an invalid pipeline aggregation
+returned a `500` status code and the first validation error encountered.
+
 include::pipeline/avg-bucket-aggregation.asciidoc[]
 
 include::pipeline/bucket-script-aggregation.asciidoc[]

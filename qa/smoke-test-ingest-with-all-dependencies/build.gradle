@@ -19,7 +19,7 @@ dependencies {
   testImplementation project(':modules:reindex')
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 

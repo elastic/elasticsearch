@@ -439,7 +439,7 @@ public class RootObjectMapper extends ObjectMapper {
                 "attempted to validate it with the following match_mapping_type: %s, caused by [%s]";
             String message = String.format(Locale.ROOT, format,
                 template.getName(), Strings.toString(template), Arrays.toString(types), lastError.getMessage());
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.TEMPLATES, "invalid_dynamic_template", message);
+            DEPRECATION_LOGGER.critical(DeprecationCategory.TEMPLATES, "invalid_dynamic_template", message);
         }
     }
 

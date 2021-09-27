@@ -65,7 +65,7 @@ public class Joda {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
             getDeprecationLogger()
-                .deprecate(DeprecationCategory.PARSING,"camelCaseDateFormat", msg, formatName.getCamelCaseName(),
+                .critical(DeprecationCategory.PARSING,"camelCaseDateFormat", msg, formatName.getCamelCaseName(),
                     formatName.getSnakeCaseName());
         }
 
@@ -150,7 +150,7 @@ public class Joda {
             formatter = ISODateTimeFormat.weekDateTimeNoMillis();
         } else if (FormatNames.WEEKYEAR.matches(input)) {
             getDeprecationLogger()
-                .deprecate(DeprecationCategory.PARSING, "week_year_format_name",
+                .critical(DeprecationCategory.PARSING, "week_year_format_name",
                     "Format name \"week_year\" is deprecated and will be removed in a future version. Use \"weekyear\" format instead");
             formatter = ISODateTimeFormat.weekyear();
         } else if (FormatNames.WEEK_YEAR.matches(input)) {
@@ -280,7 +280,7 @@ public class Joda {
     private static void maybeLogJodaDeprecation(String format) {
         if (JodaDeprecationPatterns.isDeprecatedPattern(format)) {
             String suggestion = JodaDeprecationPatterns.formatSuggestion(format);
-            getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "joda-pattern-deprecation",
+            getDeprecationLogger().critical(DeprecationCategory.PARSING, "joda-pattern-deprecation",
                 suggestion + " " + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         }
     }
@@ -390,11 +390,11 @@ public class Joda {
                 long millis = new BigDecimal(text).longValue() * factor;
                 // check for deprecations, but after it has parsed correctly so invalid values aren't counted as deprecated
                 if (millis < 0) {
-                    getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "epoch-negative", "Use of negative values" +
+                    getDeprecationLogger().critical(DeprecationCategory.PARSING, "epoch-negative", "Use of negative values" +
                         " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 if (scientificNotation.matcher(text).find()) {
-                    getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "epoch-scientific-notation",
+                    getDeprecationLogger().critical(DeprecationCategory.PARSING, "epoch-scientific-notation",
                         "Use of scientific notation in epoch time formats is deprecated and will not be supported in the "
                             + "next major version of Elasticsearch.");
                 }

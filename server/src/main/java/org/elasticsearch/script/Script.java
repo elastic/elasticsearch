@@ -452,7 +452,7 @@ public final class Script implements ToXContentObject, Writeable {
                         throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                     }
                 } else {
-                    deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "script_unsupported_fields",
+                    deprecationLogger.critical(DeprecationCategory.SCRIPTING, "script_unsupported_fields",
                         "script section does not support [" + parameterName + "]");
                 }
             }

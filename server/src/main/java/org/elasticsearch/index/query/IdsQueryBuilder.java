@@ -141,7 +141,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         try {
             IdsQueryBuilder builder = PARSER.apply(parser, null);
             if (builder.types().length > 0) {
-                deprecationLogger.deprecate(DeprecationCategory.TYPES, "ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.critical(DeprecationCategory.TYPES, "ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
             }
             return builder;
         } catch (IllegalArgumentException e) {

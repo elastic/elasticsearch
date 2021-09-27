@@ -75,7 +75,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
                     Strings.EMPTY_ARRAY)));
         final GetTrainedModelsAction.Request request;
         if (restRequest.hasParam(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION)) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.API,
                 GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION,
                 "[{}] parameter is deprecated! Use [include=definition] instead.",

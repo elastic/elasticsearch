@@ -1665,7 +1665,7 @@ public class DateFormatters {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
             deprecationLogger.getOrCompute()
-                .deprecate(DeprecationCategory.PARSING, "camelCaseDateFormat", msg, formatName.getCamelCaseName(),
+                .critical(DeprecationCategory.PARSING, "camelCaseDateFormat", msg, formatName.getCamelCaseName(),
                     formatName.getSnakeCaseName());
         }
 
@@ -1747,7 +1747,7 @@ public class DateFormatters {
             return WEEK_DATE_TIME_NO_MILLIS;
         } else if (FormatNames.WEEK_YEAR.matches(input)) {
             deprecationLogger.getOrCompute()
-                .deprecate(DeprecationCategory.PARSING,
+                .critical(DeprecationCategory.PARSING,
                     "week_year_format_name", "Format name \"week_year\" is deprecated and will be removed in a future version. " +
                     "Use \"weekyear\" format instead");
             return WEEK_YEAR;

@@ -169,35 +169,125 @@ public final class IndicesPermission {
     }
 
     /**
+     * Represents the set of data required about an IndexAbstraction (index/alias/datastream) in order to perform authorization on that
+     * object (including setting up the necessary data structures for Field and Document Level Security).
+     */
+    private static class IndexResource {
+        /**
+         * The name of the IndexAbstraction on which authorization is being performed
+         */
+        private final String name;
+
+        /**
+         * The IndexAbstraction on which authorization is being performed, or {@code null} if nothing in the cluster matches the name
+         */
+        @Nullable
+        private final IndexAbstraction indexAbstraction;
+
+        public Collection<String> concreteIndices;
+
+        private IndexResource(String name, @Nullable IndexAbstraction abstraction) {
+            assert name != null : "Resource name cannot be null";
+            assert abstraction == null || abstraction.getName().equals(name) : "Index abstraction has unexpected name ["
+                + abstraction.getName()
+                + "] vs ["
+                + name
+                + "]";
+            this.name = name;
+            this.indexAbstraction = abstraction;
+        }
+
+        /**
+         * @return {@code true} if-and-only-if this object is related to a data-stream, either by having a
+         * {@link IndexAbstraction#getType()} of {@link IndexAbstraction.Type#DATA_STREAM} or by being the backing index for a
+         * {@link IndexAbstraction#getParentDataStream()}  data-stream}.
+         */
+        public boolean isPartOfDataStream() {
+            if (indexAbstraction == null) {
+                return false;
+            }
+            switch (indexAbstraction.getType()) {
+                case DATA_STREAM:
+                    return true;
+                case CONCRETE_INDEX:
+                    return indexAbstraction.getParentDataStream() != null;
+                default:
+                    return false;
+            }
+        }
+
+        /**
+         * Check whether this object is covered by the provided permission {@link Group}.
+         * For indices that are part of a data-stream, this checks both the index name and the parent data-stream name.
+         * In all other cases, it checks the name of this object only.
+         */
+        public boolean checkIndex(Group group) {
+            final IndexAbstraction.DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
+            if (ds != null) {
+                if (group.checkIndex(ds.getName())) {
+                    return true;
+                }
+            }
+            return group.checkIndex(name);
+        }
+
+        /**
+         * @return the number of distinct objects to which this expansion refers.
+         */
+        public int size() {
+            if (indexAbstraction == null) {
+                return 1;
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
+                return 1;
+            } else {
+                return 1 + indexAbstraction.getIndices().size();
+            }
+        }
+
+        public Collection<String> resolveConcreteIndices() {
+            if (indexAbstraction == null) {
+                return org.elasticsearch.core.List.of();
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
+                return org.elasticsearch.core.List.of(indexAbstraction.getName());
+            } else {
+                final List<IndexMetadata> indices = indexAbstraction.getIndices();
+                final List<String> concreteIndices = new ArrayList<>(indices.size());
+                for (final IndexMetadata idx : indices) {
+                    concreteIndices.add(idx.getIndex().getName());
+                }
+                return concreteIndices;
+            }
+        }
+    }
+
+    /**
      * Authorizes the provided action against the provided indices, given the current cluster metadata
      */
-    public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases,
-                                                                          Map<String, IndexAbstraction> lookup,
-                                                                          FieldPermissionsCache fieldPermissionsCache) {
+    public Map<String, IndicesAccessControl.IndexAccessControl> authorize(
+        String action,
+        Set<String> requestedIndicesOrAliases,
+        Map<String, IndexAbstraction> lookup,
+        FieldPermissionsCache fieldPermissionsCache
+    ) {
+
+        final List<IndexResource> resources = new ArrayList<>(requestedIndicesOrAliases.size());
+        int totalResourceCount = 0;
+
+        for (String indexOrAlias : requestedIndicesOrAliases) {
+            final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias));
+            resources.add(resource);
+            totalResourceCount += resource.size();
+        }
+
         // now... every index that is associated with the request, must be granted
         // by at least one indices permission group
-        Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = new HashMap<>();
-        Map<String, DocumentLevelPermissions> roleQueriesByIndex = new HashMap<>();
-        Map<String, Boolean> grantedBuilder = new HashMap<>();
+        final Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = new HashMap<>(totalResourceCount);
+        final Map<String, DocumentLevelPermissions> roleQueriesByIndex = new HashMap<>(totalResourceCount);
+        final Map<String, Boolean> grantedBuilder = new HashMap<>(totalResourceCount);
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
-        for (String indexOrAlias : requestedIndicesOrAliases) {
-            final boolean isBackingIndex;
-            final boolean isDataStream;
-            final Set<String> concreteIndices = new HashSet<>();
-            final IndexAbstraction indexAbstraction = lookup.get(indexOrAlias);
-            if (indexAbstraction != null) {
-                for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
-                    concreteIndices.add(indexMetadata.getIndex().getName());
-                }
-                isBackingIndex = indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX &&
-                        indexAbstraction.getParentDataStream() != null;
-                isDataStream = indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
-            } else {
-                isBackingIndex = isDataStream = false;
-            }
-
+        for (IndexResource resource : resources) {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
             // true if ANY group, which contains certain ingest privileges, covers the given index AND the action is a mapping update for
@@ -205,49 +295,76 @@ public final class IndicesPermission {
             boolean bwcGrantMappingUpdate = false;
             final List<Runnable> bwcDeprecationLogActions = new ArrayList<>();
 
+            final Collection<String> concreteIndices = resource.resolveConcreteIndices();
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
-                final boolean indexCheck = group.checkIndex(indexOrAlias) ||
-                        (isBackingIndex && group.checkIndex(indexAbstraction.getParentDataStream().getName()));
-                if (indexCheck) {
+                if (resource.checkIndex(group)) {
                     boolean actionCheck = group.checkAction(action);
                     granted = granted || actionCheck;
+
                     // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
                     // outside of the privilege definition
-                    boolean bwcMappingActionCheck = isMappingUpdateAction && false == isDataStream && false == isBackingIndex &&
-                            containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
+                    boolean bwcMappingActionCheck = isMappingUpdateAction
+                        && false == resource.isPartOfDataStream()
+                        && containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
                     bwcGrantMappingUpdate = bwcGrantMappingUpdate || bwcMappingActionCheck;
+
                     if (actionCheck || bwcMappingActionCheck) {
                         // propagate DLS and FLS permissions over the concrete indices
                         for (String index : concreteIndices) {
-                            Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
-                            fieldPermissionsByIndex.put(indexOrAlias, fieldPermissions);
-                            fieldPermissions.add(group.getFieldPermissions());
-                            DocumentLevelPermissions permissions =
-                                    roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
-                            roleQueriesByIndex.putIfAbsent(indexOrAlias, permissions);
+                            final Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.compute(index, (k, existingSet) -> {
+                                if (existingSet == null) {
+                                    // Most indices rely on the default (empty) field permissions object, so we optimize for that case
+                                    // Using an immutable single item set is significantly faster because it avoids any of the hashing
+                                    // and backing set creation.
+                                    return org.elasticsearch.core.Set.of(group.getFieldPermissions());
+                                } else if (existingSet.size() == 1) {
+                                    FieldPermissions fp = group.getFieldPermissions();
+                                    if (existingSet.contains(fp)) {
+                                        return existingSet;
+                                    }
+                                    // This index doesn't have a single field permissions object, replace the singleton with a real Set
+                                    final Set<FieldPermissions> hashSet = new HashSet<>(existingSet);
+                                    hashSet.add(fp);
+                                    return hashSet;
+                                } else {
+                                    existingSet.add(group.getFieldPermissions());
+                                    return existingSet;
+                                }
+                            });
+
+                            DocumentLevelPermissions docPermissions;
                             if (group.hasQuery()) {
-                                permissions.addAll(group.getQuery());
+                                docPermissions = roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
+                                docPermissions.addAll(group.getQuery());
                             } else {
                                 // if more than one permission matches for a concrete index here and if
                                 // a single permission doesn't have a role query then DLS will not be
                                 // applied even when other permissions do have a role query
-                                permissions.setAllowAll(true);
+                                docPermissions = DocumentLevelPermissions.ALLOW_ALL;
+                                // don't worry about what's already there - just overwrite it, it avoids doing a 2nd hash lookup.
+                                roleQueriesByIndex.put(index, docPermissions);
                             }
+
+                            if (index.equals(resource.name) == false) {
+                                fieldPermissionsByIndex.put(resource.name, fieldPermissions);
+                                roleQueriesByIndex.put(resource.name, docPermissions);
+                            }
+
                         }
                         if (false == actionCheck) {
                             for (String privilegeName : group.privilege.name()) {
                                 if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
                                     bwcDeprecationLogActions.add(() -> {
-                                        deprecationLogger.deprecate(
+                                        deprecationLogger.critical(
                                             DeprecationCategory.SECURITY,
-                                            "[" + indexOrAlias + "] mapping update for ingest privilege [" + privilegeName + "]",
+                                            "[" + resource.name + "] mapping update for ingest privilege [" + privilegeName + "]",
                                             "the index privilege ["
                                                 + privilegeName
                                                 + "] allowed the update mapping action ["
                                                 + action
                                                 + "] on index ["
-                                                + indexOrAlias
+                                                + resource.name
                                                 + "], this "
                                                 + "privilege will not permit mapping updates in the next major release - users who require "
                                                 + "access to update mappings must be granted explicit privileges"
@@ -266,17 +383,13 @@ public final class IndicesPermission {
                 bwcDeprecationLogActions.forEach(deprecationLogAction -> deprecationLogAction.run());
             }
 
-            if (concreteIndices.isEmpty()) {
-                grantedBuilder.put(indexOrAlias, granted);
-            } else {
-                grantedBuilder.put(indexOrAlias, granted);
-                for (String concreteIndex : concreteIndices) {
-                    grantedBuilder.put(concreteIndex, granted);
-                }
+            grantedBuilder.put(resource.name, granted);
+            for (String concreteIndex : concreteIndices) {
+                grantedBuilder.put(concreteIndex, granted);
             }
         }
 
-        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = new HashMap<>();
+        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = new HashMap<>(grantedBuilder.size());
         for (Map.Entry<String, Boolean> entry : grantedBuilder.entrySet()) {
             String index = entry.getKey();
             DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
@@ -420,13 +533,18 @@ public final class IndicesPermission {
 
     private static class DocumentLevelPermissions {
 
+        public static final DocumentLevelPermissions ALLOW_ALL = new DocumentLevelPermissions();
+        static {
+            ALLOW_ALL.allowAll = true;
+        }
+
         private Set<BytesReference> queries = null;
         private boolean allowAll = false;
 
         private void addAll(Set<BytesReference> query) {
             if (allowAll == false) {
                 if (queries == null) {
-                    queries = new HashSet<>();
+                    queries = new HashSet<>(query.size());
                 }
                 queries.addAll(query);
             }
@@ -434,10 +552,6 @@ public final class IndicesPermission {
 
         private boolean isAllowAll() {
             return allowAll;
-        }
-
-        private void setAllowAll(boolean allowAll) {
-            this.allowAll = allowAll;
         }
     }
 }

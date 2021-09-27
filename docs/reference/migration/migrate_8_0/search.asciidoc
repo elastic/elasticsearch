@@ -6,6 +6,39 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[[msearch-empty-line-support]]
+.The multi search API now parses an empty first line as action metadata in text files.
+[%collapsible]
+====
+*Details* +
+The multi search API now parses an empty first line as empty action metadata
+when you provide a text file as the request body, such as when using curl's
+`--data-binary` flag.
+
+The API no longer supports text files that contain:
+
+* An empty first line followed by a line containing only `{}`.
+* An empty first line followed by another empty line.
+
+*Impact* +
+Don't provide an unsupported text file to the multi search API. Requests that
+include an unsupported file will return an error.
+====
+
+[[remove-unmapped-type-string]]
+.The `unmapped_type: string` sort option has been removed.
+[%collapsible]
+====
+*Details* +
+Search requests no longer support the `unmapped_type: string` sort option.
+Instead, use `unmapped_type: keyword` to handle an unmapped field as if it had
+the `keyword` field type but ignore its values for sorting.
+
+*Impact* +
+Discontinue use of `unmapped_type: string`. Search requests that include the
+`unmapped_type: string` sort option will return shard failures.
+====
+
 [[id-field-data]]
 .Aggregating and sorting on `_id` is disallowed by default.
 [%collapsible]

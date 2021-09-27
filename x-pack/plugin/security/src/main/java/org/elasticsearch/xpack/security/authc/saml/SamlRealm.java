@@ -85,6 +85,7 @@ import java.security.GeneralSecurityException;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -563,8 +564,8 @@ public final class SamlRealm extends Realm implements Releasable {
 
         HTTPMetadataResolver resolver = new PrivilegedHTTPMetadataResolver(builder.build(), metadataUrl);
         TimeValue refresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
-        resolver.setMinRefreshDelay(refresh.millis());
-        resolver.setMaxRefreshDelay(refresh.millis());
+        resolver.setMinRefreshDelay(Duration.ofMillis(refresh.millis()));
+        resolver.setMaxRefreshDelay(Duration.ofMillis(refresh.millis()));
         initialiseResolver(resolver, config);
 
         return new Tuple<>(resolver, () -> {
@@ -614,7 +615,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
         // We don't want to rely on the internal OpenSAML refresh timer, but we can't turn it off, so just set it to run once a day.
         // @TODO : Submit a patch to OpenSAML to optionally disable the timer
-        final long oneDayMs = TimeValue.timeValueHours(24).millis();
+        final Duration oneDayMs = Duration.ofMillis(TimeValue.timeValueHours(24).millis());
         resolver.setMinRefreshDelay(oneDayMs);
         resolver.setMaxRefreshDelay(oneDayMs);
         initialiseResolver(resolver, config);

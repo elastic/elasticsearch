@@ -9,7 +9,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;

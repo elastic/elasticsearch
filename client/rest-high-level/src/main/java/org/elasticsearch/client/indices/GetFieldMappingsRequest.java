@@ -24,7 +24,7 @@ public class GetFieldMappingsRequest implements Validatable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions;
 
     /**
      * Indicate whether the receiving node should operate based on local index information or forward requests,

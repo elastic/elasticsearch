@@ -1,0 +1,61 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  testImplementation project(':client:rest-high-level')
+}
+
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
+  String baseName = "v${bwcVersion}"
+  String bwcVersionStr = "${bwcVersion}"
+
+  testClusters {
+    "${baseName}-local" {
+      numberOfNodes = 2
+      versions = [project.version]
+      setting 'cluster.remote.node.attr', 'gateway'
+      setting 'xpack.security.enabled', 'false'
+    }
+    "${baseName}-remote" {
+      numberOfNodes = 2 
+      versions = [bwcVersionStr]
+      firstNode.setting 'node.attr.gateway', 'true'
+      lastNode.setting 'node.attr.gateway', 'true'
+      setting 'xpack.security.enabled', 'false'
+    }
+  }
+
+  tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
+    useCluster testClusters."${baseName}-local"
+    useCluster testClusters."${baseName}-remote"
+    systemProperty 'tests.upgrade_from_version', bwcVersionStr.replace('-SNAPSHOT', '')
+
+    doFirst {
+      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}-local".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.rest.remote_cluster', "${-> testClusters."${baseName}-remote".allHttpSocketURI.join(",")}")
+    }
+  }
+
+  tasks.register("${baseName}#testBWCEmulation", StandaloneRestIntegTestTask) {
+    dependsOn "processTestResources"
+    mustRunAfter("precommit")
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn tasks.named("${baseName}#testBWCEmulation")
+  }
+}

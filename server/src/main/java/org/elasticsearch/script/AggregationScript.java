@@ -84,7 +84,7 @@ public abstract class AggregationScript extends DocBasedScript implements Scorer
      * <p>
      * The default implementation just calls {@code setNextVar("_value", value)} but
      * some engines might want to handle this differently for better performance.
-     * <p>
+     *
      * @param value per-document value, typically a String, Long, or Double
      */
     public void setNextAggregationValue(Object value) {

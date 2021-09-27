@@ -16,12 +16,12 @@ import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -144,6 +144,11 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.hasParam("pre_filter_shard_size")) {
             searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE));
         }
+        if (request.hasParam("enable_fields_emulation")) {
+            searchRequest.setFieldsOptionEmulationEnabled(
+                request.paramAsBoolean("enable_fields_emulation", SearchRequest.DEFAULT_FIELDS_EMULATION_ENABLED)
+            );
+        }
 
         if (request.hasParam("max_concurrent_shard_requests")) {
             // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
@@ -158,16 +163,7 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
         }
 
-        // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
-        // from the REST layer. these modes are an internal optimization and should
-        // not be specified explicitly by the user.
-        String searchType = request.param("search_type");
-        if ("query_and_fetch".equals(searchType) ||
-                "dfs_query_and_fetch".equals(searchType)) {
-            throw new IllegalArgumentException("Unsupported search type [" + searchType + "]");
-        } else {
-            searchRequest.searchType(searchType);
-        }
+        searchRequest.searchType(request.param("search_type"));
         parseSearchSource(searchRequest.source(), request, setSize);
         searchRequest.requestCache(request.paramAsBoolean("request_cache", searchRequest.requestCache()));
 

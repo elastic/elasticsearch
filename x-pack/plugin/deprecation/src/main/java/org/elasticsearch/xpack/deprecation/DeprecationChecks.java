@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 
@@ -41,7 +42,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkTemplatesWithMultipleTypes,
             ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
             ClusterDeprecationChecks::checkGeoShapeTemplates,
-            ClusterDeprecationChecks::checkSparseVectorTemplates
+            ClusterDeprecationChecks::checkSparseVectorTemplates,
+            ClusterDeprecationChecks::checkILMFreezeActions
         ));
 
     static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
@@ -119,6 +121,7 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
                     NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
                     NodeDeprecationChecks::checkMaxLocalStorageNodesSetting,
+                    NodeDeprecationChecks::checkSamlNameIdFormatSetting,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
                 )
             ).collect(Collectors.toList());
@@ -139,6 +142,7 @@ public class DeprecationChecks {
             IndexDeprecationChecks::checkIndexRoutingRequireSetting,
             IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
             IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
+            IndexDeprecationChecks::checkIndexMatrixFiltersSetting,
             IndexDeprecationChecks::checkGeoShapeMappings
         ));
 

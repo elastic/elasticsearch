@@ -789,6 +789,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise(defaultMillis(PUBLISH_TIMEOUT_SETTING));
             assertTrue("expected eventual ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
             assertFalse("expected no ack from " + follower0, ackCollector.hasAcked(follower0));
+
+            follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
         }
     }
 
@@ -1357,6 +1359,53 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    public void testNodeCannotJoinIfJoinPingValidationFailsOnMaster() throws IllegalAccessException {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            cluster.getAnyLeader().addActionBlock(JoinHelper.JOIN_PING_ACTION_NAME);
+
+            // check that if node ping join validation fails on master, the nodes can't join
+            List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
+            final long previousClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
+
+            MockLogAppender mockAppender = new MockLogAppender();
+            mockAppender.start();
+            Logger joinLogger = LogManager.getLogger(JoinHelper.class);
+            Logger coordinatorLogger = LogManager.getLogger(Coordinator.class);
+            Loggers.addAppender(joinLogger, mockAppender);
+            Loggers.addAppender(coordinatorLogger, mockAppender);
+            try {
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "failed to join",
+                        JoinHelper.class.getCanonicalName(),
+                        Level.INFO,
+                        "*failed to join*"));
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "failed to ping",
+                        Coordinator.class.getCanonicalName(),
+                        Level.WARN,
+                        "*failed to ping joining node*"));
+                cluster.runFor(10000, "failing joins");
+                mockAppender.assertAllExpectationsMatched();
+            } finally {
+                Loggers.removeAppender(coordinatorLogger, mockAppender);
+                Loggers.removeAppender(joinLogger, mockAppender);
+                mockAppender.stop();
+            }
+
+            assertTrue(addedNodes.stream().allMatch(ClusterNode::isCandidate));
+            final long newClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
+            assertEquals(previousClusterStateVersion, newClusterStateVersion);
+
+            cluster.getAnyLeader().clearActionBlocks();
+            cluster.stabilise();
+        }
+    }
+
     public void testNodeCannotJoinIfJoinValidationFailsOnJoiningNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
             cluster.runRandomly();
@@ -1394,6 +1443,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.bootstrapIfNecessary();
             cluster.runFor(10000, "failing join validation");
             assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
+
+            for (ClusterNode clusterNode : cluster.clusterNodes) {
+                clusterNode.extraJoinValidators.clear();
+            }
+
+            cluster.stabilise();
         }
     }
 
@@ -1556,21 +1611,31 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final long delayVariabilityMillis = randomLongBetween(DEFAULT_DELAY_VARIABILITY, TimeValue.timeValueMinutes(10).millis());
             if (randomBoolean()) {
                 cluster.runRandomly(true, false, delayVariabilityMillis);
-            } else {
-                cluster.deterministicTaskQueue.setExecutionDelayVariabilityMillis(delayVariabilityMillis);
             }
 
+            cluster.deterministicTaskQueue.setExecutionDelayVariabilityMillis(delayVariabilityMillis);
+
             final ClusterNode clusterNode = cluster.getAnyNode();
+
+            final long clusterStateUpdateDelay = 7 * delayVariabilityMillis; // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
 
             // cf. DEFAULT_STABILISATION_TIME, but stabilisation is quicker when there's a single node - there's no meaningful fault
             // detection and ongoing publications do not time out
             cluster.runFor(ELECTION_INITIAL_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + delayVariabilityMillis
                 // two round trips for pre-voting and voting
                 + 4 * delayVariabilityMillis
-                // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
-                + 7 * delayVariabilityMillis, "stabilising");
+                // and then the election update
+                + clusterStateUpdateDelay, "stabilising");
 
             assertThat(cluster.getAnyLeader(), sameInstance(clusterNode));
+
+            final int pendingTaskCount = clusterNode.getPendingTaskCount();
+            cluster.runFor((pendingTaskCount + 1) * clusterStateUpdateDelay, "draining task queue");
+
+            assertFalse(clusterNode.coordinator.publicationInProgress());
+            assertThat(clusterNode.coordinator.getLastAcceptedState().version(),
+                equalTo(clusterNode.getLastAppliedClusterState().version()));
+            cluster.deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
         }
     }
 
@@ -1710,6 +1775,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     Loggers.removeAppender(LogManager.getLogger(ClusterFormationFailureHelper.class), mockLogAppender);
                     mockLogAppender.stop();
                 }
+            }
+
+            for (ClusterNode clusterNode : cluster.clusterNodes) {
+                clusterNode.heal();
             }
         }
     }

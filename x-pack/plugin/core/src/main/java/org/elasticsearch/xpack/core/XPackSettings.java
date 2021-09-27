@@ -94,14 +94,7 @@ public class XPackSettings {
     public static final Setting<Boolean> GRAPH_ENABLED = Setting.boolSetting("xpack.graph.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling machine learning. Defaults to true. */
-    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
-        "xpack.ml.enabled",
-        IS_DARWIN_AARCH64 == false,
-        value -> {
-            if (value && IS_DARWIN_AARCH64) {
-                throw new IllegalArgumentException("[xpack.ml.enabled] can not be set to [true] on [Mac OS X/aarch64]");
-            }
-        },
+    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting("xpack.ml.enabled", true,
         Setting.Property.NodeScope);
 
     /**

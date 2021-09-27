@@ -710,7 +710,7 @@ public class IndexResolver {
         // iterate over each type
         for (Entry<String, FieldCapabilities> type : types.entrySet()) {
             String esFieldType = type.getKey();
-            if (esFieldType == UNMAPPED) {
+            if (Objects.equals(esFieldType, UNMAPPED)) {
                 continue;
             }
             String[] indices = type.getValue().indices();
@@ -749,7 +749,7 @@ public class IndexResolver {
             } else {
                 // if the field type is the same across all this alias' indices, check the field's capabilities (searchable/aggregatable)
                 for (Entry<String, FieldCapabilities> type : types.entrySet()) {
-                    if (type.getKey() == UNMAPPED) {
+                    if (Objects.equals(type.getKey(), UNMAPPED)) {
                         continue;
                     }
                     FieldCapabilities f = type.getValue();

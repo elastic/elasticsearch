@@ -1169,7 +1169,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             true,
             null,
             null,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            false
         );
         testCase(new TermsAggregationBuilder("_name").field("field"), new MatchAllDocsQuery(), iw -> {
             Document document = new Document();

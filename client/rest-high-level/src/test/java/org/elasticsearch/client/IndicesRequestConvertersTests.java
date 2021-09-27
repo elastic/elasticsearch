@@ -71,6 +71,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.client.RequestConvertersTests.setRandomIndicesOptions;
 import static org.elasticsearch.client.indices.RandomCreateIndexGenerator.randomAliases;
 import static org.elasticsearch.client.indices.RandomCreateIndexGenerator.randomMapping;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAlias;
@@ -722,8 +723,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             syncedFlushRequest.indices(indices);
         }
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomIndicesOptions(syncedFlushRequest::indicesOptions, syncedFlushRequest::indicesOptions,
-            expectedParams);
+        syncedFlushRequest.indicesOptions(setRandomIndicesOptions(syncedFlushRequest.indicesOptions(), expectedParams));
         Request request = IndicesRequestConverters.flushSynced(syncedFlushRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {

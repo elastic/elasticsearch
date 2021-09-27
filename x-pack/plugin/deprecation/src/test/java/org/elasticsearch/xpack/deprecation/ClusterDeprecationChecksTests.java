@@ -332,15 +332,9 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         final Settings deprecatedSetting = Settings.builder().put(settingKey, settingValue).build();
 
         Metadata.Builder metadataBuilder = Metadata.builder();
-        if (randomBoolean()) {
-            metadataBuilder.transientSettings(deprecatedSetting);
-        } else {
-            metadataBuilder.persistentSettings(deprecatedSetting);
-        }
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
-            .metadata(metadataBuilder.transientSettings(deprecatedSetting).build())
+            .metadata(metadataBuilder.persistentSettings(deprecatedSetting).build())
             .build();
-
 
         final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             String.format(Locale.ROOT,

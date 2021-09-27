@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToDoubleFunction;
 
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
@@ -152,12 +153,21 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     ) throws IOException {
         RangeAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
+        /*
+         This will downgrade the precision of the range bounds to match the field's precision.  Fixes float/double issues, but not
+         long/double issues.  See https://github.com/elastic/elasticsearch/issues/77033
+         */
+        ToDoubleFunction<Double> fixPrecision = config.getNumericType() == null
+            ? (value) -> value
+            : (value) -> config.getNumericType().parse(value, false).doubleValue();
+
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {
             DocValueFormat parser = config.format();
             assert parser != null;
-            Double from = range.from;
-            Double to = range.to;
+            // Trying to parse infinite values into ints/longs throws.  Understandably.
+            Double from = Double.isFinite(range.from) ? fixPrecision.applyAsDouble(range.from) : range.from;
+            Double to = Double.isFinite(range.to) ? fixPrecision.applyAsDouble(range.to) : range.to;
             if (range.fromAsStr != null) {
                 from = parser.parseDouble(range.fromAsStr, false, context::nowInMillis);
             }

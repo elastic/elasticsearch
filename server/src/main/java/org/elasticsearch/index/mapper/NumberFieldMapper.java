@@ -1034,6 +1034,9 @@ public class NumberFieldMapper extends FieldMapper {
             return type.name;
         }
 
+        public NumberType numberType() {
+            return type;
+        }
         public NumericType numericType() {
             return type.numericType();
         }

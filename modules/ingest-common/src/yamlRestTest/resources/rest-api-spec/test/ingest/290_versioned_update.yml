@@ -1,0 +1,159 @@
+---
+"Test pipeline versioned updates":
+  - skip:
+      version: " - 7.99.99"
+      reason: "re-enable in 7.16+ when backported"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # conditionally update based on missing version
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        if_version: "null"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.version: 1 }
+
+  # required version does not match specified version
+  - do:
+      catch: /.*version conflict, required version \[99\] for pipeline \[my_pipeline\] but current version is \[1\].*/
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        if_version: 99
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+
+  # may not update to same version
+  - do:
+      catch: /.*cannot update pipeline \[my_pipeline\] with the same version \[1\].*/
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        if_version: 1
+        body:  >
+          {
+            "version": 1,
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+
+  # cannot conditionally update non-existent pipeline
+  - do:
+      catch: /.*version conflict, required version \[1\] for pipeline \[my_pipeline2\] but no pipeline was found.*/
+      ingest.put_pipeline:
+        id: "my_pipeline2"
+        if_version: 1
+        body:  >
+          {
+            "version": 1,
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+
+  # conditionally update to specified version
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        if_version: 1
+        body:  >
+          {
+            "version": 99,
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.version: 99 }
+
+  # conditionally update without specified version
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        if_version: 99
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.version: 100 }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+  - match: { acknowledged: true }

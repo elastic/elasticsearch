@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -23,17 +24,25 @@ import java.util.Objects;
 
 public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> implements ToXContentObject {
 
-    private String id;
-    private BytesReference source;
-    private XContentType xContentType;
+    private final String id;
+    private final BytesReference source;
+    private final XContentType xContentType;
+    private boolean versionedUpdate;
+    private Integer version;
 
     /**
      * Create a new pipeline request with the id and source along with the content type of the source
      */
-    public PutPipelineRequest(String id, BytesReference source, XContentType xContentType) {
+    public PutPipelineRequest(String id, BytesReference source, XContentType xContentType, boolean versionedUpdate, Integer version) {
         this.id = Objects.requireNonNull(id);
         this.source = Objects.requireNonNull(source);
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.versionedUpdate = versionedUpdate;
+        this.version = version;
+    }
+
+    public PutPipelineRequest(String id, BytesReference source, XContentType xContentType) {
+        this(id, source, xContentType, false, null);
     }
 
     public PutPipelineRequest(StreamInput in) throws IOException {
@@ -41,9 +50,17 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         id = in.readString();
         source = in.readBytesReference();
         xContentType = in.readEnum(XContentType.class);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            versionedUpdate = in.readBoolean();
+            version = in.readOptionalInt();
+        } else {
+            versionedUpdate = false;
+            version = -1;
+        }
     }
 
     PutPipelineRequest() {
+        this(null, null, null, false, null);
     }
 
     @Override
@@ -63,12 +80,32 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         return xContentType;
     }
 
+    public boolean isVersionedUpdate() {
+        return versionedUpdate;
+    }
+
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
+    }
+
+    public void setVersionedUpdate(boolean versionedUpdate) {
+        this.versionedUpdate = versionedUpdate;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
         XContentHelper.writeTo(out, xContentType);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(versionedUpdate);
+            out.writeOptionalInt(version);
+        }
     }
 
     @Override

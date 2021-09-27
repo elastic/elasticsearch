@@ -36,9 +36,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -52,12 +54,14 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -341,7 +345,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         Map<String, Object> pipelineConfig = null;
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        if (currentIngestMetadata != null && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
+        if (request.isVersionedUpdate() == false &&
+            currentIngestMetadata != null &&
+            currentIngestMetadata.getPipelines().containsKey(request.getId())) {
             pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
             var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
             if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {
@@ -432,8 +438,56 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return processorMetrics;
     }
 
+    // visible for testing
     static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState) {
         IngestMetadata currentIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
+
+        BytesReference pipelineSource = request.getSource();
+        if (request.isVersionedUpdate()) {
+            var currentPipeline = currentIngestMetadata != null ? currentIngestMetadata.getPipelines().get(request.getId()) : null;
+            if (currentPipeline == null) {
+                throw new IllegalStateException(String.format(
+                    Locale.ROOT,
+                    "version conflict, required version [%s] for pipeline [%s] but no pipeline was found",
+                    request.getVersion(),
+                    request.getId()
+                ));
+            }
+
+            final Integer currentVersion = currentPipeline.getVersion();
+            if (Objects.equals(request.getVersion(), currentVersion) == false) {
+                throw new IllegalStateException(String.format(
+                    Locale.ROOT,
+                    "version conflict, required version [%s] for pipeline [%s] but current version is [%s]",
+                    request.getVersion(),
+                    request.getId(),
+                    currentVersion
+                ));
+            }
+
+            var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+            final Integer specifiedVersion = (Integer) pipelineConfig.get("version");
+            if (pipelineConfig.containsKey("version") && Objects.equals(specifiedVersion, currentVersion)) {
+                throw new IllegalStateException(String.format(
+                    Locale.ROOT,
+                    "cannot update pipeline [%s] with the same version [%s]",
+                    request.getId(),
+                    request.getVersion()
+                ));
+            }
+
+            // if no version specified in the pipeline definition, inject a version of [request.getVersion() + 1]
+            if (specifiedVersion == null) {
+                pipelineConfig.put("version", request.getVersion() == null ? 1 : request.getVersion() + 1);
+                try {
+                    var builder = XContentBuilder.builder(request.getXContentType().xContent()).map(pipelineConfig);
+                    pipelineSource = BytesReference.bytes(builder);
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        }
+
         Map<String, PipelineConfiguration> pipelines;
         if (currentIngestMetadata != null) {
             pipelines = new HashMap<>(currentIngestMetadata.getPipelines());
@@ -441,7 +495,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             pipelines = new HashMap<>();
         }
 
-        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getXContentType()));
+        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), pipelineSource, request.getXContentType()));
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metadata(Metadata.builder(currentState.getMetadata())
             .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines))

@@ -101,9 +101,4 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
         this.indices.add(index);
         return this;
     }
-
-    FieldCapabilitiesFailure addIndices(List<String> indices) {
-        this.indices.addAll(indices);
-        return this;
-    }
 }

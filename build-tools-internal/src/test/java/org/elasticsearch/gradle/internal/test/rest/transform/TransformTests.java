@@ -110,6 +110,22 @@ public abstract class TransformTests extends GradleUnitTestCase {
         assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
     }
 
+    protected void validateSkipVersionExist(List<ObjectNode> tests) {
+        assertNotNull(validateSkipNodesExist((tests)).get("version"));
+    }
+
+    protected void validateSkipReasonExist(List<ObjectNode> tests) {
+        assertNotNull(validateSkipNodesExist((tests)).get("reason"));
+    }
+
+    protected void validateSkipVersion(List<ObjectNode> tests, String expectedVersion) {
+        assertEquals(validateSkipNodesExist((tests)).get("version").asText(), expectedVersion);
+    }
+
+    protected void validateSkipReason(List<ObjectNode> tests, String expectedReasons) {
+        assertEquals(validateSkipNodesExist((tests)).get("reason").asText(), expectedReasons);
+    }
+
     protected List<ObjectNode> transformTests(List<ObjectNode> tests) {
         return transformTests(tests, getTransformations());
     }

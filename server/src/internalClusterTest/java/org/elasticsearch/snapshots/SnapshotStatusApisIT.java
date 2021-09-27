@@ -410,7 +410,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo", "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
 
         String indexName = "test-idx-1";
-        createIndexWithContent(indexName, indexSettingsNoReplicas(4).build());
+        createIndexWithContent(indexName, indexSettingsNoReplicas(randomIntBetween(1, 10)).build());
         ensureGreen();
 
         ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot("test-repo", "test-snap");

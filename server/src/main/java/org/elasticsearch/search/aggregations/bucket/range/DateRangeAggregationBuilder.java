@@ -71,7 +71,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
                 Aggregator parent,
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata) -> {
-                DEPRECATION_LOGGER.deprecate(
+                DEPRECATION_LOGGER.critical(
                     DeprecationCategory.AGGREGATIONS,
                     "Range-boolean",
                     "Running Range or DateRange aggregations on [boolean] fields is deprecated"

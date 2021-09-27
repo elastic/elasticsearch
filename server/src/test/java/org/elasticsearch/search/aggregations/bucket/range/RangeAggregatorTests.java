@@ -163,6 +163,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 false,
                 null,
                 Collections.emptyMap(),
+                null,
+                false,
                 null
             )
         );
@@ -283,6 +285,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             false,
             null,
             Collections.emptyMap(),
+            null,
+            false,
             null
         );
 
@@ -562,6 +566,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             false,
             null,
             Collections.emptyMap(),
+            null,
+            false,
             null
         );
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test_range_agg");

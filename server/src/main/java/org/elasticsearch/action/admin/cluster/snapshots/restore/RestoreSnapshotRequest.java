@@ -530,7 +530,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 if ((entry.getValue() instanceof Map) == false) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
-                DEPRECATION_LOGGER.deprecate(
+                DEPRECATION_LOGGER.critical(
                     DeprecationCategory.API,
                     "RestoreSnapshotRequest#settings",
                     "specifying [settings] when restoring a snapshot has no effect and will not be supported in a future version"

@@ -16,7 +16,7 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-testClusters.all {
+testClusters.configureEach {
   // Adds a setting in the Elasticsearch keystore before running the integration tests
   keystore 'custom.secured', 'password'
 }

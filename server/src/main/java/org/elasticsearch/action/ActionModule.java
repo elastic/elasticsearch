@@ -472,7 +472,7 @@ public class ActionModule extends AbstractModule {
                 }
                 restWrapper = newRestWrapper;
                 if ("org.elasticsearch.xpack.security.Security".equals(plugin.getClass().getCanonicalName()) == false) {
-                    deprecationLogger.deprecate(DeprecationCategory.PLUGINS, "3rd_party_rest_deprecation", "The " +
+                    deprecationLogger.critical(DeprecationCategory.PLUGINS, "3rd_party_rest_deprecation", "The " +
                         plugin.getClass().getName() + " plugin installs a custom REST wrapper. This functionality is deprecated and will " +
                         "not be possible in Elasticsearch 8.0. If this plugin is intended to provide security features for Elasticsearch " +
                         "then you should switch to using the built-in Elasticsearch features instead.");

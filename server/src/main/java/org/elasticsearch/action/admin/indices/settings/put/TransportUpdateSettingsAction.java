@@ -91,7 +91,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                     .map(entry -> "[" + entry.getKey() + "] -> " + entry.getValue())
                     .collect(Collectors.joining(", "))
                 + ". This will not work in the next major version";
-            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access", message);
+            deprecationLogger.critical(DeprecationCategory.API, "open_system_index_access", message);
         }
 
         final List<String> hiddenSystemIndexViolations

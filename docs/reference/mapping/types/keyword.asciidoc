@@ -171,4 +171,3 @@ Dimension fields have the following constraints:
 include::constant-keyword.asciidoc[]
 
 include::wildcard.asciidoc[]
-

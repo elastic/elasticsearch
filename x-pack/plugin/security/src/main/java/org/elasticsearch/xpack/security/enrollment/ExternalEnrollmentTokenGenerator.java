@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAct
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.HttpResponse;
-import org.elasticsearch.xpack.security.enrollment.tool.BaseEnrollmentTokenGenerator;
 
 import java.io.IOException;
 import java.io.InputStream;

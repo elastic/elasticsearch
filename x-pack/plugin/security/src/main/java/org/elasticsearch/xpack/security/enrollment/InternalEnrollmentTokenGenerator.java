@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentA
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.enrollment.tool.BaseEnrollmentTokenGenerator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,10 +51,20 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         this.client = new OriginSettingClient(client, SECURITY_ORIGIN);
     }
 
+    /**
+     * Creates an enrollment token for an elasticsearch node
+     * @param tokenListener The listener to be notified with the result. It will be passed the {@link EnrollmentToken} if creation was
+     *                      successful, null otherwise.
+     */
     public void createNodeEnrollmentToken(ActionListener<EnrollmentToken> tokenListener) {
         create(NodeEnrollmentAction.NAME, tokenListener);
     }
 
+    /**
+     * Creates an enrollment token for a kibana instance
+     * @param tokenListener The listener to be notified with the result. It will be passed the {@link EnrollmentToken} if creation was
+     *                      successful, null otherwise.
+     */
     public void createKibanaEnrollmentToken(ActionListener<EnrollmentToken> tokenListener) {
         create(KibanaEnrollmentAction.NAME, tokenListener);
     }

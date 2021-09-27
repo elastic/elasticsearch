@@ -24,16 +24,21 @@ import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.enrollment.InternalEnrollmentTokenGenerator;
-import org.elasticsearch.xpack.security.enrollment.tool.BaseEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.PrintStream;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
 public class InitialSecurityConfigurationListener implements BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> {
+
+    private static final String tokenKey = "token";
+    private static final String fingerprintKey = "caCertFingerprint";
+    private static final String passwordKey = "elasticPassword";
 
     private static final Logger LOGGER = LogManager.getLogger(InitialSecurityConfigurationListener.class);
     private final NativeUsersStore nativeUsersStore;
@@ -69,24 +74,16 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
             && currentState.equals(SecurityIndexManager.State.UNRECOVERED_STATE) == false
             && securityIndexManager.indexExists() == false
             && XPackSettings.ENROLLMENT_ENABLED.get(environment.settings())) {
-            GroupedActionListener<String> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(results -> {
-                String password = null;
-                String token = null;
-                String caCertFingerprint = null;
-                try {
-                    caCertFingerprint = BaseEnrollmentTokenGenerator.getCaFingerprint(sslService);
-                } catch (Exception e) {
-                    // do nothing, we will log this in the InternalEnrollmentTokenGenerator
+            GroupedActionListener<Map<String, String>> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(results -> {
+                final Map<String, String> allResultsMap = new HashMap<>();
+                for (Map<String, String> result : results) {
+                    allResultsMap.putAll(result);
                 }
-                for (String result: results){
-                    if (result.startsWith("password:")){
-                        password = result.replace("password:","");
-                    } else if (result.startsWith("token:")){
-                        token = result.replace("token:","");
-                    }
-                }
+                final String password = allResultsMap.get(passwordKey);
+                final String token = allResultsMap.get(tokenKey);
+                final String caCertFingerprint = allResultsMap.get(fingerprintKey);
                 outputInformationToConsole(password, token, caCertFingerprint, out);
-            }, this::outputOnError),2);
+            }, this::outputOnError), 2);
 
             if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())) {
                 final SecureString elasticPassword = new SecureString(generatePassword(20));
@@ -95,10 +92,10 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
                     elasticPassword.getChars(),
                     DocWriteRequest.OpType.CREATE,
                     WriteRequest.RefreshPolicy.IMMEDIATE,
-                    groupedActionListener.map(ignore -> "password:" + elasticPassword)
+                    groupedActionListener.map(ignore -> Map.of(passwordKey, elasticPassword.toString()))
                 );
             } else {
-                groupedActionListener.onResponse(null);
+                groupedActionListener.onResponse(Map.of());
             }
             final InternalEnrollmentTokenGenerator enrollmentTokenGenerator = new InternalEnrollmentTokenGenerator(
                 environment,
@@ -106,12 +103,12 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
                 client
             );
             enrollmentTokenGenerator.createKibanaEnrollmentToken(
-                groupedActionListener.map(token -> token == null ? null : "token:" + token.getEncoded())
+                groupedActionListener.map(token -> token == null ? Map.of() : Map.of(tokenKey, token.getEncoded(), fingerprintKey,
+                    token.getFingerprint()))
             );
             securityIndexManager.removeStateListener(this);
         }
     }
-
 
     private void outputInformationToConsole(String elasticPassword, String enrollmentToken, String caCertFingerprint, PrintStream out) {
         StringBuilder builder = new StringBuilder();

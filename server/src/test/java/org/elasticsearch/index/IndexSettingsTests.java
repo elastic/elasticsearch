@@ -31,6 +31,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.StringContains.containsString;
@@ -552,8 +554,9 @@ public class IndexSettingsTests extends ESTestCase {
         long startTime = Math.min(randomMillisUpToYear9999(), DateUtils.MAX_MILLIS_BEFORE_9999 - 86400000);
         long endTime = startTime + randomLongBetween(1000, 86400000);
         final Settings settings = Settings.builder()
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime)
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(TIME_SERIES_END_TIME.getKey(), endTime)
             .build();
         IndexMetadata metadata = newIndexMeta("test", settings);
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
@@ -588,7 +591,9 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testUpdateTimeSeriesTimeRangeNotSet() {
-        final Settings settings = Settings.builder().build();
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .build();
         IndexMetadata metadata = newIndexMeta("test", settings);
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
 
@@ -607,6 +612,31 @@ public class IndexSettingsTests extends ESTestCase {
             );
 
             assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time not set before, can not update value"));
+        }
+    }
+
+    public void testTimeSeriesTimeRangeModeSet() {
+        long time = Math.min(randomMillisUpToYear9999(), DateUtils.MAX_MILLIS_BEFORE_9999);
+        {
+            final Settings settings = Settings.builder()
+                .put(TIME_SERIES_START_TIME.getKey(), time)
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TIME_SERIES_START_TIME.get(settings)
+            );
+            assertThat(e.getMessage(), Matchers.containsString("index.time_series.start_time need to be used for time_series mode"));
+        }
+
+        {
+            final Settings settings = Settings.builder()
+                .put(TIME_SERIES_END_TIME.getKey(), time)
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TIME_SERIES_END_TIME.get(settings)
+            );
+            assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time need to be used for time_series mode"));
         }
     }
 }

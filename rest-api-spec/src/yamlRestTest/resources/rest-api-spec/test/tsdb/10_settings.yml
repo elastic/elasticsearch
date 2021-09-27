@@ -164,3 +164,28 @@ set start_time and end_time:
   - do:
       indices.delete:
         index: test_index
+
+---
+set start_time and end_time without timeseries mode:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
+  - do:
+      catch: /index.time_series.start_time need to be used for time_series mode/
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              time_series:
+                start_time: 1632625782000
+
+  - do:
+      catch: /index.time_series.end_time need to be used for time_series mode/
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              time_series:
+                end_time: 1632625782000

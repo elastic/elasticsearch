@@ -365,22 +365,60 @@ public final class IndexSettings {
 
     /**
      * in time series mode, the start time of the index, timestamp must larger than start_time
+     * format is epoch_millis
      */
     public static final Setting<Long> TIME_SERIES_START_TIME = Setting.longSetting(
         "index.time_series.start_time",
         -1L,
         -1L,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Long value) {}
+
+            @Override
+            public void validate(Long value, Map<Setting<?>, Object> settings) {
+                IndexMode mode = (IndexMode) settings.get(MODE);
+                if (mode != IndexMode.TIME_SERIES) {
+                    throw new IllegalArgumentException("index.time_series.start_time need to be used for time_series mode");
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(MODE);
+                return settings.iterator();
+            }
+        },
         Property.IndexScope,
         Property.Dynamic
     );
 
     /**
      * in time series mode, the end time of the index, timestamp must smaller than start_time
+     * format is epoch_millis
      */
     public static final Setting<Long> TIME_SERIES_END_TIME = Setting.longSetting(
         "index.time_series.end_time",
         -1L,
         -1L,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Long value) {}
+
+            @Override
+            public void validate(Long value, Map<Setting<?>, Object> settings) {
+                IndexMode mode = (IndexMode) settings.get(MODE);
+                if (mode != IndexMode.TIME_SERIES) {
+                    throw new IllegalArgumentException("index.time_series.end_time need to be used for time_series mode");
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(MODE);
+                return settings.iterator();
+            }
+        },
         Property.IndexScope,
         Property.Dynamic
     );
@@ -539,8 +577,10 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        timeSeriesStartTime = TIME_SERIES_START_TIME.get(settings);
-        timeSeriesEndTime = TIME_SERIES_END_TIME.get(settings);
+        if (mode == IndexMode.TIME_SERIES) {
+            timeSeriesStartTime = TIME_SERIES_START_TIME.get(settings);
+            timeSeriesEndTime = TIME_SERIES_END_TIME.get(settings);
+        }
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);

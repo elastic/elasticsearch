@@ -1222,6 +1222,12 @@ public class Setting<T> implements ToXContentObject {
             properties);
     }
 
+    public static Setting<Long> longSetting(String key, long defaultValue, long minValue, Validator<Long> validator,
+        Property... properties) {
+        return new Setting<>(key, Long.toString(defaultValue), (s) -> parseLong(s, minValue, key, isFiltered(properties)), validator,
+            properties);
+    }
+
     public static Setting<String> simpleString(String key, Property... properties) {
         return new Setting<>(key, s -> "", Function.identity(), properties);
     }

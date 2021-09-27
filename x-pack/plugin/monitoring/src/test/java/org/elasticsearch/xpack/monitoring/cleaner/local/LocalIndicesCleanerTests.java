@@ -17,7 +17,10 @@ import org.elasticsearch.xpack.monitoring.cleaner.AbstractIndicesCleanerTestCase
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,8 +54,14 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
             //in some cases. When the plugin security is enabled, it expands wildcards to the existing index, which then gets deleted,
             //so when es core gets the request with the explicit index name, it throws an index not found exception as that index
             //doesn't exist anymore. If we ignore unavailable instead no error will be thrown.
-            GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings()
+            GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings().addIndices(".monitoring-*")
                     .setIndicesOptions(IndicesOptions.fromOptions(true, true, true, true, true)).get();
+            Iterator<String> indices = getSettingsResponse.getIndexToSettings().keysIt();
+            List<String> collectedIndices = new ArrayList<>();
+            while (indices.hasNext()) {
+                String next = indices.next();
+                collectedIndices.add(next);
+            }
             assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(count));
         });
     }

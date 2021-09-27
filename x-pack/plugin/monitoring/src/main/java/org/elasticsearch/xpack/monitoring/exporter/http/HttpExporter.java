@@ -838,7 +838,7 @@ public class HttpExporter extends Exporter {
 
         // add templates not managed by resolvers
         for (final String templateName : MonitoringTemplateRegistry.TEMPLATE_NAMES) {
-            resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, null));
+            resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName));
         }
     }
 

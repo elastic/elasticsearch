@@ -60,7 +60,7 @@ public abstract class TransformTests extends GradleUnitTestCase {
         transformedTests.stream().filter(node -> node.get("teardown") != null).forEach(this::assertTeardown);
     }
 
-    protected ObjectNode validateSkipNodesExist(List<ObjectNode> tests) {
+    protected ObjectNode validateGlobalSkipNodesExist(List<ObjectNode> tests) {
         List<ObjectNode> skipNodes = tests.stream()
             .filter(node -> node.get("setup") != null)
             .filter(node -> getSkipNode((ArrayNode) node.get("setup")) != null)
@@ -70,7 +70,7 @@ public abstract class TransformTests extends GradleUnitTestCase {
         return skipNodes.get(0);
     }
 
-    protected void validateSkipNodesDoesNotExist(List<ObjectNode> tests) {
+    protected void validateGlobalSkipNodesDoesNotExist(List<ObjectNode> tests) {
         List<ObjectNode> skipNodes = tests.stream()
             .filter(node -> node.get("setup") != null)
             .filter(node -> getSkipNode((ArrayNode) node.get("setup")) != null)
@@ -80,7 +80,7 @@ public abstract class TransformTests extends GradleUnitTestCase {
     }
 
     protected void validatePreExistingFeatureExist(List<ObjectNode> tests) {
-        assertThat(validateSkipNodesExist(tests).get("features"), CoreMatchers.notNullValue());
+        assertThat(validateGlobalSkipNodesExist(tests).get("features"), CoreMatchers.notNullValue());
     }
 
     protected void validateSetupDoesNotExist(List<ObjectNode> tests) {
@@ -88,7 +88,7 @@ public abstract class TransformTests extends GradleUnitTestCase {
     }
 
     protected void validateFeatureNameExists(List<ObjectNode> tests, String featureName) {
-        ObjectNode skipNode = validateSkipNodesExist(tests);
+        ObjectNode skipNode = validateGlobalSkipNodesExist(tests);
         JsonNode featureValues = skipNode.get("features");
         assertNotNull(featureValues);
 
@@ -110,20 +110,20 @@ public abstract class TransformTests extends GradleUnitTestCase {
         assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
     }
 
-    protected void validateSkipVersionExist(List<ObjectNode> tests) {
-        assertNotNull(validateSkipNodesExist((tests)).get("version"));
+    protected void validateGlobalSkipVersionExist(List<ObjectNode> tests) {
+        assertNotNull(validateGlobalSkipNodesExist((tests)).get("version"));
     }
 
-    protected void validateSkipReasonExist(List<ObjectNode> tests) {
-        assertNotNull(validateSkipNodesExist((tests)).get("reason"));
+    protected void validateGlobalSkipReasonExist(List<ObjectNode> tests) {
+        assertNotNull(validateGlobalSkipNodesExist((tests)).get("reason"));
     }
 
-    protected void validateSkipVersion(List<ObjectNode> tests, String expectedVersion) {
-        assertEquals(validateSkipNodesExist((tests)).get("version").asText(), expectedVersion);
+    protected void validateGlobalSkipVersion(List<ObjectNode> tests, String expectedVersion) {
+        assertEquals(validateGlobalSkipNodesExist((tests)).get("version").asText(), expectedVersion);
     }
 
-    protected void validateSkipReason(List<ObjectNode> tests, String expectedReasons) {
-        assertEquals(validateSkipNodesExist((tests)).get("reason").asText(), expectedReasons);
+    protected void validateGlobalSkipReason(List<ObjectNode> tests, String expectedReasons) {
+        assertEquals(validateGlobalSkipNodesExist((tests)).get("reason").asText(), expectedReasons);
     }
 
     protected List<ObjectNode> transformTests(List<ObjectNode> tests) {

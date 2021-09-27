@@ -35,21 +35,31 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
     private final String skipReason;
+    private final String testName;
+
+    public Skip(String testName, String skipReason) {
+        this.skipReason = skipReason;
+        this.testName = testName;
+    }
 
     public Skip(String skipReason) {
         this.skipReason = skipReason;
+        this.testName = "";
     }
 
     @Override
     public ObjectNode transformSetup(@Nullable ObjectNode setupNodeParent) {
-        ArrayNode setupNode;
-        if (setupNodeParent == null) {
-            setupNodeParent = new ObjectNode(jsonNodeFactory);
-            setupNode = new ArrayNode(jsonNodeFactory);
-            setupNodeParent.set("setup", setupNode);
+        // only transform the global setup if there is no named test
+        if (testName.isBlank()) {
+            ArrayNode setupNode;
+            if (setupNodeParent == null) {
+                setupNodeParent = new ObjectNode(jsonNodeFactory);
+                setupNode = new ArrayNode(jsonNodeFactory);
+                setupNodeParent.set("setup", setupNode);
+            }
+            setupNode = (ArrayNode) setupNodeParent.get("setup");
+            addSkip(setupNode);
         }
-        setupNode = (ArrayNode) setupNodeParent.get("setup");
-        addSkip(setupNode);
         return setupNodeParent;
     }
 
@@ -71,22 +81,26 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
         if (remove) {
             skipParent.remove(i);
         }
+
         ObjectNode skipNode = new ObjectNode(jsonNodeFactory);
-        ObjectNode skipChild = new ObjectNode(jsonNodeFactory);
         skipParent.insert(0, skipNode);
+        ObjectNode skipChild = new ObjectNode(jsonNodeFactory);
         skipChild.set("version", TextNode.valueOf("all"));
         skipChild.set("reason", TextNode.valueOf(skipReason));
         skipNode.set("skip", skipChild);
     }
 
+
     @Override
     public void transformTest(ObjectNode parent) {
-        // do nothing (only transform the global setup)
+        if (testName.isBlank() == false) {
+            assert parent.get(testName) instanceof ArrayNode;
+            addSkip((ArrayNode) parent.get(testName));
+        }
     }
 
     @Override
     public String getKeyToFind() {
-        // do nothing (only transform the global setup)
-        return "";
+        return testName;
     }
 }

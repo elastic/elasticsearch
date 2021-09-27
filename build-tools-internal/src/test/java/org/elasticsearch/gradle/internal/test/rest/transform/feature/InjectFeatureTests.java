@@ -65,7 +65,7 @@ public class InjectFeatureTests extends TransformTests {
         String testName = "/rest/transform/feature/with_setup_no_skip.yml";
         List<ObjectNode> tests = getTests(testName);
         validateSetupExist(tests);
-        validateSkipNodesDoesNotExist(tests);
+        validateGlobalSkipNodesDoesNotExist(tests);
         List<ObjectNode> transformedTests = transformTests(tests);
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
@@ -79,7 +79,7 @@ public class InjectFeatureTests extends TransformTests {
         String testName = "/rest/transform/feature/with_setup_no_feature.yml";
         List<ObjectNode> tests = getTests(testName);
         validateSetupExist(tests);
-        validateSkipNodesExist(tests);
+        validateGlobalSkipNodesExist(tests);
         List<ObjectNode> transformedTests = transformTests(tests);
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);

@@ -1,0 +1,12 @@
+---
+setup:
+  - skip:
+      version: "all"
+      reason: "my reason"
+---
+"Test with multiple feature setup":
+  - do:
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+

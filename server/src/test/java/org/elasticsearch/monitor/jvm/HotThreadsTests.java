@@ -559,7 +559,8 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
         List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
-        List<ThreadInfo> cpuOrderedInfos = org.elasticsearch.core.List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
+        List<ThreadInfo> cpuOrderedInfos = org.elasticsearch.core.List.of(
+            allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         HotThreads hotThreads = new HotThreads()

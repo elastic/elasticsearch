@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -25,7 +24,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
+public class SetStepInfoUpdateTask extends IndexLifecycleRunner.IndexLifecycleClusterStateUpdateTask {
 
     private static final Logger logger = LogManager.getLogger(SetStepInfoUpdateTask.class);
 
@@ -34,7 +33,12 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
     private final Step.StepKey currentStepKey;
     private final ToXContentObject stepInfo;
 
-    public SetStepInfoUpdateTask(Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
+    public SetStepInfoUpdateTask(IndexLifecycleRunner runner,
+                                 Index index,
+                                 String policy,
+                                 Step.StepKey currentStepKey,
+                                 ToXContentObject stepInfo) {
+        super(runner);
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
@@ -78,7 +82,12 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
+    protected void onProcessedClusterState(String source, ClusterState oldState, ClusterState newState) {
+        logger.trace("completed [{}]", source);
+    }
+
+    @Override
+    public void doOnFailure(String source, Exception e) {
         logger.warn(new ParameterizedMessage("policy [{}] for index [{}] failed trying to set step info for step [{}].",
                 policy, index.getName(), currentStepKey), e);
     }

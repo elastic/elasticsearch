@@ -12,7 +12,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,7 +26,7 @@ import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
-public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
+public class MoveToErrorStepUpdateTask extends IndexLifecycleRunner.IndexLifecycleClusterStateUpdateTask {
 
     private static final Logger logger = LogManager.getLogger(MoveToErrorStepUpdateTask.class);
 
@@ -39,9 +38,13 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     private final LongSupplier nowSupplier;
     private final Exception cause;
 
-    public MoveToErrorStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Exception cause, LongSupplier nowSupplier,
+    public MoveToErrorStepUpdateTask(IndexLifecycleRunner runner,
+                                     Index index,
+                                     String policy,
+                                     Step.StepKey currentStepKey, Exception cause, LongSupplier nowSupplier,
                                      TriFunction<ClusterState, IndexMetadata, Step.StepKey, Step> stepLookupFunction,
                                      Consumer<ClusterState> stateChangeConsumer) {
+        super(runner);
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
@@ -72,14 +75,14 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void onProcessedClusterState(String source, ClusterState oldState, ClusterState newState) {
         if (newState.equals(oldState) == false) {
             stateChangeConsumer.accept(newState);
         }
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
+    public void doOnFailure(String source, Exception e) {
         final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
                 "policy [{}] for index [{}] failed trying to move from step [{}] to the ERROR step.", policy, index.getName(),
                 currentStepKey);

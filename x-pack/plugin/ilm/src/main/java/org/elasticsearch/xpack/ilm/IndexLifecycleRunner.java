@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ilm;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -16,6 +18,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -36,6 +39,7 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryItem;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
@@ -47,6 +51,7 @@ class IndexLifecycleRunner {
     private final PolicyStepsRegistry stepRegistry;
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
+    private final AtomicInteger currentlyExecuting = new AtomicInteger(0);
 
     IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ILMHistoryStore ilmHistoryStore, ClusterService clusterService,
                          ThreadPool threadPool, LongSupplier nowSupplier) {
@@ -55,6 +60,10 @@ class IndexLifecycleRunner {
         this.clusterService = clusterService;
         this.nowSupplier = nowSupplier;
         this.threadPool = threadPool;
+    }
+
+    public boolean currentlyExecuting() {
+        return currentlyExecuting.get() != 0;
     }
 
     /**
@@ -326,7 +335,7 @@ class IndexLifecycleRunner {
      * Run the current step that either waits for index age, or updates/waits-on cluster state.
      * Invoked after the cluster state has been changed
      */
-    void runPolicyAfterStateChange(ClusterState currentState, String policy, IndexMetadata indexMetadata) {
+    boolean runPolicyAfterStateChange(ClusterState currentState, String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
@@ -334,32 +343,32 @@ class IndexLifecycleRunner {
             currentStep = getCurrentStep(currentState, stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
-            return;
+            return true;
         }
         if (currentStep == null) {
             if (PolicyStepsRegistry.policyExists(currentState, policy) == false) {
                 markPolicyDoesNotExist(policy, indexMetadata.getIndex(), lifecycleState);
-                return;
+                return true;
             } else {
                 Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
                 if (TerminalPolicyStep.KEY.equals(currentStepKey)) {
                     // This index is a leftover from before we halted execution on the final phase
                     // instead of going to the completed phase, so it's okay to ignore this index
                     // for now
-                    return;
+                    return false;
                 }
                 logger.error("current step [{}] for index [{}] with policy [{}] is not recognized",
                     currentStepKey, index, policy);
-                return;
+                return false;
             }
         }
 
         if (currentStep instanceof TerminalPolicyStep) {
             logger.debug("policy [{}] for index [{}] complete, skipping execution", policy, index);
-            return;
+            return false;
         } else if (currentStep instanceof ErrorStep) {
             logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
-            return;
+            return false;
         }
 
         logger.trace("[{}] maybe running step ({}) after state change: {}",
@@ -368,19 +377,35 @@ class IndexLifecycleRunner {
             if (currentStep.getNextStepKey() == null) {
                 logger.debug("[{}] stopping in the current phase ({}) as there are no more steps in the policy",
                     index, currentStep.getKey().getPhase());
-                return;
+                return false;
             }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
             if (isReadyToTransitionToThisPhase(currentState,policy, indexMetadata, currentStep.getNextStepKey().getPhase())) {
                 moveToStep(indexMetadata.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+                return true;
             }
         } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             logger.debug("[{}] running policy with current-step [{}]", indexMetadata.getIndex().getName(), currentStep.getKey());
-            clusterService.submitStateUpdateTask(String.format(Locale.ROOT, "ilm-execute-cluster-state-steps [%s]", currentStep),
+            if (currentStep instanceof ClusterStateWaitStep) {
+                final ClusterStateWaitStep waitStep = (ClusterStateWaitStep) currentStep;
+                final ClusterStateWaitStep.Result waitResult = waitStep.isConditionMet(indexMetadata.getIndex(), currentState);
+                if (waitResult.isComplete() == false) {
+                    // TODO: this is not the way to check this whether we have the correct step info set already, do something reasonably
+                    //       efficient here
+                    final ToXContentObject informationContext = waitResult.getInfomationContext();
+                    if (informationContext == null || Strings.toString(informationContext).equals(lifecycleState.getStepInfo())) {
+                        // TODO: we should use a cluster state observer instead of waiting via this hack on every CS application
+                        return false;
+                    }
+                }
+            }
+            submitUpdateTask(String.format(Locale.ROOT, "ilm-execute-cluster-state-steps [%s]", currentStep),
                 new ExecuteStepsUpdateTask(policy, indexMetadata.getIndex(), currentStep, stepRegistry, this, nowSupplier));
+            return true;
         } else {
             logger.trace("[{}] ignoring step execution from cluster state change event [{}]", index, currentStep.getKey());
         }
+        return false;
     }
 
     /**
@@ -389,10 +414,10 @@ class IndexLifecycleRunner {
      */
     private void moveToStep(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey newStepKey) {
         logger.debug("[{}] moving to step [{}] {} -> {}", index.getName(), policy, currentStepKey, newStepKey);
-        clusterService.submitStateUpdateTask(
+        submitUpdateTask(
             String.format(Locale.ROOT, "ilm-move-to-step {policy [%s], index [%s], currentStep [%s], nextStep [%s]}", policy,
                 index.getName(), currentStepKey, newStepKey),
-            new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState ->
+            new MoveToNextStepUpdateTask(this, index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState ->
             {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerSuccessfulOperation(indexMetadata);
@@ -408,10 +433,10 @@ class IndexLifecycleRunner {
     private void moveToErrorStep(Index index, String policy, Step.StepKey currentStepKey, Exception e) {
         logger.error(new ParameterizedMessage("policy [{}] for index [{}] failed on step [{}]. Moving to ERROR step",
             policy, index.getName(), currentStepKey), e);
-        clusterService.submitStateUpdateTask(
+        submitUpdateTask(
             String.format(Locale.ROOT, "ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(),
                 currentStepKey),
-            new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
+            new MoveToErrorStepUpdateTask(this, index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
             }));
@@ -422,10 +447,10 @@ class IndexLifecycleRunner {
      * changing other execution state.
      */
     private void setStepInfo(Index index, String policy, @Nullable Step.StepKey currentStepKey, ToXContentObject stepInfo) {
-        clusterService.submitStateUpdateTask(
+        submitUpdateTask(
             String.format(Locale.ROOT, "ilm-set-step-info {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(),
                 currentStepKey),
-            new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
+            new SetStepInfoUpdateTask(this, index, policy, currentStepKey, stepInfo));
     }
 
     /**
@@ -505,5 +530,73 @@ class IndexLifecycleRunner {
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
                 LifecycleExecutionState.fromIndexMetadata(indexMetadata),
                 failure));
+    }
+
+    private void submitUpdateTask(String source, IndexLifecycleClusterStateUpdateTask updateTask) {
+        currentlyExecuting.incrementAndGet();
+        // TODO: this assertion would need a separate code path for reentrant state submits
+        clusterService.submitStateUpdateTask(source, updateTask);
+    }
+
+    public abstract static class IndexLifecycleClusterStateUpdateTask extends ClusterStateUpdateTask {
+
+        private final IndexLifecycleRunner runner;
+
+        protected IndexLifecycleClusterStateUpdateTask(IndexLifecycleRunner runner) {
+            this.runner = runner;
+        }
+
+        @Override
+        public final void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            onProcessedClusterState(source, oldState, newState);
+            if (runner.currentlyExecuting.decrementAndGet() == 0) {
+                continueLoop(newState);
+            }
+        }
+
+        @Override
+        public final void onFailure(String source, Exception e) {
+            try {
+                doOnFailure(source, e);
+            } finally {
+                if (runner.currentlyExecuting.decrementAndGet() == 0) {
+
+                }
+            }
+        }
+
+        private void continueLoop(ClusterState newState) {
+            // loop through all indices in cluster state and filter for ones that are
+            // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
+            // associated to a policy
+            for (ObjectCursor<IndexMetadata> cursor : newState.metadata().indices().values()) {
+                IndexMetadata idxMeta = cursor.value;
+                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
+                if (Strings.isNullOrEmpty(policyName) == false) {
+                    final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
+                    StepKey stepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+                    try {
+                        if (runner.runPolicyAfterStateChange(newState, policyName, idxMeta)) {
+                            return;
+                        }
+                    } catch (Exception e) {
+                        if (logger.isTraceEnabled()) {
+                            logger.warn(new ParameterizedMessage("async action execution failed during policy trigger" +
+                                " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
+                                idxMeta.getIndex().getName(), policyName, stepKey, lifecycleState.asMap()), e);
+                        } else {
+                            logger.warn(new ParameterizedMessage("async action execution failed during policy trigger" +
+                                " for index [{}] with policy [{}] in step [{}]",
+                                idxMeta.getIndex().getName(), policyName, stepKey), e);
+
+                        }
+                    }
+                }
+            }
+        }
+
+        protected abstract void onProcessedClusterState(String source, ClusterState oldState, ClusterState newState);
+
+        protected abstract void doOnFailure(String source, Exception e);
     }
 }

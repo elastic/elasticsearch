@@ -75,7 +75,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
 
         setStateToKey(currentStepKey);
 
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(null, index, policy, currentStepKey, cause, () -> now,
             (state, idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey), state -> {});
         ClusterState newState = task.execute(clusterState);
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
@@ -101,7 +101,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
         setStateToKey(notCurrentStepKey);
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(null, index, policy, currentStepKey, cause, () -> now,
             (state, idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
@@ -113,7 +113,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
         setStateToKey(currentStepKey);
         setStatePolicy("not-" + policy);
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(null, index, policy, currentStepKey, cause, () -> now,
             (state, idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));

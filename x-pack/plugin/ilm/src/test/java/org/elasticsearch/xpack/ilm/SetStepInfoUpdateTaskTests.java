@@ -64,7 +64,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         ToXContentObject stepInfo = getRandomStepInfo();
         setStateToKey(currentStepKey);
 
-        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
+        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(null, index, policy, currentStepKey, stepInfo);
         ClusterState newState = task.execute(clusterState);
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
         StepKey actualKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
@@ -95,7 +95,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         StepKey notCurrentStepKey = new StepKey("not-current", "not-current", "not-current");
         ToXContentObject stepInfo = getRandomStepInfo();
         setStateToKey(notCurrentStepKey);
-        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
+        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(null, index, policy, currentStepKey, stepInfo);
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
     }
@@ -105,7 +105,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         ToXContentObject stepInfo = getRandomStepInfo();
         setStateToKey(currentStepKey);
         setStatePolicy("not-" + policy);
-        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
+        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(null, index, policy, currentStepKey, stepInfo);
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
     }
@@ -117,7 +117,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
 
         setStateToKey(currentStepKey);
 
-        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
+        SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(null, index, policy, currentStepKey, stepInfo);
 
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();

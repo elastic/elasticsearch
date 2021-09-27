@@ -53,6 +53,7 @@
  *     </li>
  *     <li>
  *         {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#runPolicyAfterStateChange(
+ *                      org.elasticsearch.cluster.ClusterState,
  *                      java.lang.String,
  *                      org.elasticsearch.cluster.metadata.IndexMetadata
  *                  )}
@@ -61,6 +62,7 @@
  *     </li>
  *     <li>
  *        {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#runPeriodicStep(
+ *                      org.elasticsearch.cluster.ClusterState,
  *                      java.lang.String,
  *                      org.elasticsearch.cluster.metadata.Metadata,
  *                      org.elasticsearch.cluster.metadata.IndexMetadata

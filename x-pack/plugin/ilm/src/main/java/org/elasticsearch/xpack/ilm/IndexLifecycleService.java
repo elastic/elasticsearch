@@ -97,6 +97,10 @@ public class IndexLifecycleService
             this::updatePollInterval);
     }
 
+    public IndexLifecycleRunner runner() {
+        return lifecycleRunner;
+    }
+
     public void maybeRunAsyncAction(ClusterState clusterState, IndexMetadata indexMetadata, StepKey nextStepKey) {
         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
         lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetadata, policyName, nextStepKey);
@@ -271,7 +275,7 @@ public class IndexLifecycleService
         }
 
         final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (this.isMaster && lifecycleMetadata != null) {
+        if (this.isMaster && lifecycleMetadata != null && lifecycleRunner.currentlyExecuting() == false) {
             triggerPolicies(event.state(), true);
         }
     }
@@ -343,7 +347,9 @@ public class IndexLifecycleService
                         }
                     } else {
                         if (fromClusterStateChange) {
-                            lifecycleRunner.runPolicyAfterStateChange(clusterState, policyName, idxMeta);
+                            if (lifecycleRunner.runPolicyAfterStateChange(clusterState, policyName, idxMeta)) {
+                                return;
+                            }
                         } else {
                             lifecycleRunner.runPeriodicStep(clusterState, policyName, clusterState.metadata(), idxMeta);
                         }

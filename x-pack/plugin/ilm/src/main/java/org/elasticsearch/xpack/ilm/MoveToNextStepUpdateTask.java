@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -21,7 +20,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
-public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
+public class MoveToNextStepUpdateTask extends IndexLifecycleRunner.IndexLifecycleClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(MoveToNextStepUpdateTask.class);
 
     private final Index index;
@@ -32,9 +31,13 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     private final PolicyStepsRegistry stepRegistry;
     private final Consumer<ClusterState> stateChangeConsumer;
 
-    public MoveToNextStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey nextStepKey,
+    public MoveToNextStepUpdateTask(IndexLifecycleRunner runner,
+                                    Index index,
+                                    String policy,
+                                    Step.StepKey currentStepKey, Step.StepKey nextStepKey,
                                     LongSupplier nowSupplier, PolicyStepsRegistry stepRegistry,
                                     Consumer<ClusterState> stateChangeConsumer) {
+        super(runner);
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
@@ -66,14 +69,14 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void onProcessedClusterState(String source, ClusterState oldState, ClusterState newState) {
         if (oldState.equals(newState) == false) {
             stateChangeConsumer.accept(newState);
         }
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
+    public void doOnFailure(String source, Exception e) {
         throw new ElasticsearchException("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step ["
                 + currentStepKey + "] to step [" + nextStepKey + "].", e);
     }

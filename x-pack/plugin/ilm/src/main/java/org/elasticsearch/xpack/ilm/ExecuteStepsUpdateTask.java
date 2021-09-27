@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import java.io.IOException;
 import java.util.function.LongSupplier;
 
-public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
+public class ExecuteStepsUpdateTask extends IndexLifecycleRunner.IndexLifecycleClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(ExecuteStepsUpdateTask.class);
     private final String policy;
     private final Index index;
@@ -39,6 +39,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
 
     public ExecuteStepsUpdateTask(String policy, Index index, Step startStep, PolicyStepsRegistry policyStepsRegistry,
                                   IndexLifecycleRunner lifecycleRunner, LongSupplier nowSupplier) {
+        super(lifecycleRunner);
         this.policy = policy;
         this.index = index;
         this.startStep = startStep;
@@ -175,7 +176,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void onProcessedClusterState(String source, ClusterState oldState, ClusterState newState) {
         if (oldState.equals(newState) == false) {
             IndexMetadata indexMetadata = newState.metadata().index(index);
             if (indexMetadata != null) {
@@ -200,7 +201,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
+    public void doOnFailure(String source, Exception e) {
         throw new ElasticsearchException(
                 "policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].", e);
     }

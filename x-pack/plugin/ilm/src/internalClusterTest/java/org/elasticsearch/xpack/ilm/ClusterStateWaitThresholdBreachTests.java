@@ -139,8 +139,8 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // shrink cycle is started
         LongSupplier nowWayBackInThePastSupplier = () -> 1234L;
         clusterService.submitStateUpdateTask("testing-move-to-step-to-manipulate-step-time",
-            new MoveToNextStepUpdateTask(managedIndexMetadata.getIndex(), policy, currentStepKey, currentStepKey,
-                nowWayBackInThePastSupplier, indexLifecycleService.getPolicyRegistry(), state -> {
+            new MoveToNextStepUpdateTask(indexLifecycleService.runner(), managedIndexMetadata.getIndex(), policy, currentStepKey,
+                currentStepKey, nowWayBackInThePastSupplier, indexLifecycleService.getPolicyRegistry(), state -> {
             }));
 
         String[] secondCycleShrinkIndexName = new String[1];

@@ -7,7 +7,7 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('identity-provider'))
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
 
   setting 'xpack.license.self_generated.type', 'trial'

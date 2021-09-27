@@ -94,8 +94,8 @@ public class DiscoveryModuleTests extends ESTestCase {
     }
 
     public void testDefaults() {
-        DiscoveryModule module = newModule(Settings.EMPTY, Collections.emptyList());
-        assertTrue(module.getDiscovery() instanceof Coordinator);
+        newModule(Settings.EMPTY, Collections.emptyList());
+        // just checking it doesn't throw
     }
 
     public void testUnknownDiscovery() {
@@ -179,8 +179,8 @@ public class DiscoveryModuleTests extends ESTestCase {
                 return consumer;
             }
         }));
-        Coordinator discovery = (Coordinator) module.getDiscovery();
-        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = discovery.getOnJoinValidators();
+        Coordinator coordinator = module.getCoordinator();
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = coordinator.getOnJoinValidators();
         assertEquals(2, onJoinValidators.size());
         assertTrue(onJoinValidators.contains(consumer));
     }

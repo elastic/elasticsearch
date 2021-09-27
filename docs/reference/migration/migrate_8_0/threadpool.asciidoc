@@ -6,6 +6,21 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+
+.The `listener` thread pool has been removed.
+[%collapsible]
+====
+*Details* +
+Previously, the transport client used the thread pool to ensure listeners aren't
+called back on network threads. The transport client has been removed
+in 8.0, and the thread pool is no longer needed.
+
+*Impact* +
+Remove `listener` thread pool settings from `elasticsearch.yml` for any nodes.
+Specifying `listener` thread pool settings in `elasticsearch.yml` will result in
+an error on startup.
+====
+
 .The `fixed_auto_queue_size` thread pool type has been removed.
 [%collapsible]
 ====
@@ -17,4 +32,5 @@ The `search` and `search_throttled` thread pools have the `fixed` type now.
 *Impact* +
 No action needed.
 ====
+
 //end::notable-breaking-changes[]

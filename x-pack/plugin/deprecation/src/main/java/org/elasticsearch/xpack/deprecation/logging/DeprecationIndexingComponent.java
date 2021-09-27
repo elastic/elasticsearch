@@ -54,7 +54,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         Setting.Property.Dynamic
     );
     public static final Setting<Boolean> USE_X_OPAQUE_ID_IN_FILTERING = Setting.boolSetting(
-        "cluster.deprecation_indexing.x_opaque_id_filtering.enabled",
+        "cluster.deprecation_indexing.x_opaque_id_used.enabled",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -115,8 +115,8 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
             }
             appender.setEnabled(newEnabled);
         }
-        final boolean xOpqueIdUsed = USE_X_OPAQUE_ID_IN_FILTERING.get(state.getMetadata().settings());
-        this.filter.setUseXOpaqueId(xOpqueIdUsed);
+        final boolean useXOpaqueId = USE_X_OPAQUE_ID_IN_FILTERING.get(state.getMetadata().settings());
+        this.filter.setUseXOpaqueId(useXOpaqueId);
     }
 
     /**

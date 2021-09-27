@@ -31,7 +31,7 @@ import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIE
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
 public class RateLimitingFilter extends AbstractFilter  {
 
-    private boolean useXOpaqueId = false;
+    private volatile boolean useXOpaqueId = true;
 
     private final Set<String> lruKeyCache = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<>() {
         @Override

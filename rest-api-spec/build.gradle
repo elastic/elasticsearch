@@ -108,7 +108,10 @@ tasks.named("yamlRestTestV7CompatTest").configure {
 tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
 
   task.skipTestsByFilePattern("**/cat*/*.yml", "Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API")
- // task.replaceValueInMatch("_type", "_doc")
+  task.skipTest("indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template", "Type information about the type is removed and not passed down. The logic to check for this is also removed.")
+  task.skipTest("indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template", "Type information about the type is removed and not passed down. The logic to check for this is also removed.")
+
+  // task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.replaceValueInMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")
   task.replaceValueInMatch("nodes.\$node_id.roles.9", "remote_cluster_client", "node_info role test")

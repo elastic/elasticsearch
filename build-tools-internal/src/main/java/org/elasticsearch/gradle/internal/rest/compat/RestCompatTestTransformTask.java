@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
@@ -38,6 +39,7 @@ import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceTextual
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectAllowedWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.RemoveWarnings;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
@@ -61,7 +63,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -90,7 +91,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private final PatternFilterable testPatternSet;
     private final Factory<PatternSet> patternSetFactory;
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
-    private final Map<String, PatternFilterable> skippedTestTransformations = new HashMap<>();
+    private final Map<PatternFilterable, String> skippedTestByFilePatternTransformations = new HashMap<>();
+    private final Map<Pair<String, String>, Map<String, String>> skippedTestByTestNameTransformations = new HashMap<>();
 
     @Inject
     public RestCompatTestTransformTask(
@@ -123,12 +125,24 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     public void skipTest(String testName, String reason) {
+        //The tests are defined by 3 parts a/b/c where
+        // a = the folder name
+        // b = the file name without the .yml extension
+        // c = the root name inside the .yml
+        // For example: indices.get_mapping/20_missing_type/Non-existent type returns 404
+        String[] testParts = testName.split("/");
+        if(testParts.length != 3){
+            throw new IllegalArgumentException("To skip tests, all 3 parts [folder/file/test name] must be defined.");
+        }
 
+        skippedTestByTestNameTransformations.computeIfAbsent(Pair.of(testParts[0], testParts[1] + ".yml"),
+            k -> new HashMap<>()).put(testParts[2], reason);
     }
+
     public void skipTestsByFilePattern(String filePattern, String reason) {
         PatternSet skippedPatternSet = patternSetFactory.create();
         skippedPatternSet.include(filePattern);
-        skippedTestTransformations.put(reason, skippedPatternSet);
+        skippedTestByFilePatternTransformations.put(skippedPatternSet, reason);
     }
 
     /**
@@ -399,7 +413,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
         fileSystemOperations.delete(d -> d.delete(outputDirectory));
 
         Map<File, String> skippedFilesWithReason = new HashMap<>();
-        skippedTestTransformations.forEach((reason, filePattern) -> {
+        skippedTestByFilePatternTransformations.forEach((filePattern, reason) -> {
             //resolve file pattern to concrete files
             for (File file : getTestFiles().matching(filePattern).getFiles()) {
                 skippedFilesWithReason.put(file, reason);
@@ -413,11 +427,22 @@ public class RestCompatTestTransformTask extends DefaultTask {
             List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
             List<ObjectNode> transformRestTests;
             if (skippedFilesWithReason.containsKey(file)) {
+                //skip all the tests in the file
                 transformRestTests = transformer.transformRestTests(new LinkedList<>(tests),
                     Collections.singletonList(new Skip(skippedFilesWithReason.get(file))));
+            } else if (skippedTestByTestNameTransformations.containsKey(Pair.of(file.getParentFile().getName(), file.getName()))) {
+                //skip the named tests for this file
+                List<RestTestTransform<?>> skippedTransforms = new ArrayList<>();
+                skippedTestByTestNameTransformations.get(Pair.of(file.getParentFile().getName(), file.getName())).forEach((testName, reason) -> {
+                    skippedTransforms.add(new Skip(testName, reason));
+                });
+                transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), skippedTransforms);
+
             } else {
                 transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), transformations);
+
             }
+
             // convert to url to ensure forward slashes
             String[] testFileParts = file.toURI().toURL().getPath().split(REST_TEST_PREFIX);
             if (testFileParts.length != 2) {
@@ -444,9 +469,18 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     @Input
-    public String getSkippedTestTransformations() {
-        return skippedTestTransformations.keySet().stream()
-            .map(key -> key + "=" + skippedTestTransformations.get(key))
-            .collect(Collectors.joining(","));
+    public String getSkippedTestByFilePatternTransformations() {
+        return skippedTestByFilePatternTransformations.keySet().stream()
+            .map(key -> String.join(",", key.getIncludes()) + skippedTestByFilePatternTransformations.get(key))
+            .collect(Collectors.joining());
+    }
+
+    @Input
+    public String getSkippedTestByTestNameTransformations() {
+        return skippedTestByTestNameTransformations.keySet().stream()
+            .map(key -> key +
+                skippedTestByTestNameTransformations.get(key).keySet().stream().map(k2 -> k2 + "="
+                    + skippedTestByTestNameTransformations.get(k2)).collect(Collectors.joining()))
+            .collect(Collectors.joining());
     }
 }

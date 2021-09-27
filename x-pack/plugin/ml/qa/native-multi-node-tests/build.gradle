@@ -46,6 +46,7 @@ testClusters.all {
   setting 'xpack.ml.min_disk_space_off_heap', '200mb'
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'slm.history_index_enabled', 'false'
+  setting 'stack.templates.enabled', 'false'
   // To spice things up a bit, one of the nodes is not an ML node
   nodes.'javaRestTest-0'.setting 'node.roles', '["master","data","ingest"]'
 

@@ -352,15 +352,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
         }
 
-        if (state.getNodes().getMinNodeVersion().before(Version.V_7_15_0)) {
-            pipelineConfig = pipelineConfig == null
-                ? XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2()
-                : pipelineConfig;
-            if (pipelineConfig.containsKey(Pipeline.META_KEY)) {
-                throw new IllegalStateException("pipelines with _meta field require minimum node version of " + Version.V_7_15_0);
-            }
-        }
-
         final Map<String, Object> config = pipelineConfig == null
             ? XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2()
             : pipelineConfig;

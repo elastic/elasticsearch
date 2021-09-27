@@ -302,7 +302,7 @@ public class JobManager {
         Job job = jobBuilder.build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "ml_create_job_delimited_data",
+            deprecationLogger.critical(DeprecationCategory.API, "ml_create_job_delimited_data",
                 "Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 

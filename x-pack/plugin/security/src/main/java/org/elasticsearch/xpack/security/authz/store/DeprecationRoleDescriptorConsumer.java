@@ -207,7 +207,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             if (false == inferiorIndexNames.isEmpty()) {
                 final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
                         aliasName, String.join(", ", inferiorIndexNames));
-                deprecationLogger.deprecate(DeprecationCategory.SECURITY, "index_permissions_on_alias", logMessage);
+                deprecationLogger.critical(DeprecationCategory.SECURITY, "index_permissions_on_alias", logMessage);
             }
         }
     }

@@ -173,7 +173,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate(DeprecationCategory.TYPES, "search_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.TYPES, "search_with_types", TYPES_DEPRECATION_MESSAGE);
             searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
         searchRequest.routing(request.param("routing"));
@@ -209,7 +209,7 @@ public class RestSearchAction extends BaseRestHandler {
             if (size != -1) {
                 setSize.accept(size);
             } else {
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.API,
                     "search-api-size-1",
                     "Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` parameter "

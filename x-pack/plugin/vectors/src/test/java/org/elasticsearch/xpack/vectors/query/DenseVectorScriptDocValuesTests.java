@@ -11,56 +11,15 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class DenseVectorScriptDocValuesTests extends ESTestCase {
-
-    private static BinaryDocValues wrap(float[][] vectors, Version indexVersion) {
-        return new BinaryDocValues() {
-            int idx = -1;
-            int maxIdx = vectors.length;
-            @Override
-            public BytesRef binaryValue() {
-                if (idx >= maxIdx) {
-                    throw new IllegalStateException("max index exceeded");
-                }
-                return DenseVectorFunctionTests.mockEncodeDenseVector(vectors[idx], indexVersion);
-            }
-
-            @Override
-            public boolean advanceExact(int target) {
-                idx = target;
-                if (target < maxIdx) {
-                    return true;
-                }
-                return false;
-            }
-
-            @Override
-            public int docID() {
-                return idx;
-            }
-
-            @Override
-            public int nextDoc() {
-                return idx++;
-            }
-
-            @Override
-            public int advance(int target) {
-                throw new IllegalArgumentException("not defined!");
-            }
-
-            @Override
-            public long cost() {
-                throw new IllegalArgumentException("not defined!");
-            }
-        };
-    }
 
     public void testGetVectorValueAndGetMagnitude() throws IOException {
         final int dims = 3;
@@ -102,4 +61,88 @@ public class DenseVectorScriptDocValuesTests extends ESTestCase {
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));
         assertThat(e.getMessage(), containsString("accessing a vector field's value through 'get' or 'value' is not supported!"));
     }
+
+    public void testSimilarityFunctions() throws IOException {
+        int dims = 5;
+        float[] docVector = new float[] {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f};
+        float[] queryVector = new float[] {0.5f, 111.3f, -13.0f, 14.8f, -156.0f};
+
+        for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
+            BinaryDocValues docValues = wrap(new float[][]{docVector}, indexVersion);
+            DenseVectorScriptDocValues scriptDocValues = new DenseVectorScriptDocValues(docValues, Version.CURRENT, dims);
+
+            scriptDocValues.setNextDocId(0);
+
+            assertEquals("dotProduct result is not equal to the expected value!",
+                65425.624, scriptDocValues.dotProduct(queryVector), 0.001);
+            assertEquals("l1norm result is not equal to the expected value!", 485.184,
+                scriptDocValues.l1Norm(queryVector), 0.001);
+            assertEquals("l2norm result is not equal to the expected value!", 301.361,
+                scriptDocValues.l2Norm(queryVector), 0.001);
+        }
+    }
+
+    static BinaryDocValues wrap(float[][] vectors, Version indexVersion) {
+        return new BinaryDocValues() {
+            int idx = -1;
+            int maxIdx = vectors.length;
+            @Override
+            public BytesRef binaryValue() {
+                if (idx >= maxIdx) {
+                    throw new IllegalStateException("max index exceeded");
+                }
+                return mockEncodeDenseVector(vectors[idx], indexVersion);
+            }
+
+            @Override
+            public boolean advanceExact(int target) {
+                idx = target;
+                if (target < maxIdx) {
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public int docID() {
+                return idx;
+            }
+
+            @Override
+            public int nextDoc() {
+                return idx++;
+            }
+
+            @Override
+            public int advance(int target) {
+                throw new IllegalArgumentException("not defined!");
+            }
+
+            @Override
+            public long cost() {
+                throw new IllegalArgumentException("not defined!");
+            }
+        };
+    }
+
+    private static BytesRef mockEncodeDenseVector(float[] values, Version indexVersion) {
+        byte[] bytes = indexVersion.onOrAfter(Version.V_7_5_0)
+            ? new byte[VectorEncoderDecoder.INT_BYTES * values.length + VectorEncoderDecoder.INT_BYTES]
+            : new byte[VectorEncoderDecoder.INT_BYTES * values.length];
+        double dotProduct = 0f;
+
+        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        for (float value : values) {
+            byteBuffer.putFloat(value);
+            dotProduct += value * value;
+        }
+
+        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
+            // encode vector magnitude at the end
+            float vectorMagnitude = (float) Math.sqrt(dotProduct);
+            byteBuffer.putFloat(vectorMagnitude);
+        }
+        return new BytesRef(bytes);
+    }
+
 }

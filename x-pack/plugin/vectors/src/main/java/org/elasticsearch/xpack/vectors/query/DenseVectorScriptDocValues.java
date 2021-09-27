@@ -16,6 +16,7 @@ import org.elasticsearch.script.field.Field;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
@@ -40,11 +41,6 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
         } else {
             value = null;
         }
-    }
-
-    // package private access only for {@link ScoreScriptUtils}
-    BytesRef getEncodedValue() {
-        return value;
     }
 
     // package private access only for {@link ScoreScriptUtils}
@@ -90,5 +86,35 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     @Override
     public Field<BytesRef> toField(String fieldName) {
         throw new IllegalStateException("not implemented");
+    }
+
+    public double dotProduct(float[] queryVector) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
+
+        double dotProduct = 0;
+        for (float queryValue : queryVector) {
+            dotProduct += queryValue * byteBuffer.getFloat();
+        }
+        return (float) dotProduct;
+    }
+
+    public double l1Norm(float[] queryVector) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
+
+        double l1norm = 0;
+        for (float queryValue : queryVector) {
+            l1norm += Math.abs(queryValue - byteBuffer.getFloat());
+        }
+        return l1norm;
+    }
+
+    public double l2Norm(float[] queryVector) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
+        double l2norm = 0;
+        for (float queryValue : queryVector) {
+            double diff = queryValue - byteBuffer.getFloat();
+            l2norm += diff * diff;
+        }
+        return Math.sqrt(l2norm);
     }
 }

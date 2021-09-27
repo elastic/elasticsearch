@@ -181,7 +181,7 @@ public class TestTranslog {
     }
 
     public static List<Translog.Operation> drainSnapshot(Translog.Snapshot snapshot, boolean sortBySeqNo) throws IOException {
-        final List<Translog.Operation> ops = new ArrayList<>(snapshot.totalOperations());
+        final List<Translog.Operation> ops = new ArrayList<>();
         Translog.Operation op;
         while ((op = snapshot.next()) != null) {
             ops.add(op);

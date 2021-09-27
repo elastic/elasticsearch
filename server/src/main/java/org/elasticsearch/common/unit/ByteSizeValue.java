@@ -35,6 +35,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue ONE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
 
     public static ByteSizeValue ofBytes(long size) {
         return new ByteSizeValue(size);
@@ -202,6 +204,20 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         if (sValue == null) {
             return defaultValue;
         }
+        switch (sValue) {
+            case "0":
+            case "0b":
+            case "0B":
+                return ZERO;
+            case "1b":
+            case "1B":
+                // "1" is deliberately omitted, the units are required for all values except "0" and "-1"
+                return ONE;
+            case "-1":
+            case "-1b":
+            case "-1B":
+                return MINUS_ONE;
+        }
         String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
         if (lowerSValue.endsWith("k")) {
             return parse(sValue, lowerSValue, "k", ByteSizeUnit.KB, settingName);
@@ -225,12 +241,6 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
             return parse(sValue, lowerSValue, "pb", ByteSizeUnit.PB, settingName);
         } else if (lowerSValue.endsWith("b")) {
             return parseBytes(lowerSValue, settingName, sValue);
-        } else if (lowerSValue.equals("-1")) {
-            // Allow this special value to be unit-less:
-            return new ByteSizeValue(-1, ByteSizeUnit.BYTES);
-        } else if (lowerSValue.equals("0")) {
-            // Allow this special value to be unit-less:
-            return new ByteSizeValue(0, ByteSizeUnit.BYTES);
         } else {
             // Missing units:
             throw new ElasticsearchParseException(

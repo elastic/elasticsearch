@@ -25,13 +25,15 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -161,7 +163,7 @@ class DocumentLeafReader extends LeafReader {
                     visitor.doubleField(fieldInfo, v.doubleValue());
                 }
             } else if (field.stringValue() != null) {
-                visitor.stringField(fieldInfo, field.stringValue().getBytes(StandardCharsets.UTF_8));
+                visitor.stringField(fieldInfo, field.stringValue());
             } else if (field.binaryValue() != null) {
                 // We can't just pass field.binaryValue().bytes here as there may be offset/length
                 // considerations
@@ -184,6 +186,16 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     public NumericDocValues getNormValues(String field) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public VectorValues getVectorValues(String field) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -248,6 +260,8 @@ class DocumentLeafReader extends LeafReader {
             0,
             0,
             0,
+            0,
+            VectorSimilarityFunction.EUCLIDEAN,
             false
         );
     }

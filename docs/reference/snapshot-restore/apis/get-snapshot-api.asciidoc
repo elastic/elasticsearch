@@ -432,7 +432,7 @@ The API returns the following response:
         "total": 0,
         "failed": 0,
         "successful": 0
-      },
+      }
     }
   ],
   "next": "c25hcHNob3RfMixteV9yZXBvc2l0b3J5LHNuYXBzaG90XzI=",
@@ -613,7 +613,7 @@ The API returns the following response:
         "total": 0,
         "failed": 0,
         "successful": 0
-      },
+      }
     }
   ],
   "total": 2,

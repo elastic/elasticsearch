@@ -27,8 +27,8 @@ setup:
 ---
 "respect offsets in range bounds":
     - skip:
-        version: " - 7.99.99"
-        reason: "Fixed in 7.16 (backport pending)"
+        version: " - 7.15.99"
+        reason: "Fixed in 7.16"
     - do:
         search:
             rest_total_hits_as_int: true
@@ -61,8 +61,8 @@ setup:
 ---
 "offsets and timezones play nicely together":
     - skip:
-        version: " - 7.99.99"
-        reason: "Fixed in 7.16 (backport pending)"
+        version: " - 7.15.99"
+        reason: "Fixed in 7.16"
     - do:
         search:
             rest_total_hits_as_int: true

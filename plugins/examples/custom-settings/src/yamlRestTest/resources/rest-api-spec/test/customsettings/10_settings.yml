@@ -23,7 +23,7 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             custom:
               bool: true
               validated: "updated"
@@ -40,7 +40,7 @@
       catch: bad_request
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             custom:
               validated: "forbidden"
 
@@ -48,7 +48,7 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             custom:
               bool: null
               validated: null

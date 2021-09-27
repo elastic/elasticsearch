@@ -44,6 +44,11 @@ teardown:
 
 ---
 "Add transient remote cluster based on the preset cluster and check remote info":
+  - skip:
+      version: " - 7.15.99"
+      reason:  "transient settings deprecation added in 7.16.0"
+      features: "warnings"
+
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -51,6 +56,8 @@ teardown:
   - set: { defaults.cluster.remote.my_remote_cluster.seeds.0: remote_ip }
 
   - do:
+      warnings:
+        - "[transientSettings removal] Updating cluster settings through transientSettings is deprecated. Prefer using persistent settings instead."
       cluster.put_settings:
         flat_settings: true
         body:

@@ -11,6 +11,11 @@
 
 ---
 "Add transient remote cluster based on the preset cluster and check remote info":
+  - skip:
+      version: " - 7.15.99"
+      reason:  "transient settings deprecation added in 7.16.0"
+      features: "warnings"
+
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -18,6 +23,8 @@
   - set: { defaults.cluster.remote.my_remote_cluster.seeds.0: remote_ip }
 
   - do:
+      warnings:
+        - "[transientSettings removal] Updating cluster settings through transientSettings is deprecated. Prefer using persistent settings instead."
       cluster.put_settings:
         flat_settings: true
         body:
@@ -62,6 +69,8 @@
   - match: { test_remote_cluster.mode: "sniff" }
 
   - do:
+      warnings:
+        - "[transientSettings removal] Updating cluster settings through transientSettings is deprecated. Prefer using persistent settings instead."
       cluster.put_settings:
         flat_settings: true
         body:
@@ -87,6 +96,8 @@
   - match: { test_remote_cluster.mode: "proxy" }
 
   - do:
+      warnings:
+        - "[transientSettings removal] Updating cluster settings through transientSettings is deprecated. Prefer using persistent settings instead."
       cluster.put_settings:
         body:
           transient:
@@ -110,10 +121,10 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.remote1.seeds: $remote_ip
 
-  - match: {transient: {cluster.remote.remote1.seeds: $remote_ip}}
+  - match: {persistent: {cluster.remote.remote1.seeds: $remote_ip}}
 
   - do:
       cluster.remote_info: {}
@@ -122,10 +133,10 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.remote.remote1.skip_unavailable: true
 
-  - is_true: transient.cluster.remote.remote1.skip_unavailable
+  - is_true: persistent.cluster.remote.remote1.skip_unavailable
 
   - do:
       cluster.remote_info: {}
@@ -135,10 +146,10 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.remote.remote1.skip_unavailable: false
 
-  - is_false: transient.cluster.remote.remote1.skip_unavailable
+  - is_false: persistent.cluster.remote.remote1.skip_unavailable
 
   - do:
       cluster.remote_info: {}
@@ -148,10 +159,10 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.remote.remote1.skip_unavailable: null
 
-  - match: {transient: {}}
+  - match: {persistent: {}}
 
   - do:
       cluster.remote_info: {}
@@ -161,6 +172,6 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.remote.remote1.seeds: null
             cluster.remote.remote1.skip_unavailable: null

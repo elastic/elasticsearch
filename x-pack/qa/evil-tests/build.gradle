@@ -1,6 +1,13 @@
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
+  testImplementation(project(xpackModule('core')))
+  testImplementation("org.apache.kerby:kerb-core:1.1.1")
+  testImplementation("org.apache.kerby:kerb-server:1.1.1")
+  testImplementation("org.apache.kerby:kerb-client:1.1.1") {
+    transitive = false
+  }
+  testImplementation("org.apache.kerby:kerb-simplekdc:1.1.1")
   testImplementation(testArtifact(project(xpackModule('security'))))
 }
 

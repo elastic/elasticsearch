@@ -371,9 +371,6 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             final long index = slot.index;
             final long oldOrd = slot.ord;
             final BytesRef unmapped = slot.unmapped;
-            if (oldOrd == Long.MIN_VALUE) {
-                continue;
-            }
             final long newOrd;
             if (oldOrd >= 0) {
                 if (lastOldOrd == oldOrd) {

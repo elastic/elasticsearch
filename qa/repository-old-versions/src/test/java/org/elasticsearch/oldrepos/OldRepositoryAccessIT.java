@@ -10,16 +10,32 @@ package org.elasticsearch.oldrepos;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class OldRepositoryAccessIT extends ESRestTestCase {
     @Override
@@ -32,10 +48,12 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
-        try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
+        try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])));
+             RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
             try {
                 Request createIndex = new Request("PUT", "/test");
-                createIndex.setJsonEntity("{\"settings\":{\"number_of_shards\": 1}}");
+                int numberOfShards = randomIntBetween(1, 3);
+                createIndex.setJsonEntity("{\"settings\":{\"number_of_shards\": " + numberOfShards + "}}");
                 oldEs.performRequest(createIndex);
 
                 for (int i = 0; i < 5; i++) {
@@ -52,34 +70,60 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
                 Request createSnapshotRequest = new Request("PUT", "/_snapshot/testrepo/snap1");
                 createSnapshotRequest.addParameter("wait_for_completion", "true");
+                createSnapshotRequest.setJsonEntity("{\"indices\":\"test\"}");
                 oldEs.performRequest(createSnapshotRequest);
 
                 // register repo on new ES
-                Request createReadRepoRequest = new Request("PUT", "/_snapshot/testrepo");
-                createReadRepoRequest.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"" + repoLocation +
-                    "\"}}");
-                client().performRequest(createReadRepoRequest);
+                ElasticsearchAssertions.assertAcked(client.snapshot().createRepository(
+                    new PutRepositoryRequest("testrepo").type("fs").settings(
+                        Settings.builder().put("location", repoLocation).build()), RequestOptions.DEFAULT));
 
                 // list snapshots on new ES
-                Request listSnapshotsRequest = new Request("GET", "/_snapshot/testrepo/_all");
-                listSnapshotsRequest.addParameter("error_trace", "true");
-                Response listSnapshotsResponse = client().performRequest(listSnapshotsRequest);
-                logger.info(Streams.readFully(listSnapshotsResponse.getEntity().getContent()).utf8ToString());
-                assertEquals(200, listSnapshotsResponse.getStatusLine().getStatusCode());
+                List<SnapshotInfo> snapshotInfos =
+                    client.snapshot().get(new GetSnapshotsRequest("testrepo").snapshots(new String[] {"_all"}),
+                    RequestOptions.DEFAULT).getSnapshots();
+                assertThat(snapshotInfos, hasSize(1));
+                SnapshotInfo snapshotInfo = snapshotInfos.get(0);
+                assertEquals("snap1", snapshotInfo.snapshotId().getName());
+                assertEquals("testrepo", snapshotInfo.repository());
+                assertEquals(Arrays.asList("test"), snapshotInfo.indices());
+                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+                assertEquals(numberOfShards, snapshotInfo.successfulShards());
+                assertEquals(numberOfShards, snapshotInfo.totalShards());
+                assertEquals(0, snapshotInfo.failedShards());
+                assertEquals(oldVersion, snapshotInfo.version());
 
                 // list specific snapshot on new ES
-                Request listSpecificSnapshotsRequest = new Request("GET", "/_snapshot/testrepo/snap1");
-                listSpecificSnapshotsRequest.addParameter("error_trace", "true");
-                Response listSpecificSnapshotsResponse = client().performRequest(listSnapshotsRequest);
-                logger.info(Streams.readFully(listSpecificSnapshotsResponse.getEntity().getContent()).utf8ToString());
-                assertEquals(200, listSpecificSnapshotsResponse.getStatusLine().getStatusCode());
+                snapshotInfos =
+                    client.snapshot().get(new GetSnapshotsRequest("testrepo").snapshots(new String[] {"snap1"}),
+                        RequestOptions.DEFAULT).getSnapshots();
+                assertThat(snapshotInfos, hasSize(1));
+                snapshotInfo = snapshotInfos.get(0);
+                assertEquals("snap1", snapshotInfo.snapshotId().getName());
+                assertEquals("testrepo", snapshotInfo.repository());
+                assertEquals(Arrays.asList("test"), snapshotInfo.indices());
+                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+                assertEquals(numberOfShards, snapshotInfo.successfulShards());
+                assertEquals(numberOfShards, snapshotInfo.totalShards());
+                assertEquals(0, snapshotInfo.failedShards());
+                assertEquals(oldVersion, snapshotInfo.version());
+
 
                 // list advanced snapshot info on new ES
-                Request listSnapshotStatusRequest = new Request("GET", "/_snapshot/testrepo/snap1/_status");
-                listSnapshotStatusRequest.addParameter("error_trace", "true");
-                Response listSnapshotStatusResponse = client().performRequest(listSnapshotStatusRequest);
-                logger.info(Streams.readFully(listSnapshotStatusResponse.getEntity().getContent()).utf8ToString());
-                assertEquals(200, listSnapshotStatusResponse.getStatusLine().getStatusCode());
+                SnapshotsStatusResponse snapshotsStatusResponse = client.snapshot().status(
+                    new SnapshotsStatusRequest("testrepo").snapshots(new String[]{"snap1"}),
+                    RequestOptions.DEFAULT);
+                assertThat(snapshotsStatusResponse.getSnapshots(), hasSize(1));
+                SnapshotStatus snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
+                assertEquals("snap1", snapshotStatus.getSnapshot().getSnapshotId().getName());
+                assertEquals("testrepo", snapshotStatus.getSnapshot().getRepository());
+                assertEquals(Sets.newHashSet("test"), snapshotStatus.getIndices().keySet());
+                assertEquals(SnapshotsInProgress.State.SUCCESS, snapshotStatus.getState());
+                assertEquals(numberOfShards, snapshotStatus.getShardsStats().getDoneShards());
+                assertEquals(numberOfShards, snapshotStatus.getShardsStats().getTotalShards());
+                assertEquals(0, snapshotStatus.getShardsStats().getFailedShards());
+                assertThat(snapshotStatus.getStats().getTotalSize(), greaterThan(0L));
+                assertThat(snapshotStatus.getStats().getTotalFileCount(), greaterThan(0));
             } finally {
                 oldEs.performRequest(new Request("DELETE", "/test"));
             }

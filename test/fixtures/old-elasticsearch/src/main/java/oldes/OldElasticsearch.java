@@ -96,7 +96,8 @@ public class OldElasticsearch {
         int port = 0;
 
         Pattern pidPattern = Pattern.compile("pid\\[(\\d+)\\]");
-        Pattern httpPortPattern = Pattern.compile("(\\[http\\s+\\]|Netty4HttpServerTransport).+bound_address.+127\\.0\\.0\\.1:(\\d+)");
+        Pattern httpPortPattern = Pattern.compile(
+            "(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+127\\.0\\.0\\.1:(\\d+)");
         try (BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = stdout.readLine()) != null && (pid == 0 || port == 0)) {

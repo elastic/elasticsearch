@@ -25,6 +25,7 @@ configurations {
 
 dependencies {
   oldesFixture project(':test:fixtures:old-elasticsearch')
+  testImplementation project(':client:rest-high-level')
 }
 
 jdks {
@@ -41,9 +42,10 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 } else if (rootProject.rootDir.toString().contains(" ")) {
   logger.warn("Disabling repository-old-versions tests because Elasticsearch 1.7 won't start with spaces in the path")
 } else {
-  /* Set up tasks to unzip and run the old versions of ES before running the
-   * integration tests. */
-  for (String versionString : ['6.8.18', '5.6.16', '2.4.5', '1.7.6']) {
+  /* Set up tasks to unzip and run the old versions of ES before running the integration tests.
+   * To avoid testing against too many old versions, always pick first and last version per major
+   */
+  for (String versionString : ['1.0.0', '1.7.6', '2.0.0', '2.4.5', '5.0.0', '5.6.16', '6.0.0', '6.8.18']) {
     Version version = Version.fromString(versionString)
     String packageName = version.major == 1 ? 'org.elasticsearch' : 'org.elasticsearch.distribution.zip'
     String artifact = "${packageName}:elasticsearch:${version}@zip"

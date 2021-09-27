@@ -321,10 +321,14 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 throw new ElasticsearchParseException("missing or invalid physical file name [" + physicalName + "]");
             } else if (length < 0) {
                 throw new ElasticsearchParseException("missing or invalid file length");
-            } else if (writtenBy == null) {
-                throw new ElasticsearchParseException("missing or invalid written_by [" + writtenBy + "]");
-            } else if (checksum == null) {
-                throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
+            }
+            if (writtenBy == null) {
+                writtenBy = "4.0.0"; // < Lucene 4.8 && >= Lucene 4.0, assume lowest version
+                // throw new ElasticsearchParseException("missing or invalid written_by [" + writtenBy + "]");
+            }
+            if (checksum == null) {
+                checksum = "dummy";
+                //throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
             }
             return new FileInfo(name, new StoreFileMetadata(physicalName, length, checksum, writtenBy, metaHash), partSize);
         }

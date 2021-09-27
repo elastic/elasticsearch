@@ -60,7 +60,8 @@ stored model configuration. The definition part is stored in the index
 that is configured by the `location.index.name`.
  
 
-NOTE: `definition` is elided as it is a very large base64 encoded string
+NOTE: The value of the `definition` object is elided from the example 
+as it is a very large base64 encoded string.
 
 [source,console]
 --------------------------------------------------

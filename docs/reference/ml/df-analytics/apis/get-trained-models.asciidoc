@@ -193,6 +193,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
 
 `max_sequence_length`::::
+(Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
 
 `with_special_tokens`::::
@@ -209,7 +210,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary
 =======
 `index`::::
 (Required, string)
-The index where the vocabulary is stored
+The index where the vocabulary is stored.
 =======
 ======
 
@@ -221,9 +222,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-ner]
 [%collapsible%open]
 ======
 `classification_labels`::::
-(Optional, string) An array of classification labels. NER supports only 
+(Optional, string) 
+An array of classification labels. NER supports only 
 Inside-Outside-Beginning labels (IOB) and only persons, organizations, locations,
-and miscelanious. For example:
+and miscellaneous. For example:
 `["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"]`.
 
 `tokenization`::::
@@ -245,6 +247,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
 
 `max_sequence_length`::::
+(Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
 
 `with_special_tokens`::::
@@ -291,6 +294,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
 
 `max_sequence_length`::::
+(Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
 
 `with_special_tokens`::::
@@ -307,7 +311,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary
 =======
 `index`::::
 (Required, string)
-The index where the vocabulary is stored
+The index where the vocabulary is stored.
 =======
 ======
 
@@ -334,7 +338,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classific
 [%collapsible%open]
 ======
 `classification_labels`::::
-(Optional, string) An array of classification labels.
+(Optional, string) 
+An array of classification labels.
 
 `num_top_classes`::::
 (Optional, integer)
@@ -359,6 +364,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
 
 `max_sequence_length`::::
+(Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
 
 `with_special_tokens`::::
@@ -376,7 +382,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary
 =======
 `index`::::
 (Required, string)
-The index where the vocabulary is stored
+The index where the vocabulary is stored.
 =======
 ======
 `text_embedding`::::
@@ -405,6 +411,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
 
 `max_sequence_length`::::
+(Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
 
 `with_special_tokens`::::
@@ -421,7 +428,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary
 =======
 `index`::::
 (Required, string)
-The index where the vocabulary is stored
+The index where the vocabulary is stored.
 =======
 ======
 =====
@@ -449,7 +456,7 @@ provided.
 =====
 `index`:::
 (Required, object)
-Indicates that the model definition is stored in an index. This object is required to be empty as 
+Indicates that the model definition is stored in an index. It is required to be empty as 
 the index for storing model definitions is configured automatically.
 =====
 // End location
@@ -598,8 +605,8 @@ The created model type. By default the model type is `tree_ensemble`.
 Appropriate types are: 
 +
 --
-* `tree_ensemble`: indicates that the model definition is an ensemble model of decision trees
-* `lang_ident`: A special type reserved for language identification models
+* `tree_ensemble`: The model definition is an ensemble model of decision trees.
+* `lang_ident`: A special type reserved for language identification models.
 * `pytorch`: The stored definition is a PyTorch (specifically a TorchScript) model. Currently only
 NLP models are supported.
 --

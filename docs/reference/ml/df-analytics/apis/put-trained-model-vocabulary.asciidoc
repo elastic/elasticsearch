@@ -49,10 +49,10 @@ The model vocabulary. Must not be empty.
 [[ml-put-trained-model-vocabulary-example]]
 == {api-examples-title}
 
-Here is an example of creating a model vocabulary for an previously
-stored trained model configuration.
+The following example shows how to create a model vocabulary for a 
+previously stored trained model configuration.
 
-[source,console]
+[source,js]
 --------------------------------------------------
 PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/vocabulary
 {

@@ -936,7 +936,7 @@ end::inference-config-nlp-tokenization-bert-with-special-tokens[]
 
 tag::inference-config-nlp-tokenization-bert-max-sequence-length[]
 The maximum number of tokens allowed to be output by the tokenizer.
-The default for BERT-style tokenization is 512.
+The default for BERT-style tokenization is `512`.
 end::inference-config-nlp-tokenization-bert-max-sequence-length[]
 
 tag::inference-config-nlp-vocabulary[]
@@ -949,7 +949,7 @@ tag::inference-config-nlp-fill-mask[]
 Configuration for a fill_mask NLP task. The fill_mask task works with models
 optimized for a fill mask action. For example, for BERT models, the following
 text may be provided: "The capital of France is [MASK].". The response indicates
-the value most likely to replace `[MASK]`. In this instance, hopefully the
+the value most likely to replace `[MASK]`. In this instance, the
 most probable token is `paris`.
 end::inference-config-nlp-fill-mask[]
 
@@ -957,8 +957,8 @@ tag::inference-config-ner[]
 Configures a named entity recognition (NER) task. NER is a special case of token
 classification. Each token in the sequence is classified according to the
 provided classification labels. Currently, the NER task requires the
-`classification_labels` Inside-Outside-Beginning formatted labels. Also, only
-person, organization, location, and miscilaneous are supported.
+`classification_labels` Inside-Outside-Beginning formatted labels. Only
+person, organization, location, and miscellaneous are supported.
 end::inference-config-ner[]
 
 tag::inference-config-pass-through[]
@@ -969,7 +969,7 @@ end::inference-config-pass-through[]
 
 tag::inference-config-text-classification[]
 A text classification task. Text classification classifies a provided text
-sequence into previously known target classes.  A specific example of this is
+sequence into previously known target classes. A specific example of this is
 sentiment analysis, which returns the likely target classes indicating text
 sentiment, such as "sad", "happy", or "angry".
 end::inference-config-text-classification[]

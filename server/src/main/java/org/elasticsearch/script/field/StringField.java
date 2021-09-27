@@ -33,12 +33,12 @@ public class StringField extends Field<String> {
 
             @Override
             public long getLongValue() {
-                return getNonPrimitiveValue().longValue();
+                return toBigInteger(values.getNonPrimitiveValue()).longValue();
             }
 
             @Override
             public double getDoubleValue() {
-                return getNonPrimitiveValue().doubleValue();
+                return toBigInteger(values.getNonPrimitiveValue()).doubleValue();
             }
         });
     }

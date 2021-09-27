@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script.field;
 
-import java.math.BigInteger;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,10 +20,10 @@ public class BigIntegerField extends Field<java.math.BigInteger> {
      * Longs and Doubles are wrapped as BigIntegers.
      * Strings are parsed as either Longs or Doubles and wrapped in a BigInteger.
      */
-    public static final Converter<BigInteger, BigIntegerField> BigInteger;
+    public static final Converter<java.math.BigInteger, BigIntegerField> BigInteger;
 
     static {
-        BigInteger = new Converter<BigInteger, BigIntegerField>() {
+        BigInteger = new Converter<java.math.BigInteger, BigIntegerField>() {
             @Override
             public BigIntegerField convert(Field<?> sourceField) {
                 if (sourceField instanceof LongField) {
@@ -60,8 +59,8 @@ public class BigIntegerField extends Field<java.math.BigInteger> {
             }
 
             @Override
-            public Class<BigInteger> getTargetClass() {
-                return BigInteger.class;
+            public Class<java.math.BigInteger> getTargetClass() {
+                return java.math.BigInteger.class;
             }
         };
     }
@@ -69,8 +68,8 @@ public class BigIntegerField extends Field<java.math.BigInteger> {
     /* ---- Conversion Helpers To Other Fields ---- */
 
     public static LongField toLongField(BigIntegerField sourceField) {
-        FieldValues<BigInteger> fv = sourceField.getFieldValues();
-        return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, BigInteger>(fv) {
+        FieldValues<java.math.BigInteger> fv = sourceField.getFieldValues();
+        return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, java.math.BigInteger>(fv) {
             @Override
             public List<Long> getValues() {
                 return values.getValues().stream().map(BigIntegerField::toLong).collect(Collectors.toList());
@@ -95,17 +94,17 @@ public class BigIntegerField extends Field<java.math.BigInteger> {
 
     /* ---- Conversion Helpers To Other Types ---- */
 
-    public static long toLong(BigInteger bigInteger) {
+    public static long toLong(java.math.BigInteger bigInteger) {
         return bigInteger.longValue();
     }
 
-    public static double toDouble(BigInteger bigInteger) {
+    public static double toDouble(java.math.BigInteger bigInteger) {
         return bigInteger.doubleValue();
     }
 
     /* ---- Big Integer Field Members ---- */
 
-    public BigIntegerField(String name, FieldValues<BigInteger> values) {
+    public BigIntegerField(String name, FieldValues<java.math.BigInteger> values) {
         super(name, values);
     }
 }

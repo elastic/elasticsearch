@@ -53,7 +53,7 @@ public class UnsignedLongField extends LongField {
 
     public static BigIntegerField toBigIntegerField(UnsignedLongField sourceField) {
         FieldValues<Long> fv = sourceField.getFieldValues();
-        return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<java.math.BigInteger, Long>(fv) {
+        return new BigIntegerField(sourceField.getName(), new DelegatingFieldValues<BigInteger, Long>(fv) {
             private BigInteger toBigInteger(long formatted) {
                 return java.math.BigInteger.valueOf(formatted).and(BIGINTEGER_2_64_MINUS_ONE);
             }
@@ -66,6 +66,16 @@ public class UnsignedLongField extends LongField {
             @Override
             public BigInteger getNonPrimitiveValue() {
                 return toBigInteger(values.getLongValue());
+            }
+
+            @Override
+            public long getLongValue() {
+                return values.getLongValue();
+            }
+
+            @Override
+            public double getDoubleValue() {
+                return values.getDoubleValue();
             }
         });
     }

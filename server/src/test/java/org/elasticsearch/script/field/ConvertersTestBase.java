@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script.field;
 
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -245,13 +246,65 @@ public abstract class ConvertersTestBase extends ESTestCase {
         bigIntegerField = new BigIntegerField("big_integer_field", bigIntegerFieldValues);
     }
 
-    protected String[] rawStringValues;
-    protected FieldValues<String> stringFieldValues;
-    protected Field<String> stringField;
+    protected String[] rawStringValuesAsLongs;
+    protected FieldValues<String> stringFieldValuesAsLongs;
+    protected Field<String> stringFieldAsLongs;
 
     @Before
-    public void setupStringField() {
-        rawStringValues = new String[] {
+    public void setupStringFieldAsLongs() {
+        rawStringValuesAsLongs = new String[] {
+                "72",
+                "0",
+                "-1",
+                "1",
+                ((Integer)Integer.MAX_VALUE).toString(),
+                ((Integer)Integer.MIN_VALUE).toString(),
+                ((Long)Long.MAX_VALUE).toString(),
+                ((Long)Long.MIN_VALUE).toString()
+        };
+
+        stringFieldValuesAsLongs = new FieldValues<String>() {
+            @Override
+            public boolean isEmpty() {
+                return false;
+            }
+
+            @Override
+            public int size() {
+                return rawStringValuesAsLongs.length;
+            }
+
+            @Override
+            public List<String> getValues() {
+                return Stream.of(rawStringValuesAsLongs).collect(Collectors.toList());
+            }
+
+            @Override
+            public String getNonPrimitiveValue() {
+                return rawStringValuesAsLongs[0];
+            }
+
+            @Override
+            public long getLongValue() {
+                return StringField.toLong(rawStringValuesAsLongs[0]);
+            }
+
+            @Override
+            public double getDoubleValue() {
+                return StringField.toDouble(rawStringValuesAsLongs[0]);
+            }
+        };
+
+        stringFieldAsLongs = new StringField("string_field_as_longs", stringFieldValuesAsLongs);
+    }
+
+    protected String[] rawStringValuesAsDoubles;
+    protected FieldValues<String> stringFieldValuesAsDoubles;
+    protected Field<String> stringFieldAsDoubles;
+
+    @Before
+    public void setupStringFieldAsDoubles() {
+        rawStringValuesAsDoubles = new String[] {
                 "72",
                 "0",
                 "-1",
@@ -262,7 +315,7 @@ public abstract class ConvertersTestBase extends ESTestCase {
                 ((Double)Double.MIN_VALUE).toString()
         };
 
-        stringFieldValues = new FieldValues<String>() {
+        stringFieldValuesAsDoubles = new FieldValues<String>() {
             @Override
             public boolean isEmpty() {
                 return false;
@@ -270,31 +323,31 @@ public abstract class ConvertersTestBase extends ESTestCase {
 
             @Override
             public int size() {
-                return rawStringValues.length;
+                return rawStringValuesAsDoubles.length;
             }
 
             @Override
             public List<String> getValues() {
-                return Stream.of(rawStringValues).collect(Collectors.toList());
+                return Stream.of(rawStringValuesAsDoubles).collect(Collectors.toList());
             }
 
             @Override
             public String getNonPrimitiveValue() {
-                return rawStringValues[0];
+                return rawStringValuesAsDoubles[0];
             }
 
             @Override
             public long getLongValue() {
-                return StringField.toLong(rawStringValues[0]);
+                return StringField.toLong(rawStringValuesAsDoubles[0]);
             }
 
             @Override
             public double getDoubleValue() {
-                return StringField.toDouble(rawStringValues[0]);
+                return StringField.toDouble(rawStringValuesAsDoubles[0]);
             }
         };
 
-        stringField = new StringField("string_field", stringFieldValues);
+        stringFieldAsDoubles = new StringField("string_field_as_doubles", stringFieldValuesAsDoubles);
     }
 
     long[] rawLongMillisValues;
@@ -303,7 +356,7 @@ public abstract class ConvertersTestBase extends ESTestCase {
     protected Field<JodaCompatibleZonedDateTime> dateMillisField;
 
     @Before
-    public void setupMillisDateField() {
+    public void setupDateMillisField() {
         rawLongMillisValues = new long[] {
                 1629830752000L,
                 0L,
@@ -359,7 +412,7 @@ public abstract class ConvertersTestBase extends ESTestCase {
     protected Field<JodaCompatibleZonedDateTime> dateNanosField;
 
     @Before
-    public void setupNanosDateField() {
+    public void setupDateNanosField() {
         rawLongNanosValues = new long[] {
                 1629830752000L,
                 0L,
@@ -407,5 +460,50 @@ public abstract class ConvertersTestBase extends ESTestCase {
         };
 
         dateNanosField = new DateNanosField("nanos_date_field", dateNanosFieldValues);
+    }
+
+    List<GeoPoint> rawGeoPointValues;
+    protected FieldValues<GeoPoint> getPointFieldValues;
+    protected Field<GeoPoint> getPointField;
+
+    @Before
+    public void setupGeoPointField() {
+        rawGeoPointValues = List.of(
+                new GeoPoint(0.0, 0.0)
+        );
+
+        getPointFieldValues = new FieldValues<GeoPoint>() {
+            @Override
+            public boolean isEmpty() {
+                return false;
+            }
+
+            @Override
+            public int size() {
+                return rawGeoPointValues.size();
+            }
+
+            @Override
+            public List<GeoPoint> getValues() {
+                return Collections.unmodifiableList(rawGeoPointValues);
+            }
+
+            @Override
+            public GeoPoint getNonPrimitiveValue() {
+                return rawGeoPointValues.get(0);
+            }
+
+            @Override
+            public long getLongValue() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public double getDoubleValue() {
+                throw new UnsupportedOperationException();
+            }
+        };
+
+        getPointField = new GeoPointField("geo_point_field", getPointFieldValues);
     }
 }

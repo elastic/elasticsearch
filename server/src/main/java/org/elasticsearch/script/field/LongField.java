@@ -82,9 +82,25 @@ public class LongField extends Field<Long> {
 
             @Override
             public BigInteger getNonPrimitiveValue() {
-                return BigInteger.valueOf(values.getLongValue());
+                return toBigInteger(values.getNonPrimitiveValue());
+            }
+
+            @Override
+            public long getLongValue() {
+                return toBigInteger(values.getNonPrimitiveValue()).longValue();
+            }
+
+            @Override
+            public double getDoubleValue() {
+                return toBigInteger(values.getNonPrimitiveValue()).doubleValue();
             }
         });
+    }
+
+    /* ---- Conversion Helpers To Other Types ---- */
+
+    public static BigInteger toBigInteger(long lng) {
+        return BigInteger.valueOf(lng);
     }
 
     /* ---- Long Field Members ---- */

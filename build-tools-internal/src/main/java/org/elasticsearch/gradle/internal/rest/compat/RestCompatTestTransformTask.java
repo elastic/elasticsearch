@@ -430,15 +430,16 @@ public class RestCompatTestTransformTask extends DefaultTask {
                 //skip all the tests in the file
                 transformRestTests = transformer.transformRestTests(new LinkedList<>(tests),
                     Collections.singletonList(new Skip(skippedFilesWithReason.get(file))));
-            } else if (skippedTestByTestNameTransformations.containsKey(Pair.of(file.getParentFile().getName(), file.getName()))) {
-                //skip the named tests for this file
-                List<RestTestTransform<?>> skippedTransforms = new ArrayList<>();
-                skippedTestByTestNameTransformations.get(Pair.of(file.getParentFile().getName(), file.getName())).forEach((testName, reason) -> {
-                    skippedTransforms.add(new Skip(testName, reason));
-                });
-                transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), skippedTransforms);
+            }  else {
 
-            } else {
+                if (skippedTestByTestNameTransformations.containsKey(Pair.of(file.getParentFile().getName(), file.getName()))) {
+                    //skip the named tests for this file
+                    skippedTestByTestNameTransformations.get(Pair.of(file.getParentFile().getName(), file.getName())).forEach((testName, reason) -> {
+                        transformations.add(new Skip(testName, reason));
+                    });
+                }
+
+
                 transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), transformations);
 
             }

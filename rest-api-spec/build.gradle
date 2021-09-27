@@ -49,9 +49,7 @@ tasks.named("yamlRestTestV7CompatTest").configure {
             'delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types',
             // WILL NOT BE FIXED - failing due to not recognising missing type (the type path param is ignored)
             'get/100_mix_typeless_typeful/GET with typeless API on an index that has types',
-            // type information about the type is removed and not passed down. The logic to check for this is also removed.
-            'indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template',
-            'indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template',
+
             //
             // This test returns test_index.mappings:{} when {} was expected. difference between 20_missing_field and 21_missing_field_with_types?
             'indices.get_field_mapping/21_missing_field_with_types/Return empty object if field doesn\'t exist, but type and index do',

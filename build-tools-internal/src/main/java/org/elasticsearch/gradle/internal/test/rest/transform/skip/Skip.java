@@ -65,29 +65,30 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
 
     private void addSkip(ArrayNode skipParent) {
         Iterator<JsonNode> skipParentIt = skipParent.elements();
-        int i = 0;
-        boolean remove = false;
+        boolean found = false;
         while (skipParentIt.hasNext()) {
             JsonNode arrayEntry = skipParentIt.next();
             if (arrayEntry.isObject()) {
                 ObjectNode skipCandidate = (ObjectNode) arrayEntry;
                 if (skipCandidate.get("skip") != null) {
-                    remove = true;
+                    ObjectNode skipNode = (ObjectNode) skipCandidate.get("skip");
+                    skipNode.replace("version", TextNode.valueOf("all"));
+                    skipNode.replace("reason", TextNode.valueOf(skipReason));
+                    found = true;
                     break;
                 }
             }
-            i++;
-        }
-        if (remove) {
-            skipParent.remove(i);
+
         }
 
-        ObjectNode skipNode = new ObjectNode(jsonNodeFactory);
-        skipParent.insert(0, skipNode);
-        ObjectNode skipChild = new ObjectNode(jsonNodeFactory);
-        skipChild.set("version", TextNode.valueOf("all"));
-        skipChild.set("reason", TextNode.valueOf(skipReason));
-        skipNode.set("skip", skipChild);
+        if (found == false) {
+            ObjectNode skipNode = new ObjectNode(jsonNodeFactory);
+            skipParent.insert(0, skipNode);
+            ObjectNode skipChild = new ObjectNode(jsonNodeFactory);
+            skipChild.set("version", TextNode.valueOf("all"));
+            skipChild.set("reason", TextNode.valueOf(skipReason));
+            skipNode.set("skip", skipChild);
+        }
     }
 
 

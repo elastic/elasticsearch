@@ -17,13 +17,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
@@ -36,7 +39,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
      * registries.
      */
     public static final int REGISTRY_VERSION = Version.V_7_14_0.id;
-    public static final String REGISTRY_VERSION_VARIABLE = "xpack.monitoring.template.release.version";
+    private static final String REGISTRY_VERSION_VARIABLE = "xpack.monitoring.template.release.version";
 
     /**
      * Current version of templates used in their name to differentiate from breaking changes (separate from product version).
@@ -117,6 +120,28 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         REGISTRY_VERSION_VARIABLE,
         ADDITIONAL_TEMPLATE_VARIABLES
     );
+
+    public static final String[] TEMPLATE_NAMES = new String[]{
+        ALERTS_INDEX_TEMPLATE_NAME,
+        BEATS_INDEX_TEMPLATE_NAME,
+        ES_INDEX_TEMPLATE_NAME,
+        KIBANA_INDEX_TEMPLATE_NAME,
+        LOGSTASH_INDEX_TEMPLATE_NAME
+    };
+
+
+    private static final Map<String, IndexTemplateConfig> MONITORED_SYSTEM_CONFIG_LOOKUP = new HashMap<>();
+    static {
+        MONITORED_SYSTEM_CONFIG_LOOKUP.put(MonitoredSystem.BEATS.getSystem(), BEATS_INDEX_TEMPLATE);
+        MONITORED_SYSTEM_CONFIG_LOOKUP.put(MonitoredSystem.ES.getSystem(), ES_INDEX_TEMPLATE);
+        MONITORED_SYSTEM_CONFIG_LOOKUP.put(MonitoredSystem.KIBANA.getSystem(), KIBANA_INDEX_TEMPLATE);
+        MONITORED_SYSTEM_CONFIG_LOOKUP.put(MonitoredSystem.LOGSTASH.getSystem(), LOGSTASH_INDEX_TEMPLATE);
+    }
+
+    public static IndexTemplateConfig getTemplateConfigForMonitoredSystem(MonitoredSystem system) {
+        return Optional.ofNullable(MONITORED_SYSTEM_CONFIG_LOOKUP.get(system.getSystem()))
+            .orElseThrow(() -> new IllegalArgumentException("Invalid system [" + system + "]"));
+    }
 
     public MonitoringTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
                                       NamedXContentRegistry xContentRegistry) {

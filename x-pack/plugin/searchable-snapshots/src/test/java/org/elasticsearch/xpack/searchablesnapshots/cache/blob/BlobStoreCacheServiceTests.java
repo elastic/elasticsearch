@@ -16,16 +16,21 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -47,12 +52,24 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private Client mockClient;
+    private String repository;
+    private SnapshotId snapshotId;
+    private IndexId indexId;
+    private ShardId shardId;
+    private String fileName;
+    private ByteRange range;
 
     @Before
     public void createThreadPool() {
         mockClient = mock(Client.class);
         threadPool = new TestThreadPool(getClass().getSimpleName());
         when(mockClient.threadPool()).thenReturn(threadPool);
+        repository = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        snapshotId = new SnapshotId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID());
+        indexId = new IndexId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID());
+        shardId = new ShardId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(), randomInt(5));
+        fileName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        range = ByteRange.of(randomLongBetween(0L, 1024L), randomLongBetween(2048L, 4096L));
     }
 
     @After
@@ -87,13 +104,13 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
         blobCacheService.start();
 
         PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
-        blobCacheService.getAsync("_repository", "_file", "/path", 0L, future);
+        blobCacheService.getAsync(repository, snapshotId, indexId, shardId, fileName, range, future);
         assertThat(future.actionGet(), equalTo(CachedBlob.CACHE_MISS));
 
         blobCacheService.stop();
 
         future = PlainActionFuture.newFuture();
-        blobCacheService.getAsync("_repository", "_file", "/path", 0L, future);
+        blobCacheService.getAsync(repository, snapshotId, indexId, shardId, fileName, range, future);
         assertThat(future.actionGet(), equalTo(CachedBlob.CACHE_NOT_READY));
     }
 
@@ -119,13 +136,13 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
         blobCacheService.start();
 
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        blobCacheService.putAsync("_repository", "_file", "/path", 0L, BytesArray.EMPTY, future);
+        blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, future);
         assertThat(future.actionGet(), nullValue());
 
         blobCacheService.stop();
 
         future = PlainActionFuture.newFuture();
-        blobCacheService.putAsync("_repository", "_file", "/path", 0L, BytesArray.EMPTY, future);
+        blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, future);
         IllegalStateException exception = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(exception.getMessage(), containsString("Blob cache service is closed"));
     }
@@ -163,7 +180,7 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
             final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
             threadPool.generic()
                 .execute(
-                    () -> { blobCacheService.putAsync("_repository", randomAlphaOfLength(3), "/path", 0L, BytesArray.EMPTY, future); }
+                    () -> blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, future)
                 );
             futures.add(future);
         }

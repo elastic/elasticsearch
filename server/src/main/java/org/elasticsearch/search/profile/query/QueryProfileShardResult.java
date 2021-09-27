@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.profile.query;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -98,6 +100,27 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         builder.endArray();
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        QueryProfileShardResult other = (QueryProfileShardResult) obj;
+        return queryProfileResults.equals(other.queryProfileResults)
+            && profileCollector.equals(other.profileCollector)
+            && rewriteTime == other.rewriteTime;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(queryProfileResults, profileCollector, rewriteTime);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public static QueryProfileShardResult fromXContent(XContentParser parser) throws IOException {

@@ -16,8 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,8 +37,15 @@ public class DataTier {
     public static final String DATA_COLD = "data_cold";
     public static final String DATA_FROZEN = "data_frozen";
 
-    public static final Set<String> ALL_DATA_TIERS =
-        new HashSet<>(Arrays.asList(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD, DATA_FROZEN));
+    public static final Set<String> ALL_DATA_TIERS = Set.of(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD, DATA_FROZEN);
+
+    static {
+        for (String tier : ALL_DATA_TIERS) {
+            assert tier.equals(DATA_FROZEN) || tier.contains(DATA_FROZEN) == false
+                : "can't have two tier names containing [" + DATA_FROZEN + "] because it would break setting validation optimizations" +
+                    " in the data tier allocation decider";
+        }
+    }
 
     // Represents an ordered list of data tiers from frozen to hot (or slow to fast)
     private static final List<String> ORDERED_FROZEN_TO_HOT_TIERS =
@@ -50,11 +55,7 @@ public class DataTier {
      * Returns true if the given tier name is a valid tier
      */
     public static boolean validTierName(String tierName) {
-        return DATA_CONTENT.equals(tierName) ||
-            DATA_HOT.equals(tierName) ||
-            DATA_WARM.equals(tierName) ||
-            DATA_COLD.equals(tierName) ||
-            DATA_FROZEN.equals(tierName);
+        return ALL_DATA_TIERS.contains(tierName);
     }
 
     /**

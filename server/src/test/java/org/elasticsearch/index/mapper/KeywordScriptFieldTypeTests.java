@@ -263,7 +263,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().regexpQuery("ca.+", 0, 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
+                        simpleMappedFieldType().regexpQuery("ca.+", 0, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null, mockContext())
                     ),
                     equalTo(2)
                 );

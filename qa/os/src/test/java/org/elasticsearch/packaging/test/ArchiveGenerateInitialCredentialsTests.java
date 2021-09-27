@@ -47,9 +47,9 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
     public void test10Install() throws Exception {
         installation = installArchive(sh, distribution());
         // Enable security for these tests only where it is necessary, until we can enable it for all
+        // TODO: Remove this when https://github.com/elastic/elasticsearch/pull/77231 is merged
         ServerUtils.enableSecurityFeatures(installation);
         verifyArchiveInstallation(installation, distribution());
-        // Remove this when https://github.com/elastic/elasticsearch/pull/77231 is merged
         installation.executables().securityConfigTool.run("");
     }
 

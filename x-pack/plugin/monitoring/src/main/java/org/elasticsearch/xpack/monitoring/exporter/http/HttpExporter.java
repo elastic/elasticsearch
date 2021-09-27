@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
@@ -326,12 +327,6 @@ public class HttpExporter extends Exporter {
     public static final Setting.AffixSetting<TimeValue> TEMPLATE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.master_timeout",
                     (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
-    /**
-     * A boolean setting to enable or disable whether to create placeholders for the old templates.
-     */
-    public static final Setting.AffixSetting<Boolean> TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
-                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
     /**
      * ES level timeout used when checking and writing pipelines (used to speed up tests)
      */
@@ -842,24 +837,8 @@ public class HttpExporter extends Exporter {
                 TEMPLATE_CHECK_TIMEOUT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
         // add templates not managed by resolvers
-        for (final String templateId : MonitoringTemplateUtils.TEMPLATE_IDS) {
-            final String templateName = MonitoringTemplateUtils.templateName(templateId);
-            final Supplier<String> templateLoader = () -> MonitoringTemplateUtils.loadTemplate(templateId);
-
-            resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, templateLoader));
-        }
-
-        // Add dummy templates (e.g. ".monitoring-es-6") to enable the ability to check which version of the actual
-        // index template (e.g. ".monitoring-es") should be applied.
-        boolean createLegacyTemplates =
-                TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-        if (createLegacyTemplates) {
-            for (final String templateId : MonitoringTemplateUtils.OLD_TEMPLATE_IDS) {
-                final String templateName = MonitoringTemplateUtils.oldTemplateName(templateId);
-                final Supplier<String> templateLoader = () -> MonitoringTemplateUtils.createEmptyTemplate(templateId);
-
-                resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, templateLoader));
-            }
+        for (final String templateName : MonitoringTemplateRegistry.TEMPLATE_NAMES) {
+            resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, null));
         }
     }
 
@@ -993,7 +972,7 @@ public class HttpExporter extends Exporter {
     }
 
     public static List<Setting.AffixSetting<?>> getDynamicSettings() {
-        return Arrays.asList(HOST_SETTING, TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING, AUTH_USERNAME_SETTING, BULK_TIMEOUT_SETTING,
+        return Arrays.asList(HOST_SETTING, AUTH_USERNAME_SETTING, BULK_TIMEOUT_SETTING,
                 CONNECTION_READ_TIMEOUT_SETTING, CONNECTION_TIMEOUT_SETTING, PIPELINE_CHECK_TIMEOUT_SETTING, PROXY_BASE_PATH_SETTING,
                 SNIFF_ENABLED_SETTING, TEMPLATE_CHECK_TIMEOUT_SETTING, SSL_SETTING, HEADERS_SETTING);
     }

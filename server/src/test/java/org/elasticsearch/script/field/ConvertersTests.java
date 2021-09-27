@@ -49,18 +49,18 @@ public class ConvertersTests extends ConvertersTestBase{
         Field<Long> toLongField = bigIntegerField.as(LongField.Long);
         assertEquals(expectedLongs, toLongField.getValues());
         assertEquals(expectedLongs.get(0), toLongField.getValue(null)); // default value ignored
-        assertEquals(BigIntegerField.toLong(rawBigIntegerValues[0]), toLongField.getLong(10)); // default value ignored
-        assertEquals(BigIntegerField.toDouble(rawBigIntegerValues[0]), toLongField.getDouble(10.0), 0.0001); // default value ignored
+        assertEquals(rawBigIntegerValues[0].longValue(), toLongField.getLong(10)); // default value ignored
+        assertEquals(rawBigIntegerValues[0].doubleValue(), toLongField.getDouble(10.0), 0.0001); // default value ignored
 
         // reverse transform (asymmetric): long field to big integer field
         Field<BigInteger> toBigIntegerField = toLongField.as(BigIntegerField.BigInteger);
         assertEquals(expectedLongs.stream().map(BigInteger::valueOf).collect(Collectors.toList()), toBigIntegerField.getValues());
         assertEquals(
-                BigInteger.valueOf(BigIntegerField.toLong(rawBigIntegerValues[0])),
+                BigInteger.valueOf(rawBigIntegerValues[0].longValue()),
                 toBigIntegerField.getValue(null)); // default value ignored
-        assertEquals(BigIntegerField.toLong(rawBigIntegerValues[0]), toBigIntegerField.getLong(10)); // default value ignored
+        assertEquals(rawBigIntegerValues[0].longValue(), toBigIntegerField.getLong(10)); // default value ignored
         assertEquals(
-                BigIntegerField.toDouble(rawBigIntegerValues[0]),
+                rawBigIntegerValues[0].doubleValue(),
                 toBigIntegerField.getDouble(10.0d), // default value ignored
                 0.0001d);
     }
@@ -74,7 +74,7 @@ public class ConvertersTests extends ConvertersTestBase{
         assertEquals(expectedBigIntegers.get(0), toBigIntegerField.getValue(null)); // default value ignored
         assertEquals((long)rawDoubleValues[0], toBigIntegerField.getLong(10)); // default value ignored
         assertEquals(
-                BigIntegerField.toDouble(expectedBigIntegers.get(0)),
+                expectedBigIntegers.get(0).doubleValue(),
                 toBigIntegerField.getDouble(10.0d), // default value ignored
                 0.00001d);
     }
@@ -102,7 +102,7 @@ public class ConvertersTests extends ConvertersTestBase{
 
     public void testStringFieldToLongField() {
         // transform: string field to long field
-        List<Long> expectedLongs = Arrays.stream(rawStringValuesAsLongs).map(StringField::toLong).collect(Collectors.toList());
+        List<Long> expectedLongs = Arrays.stream(rawStringValuesAsLongs).map(Long::parseLong).collect(Collectors.toList());
         Field<Long> toLongField = stringFieldAsLongs.as(LongField.Long);
         assertEquals(expectedLongs, toLongField.getValues());
         assertEquals(expectedLongs.get(0), toLongField.getValue(null)); // default value ignored
@@ -114,7 +114,7 @@ public class ConvertersTests extends ConvertersTestBase{
         // transform: boolean field to big integer field
         List<BigInteger> expectedBigIntegers = new ArrayList<>();
         for (boolean bool : rawBooleanValues) {
-            expectedBigIntegers.add(LongField.toBigInteger(BooleanField.toLong(bool)));
+            expectedBigIntegers.add(BigInteger.valueOf(BooleanField.toLong(bool)));
         }
         Field<BigInteger> toBigIntegerField = booleanField.as(BigIntegerField.BigInteger);
         assertEquals(expectedBigIntegers, toBigIntegerField.getValues());
@@ -139,7 +139,7 @@ public class ConvertersTests extends ConvertersTestBase{
     public void testDateMillisFieldToBigIntegerField() {
         // transform: boolean field to big integer field
         List<BigInteger> expectedBigIntegers =
-                rawDateMillisValues.stream().map(DateMillisField::toLong).map(LongField::toBigInteger).collect(Collectors.toList());
+                rawDateMillisValues.stream().map(DateMillisField::toLong).map(BigInteger::valueOf).collect(Collectors.toList());
         Field<BigInteger> toBigIntegerField = dateMillisField.as(BigIntegerField.BigInteger);
         assertEquals(expectedBigIntegers, toBigIntegerField.getValues());
         assertEquals(expectedBigIntegers.get(0), toBigIntegerField.getValue(null)); // default value ignored
@@ -160,7 +160,7 @@ public class ConvertersTests extends ConvertersTestBase{
     public void testDateNanosFieldToBigIntegerField() {
         // transform: boolean field to big integer field
         List<BigInteger> expectedBigIntegers =
-                rawDateNanosValues.stream().map(DateNanosField::toLong).map(LongField::toBigInteger).collect(Collectors.toList());
+                rawDateNanosValues.stream().map(DateNanosField::toLong).map(BigInteger::valueOf).collect(Collectors.toList());
         Field<BigInteger> toBigIntegerField = dateNanosField.as(BigIntegerField.BigInteger);
         assertEquals(expectedBigIntegers, toBigIntegerField.getValues());
         assertEquals(expectedBigIntegers.get(0), toBigIntegerField.getValue(null)); // default value ignored

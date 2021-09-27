@@ -87,7 +87,7 @@ public class UnsignedLongField extends LongField {
         return new UnsignedLongField(sourceField.getName(), new DelegatingFieldValues<>(fv) {
             @Override
             public List<Long> getValues() {
-                return values.getValues().stream().map(BigIntegerField::toLong).collect(Collectors.toList());
+                return values.getValues().stream().map(BigInteger::longValue).collect(Collectors.toList());
             }
 
             @Override

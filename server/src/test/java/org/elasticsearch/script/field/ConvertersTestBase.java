@@ -234,12 +234,12 @@ public abstract class ConvertersTestBase extends ESTestCase {
 
             @Override
             public long getLongValue() {
-                return BigIntegerField.toLong(rawBigIntegerValues[0]);
+                return rawBigIntegerValues[0].longValue();
             }
 
             @Override
             public double getDoubleValue() {
-                return BigIntegerField.toDouble(rawBigIntegerValues[0]);
+                return rawBigIntegerValues[0].doubleValue();
             }
         };
 
@@ -286,12 +286,12 @@ public abstract class ConvertersTestBase extends ESTestCase {
 
             @Override
             public long getLongValue() {
-                return StringField.toLong(rawStringValuesAsLongs[0]);
+                return Long.parseLong(rawStringValuesAsLongs[0]);
             }
 
             @Override
             public double getDoubleValue() {
-                return StringField.toDouble(rawStringValuesAsLongs[0]);
+                return Double.parseDouble(rawStringValuesAsLongs[0]);
             }
         };
 
@@ -338,12 +338,12 @@ public abstract class ConvertersTestBase extends ESTestCase {
 
             @Override
             public long getLongValue() {
-                return StringField.toLong(rawStringValuesAsDoubles[0]);
+                return Long.parseLong(rawStringValuesAsDoubles[0]);
             }
 
             @Override
             public double getDoubleValue() {
-                return StringField.toDouble(rawStringValuesAsDoubles[0]);
+                return Double.parseDouble(rawStringValuesAsDoubles[0]);
             }
         };
 
@@ -399,7 +399,7 @@ public abstract class ConvertersTestBase extends ESTestCase {
 
             @Override
             public double getDoubleValue() {
-                return DateMillisField.toDouble(rawDateMillisValues.get(0));
+                return getLongValue();
             }
         };
 
@@ -455,7 +455,7 @@ public abstract class ConvertersTestBase extends ESTestCase {
 
             @Override
             public double getDoubleValue() {
-                return DateNanosField.toDouble(rawDateNanosValues.get(0));
+                return getLongValue();
             }
         };
 

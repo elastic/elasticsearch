@@ -30,12 +30,12 @@ public class BooleanField extends Field<Boolean> {
 
             @Override
             public long getLongValue() {
-                return toLong(values.getNonPrimitiveValue());
+                return values.getLongValue();
             }
 
             @Override
             public double getDoubleValue() {
-                return toDouble(values.getNonPrimitiveValue());
+                return (long)values.getDoubleValue();
             }
         });
     }

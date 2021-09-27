@@ -32,12 +32,12 @@ public class DoubleField extends Field<Double> {
 
             @Override
             public long getLongValue() {
-                return toBigInteger(values.getNonPrimitiveValue()).longValue();
+                return values.getLongValue();
             }
 
             @Override
             public double getDoubleValue() {
-                return toBigInteger(values.getNonPrimitiveValue()).doubleValue();
+                return toBigInteger(values.getDoubleValue()).doubleValue();
             }
         });
     }

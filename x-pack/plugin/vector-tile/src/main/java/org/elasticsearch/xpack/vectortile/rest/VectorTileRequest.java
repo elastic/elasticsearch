@@ -63,7 +63,8 @@ class VectorTileRequest {
 
     protected enum GRID_TYPE {
         GRID,
-        POINT;
+        POINT,
+        CENTROID;
 
         private static GRID_TYPE fromString(String type) {
             switch (type.toLowerCase(Locale.ROOT)) {
@@ -71,6 +72,8 @@ class VectorTileRequest {
                     return GRID;
                 case "point":
                     return POINT;
+                case "centroid":
+                    return CENTROID;
                 default:
                     throw new IllegalArgumentException("Invalid grid type [" + type + "]");
             }

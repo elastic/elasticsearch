@@ -33,7 +33,7 @@ dependencies {
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
-  api "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
   api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
   api "org.apache.lucene:lucene-grouping:${versions.lucene}"
   api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
@@ -269,28 +269,13 @@ tasks.named("licenseHeaders").configure {
 
 tasks.named('splitPackagesAudit').configure {
     // Lucene packages should be owned by Lucene!
-  ignoreClasses 'org.apache.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter',
-    'org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute',
-    'org.apache.lucene.analysis.miscellaneous.DisableGraphAttributeImpl',
-    'org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter',
-    'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttribute',
-    'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttributeImpl',
-    'org.apache.lucene.document.BinaryRange',
-    'org.apache.lucene.queryparser.classic.XQueryParser',
+  ignoreClasses 'org.apache.lucene.queryparser.classic.XQueryParser',
     'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
     'org.apache.lucene.queries.BlendedTermQuery',
-    'org.apache.lucene.queries.MinDocQuery',
-    'org.apache.lucene.queries.SearchAfterSortedDocQuery',
     'org.apache.lucene.queries.SpanMatchNoDocsQuery',
     'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
     'org.apache.lucene.search.grouping.CollapsingDocValuesSource',
     'org.apache.lucene.search.grouping.CollapsingTopDocsCollector',
-    'org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner',
-    'org.apache.lucene.search.uhighlight.CustomFieldHighlighter',
-    'org.apache.lucene.search.uhighlight.CustomPassageFormatter',
-    'org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter',
-    'org.apache.lucene.search.uhighlight.Snippet',
-    'org.apache.lucene.util.CombinedBitSet',
     'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
 
     // These are tricky because Lucene itself splits the index package,

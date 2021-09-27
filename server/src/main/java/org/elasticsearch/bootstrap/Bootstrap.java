@@ -18,7 +18,6 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.core.SuppressForbidden;
@@ -26,9 +25,7 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.IfConfig;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -43,12 +40,9 @@ import org.elasticsearch.node.NodeValidationException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
@@ -232,42 +226,7 @@ final class Bootstrap {
         };
     }
 
-    static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
-        return loadSecureSettings(initialEnv, System.in);
-    }
-
-    static SecureSettings loadSecureSettings(Environment initialEnv, InputStream stdin) throws BootstrapException {
-        try {
-            return KeyStoreWrapper.bootstrap(initialEnv.configFile(), () -> readPassphrase(stdin, KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
-        } catch (Exception e) {
-            throw new BootstrapException(e);
-        }
-    }
-
     // visible for tests
-    /**
-     * Read from an InputStream up to the first carriage return or newline,
-     * returning no more than maxLength characters.
-     */
-    static SecureString readPassphrase(InputStream stream, int maxLength) throws IOException {
-        SecureString passphrase;
-
-        try(InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
-            passphrase = new SecureString(Terminal.readLineToCharArray(reader, maxLength));
-        } catch (RuntimeException e) {
-            if (e.getMessage().startsWith("Input exceeded maximum length")) {
-                throw new IllegalStateException("Password exceeded maximum length of " + maxLength, e);
-            }
-            throw e;
-        }
-
-        if (passphrase.length() == 0) {
-            passphrase.close();
-            throw new IllegalStateException("Keystore passphrase required but none provided.");
-        }
-
-        return passphrase;
-    }
 
     private static Environment createEnvironment(
             final Path pidFile,
@@ -320,7 +279,7 @@ final class Bootstrap {
 
         INSTANCE = new Bootstrap();
 
-        final SecureSettings keystore = loadSecureSettings(initialEnv);
+        final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
         // the LogConfigurator will replace System.out and System.err with redirects to our logfile, so we need to capture

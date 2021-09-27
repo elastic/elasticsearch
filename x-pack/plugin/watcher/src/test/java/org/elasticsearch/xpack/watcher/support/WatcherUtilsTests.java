@@ -173,9 +173,11 @@ public class WatcherUtilsTests extends ESTestCase {
             indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), randomBoolean(), indicesOptions.allowAliasesToMultipleIndices(),
                 indicesOptions.forbidClosedIndices(), indicesOptions.ignoreAliases(), indicesOptions.ignoreThrottled());
-            builder.startObject("indices_options");
-            indicesOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
+            if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+                builder.startObject("indices_options");
+                indicesOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+            }
         }
 
         SearchType searchType = SearchType.DEFAULT;

@@ -78,6 +78,23 @@ The major difference between these two syntaxes is, that the configuration block
 
 By actually doing less in the gradle configuration time as only creating tasks that are requested as part of the build and by only running the configurations for those requested tasks, using the task avoidance api contributes a major part in keeping our build fast.
 
+#### Registering test clusters
+
+When using the elasticsearch test cluster plugin we want to use (similar to the task avoidance API) a Gradle API to create domain objects lazy or only if required by the build.
+Therefore we register test cluster by using the following syntax:
+
+    def someClusterProvider = testClusters.register('someCluster') { ... }
+
+This registers a potential testCluster named `somecluster` and provides a provider instance, but doesn't create it yet nor configures it. This makes the gradle configuration phase more efficient by 
+doing less.
+
+To wire this registered cluster into a `TestClusterAware` task (e.g. `RestIntegTest`) you can resolve the actual cluster from the provider instance:
+
+    tasks.register('someClusterTest', RestIntegTestTask) {
+        useCluster someClusterProvider
+        nonInputProperties.systemProperty 'tests.leader_host', "${-> someClusterProvider.get().getAllHttpSocketURI().get(0)}"
+    }
+
 #### Adding additional integration tests
 
 Additional integration tests for a certain elasticsearch modules that are specific to certain cluster configuration can be declared in a separate so called `qa` subproject of your module.

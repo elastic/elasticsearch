@@ -86,6 +86,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+
     public void testMatchesNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(List.of(new NumericDocValuesField(NUMBER_FIELD_NAME, 7), new IntPoint(NUMBER_FIELD_NAME, 7)));
@@ -100,11 +101,14 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    /**
+     * Regression Test for https://github.com/elastic/elasticsearch/issues/77033
+     */
     public void testDoubleRangesExclusiveEndpoint() throws IOException {
         final String fieldName = "double";
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.DOUBLE);
         testCase(
-            new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.4D).addRange("r2", 0.4D, 1.0D),
+            new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.04D).addRange("r2", 0.04D, 1.0D),
             new MatchAllDocsQuery(),
             iw -> {
                 iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(0.04D))));
@@ -120,11 +124,14 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    /**
+     * Regression Test for https://github.com/elastic/elasticsearch/issues/77033
+     */
     public void testFloatRangesExclusiveEndpoint() throws IOException {
         final String fieldName = "float";
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.FLOAT);
         testCase(
-            new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.4D).addRange("r2", 0.4D, 1.0D),
+            new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.04D).addRange("r2", 0.04D, 1.0D),
             new MatchAllDocsQuery(),
             iw -> {
                 iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(0.04F))));

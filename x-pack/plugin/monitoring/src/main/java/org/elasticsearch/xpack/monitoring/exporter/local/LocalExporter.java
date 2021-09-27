@@ -15,7 +15,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -55,6 +54,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRespon
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
@@ -83,10 +83,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.loadPipeline;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
 
 public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
 
@@ -307,8 +305,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      */
     private boolean setupIfNotElectedMaster(final ClusterState clusterState) {
         // any required template is not yet installed in the given cluster state, we'll wait.
-        for (final String template : MonitoringTemplateUtils.TEMPLATE_IDS) {
-            if (hasTemplate(clusterState, MonitoringTemplateUtils.templateName(template)) == false) {
+        for (final String template : MonitoringTemplateRegistry.TEMPLATE_NAMES) {
+            if (hasTemplate(clusterState, template) == false) {
                 logger.debug("monitoring index template [{}] does not exist, so service cannot start (waiting on master)",
                              template);
                 return false;
@@ -362,18 +360,19 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         final List<Runnable> asyncActions = new ArrayList<>();
         final AtomicInteger pendingResponses = new AtomicInteger(0);
 
-        // Check that each required template exists, installing it if needed
-        final List<String> missingTemplates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                .filter(id -> hasTemplate(clusterState, templateName(id)) == false)
+        // Check that each required template exists. We can install the other resources needed while we wait for them to appear, so
+        // continue with the async installation and return the readiness at the end of the setup.
+        final List<String> missingTemplates = Arrays.stream(MonitoringTemplateRegistry.TEMPLATE_NAMES)
+                .filter(name -> hasTemplate(clusterState, name) == false)
                 .collect(Collectors.toList());
 
+        boolean templatesInstalled = false;
         if (missingTemplates.isEmpty() == false) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("template {} not found", missingTemplates));
-            for (String templateId : missingTemplates) {
-                final String templateName = MonitoringTemplateUtils.templateName(templateId);
-                asyncActions.add(() -> putTemplate(templateName, MonitoringTemplateUtils.loadTemplate(templateId),
-                        new ResponseActionListener<>("template", templateName, pendingResponses)));
-            }
+            // Check to see if the template installation is disabled. If it isn't, then we should say so in the log.
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("monitoring index templates [{}] do not exist, so service " +
+                "cannot start (waiting on registered templates)", missingTemplates));
+        } else {
+            templatesInstalled = true;
         }
 
         if (useIngest) {
@@ -409,12 +408,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 logger.trace("already installing something, waiting for install to complete");
                 return false;
             }
-        } else {
+        } else if (templatesInstalled) {
             logger.debug("monitoring index templates and pipelines are installed on master node, service can start");
         }
 
-        // everything is setup (or running)
-        return true;
+        // everything the exporter can do is setup (or running). Return status of templates.
+        return templatesInstalled;
     }
 
     private void setupClusterAlertsTasks(ClusterState clusterState, boolean clusterStateChange, List<Runnable> asyncActions,
@@ -534,18 +533,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private boolean hasTemplate(final ClusterState clusterState, final String templateName) {
         final IndexTemplateMetadata template = clusterState.getMetadata().getTemplates().get(templateName);
 
-        return template != null && hasValidVersion(template.getVersion(), LAST_UPDATED_VERSION);
-    }
-
-    // FIXME this should use the IndexTemplateMetadataUpgrader
-    private void putTemplate(String template, String source, ActionListener<AcknowledgedResponse> listener) {
-        logger.debug("installing template [{}]", template);
-
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
-        assert Thread.currentThread().isInterrupted() == false : "current thread has been interrupted before putting index template!!!";
-
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request, listener,
-                client.admin().indices()::putTemplate);
+        return template != null && hasValidVersion(template.getVersion(), MonitoringTemplateRegistry.REGISTRY_VERSION);
     }
 
     /**
@@ -663,7 +651,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                                                     .collect(Collectors.toSet());
 
                 // avoid deleting the current alerts index, but feel free to delete older ones
-                currents.add(".monitoring-alerts-" + TEMPLATE_VERSION);
+                currents.add(MonitoringTemplateRegistry.ALERTS_INDEX_TEMPLATE_NAME);
 
                 Set<String> indices = new HashSet<>();
                 for (ObjectObjectCursor<String, IndexMetadata> index : clusterState.getMetadata().indices()) {

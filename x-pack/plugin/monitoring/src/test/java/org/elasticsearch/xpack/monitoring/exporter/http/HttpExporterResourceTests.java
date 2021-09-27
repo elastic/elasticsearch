@@ -10,6 +10,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -38,9 +39,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
+import static org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry.TEMPLATE_NAMES;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.wrapMockListener;
 import static org.hamcrest.Matchers.hasSize;
@@ -64,12 +64,11 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private final boolean remoteClusterHasWatcher = randomBoolean();
     private final boolean validLicense = randomBoolean();
-    private final boolean createOldTemplates = randomBoolean();
 
     /**
      * kibana, logstash, and beats
      */
-    private final int EXPECTED_TEMPLATES = TEMPLATE_IDS.length + (createOldTemplates ? OLD_TEMPLATE_IDS.length : 0);
+    private final int EXPECTED_TEMPLATES = TEMPLATE_NAMES.length;
     private final int EXPECTED_PIPELINES = PIPELINE_IDS.length;
     private final int EXPECTED_WATCHES = ClusterAlertsUtil.WATCH_IDS.length;
 
@@ -79,9 +78,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final List<String> pipelineNames = new ArrayList<>(EXPECTED_PIPELINES);
     private final List<String> watchNames = new ArrayList<>(EXPECTED_WATCHES);
 
-    private final Settings exporterSettings = Settings.builder()
-            .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", createOldTemplates)
-            .build();
+    private final Settings exporterSettings = Settings.builder().build();
 
     private final MultiHttpResource resources =
             HttpExporter.createResources(
@@ -89,13 +86,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
     @Before
     public void setupResources() {
-        templateNames.addAll(Arrays.stream(TEMPLATE_IDS).map(MonitoringTemplateUtils::templateName).collect(Collectors.toList()));
-
-        if (createOldTemplates) {
-            templateNames.addAll(
-                    Arrays.stream(OLD_TEMPLATE_IDS).map(MonitoringTemplateUtils::oldTemplateName).collect(Collectors.toList()));
-        }
-
+        templateNames.addAll(Arrays.stream(TEMPLATE_NAMES).collect(Collectors.toList()));
         pipelineNames.addAll(Arrays.stream(PIPELINE_IDS).map(MonitoringTemplateUtils::pipelineName).collect(Collectors.toList()));
         watchNames.addAll(Arrays.stream(ClusterAlertsUtil.WATCH_IDS).map(id -> "my_cluster_uuid_" + id).collect(Collectors.toList()));
 
@@ -137,7 +128,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         final Exception exception = failureGetException();
         final boolean firstSucceeds = randomBoolean();
         int expectedGets = 1;
-        int expectedPuts = 0;
+        final ResourcePublishResult expectedResult;
 
         whenValidVersionResponse();
 
@@ -163,83 +154,46 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
             // last check fails implies that N - 2 publishes succeeded!
             whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_template/")),
                                         first, otherResponses, exception);
-            whenSuccessfulPutTemplates(otherResponses.size() + 1);
 
-            expectedGets += 1 + successful + unsuccessful;
-            expectedPuts = (successfulFirst ? 0 : 1) + unsuccessful;
+            // Since we return a "Not Ready" response on any templates that are not available (instead
+            // of trying to publish them), we set the expected number of gets to be the first run of successful responses
+            // plus the first failure
+            if (successfulFirst) {
+                expectedGets += successful + 1; // the string of successes, then the last failure.
+            }
+
+            if (unsuccessful == 0) {
+                // There is only going to be one response, and it will be an exception
+                expectedResult = null;
+            } else {
+                // The first bad response will be either a 404 or a template with an old version
+                String missingTemplateName = TEMPLATE_NAMES[expectedGets - 1];
+                expectedResult = new ResourcePublishResult(false, "waiting for remote monitoring cluster to install " +
+                    "appropriate template [" + missingTemplateName + "] (version mismatch or missing)", HttpResource.State.DIRTY);
+            }
         } else {
             whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_template/")), exception);
+            expectedResult = null;
         }
 
         assertTrue(resources.isDirty());
-        awaitCheckAndPublish(null);
+        awaitCheckAndPublish(resources, expectedResult);
         // ensure it didn't magically become not-dirty
         assertTrue(resources.isDirty());
 
         verifyVersionCheck();
         verifyGetTemplates(expectedGets);
-        verifyPutTemplates(expectedPuts);
-        verifyNoMoreInteractions(client);
-    }
-
-    public void testTemplatePublishBlocksAfterSuccessfulVersion() {
-        final Exception exception = failurePutException();
-        final boolean firstSucceeds = randomBoolean();
-        int expectedGets = 1;
-        int expectedPuts = 1;
-
-        whenValidVersionResponse();
-
-        // failure in the middle of various templates being checked/published; suggests a node dropped
-        if (firstSucceeds) {
-            final Response firstSuccess = successfulPutResponse();
-            // -2 from one success + a necessary failure after it!
-            final int extraPasses = randomIntBetween(0, EXPECTED_TEMPLATES - 2);
-            final int successful = randomIntBetween(0, extraPasses);
-            final int unsuccessful = extraPasses - successful;
-
-            final List<Response> otherResponses = successfulPutResponses(unsuccessful);
-
-            // first one passes for sure, so we need an extra "unsuccessful" GET
-            whenGetTemplates(successful, unsuccessful + 2);
-
-            // previous publishes must have succeeded
-            whenPerformRequestAsyncWith(client, new RequestMatcher(is("PUT"), startsWith("/_template/")),
-                                        firstSuccess, otherResponses, exception);
-
-            // GETs required for each PUT attempt (first is guaranteed "unsuccessful")
-            expectedGets += successful + unsuccessful + 1;
-            // unsuccessful are PUT attempts + the guaranteed successful PUT (first)
-            expectedPuts += unsuccessful + 1;
-        } else {
-            // fail the check so that it has to attempt the PUT
-            whenGetTemplates(0, 1);
-
-            whenPerformRequestAsyncWith(client, new RequestMatcher(is("PUT"), startsWith("/_template/")), exception);
-        }
-
-        assertTrue(resources.isDirty());
-        awaitCheckAndPublish(null);
-        // ensure it didn't magically become not-dirty
-        assertTrue(resources.isDirty());
-
-        verifyVersionCheck();
-        verifyGetTemplates(expectedGets);
-        verifyPutTemplates(expectedPuts);
         verifyNoMoreInteractions(client);
     }
 
     public void testPipelineCheckBlocksAfterSuccessfulTemplates() {
-        final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
-        final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final Exception exception = failureGetException();
         final boolean firstSucceeds = randomBoolean();
         int expectedGets = 1;
         int expectedPuts = 0;
 
         whenValidVersionResponse();
-        whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
-        whenSuccessfulPutTemplates(EXPECTED_TEMPLATES);
+        whenGetTemplates(EXPECTED_TEMPLATES);
 
         // failure in the middle of various templates being checked/published; suggests a node dropped
         if (firstSucceeds) {
@@ -273,23 +227,19 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
-        verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(expectedGets);
         verifyPutPipelines(expectedPuts);
         verifyNoMoreInteractions(client);
     }
 
     public void testPipelinePublishBlocksAfterSuccessfulTemplates() {
-        final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
-        final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final Exception exception = failurePutException();
         final boolean firstSucceeds = randomBoolean();
         int expectedGets = 1;
         int expectedPuts = 1;
 
         whenValidVersionResponse();
-        whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
-        whenSuccessfulPutTemplates(EXPECTED_TEMPLATES);
+        whenGetTemplates(EXPECTED_TEMPLATES);
 
         // failure in the middle of various templates being checked/published; suggests a node dropped
         if (firstSucceeds) {
@@ -319,22 +269,18 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
-        verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(expectedGets);
         verifyPutPipelines(expectedPuts);
         verifyNoMoreInteractions(client);
     }
 
     public void testWatcherCheckBlocksAfterSuccessfulPipelines() {
-        final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
-        final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);
         final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
         final Exception exception = failureGetException();
 
         whenValidVersionResponse();
-        whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
-        whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
+        whenGetTemplates(EXPECTED_TEMPLATES);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
         whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
 
@@ -348,7 +294,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
-        verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyWatcherCheck();
@@ -356,8 +301,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testWatchCheckBlocksAfterSuccessfulWatcherCheck() {
-        final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
-        final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);
         final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
         final Exception exception = validLicense ? failureGetException() : failureDeleteException();
@@ -366,8 +309,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         int expectedPuts = 0;
 
         whenValidVersionResponse();
-        whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
-        whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
+        whenGetTemplates(EXPECTED_TEMPLATES);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
         whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
         whenWatcherCanBeUsed(validLicense);
@@ -420,7 +362,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
-        verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyWatcherCheck();
@@ -434,8 +375,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testWatchPublishBlocksAfterSuccessfulWatcherCheck() {
-        final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
-        final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);
         final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
         final Exception exception = failurePutException();
@@ -444,8 +383,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         int expectedPuts = 1;
 
         whenValidVersionResponse();
-        whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
-        whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
+        whenGetTemplates(EXPECTED_TEMPLATES);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
         whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
         // license needs to be valid, otherwise we'll do DELETEs, which are tested earlier
@@ -486,7 +424,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
-        verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyWatcherCheck();
@@ -496,15 +433,12 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testDeployClusterAlerts() {
-        final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
-        final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);
         final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
         final Exception exception = failurePutException();
 
         whenValidVersionResponse();
-        whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
-        whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
+        whenGetTemplates(EXPECTED_TEMPLATES);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
         whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
         // license needs to be valid, otherwise we'll do DELETEs, which are tested earlier
@@ -535,7 +469,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
-        verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyWatcherCheck();
@@ -546,16 +479,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testSuccessfulChecksOnElectedMasterNode() {
-        final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
-        final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);
         final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
         final int successfulGetWatches = randomIntBetween(0, EXPECTED_WATCHES);
         final int unsuccessfulGetWatches = EXPECTED_WATCHES - successfulGetWatches;
 
         whenValidVersionResponse();
-        whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
-        whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
+        whenGetTemplates(EXPECTED_TEMPLATES);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
         whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
         if (remoteClusterHasWatcher) {
@@ -578,7 +508,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
-        verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyWatcherCheck();
@@ -604,14 +533,11 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 HttpExporter.createResources(
                         new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)).allResources;
 
-        final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
-        final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final int successfulGetPipelines = randomIntBetween(0, 1);
         final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
 
         whenValidVersionResponse();
-        whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
-        whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
+        whenGetTemplates(EXPECTED_TEMPLATES);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
         whenSuccessfulPutPipelines(1);
 
@@ -625,7 +551,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
-        verifyPutTemplates(unsuccessfulGetTemplates);
         verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyNoMoreInteractions(client);
@@ -670,17 +595,31 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
     private Response successfulGetResourceResponse(final String resourcePath, final String resourceName) {
         final HttpEntity goodEntity = entityForResource(true, resourceName, MonitoringTemplateUtils.LAST_UPDATED_VERSION);
-
+        if (logger.isTraceEnabled()) {
+            try {
+                logger.trace("Generated HTTP response for resource [{}]: [{}]", resourceName, EntityUtils.toString(goodEntity));
+            } catch (IOException e) {
+                logger.warn("Generated HTTP response for resource [" + resourceName + "] that cannot be deserialized!", e);
+            }
+        }
         return response("GET", resourcePath + resourceName, successfulCheckStatus(), goodEntity);
     }
 
     private Response unsuccessfulGetResourceResponse(final String resourcePath, final String resourceName) {
         if (randomBoolean()) {
             final HttpEntity badEntity = entityForResource(false, resourceName, MonitoringTemplateUtils.LAST_UPDATED_VERSION);
+            if (logger.isTraceEnabled()) {
+                try {
+                    logger.trace("Generated bad HTTP entity for resource [{}]: [{}]", resourceName, EntityUtils.toString(badEntity));
+                } catch (IOException e) {
+                    logger.warn("Generated bad HTTP response for resource [" + resourceName + "] that cannot be deserialized!", e);
+                }
+            }
 
             return response("GET", resourcePath + resourceName, successfulCheckStatus(), badEntity);
         }
 
+        logger.trace("Generated NOT FOUND response for resource [{}]", resourceName);
         return unsuccessfulGetResponse();
     }
 
@@ -764,17 +703,10 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), is("/")), versionResponse);
     }
 
-    private void whenGetTemplates(final int successful, final int unsuccessful) {
-        final List<Response> gets = getTemplateResponses(0, successful, unsuccessful);
+    private void whenGetTemplates(final int successful) {
+        final List<Response> gets = getTemplateResponses(0, successful, 0);
 
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_template/")), gets);
-    }
-
-    private void whenSuccessfulPutTemplates(final int successful) {
-        final List<Response> successfulPuts = successfulPutResponses(successful);
-
-        // empty is possible if they all exist
-        whenPerformRequestAsyncWith(client, new RequestMatcher(is("PUT"), startsWith("/_template/")), successfulPuts);
     }
 
     private void whenGetPipelines(final int successful, final int unsuccessful) {

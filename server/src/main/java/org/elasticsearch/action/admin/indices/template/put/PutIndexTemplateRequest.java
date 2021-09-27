@@ -326,7 +326,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             if (name.equals("template")) {
                 // This is needed to allow for bwc (beats, logstash) with pre-5.0 templates (#21009)
                 if(entry.getValue() instanceof String) {
-                    deprecationLogger.deprecate(DeprecationCategory.API, "put_index_template_field",
+                    deprecationLogger.critical(DeprecationCategory.API, "put_index_template_field",
                         "Deprecated field [template] used, replaced by [index_patterns]");
                     patterns(Collections.singletonList((String) entry.getValue()));
                 }

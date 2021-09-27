@@ -84,7 +84,7 @@ public class RestShardsAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         if (request.hasParam("local")) {
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "local", LOCAL_DEPRECATED_MESSAGE);
+            DEPRECATION_LOGGER.critical(DeprecationCategory.API, "local", LOCAL_DEPRECATED_MESSAGE);
         }
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));

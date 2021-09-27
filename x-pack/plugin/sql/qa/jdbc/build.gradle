@@ -59,7 +59,7 @@ subprojects {
     apply plugin: 'elasticsearch.internal-testclusters'
     apply plugin: 'elasticsearch.rest-test'
 
-    testClusters.all {
+    testClusters.configureEach {
       testDistribution = 'DEFAULT'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'

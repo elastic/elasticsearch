@@ -7,7 +7,7 @@ dependencies {
   javaRestTestImplementation project(":client:rest-high-level")
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'

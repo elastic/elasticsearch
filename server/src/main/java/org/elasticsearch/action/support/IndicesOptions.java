@@ -324,7 +324,7 @@ public class IndicesOptions implements ToXContentFragment {
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
         if (request.hasParam("ignore_throttled")) {
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "ignore_throttled_param", IGNORE_THROTTLED_DEPRECATION_MESSAGE);
+            DEPRECATION_LOGGER.critical(DeprecationCategory.API, "ignore_throttled_param", IGNORE_THROTTLED_DEPRECATION_MESSAGE);
         }
 
         return fromParameters(

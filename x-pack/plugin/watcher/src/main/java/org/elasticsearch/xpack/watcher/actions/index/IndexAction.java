@@ -182,7 +182,7 @@ public class IndexAction implements Action {
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (Field.DOC_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecate(DeprecationCategory.TYPES, "watcher_index_action", TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.critical(DeprecationCategory.TYPES, "watcher_index_action", TYPES_DEPRECATION_MESSAGE);
                     docType = parser.text();
                 } else if (Field.DOC_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     docId = parser.text();

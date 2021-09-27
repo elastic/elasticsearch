@@ -57,6 +57,26 @@ public final class LimitedRole extends Role {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
+        LimitedRole that = (LimitedRole) o;
+        return this.limitedBy.equals(that.limitedBy);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), limitedBy);
+    }
+
+    @Override
     public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
                                           Map<String, IndexAbstraction> aliasAndIndexLookup,
                                           FieldPermissionsCache fieldPermissionsCache) {

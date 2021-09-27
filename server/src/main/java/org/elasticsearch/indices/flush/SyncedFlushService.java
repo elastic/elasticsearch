@@ -150,7 +150,7 @@ public class SyncedFlushService implements IndexEventListener {
                                    final ActionListener<SyncedFlushResponse> listener) {
         final ClusterState state = clusterService.state();
         if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_6_0)) {
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "synced_flush", SYNCED_FLUSH_DEPRECATION_MESSAGE);
+            DEPRECATION_LOGGER.critical(DeprecationCategory.API, "synced_flush", SYNCED_FLUSH_DEPRECATION_MESSAGE);
         }
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, indicesOptions, aliasesOrIndices);
         final Map<String, List<ShardsSyncedFlushResult>> results = ConcurrentCollections.newConcurrentMap();

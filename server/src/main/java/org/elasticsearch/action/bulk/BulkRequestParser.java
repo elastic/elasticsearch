@@ -199,7 +199,7 @@ public final class BulkRequestParser {
                                 index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 if (warnOnTypeUsage && typesDeprecationLogged == false) {
-                                    deprecationLogger.deprecate(DeprecationCategory.TYPES, "bulk_with_types",
+                                    deprecationLogger.critical(DeprecationCategory.TYPES, "bulk_with_types",
                                         RestBulkAction.TYPES_DEPRECATION_MESSAGE);
                                     typesDeprecationLogged = true;
                                 }

@@ -138,7 +138,7 @@ restResources {
   }
 }
 
-testClusters.matching{ it.name == 'yamlRestTest' }.configureEach {
+testClusters.configureEach {
   testDistribution = 'default'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

@@ -805,6 +805,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         fromSortValuePredicate = null;
                         break;
                     case REPOSITORY:
+                        // already handled in #maybeFilterRepositories
                         preflightPredicate = null;
                         fromSortValuePredicate = null;
                         break;

@@ -80,3 +80,16 @@
 # Require explicit names when deleting indices:
 #
 #action.destructive_requires_name: true
+#
+# ---------------------------------- Security ----------------------------------
+#
+#                                 *** WARNING ***
+#
+# By default Elasticsearch doesn’t have security features enabled.
+# This means that users don’t have to provide a password and can get full access
+# to the cluster. Network connections are also not encrypted.
+#
+# You are strongly encouraged to turn on security features and protect your data
+# as described in the official docs.
+#
+# https://www.elastic.co/guide/en/elasticsearch/reference/7.16/configuring-stack-security.html

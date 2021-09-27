@@ -135,7 +135,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
         List<String> netNewSystemIndices = new ArrayList<>();
         List<String> systemIndicesNames = new ArrayList<>();
-        aliasesMap.keysStream().forEach(indexName -> {
+        aliasesMap.keysSet().forEach(indexName -> {
             IndexMetadata index = state.metadata().index(indexName);
             if (index != null && index.isSystem()) {
                 if (systemIndexAccessAllowPredicate.test(index) == false) {

@@ -21,8 +21,10 @@ import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
 import java.util.AbstractMap;
+import java.util.AbstractSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
@@ -139,18 +141,19 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     /**
      * Returns a direct stream over the keys.
      */
-    public Stream<KType> keysStream() {
-        final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
-        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(), Spliterator.SIZED | Spliterator.DISTINCT) {
+    public Set<KType> keysSet() {
+        final Iterator<KType> keysIterator = keysIt();
+        return new AbstractSet<>() {
             @Override
-            public boolean tryAdvance(Consumer<? super KType> action) {
-                if (iterator.hasNext() == false) {
-                    return false;
-                }
-                action.accept(iterator.next().value);
-                return true;
+            public Iterator<KType> iterator() {
+                return keysIterator;
             }
-        }, false);
+
+            @Override
+            public int size() {
+                return map.size();
+            }
+        };
     }
 
     /**

@@ -52,7 +52,7 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
             return builder.build();
         }
 
-        Set<String> indices = aliases.keysStream().collect(Collectors.toSet());
+        Set<String> indices = aliases.keysSet();
         List<String> indicesToBeModified = randomSubsetOf(randomIntBetween(1, indices.size()), indices);
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder();
 

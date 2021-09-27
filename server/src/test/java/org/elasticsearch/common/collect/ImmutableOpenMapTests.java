@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,21 +79,22 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertThat(ImmutableOpenMap.of().stream().count(), equalTo(0L));
     }
 
-    public void testKeysStreamOperationsAreSupported() {
-        assertThat(regionCurrencySymbols.keysStream().filter(e -> e.startsWith("U") == false).collect(Collectors.toSet()),
+    public void testKeySetStreamOperationsAreSupported() {
+        assertThat(regionCurrencySymbols.keysSet().stream().filter(e -> e.startsWith("U") == false).collect(Collectors.toSet()),
             equalTo(Set.of("Japan", "EU", "Korea")));
     }
 
-    public void testSortedKeysStream() {
-        assertThat(regionCurrencySymbols.keysStream().sorted().collect(Collectors.toList()),
-            equalTo(List.of("EU", "Japan", "Korea", "UK", "USA")));
+    public void testSortedKeysSet() {
+        assertThat(regionCurrencySymbols.keysSet(),
+            equalTo(Set.of("EU", "Japan", "Korea", "UK", "USA")));
     }
 
     public void testStreamOperationsOnRandomMapKeys() {
         ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
 
         int limit = randomIntBetween(0, map.size());
-        List<Long> collectedViaStream = map.keysStream()
+        List<Long> collectedViaStream = map.keysSet()
+            .stream()
             .filter(e -> e > 0)
             .sorted()
             .limit(limit)
@@ -115,8 +117,8 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertThat(collectedViaStream, equalTo(collectedIteratively));
     }
 
-    public void testEmptyKeyStreamWorks() {
-        assertThat(ImmutableOpenMap.of().keysStream().count(), equalTo(0L));
+    public void testEmptyKeySetWorks() {
+        assertThat(ImmutableOpenMap.of().keysSet().size(), equalTo(0L));
     }
 
     private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {

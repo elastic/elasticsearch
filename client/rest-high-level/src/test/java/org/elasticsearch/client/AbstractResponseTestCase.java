@@ -79,7 +79,7 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
     }
 
     protected static <T> void assertMapEquals(ImmutableOpenMap<String, T> expected, Map<String, T> actual) {
-        Set<String> expectedKeys = expected.keysStream().collect(Collectors.toSet());
+        Set<String> expectedKeys = expected.keysSet();
         assertEquals(expectedKeys, actual.keySet());
         for (String key : expectedKeys) {
             assertEquals(expected.get(key), actual.get(key));

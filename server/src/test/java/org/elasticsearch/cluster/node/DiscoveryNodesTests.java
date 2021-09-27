@@ -310,22 +310,22 @@ public class DiscoveryNodesTests extends ESTestCase {
         }, MASTER_ELIGIBLE(DiscoveryNodeRole.MASTER_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                return nodes.getMasterNodes().keysStream().collect(Collectors.toSet());
+                return nodes.getMasterNodes().keysSet();
             }
         }, DATA(DiscoveryNodeRole.DATA_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                return nodes.getDataNodes().keysStream().collect(Collectors.toSet());
+                return nodes.getDataNodes().keysSet();
             }
         }, INGEST(DiscoveryNodeRole.INGEST_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                return nodes.getIngestNodes().keysStream().collect(Collectors.toSet());
+                return nodes.getIngestNodes().keysSet();
             }
         }, COORDINATING_ONLY(DiscoveryNode.COORDINATING_ONLY + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                return nodes.getCoordinatingOnlyNodes().keysStream().collect(Collectors.toSet());
+                return nodes.getCoordinatingOnlyNodes().keysSet();
             }
         }, CUSTOM_ATTRIBUTE("attr:value") {
             @Override

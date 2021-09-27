@@ -233,7 +233,7 @@ public class ZeroShotClassificationConfig implements NlpConfig {
     }
 
     public List<String> getLabels() {
-        return labels;
+        return Optional.ofNullable(labels).orElse(List.of());
     }
 
     @Override

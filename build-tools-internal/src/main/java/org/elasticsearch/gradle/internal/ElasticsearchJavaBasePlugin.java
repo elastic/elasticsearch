@@ -99,9 +99,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
                 sourceSet.getImplementationConfigurationName(),
                 sourceSet.getImplementationConfigurationName(),
                 sourceSet.getCompileOnlyConfigurationName(),
-                sourceSet.getRuntimeOnlyConfigurationName(),
-                sourceSet.getCompileClasspathConfigurationName(),
-                sourceSet.getRuntimeClasspathConfigurationName()
+                sourceSet.getRuntimeOnlyConfigurationName()
         );
 
         project.getConfigurations().matching(c -> sourceSetConfigurationNames.contains(c.getName()))

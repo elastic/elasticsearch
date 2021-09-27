@@ -99,6 +99,8 @@ subprojects {
 
     // spatial dependency
     testRuntimeOnly project(path: xpackModule('spatial'))
+
+    testRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
   }
 
   if (project.name != 'security') {

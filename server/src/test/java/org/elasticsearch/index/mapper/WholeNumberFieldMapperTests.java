@@ -80,6 +80,17 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
             containsString("Dimension field [field] cannot be a multi-valued field"));
     }
 
+    public void testMetricAndDimension() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "counter").field("time_series_dimension", true);
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field [time_series_dimension] cannot be set in conjunction with field [time_series_metric]")
+        );
+    }
+
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         super.registerParameters(checker);

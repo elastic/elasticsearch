@@ -59,6 +59,7 @@ public class TemplateHttpResource extends PublishableHttpResource {
     /**
      * Provides a fully formed template (e.g., no variables that need replaced).
      */
+    @Nullable
     private final Supplier<String> template;
 
     /**
@@ -70,11 +71,11 @@ public class TemplateHttpResource extends PublishableHttpResource {
      * @param template The template provider.
      */
     public TemplateHttpResource(final String resourceOwnerName, @Nullable final TimeValue masterTimeout,
-                                final String templateName, final Supplier<String> template) {
+                                final String templateName, @Nullable final Supplier<String> template) {
         super(resourceOwnerName, masterTimeout, PARAMETERS);
 
         this.templateName = Objects.requireNonNull(templateName);
-        this.template = Objects.requireNonNull(template);
+        this.template = template;
     }
 
     /**
@@ -91,13 +92,19 @@ public class TemplateHttpResource extends PublishableHttpResource {
     }
 
     /**
-     * Publish the missing {@linkplain #templateName template}.
+     * If a template source is given, then publish the missing {@linkplain #templateName template}. If a template
+     * is not provided to be installed, then signal that the resource is not ready until a valid one appears.
      */
     @Override
     protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
-        putResource(client, listener, logger,
-                    "/_template", templateName, Collections.emptyMap(), this::templateToHttpEntity, "monitoring template",
-                    resourceOwnerName, "monitoring cluster");
+        if (template == null) {
+            listener.onResponse(ResourcePublishResult.notReady("waiting for remote monitoring cluster to install appropriate template " +
+                "[" + templateName + "] (version mismatch or missing)"));
+        } else {
+            putResource(client, listener, logger,
+                "/_template", templateName, Collections.emptyMap(), this::templateToHttpEntity, "monitoring template",
+                resourceOwnerName, "monitoring cluster");
+        }
     }
 
     /**
@@ -106,6 +113,7 @@ public class TemplateHttpResource extends PublishableHttpResource {
      * @return Never {@code null}.
      */
      HttpEntity templateToHttpEntity() {
+         assert template != null : "template cannot be null if converting it to http entity";
         // the internal representation of a template has type nested under mappings.
         // this uses xContent to help remove the type before sending to the remote cluster
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)

@@ -11,6 +11,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 
@@ -47,7 +49,13 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     public void testWithTrialLicense() throws Exception {
         startTrial();
         String accessToken = null;
-        String apiKeyCredentials = null;
+        String apiKeyCredentials1 = null;
+        String apiKeyCredentials2 = null;
+        boolean keyRoleHasDlsFls = false;
+        assertCreateIndex("index1");
+        assertCreateIndex("index2");
+        assertCreateIndex("index41");
+        assertCreateIndex("index42");
         try {
             checkLicenseType("trial");
             checkSecurityEnabled(true);
@@ -55,18 +63,27 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             checkHasPrivileges();
             checkIndexWrite();
             accessToken = getAccessToken();
-            apiKeyCredentials = getApiKeyCredentials();
+            apiKeyCredentials1 = getApiKeyCredentials();
             assertAuthenticateWithToken(accessToken, true);
-            assertAuthenticateWithApiKey(apiKeyCredentials, true);
+            assertAuthenticateWithApiKey(apiKeyCredentials1, true);
             assertAddRoleWithDLS(true);
             assertAddRoleWithFLS(true);
+            final Tuple<String, Boolean> tuple = assertCreateApiKeyWithDlsFls();
+            apiKeyCredentials2 = tuple.v1();
+            keyRoleHasDlsFls = tuple.v2();
+            assertSearchWithApiKey(apiKeyCredentials2, "index*", true);
         } finally {
             revertTrial();
             assertAuthenticateWithToken(accessToken, false);
-            assertAuthenticateWithApiKey(apiKeyCredentials, true);
+            assertAuthenticateWithApiKey(apiKeyCredentials1, true);
             assertFailToGetToken();
             assertAddRoleWithDLS(false);
             assertAddRoleWithFLS(false);
+            // Any indices with DLS/FLS cannot be searched with the API key when the license is on Basic
+            assertSearchWithApiKey(apiKeyCredentials2, "index*", false);
+            assertSearchWithApiKey(apiKeyCredentials2, "index1,index2", false);
+            assertSearchWithApiKey(apiKeyCredentials2, "index41", false == keyRoleHasDlsFls);
+            assertSearchWithApiKey(apiKeyCredentials2, "index42", true);
         }
     }
 
@@ -247,6 +264,10 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             "      \"names\": [ \"index1\", \"index2\" ],\n" +
             "      \"privileges\": [\"all\"],\n" +
             "      \"query\": \"{\\\"match\\\": {\\\"title\\\": \\\"foo\\\"}}\" \n" +
+            "    },\n" +
+            "    {\n" +
+            "      \"names\": [ \"index41\", \"index42\" ],\n" +
+            "      \"privileges\": [\"read\"]\n" +
             "    }\n" +
             "  ],\n" +
             "  \"run_as\": [ \"other_user\" ],\n" +
@@ -265,7 +286,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void assertAddRoleWithFLS(boolean shouldSucceed) throws IOException {
-        final Request addRole = new Request("POST", "/_security/role/dlsrole");
+        final Request addRole = new Request("POST", "/_security/role/flsrole");
         addRole.setJsonEntity("{\n" +
             "  \"cluster\": [\"all\"],\n" +
             "  \"indices\": [\n" +
@@ -275,6 +296,10 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             "      \"field_security\" : { // optional\n" +
             "        \"grant\" : [ \"title\", \"body\" ]\n" +
             "      }\n" +
+            "    },\n" +
+            "    {\n" +
+            "      \"names\": [ \"index41\", \"index42\" ],\n" +
+            "      \"privileges\": [\"read\"]\n" +
             "    }\n" +
             "  ],\n" +
             "  \"run_as\": [ \"other_user\" ],\n" +
@@ -291,4 +316,68 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertThat(e.getMessage(), containsString("current license is non-compliant for [field and document level security]"));
         }
     }
+
+    private void createUserWithDlsOrFlsRole() throws IOException {
+        final Request request = new Request("PUT", "/_security/user/dls_fls_user");
+        request.setJsonEntity("{\"password\":\"superstrongpassword\"," +
+            "\"roles\":[\"" + (randomBoolean() ? "dlsrole" : "flsrole") + "\"]}");
+        assertOK(adminClient().performRequest(request));
+    }
+
+    private Tuple<String, Boolean> assertCreateApiKeyWithDlsFls() throws IOException {
+        createUserWithDlsOrFlsRole();
+
+        final Request request = new Request("POST", "/_security/api_key");
+        final boolean keyRoleHasDlsFls = randomBoolean();
+        if (keyRoleHasDlsFls) {
+            if (randomBoolean()) {
+                request.setJsonEntity("{\"name\":\"my-key\",\"role_descriptors\":" +
+                    "{\"a\":{\"indices\":[" +
+                    "{\"names\":[\"index41\"],\"privileges\":[\"read\"]," +
+                    "\"query\":{\"term\":{\"tag\":{\"value\":\"prod\"}}}}," +
+                    "{\"names\":[\"index1\",\"index2\",\"index42\"],\"privileges\":[\"read\"]}" +
+                    "]}}}");
+            } else {
+                request.setJsonEntity(
+                    "{\"name\":\"my-key\",\"role_descriptors\":" +
+                        "{\"a\":{\"indices\":[" +
+                        "{\"names\":[\"index41\"],\"privileges\":[\"read\"]," +
+                        "\"field_security\":{\"grant\":[\"tag\"]}}," +
+                        "{\"names\":[\"index1\",\"index2\",\"index42\"],\"privileges\":[\"read\"]}" +
+                        "]}}}");
+            }
+        } else {
+            request.setJsonEntity("{\"name\":\"my-key\",\"role_descriptors\":" +
+                "{\"a\":{\"indices\":[{\"names\":[\"index1\",\"index2\",\"index41\",\"index42\"],\"privileges\":[\"read\"]}]}}}");
+        }
+        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization",
+            basicAuthHeaderValue("dls_fls_user", new SecureString("superstrongpassword".toCharArray()))));
+
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        return new Tuple<>((String) responseAsMap(response).get("encoded"), keyRoleHasDlsFls);
+    }
+
+    private void assertCreateIndex(String indexName) throws IOException {
+        final Request request = new Request("PUT", indexName);
+        assertOK(adminClient().performRequest(request));
+    }
+
+    private void assertSearchWithApiKey(String apiKeyCredentials, String indexPattern, boolean shouldSucceed) throws IOException {
+        final Request request = new Request("GET", "/" + indexPattern + "/_search");
+        final RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(HttpHeaders.AUTHORIZATION, "ApiKey " + apiKeyCredentials);
+        request.setOptions(options);
+        request.addParameter("allow_no_indices", "true");
+
+        if (shouldSucceed) {
+            assertOK(client().performRequest(request));
+        } else {
+            final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("current license is non-compliant for [field and document level security]"));
+            assertThat(e.getMessage(), containsString("index_with_dls_or_fls"));
+        }
+    }
+
 }

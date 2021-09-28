@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -56,11 +58,19 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                     if (indexAccessControl != null) {
                         final boolean flsEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                         final boolean dlsEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                        if ((flsEnabled || dlsEnabled) && licenseChecker.get()) {
-                            logger.trace("intercepted request for index [{}] with field level access controls [{}] " +
-                                "document level access controls [{}]. disabling conflicting features",
-                                index, flsEnabled, dlsEnabled);
-                            accessControlByIndex.put(index, indexAccessControl);
+                        if ((flsEnabled || dlsEnabled)) {
+                            if (licenseChecker.get()) {
+                                logger.trace("intercepted request for index [{}] with field level access controls [{}] " +
+                                        "document level access controls [{}]. disabling conflicting features",
+                                    index, flsEnabled, dlsEnabled);
+                                accessControlByIndex.put(index, indexAccessControl);
+                            } else {
+                                final ElasticsearchSecurityException licenseException =
+                                    LicenseUtils.newComplianceException("field and document level security");
+                                licenseException.addMetadata("es.index_with_dls_or_fls", index);
+                                listener.onFailure(licenseException);
+                                return;
+                            }
                         }
                     } else {
                         logger.trace("intercepted request for index [{}] without field or document level access controls", index);

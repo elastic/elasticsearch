@@ -178,7 +178,8 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
                 .actionGet());
         assertThat(ex.getMessage(),
             containsString(
-                "[open-job-with-old-model-snapshot] job snapshot [snap_1] has min version before [7.0.0], please upgrade the model snapshot"
+                "[open-job-with-old-model-snapshot] job snapshot [snap_1] has min version before [7.0.0], " +
+                    "please revert to a newer model snapshot or reset the job"
             )
         );
     }

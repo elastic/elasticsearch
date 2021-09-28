@@ -129,8 +129,8 @@ public class DataTier {
         public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings indexSettings) {
             Set<String> settings = indexSettings.keySet();
             if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_PREFER)) {
-                // It's okay to put it, it will be removed or overridden by the template/request settings
-                return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_HOT).build();
+                // just a marker -- this null value will be removed or overridden by the template/request settings
+                return Settings.builder().putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER).build();
             } else if (settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".")) ||
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".")) ||
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {

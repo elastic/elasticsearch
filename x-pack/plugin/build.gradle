@@ -90,9 +90,6 @@ tasks.named("yamlRestTest").configure {
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
-
-  task.skipTest("indices.freeze/10_basic/Basic", "UNMUTE after #78184 is backported to 7.x")
-  task.skipTest("indices.freeze/10_basic/Test index options", "UNMUTE after #78184 is backported to 7.x")
   task.skipTest("vectors/10_dense_vector_basic/Deprecated function signature", "to support it, it would require to almost revert back the #48725 and complicate the code" )
   task.skipTest("vectors/30_sparse_vector_basic/Cosine Similarity", "not supported for compatibility")
   task.skipTest("vectors/30_sparse_vector_basic/Deprecated function signature", "not supported for compatibility")

@@ -7,13 +7,16 @@
 
 //tag::notable-breaking-changes[]
 [[_type-search-matches-no-docs]]
-.A search on the `_type` field now matches no documents.
+.Searches on the `_type` field are no longer supported.
 [%collapsible]
 ====
 *Details* +
-A search on the `_type` metadata field now matches no documents, regardless of
-the query string. In 7.x, a search for `_doc` in the `_type` field would match
-the same documents as a `match_all` query.
+The `_type` metadata field has been removed. {es} now handles a search on the
+`_type` field as a search on a non-existent field. A search on a non-existent
+field matches no documents, regardless of the query string.
+
+In 7.x, a search for `_doc` in the `_type` field would match the same documents
+as a `match_all` query.
 
 *Impact* +
 Remove queries on the `_type` field from your search requests and search

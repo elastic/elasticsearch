@@ -10,6 +10,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
@@ -26,24 +27,24 @@ public class GroupByDateHistogram extends GroupByKey {
     private final ZoneId zoneId;
 
     public GroupByDateHistogram(String id, String fieldName, long fixedInterval, ZoneId zoneId) {
-        this(id, AggSource.of(fieldName), null, fixedInterval, null, zoneId);
+        this(id, AggSource.of(fieldName), null, null, fixedInterval, null, zoneId);
     }
 
     public GroupByDateHistogram(String id, ScriptTemplate script, long fixedInterval, ZoneId zoneId) {
-        this(id, AggSource.of(script), null, fixedInterval, null, zoneId);
+        this(id, AggSource.of(script), null, null, fixedInterval, null, zoneId);
     }
 
     public GroupByDateHistogram(String id, String fieldName, String calendarInterval, ZoneId zoneId) {
-        this(id, AggSource.of(fieldName), null, -1L, calendarInterval, zoneId);
+        this(id, AggSource.of(fieldName), null, null, -1L, calendarInterval, zoneId);
     }
 
     public GroupByDateHistogram(String id, ScriptTemplate script, String calendarInterval, ZoneId zoneId) {
-        this(id, AggSource.of(script), null, -1L, calendarInterval, zoneId);
+        this(id, AggSource.of(script), null, null, -1L, calendarInterval, zoneId);
     }
 
-    private GroupByDateHistogram(String id, AggSource source, Direction direction, long fixedInterval,
+    private GroupByDateHistogram(String id, AggSource source, Direction direction, Missing missing, long fixedInterval,
                                  String calendarInterval, ZoneId zoneId) {
-        super(id, source, direction);
+        super(id, source, direction, missing);
         if (fixedInterval <= 0 && (calendarInterval == null || calendarInterval.isBlank())) {
             throw new SqlIllegalArgumentException("Either fixed interval or calendar interval needs to be specified");
         }
@@ -65,8 +66,8 @@ public class GroupByDateHistogram extends GroupByKey {
     }
 
     @Override
-    protected GroupByKey copy(String id, AggSource source, Direction direction) {
-        return new GroupByDateHistogram(id, source(), direction, fixedInterval, calendarInterval, zoneId);
+    protected GroupByKey copy(String id, AggSource source, Direction direction, Missing missing) {
+        return new GroupByDateHistogram(id, source(), direction, missing, fixedInterval, calendarInterval, zoneId);
     }
 
     @Override

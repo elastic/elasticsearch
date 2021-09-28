@@ -59,46 +59,11 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
 
-        configureConfigurations(project);
+//        configureConfigurations(project);
         configureJars(project);
         configureJarManifest(project);
         configureJavadoc(project);
         testCompileOnlyDeps(project);
-    }
-
-    /**
-     * Makes dependencies non-transitive.
-     * <p>
-     * Gradle allows setting all dependencies as non-transitive very easily.
-     * Sadly this mechanism does not translate into maven pom generation. In order
-     * to effectively make the pom act as if it has no transitive dependencies,
-     * we must exclude each transitive dependency of each direct dependency.
-     * <p>
-     * Determining the transitive deps of a dependency which has been resolved as
-     * non-transitive is difficult because the process of resolving removes the
-     * transitive deps. To sidestep this issue, we create a configuration per
-     * direct dependency version. This specially named and unique configuration
-     * will contain all of the transitive dependencies of this particular
-     * dependency. We can then use this configuration during pom generation
-     * to iterate the transitive dependencies and add excludes.
-     */
-    public static void configureConfigurations(Project project) {
-        // we are not shipping these jars, we act like dumb consumers of these things
-        if (project.getPath().startsWith(":test:fixtures") || project.getPath().equals(":build-tools")) {
-            return;
-        }
-        // fail on any conflicting dependency versions
-        project.getConfigurations().all(configuration -> {
-            if (configuration.getName().endsWith("Fixture")) {
-                // just a self contained test-fixture configuration, likely transitive and hellacious
-                return;
-            }
-            configuration.resolutionStrategy(ResolutionStrategy::failOnVersionConflict);
-        });
-
-        // disable transitive dependency management
-        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        sourceSets.all(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
     }
 
     private static void testCompileOnlyDeps(Project project) {
@@ -190,19 +155,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
-    }
-
-    private static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
-        Stream.of(
-            sourceSet.getApiConfigurationName(),
-            sourceSet.getImplementationConfigurationName(),
-            sourceSet.getImplementationConfigurationName(),
-            sourceSet.getCompileOnlyConfigurationName(),
-            sourceSet.getRuntimeOnlyConfigurationName()
-        )
-            .map(name -> project.getConfigurations().findByName(name))
-            .filter(Objects::nonNull)
-            .forEach(GradleUtils::disableTransitiveDependencies);
     }
 
 }

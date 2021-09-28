@@ -8,12 +8,14 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,6 +34,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78348")
 public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     @Override
@@ -176,12 +179,20 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             inProgressSnapshots.add(startFullSnapshot(repoName, snapshotName));
         }
         awaitNumberOfSnapshotsInProgress(inProgressCount);
-
+        awaitClusterState(
+            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .entries()
+                .stream()
+                .flatMap(s -> s.shards().stream())
+                .allMatch(
+                    e -> e.getKey().getIndexName().equals("test-index-1") == false
+                        || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
+                )
+        );
         final String[] repos = { repoName };
         assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
         assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
         assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
-
         assertThat(
             clusterAdmin().prepareGetSnapshots(matchAllPattern())
                 .setSnapshots(GetSnapshotsRequest.CURRENT_SNAPSHOT, "-snap*")

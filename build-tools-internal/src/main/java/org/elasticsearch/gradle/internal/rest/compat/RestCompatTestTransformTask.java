@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
+import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -24,6 +25,7 @@ import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer
 import org.elasticsearch.gradle.internal.test.rest.transform.do_.ReplaceKeyInDo;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceKeyInLength;
+import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceValueInLength;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInMatch;
@@ -161,6 +163,28 @@ public class RestCompatTestTransformTask extends DefaultTask {
      */
     public void replaceKeyInLength(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceKeyInLength(oldKeyName, newKeyName, null));
+    }
+
+    /**
+     * Replaces all the values of a length assertion for all project REST tests.
+     * For example "length":{"x": 1} to "length":{"x": 99}
+     *
+     * @param subKey the key name directly under match to replace. For example "x"
+     * @param value  the value used in the replacement. For example 99
+     */
+    public void replaceValueInLength(String subKey, int value) {
+        transformations.add(new ReplaceValueInLength(subKey, MAPPER.convertValue(value, NumericNode.class)));
+    }
+
+    /**
+     * Replaces all the values of a length assertion for the given REST test.
+     * For example "length":{"x": 1} to "length":{"x": 99}
+     * @param subKey   the key name directly under match to replace. For example "x"
+     * @param value    the value used in the replacement. For example 99
+     * @param testName the testName to apply replacement
+     */
+    public void replaceValueInLength(String subKey, int value, String testName) {
+        transformations.add(new ReplaceValueInLength(subKey, MAPPER.convertValue(value, NumericNode.class), testName));
     }
 
     /**

@@ -28,9 +28,6 @@ for option in "$@"; do
   esac
 done
 
-# Add jars that only apply to the Elasticsearch server process
-ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/internal/*"
-
 if [ -z "$ES_TMPDIR" ]; then
   ES_TMPDIR=`"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
 fi

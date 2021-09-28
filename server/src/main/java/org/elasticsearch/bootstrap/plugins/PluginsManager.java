@@ -14,15 +14,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.InstallPluginProvider;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.RemovePluginProvider;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
+import java.net.Proxy;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,8 +31,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.bootstrap.plugins.ProxyUtils.buildProxy;
 
 public class PluginsManager {
 
@@ -64,8 +58,6 @@ public class PluginsManager {
             throw new PluginSyncException("Plugins directory missing: " + env.pluginsFile());
         }
 
-        // The builtin modules, which are plugins, but cannot be installed or removed.
-        final Set<String> modules = getFileFromClasspath("modules", "/modules.txt");
         // The official plugins that can be installed simply by name.
         final Set<String> officialPlugins = getFileFromClasspath("official plugins", "/plugins.txt");
 
@@ -78,15 +70,26 @@ public class PluginsManager {
             ? Optional.of(PluginsConfig.parseConfig(previousConfigPath))
             : Optional.empty();
 
-        // 3. Get list of installed plugins
-        final List<PluginInfo> existingPlugins;
-        try {
-            existingPlugins = getExistingPlugins(officialPlugins, this.env);
-        } catch (IOException e) {
-            throw new PluginSyncException("Failed to list existing plugins", e);
+        final PluginChanges changes = getPluginChanges(officialPlugins, pluginsConfig, cachedPluginsConfig);
+
+        if (changes.isEmpty()) {
+            this.logger.info("No plugins to install, remove or upgrade");
+            return;
         }
 
-        // 4. Calculate changes
+        performSync(pluginsConfig, changes);
+
+        // 8. Cached the applied config so that we can diff it on the next run.
+        PluginsConfig.writeConfig(pluginsConfig, previousConfigPath);
+    }
+
+    private PluginChanges getPluginChanges(
+        Set<String> officialPlugins,
+        PluginsConfig pluginsConfig,
+        Optional<PluginsConfig> cachedPluginsConfig
+    ) throws PluginSyncException {
+        final List<PluginInfo> existingPlugins = getExistingPlugins(officialPlugins, this.env);
+
         final List<PluginDescriptor> pluginsThatShouldExist = pluginsConfig.getPlugins();
         final List<PluginDescriptor> pluginsThatActuallyExist = existingPlugins.stream()
             .map(info -> new PluginDescriptor(info.getName()))
@@ -96,63 +99,35 @@ public class PluginsManager {
         final List<PluginDescriptor> pluginsToInstall = difference(pluginsThatShouldExist, pluginsThatActuallyExist);
         final List<PluginDescriptor> pluginsToRemove = difference(pluginsThatActuallyExist, pluginsThatShouldExist);
 
-        // Candidates for upgrade are any plugin that already exists and isn't about to be removed.
+        // Candidates for upgrade are any plugin that already exist and isn't about to be removed.
         final List<PluginDescriptor> pluginsToMaybeUpgrade = difference(pluginsThatShouldExist, pluginsToRemove).stream()
             .filter(each -> existingPluginIds.contains(each.getId()))
             .collect(Collectors.toList());
 
         final List<PluginDescriptor> pluginsToUpgrade = getPluginsToUpgrade(
-            // Remove plugins that we know are going to be uninstalled
             pluginsToMaybeUpgrade,
             cachedPluginsConfig,
             officialPlugins,
             existingPlugins
         );
 
-        printRequiredChanges(pluginsToRemove, pluginsToInstall, pluginsToUpgrade);
+        return new PluginChanges(pluginsToRemove, pluginsToInstall, pluginsToUpgrade);
+    }
 
-        if (pluginsToRemove.isEmpty() && pluginsToInstall.isEmpty() && pluginsToUpgrade.isEmpty()) {
-            return;
-        }
+    private void performSync(PluginsConfig pluginsConfig, PluginChanges changes) throws Exception {
+        logRequiredChanges(changes);
 
-        ClassLoader classLoader = buildClassLoader(env);
+        final Proxy proxy = ProxyUtils.buildProxy(pluginsConfig.getProxy());
+        final PluginsActionWrapper wrapper = new PluginsActionWrapper(env, proxy);
 
-        @SuppressWarnings("unchecked")
-        Class<InstallPluginProvider> installClass = (Class<InstallPluginProvider>) classLoader.loadClass(
-            "org.elasticsearch.plugins.cli.InstallPluginAction"
-        );
-        @SuppressWarnings("unchecked")
-        Class<RemovePluginProvider> removeClass = (Class<RemovePluginProvider>) classLoader.loadClass(
-            "org.elasticsearch.plugins.cli.RemovePluginAction"
-        );
+        // 5. Remove any plugins that are not in the config file
+        wrapper.removePlugins(changes.remove);
 
-        InstallPluginProvider pluginInstaller = installClass.getDeclaredConstructor(Environment.class, Boolean.class).newInstance(env, true);
-        RemovePluginProvider pluginRemover = removeClass.getDeclaredConstructor(Environment.class).newInstance(env);
-
-        // final PluginRemover pluginRemover = new PluginRemover(env, true);
-        // final PluginInstaller pluginInstaller = new PluginInstaller(env, modules, officialPlugins);
-
-        // 5. Remove any plugins that are not in the descriptor
-        if (pluginsToRemove.isEmpty() == false) {
-            pluginRemover.execute(pluginsToRemove);
-        }
-
-        // 6. Add any plugins that are in the descriptor but missing from disk
-        if (pluginsToInstall.isEmpty() == false) {
-            pluginInstaller.setProxy(buildProxy(pluginsConfig.getProxy()));
-            pluginInstaller.execute(pluginsToInstall);
-        }
+        // 6. Add any plugins that are in the config file but missing from disk
+        wrapper.installPlugins(changes.install);
 
         // 7. Upgrade plugins
-        if (pluginsToUpgrade.isEmpty() == false) {
-            pluginRemover.setPurge(false);
-            pluginRemover.execute(pluginsToUpgrade);
-
-            pluginInstaller.execute(pluginsToUpgrade);
-        }
-
-        // 8. Cached the applied config so that we can diff it on the next run.
-        PluginsConfig.writeConfig(pluginsConfig, previousConfigPath);
+        wrapper.installPlugins(changes.upgrade);
     }
 
     private Set<String> getFileFromClasspath(String description, String path) throws PluginSyncException {
@@ -189,6 +164,7 @@ public class PluginsManager {
                 return true;
             }
 
+            // Official plugins must be upgraded when an Elasticsearch node is upgraded.
             if (officialPlugins.contains(eachPluginId)) {
                 // Find the currently installed plugin and check whether the version is lower than
                 // the current node's version.
@@ -220,29 +196,33 @@ public class PluginsManager {
         }).collect(Collectors.toList());
     }
 
-    private List<PluginInfo> getExistingPlugins(Set<String> officialPlugins, Environment env) throws IOException {
+    private List<PluginInfo> getExistingPlugins(Set<String> officialPlugins, Environment env) throws PluginSyncException {
         final List<PluginInfo> plugins = new ArrayList<>();
 
-        try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
-            for (Path pluginPath : paths) {
-                String filename = pluginPath.getFileName().toString();
-                if (filename.startsWith(".")) {
-                    continue;
-                }
+        try {
+            try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
+                for (Path pluginPath : paths) {
+                    String filename = pluginPath.getFileName().toString();
+                    if (filename.startsWith(".")) {
+                        continue;
+                    }
 
-                PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(pluginPath));
-                plugins.add(info);
+                    PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(pluginPath));
+                    plugins.add(info);
 
-                // Check for a version mismatch, unless it's an official plugin since we can upgrade them.
-                if (officialPlugins.contains(info.getName()) && info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
-                    this.logger.warn(
-                        "WARNING: plugin [{}] was built for Elasticsearch version {} but version {} is required",
-                        info.getName(),
-                        info.getElasticsearchVersion(),
-                        Version.CURRENT
-                    );
+                    // Check for a version mismatch, unless it's an official plugin since we can upgrade them.
+                    if (officialPlugins.contains(info.getName()) && info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+                        this.logger.warn(
+                            "WARNING: plugin [{}] was built for Elasticsearch version {} but version {} is required",
+                            info.getName(),
+                            info.getElasticsearchVersion(),
+                            Version.CURRENT
+                        );
+                    }
                 }
             }
+        } catch (IOException e) {
+            throw new PluginSyncException("Failed to list existing plugins", e);
         }
 
         plugins.sort(Comparator.comparing(PluginInfo::getName));
@@ -265,11 +245,7 @@ public class PluginsManager {
         }).collect(Collectors.toList());
     }
 
-    private void printRequiredChanges(
-        List<PluginDescriptor> pluginsToRemove,
-        List<PluginDescriptor> pluginsToInstall,
-        List<PluginDescriptor> pluginsToUpgrade
-    ) {
+    private void logRequiredChanges(PluginChanges changes) {
         final BiConsumer<String, List<PluginDescriptor>> printSummary = (action, plugins) -> {
             if (plugins.isEmpty() == false) {
                 List<String> pluginIds = plugins.stream().map(PluginDescriptor::getId).collect(Collectors.toList());
@@ -277,21 +253,24 @@ public class PluginsManager {
             }
         };
 
-        if (pluginsToInstall.isEmpty() && pluginsToRemove.isEmpty() && pluginsToUpgrade.isEmpty()) {
-            this.logger.info("No plugins to install, remove or upgrade");
-        } else {
-            printSummary.accept("remove", pluginsToRemove);
-            printSummary.accept("install", pluginsToInstall);
-            printSummary.accept("upgrade", pluginsToUpgrade);
-        }
+        printSummary.accept("remove", changes.remove);
+        printSummary.accept("install", changes.install);
+        printSummary.accept("upgrade", changes.upgrade);
     }
 
-    private ClassLoader buildClassLoader(Environment env) throws PluginSyncException {
-        try {
-            final URL pluginCli = env.libFile().resolve("tools").resolve("plugin-cli").resolve("*").toUri().toURL();
-            return URLClassLoader.newInstance(new URL[] { pluginCli }, PluginsManager.class.getClassLoader());
-        } catch (MalformedURLException e) {
-            throw new PluginSyncException("Failed to build URL for plugin-cli jars", e);
+    private static class PluginChanges {
+        final List<PluginDescriptor> remove;
+        final List<PluginDescriptor> install;
+        final List<PluginDescriptor> upgrade;
+
+        private PluginChanges(List<PluginDescriptor> remove, List<PluginDescriptor> install, List<PluginDescriptor> upgrade) {
+            this.remove = Objects.requireNonNull(remove);
+            this.install = Objects.requireNonNull(install);
+            this.upgrade = Objects.requireNonNull(upgrade);
+        }
+
+        boolean isEmpty() {
+            return remove.isEmpty() && install.isEmpty() && upgrade.isEmpty();
         }
     }
 }

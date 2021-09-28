@@ -12,7 +12,6 @@ import org.elasticsearch.cli.SuppressForbidden;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -21,16 +20,16 @@ import java.util.regex.Pattern;
  */
 class ProxyUtils {
     /**
-     * Constructs a proxy from the given string. If {@code null} is passed, then either a proxy will
-     * be returned using the system proxy settings, or {@link Proxy#NO_PROXY} will be returned.
+     * Constructs a proxy from the given string. If {@code null} is passed, then {@code null} will
+     * be returned, since that is not the same as {@link Proxy#NO_PROXY}.
      *
      * @param proxy the string to use, in the form "host:port"
-     * @return a proxy
+     * @return a proxy or null
      */
     @SuppressForbidden(reason = "Proxy constructor requires a SocketAddress")
     static Proxy buildProxy(String proxy) throws PluginSyncException {
         if (proxy == null) {
-            return getSystemProxy();
+            return null;
         }
 
         final String[] parts = proxy.split(":");
@@ -43,29 +42,6 @@ class ProxyUtils {
         }
 
         return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(parts[0], Integer.parseUnsignedInt(parts[1])));
-    }
-
-    @SuppressForbidden(reason = "Proxy constructor requires a SocketAddress")
-    private static Proxy getSystemProxy() {
-        String proxyHost = System.getProperty("https.proxyHost");
-        String proxyPort = Objects.requireNonNullElse(System.getProperty("https.proxyPort"), "443");
-        if (validateProxy(proxyHost, proxyPort)) {
-            return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
-        }
-
-        proxyHost = System.getProperty("http.proxyHost");
-        proxyPort = Objects.requireNonNullElse(System.getProperty("http.proxyPort"), "80");
-        if (validateProxy(proxyHost, proxyPort)) {
-            return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
-        }
-
-        proxyHost = System.getProperty("socks.proxyHost");
-        proxyPort = Objects.requireNonNullElse(System.getProperty("socks.proxyPort"), "1080");
-        if (validateProxy(proxyHost, proxyPort)) {
-            return new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(proxyHost, Integer.parseInt(proxyPort)));
-        }
-
-        return Proxy.NO_PROXY;
     }
 
     private static final Predicate<String> HOST_PATTERN = Pattern.compile(

@@ -17,9 +17,7 @@ public class PluginDescriptor {
     private String id;
     private String location;
 
-    public PluginDescriptor() {
-
-    }
+    public PluginDescriptor() {}
 
     /**
      * Creates a new descriptor instance.

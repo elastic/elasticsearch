@@ -8,7 +8,6 @@
 
 package org.elasticsearch.bootstrap.plugins;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.plugins.PluginDescriptor;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -171,7 +171,8 @@ public class PluginsConfig {
     }
 
     static void writeConfig(PluginsConfig config, Path configPath) throws IOException {
-        final XContentBuilder builder = YamlXContent.contentBuilder();
+        final OutputStream outputStream = Files.newOutputStream(configPath);
+        final XContentBuilder builder = new XContentBuilder(YamlXContent.yamlXContent, outputStream);
 
         builder.startObject();
         builder.startArray("plugins");
@@ -187,8 +188,7 @@ public class PluginsConfig {
         builder.field("proxy", config.getProxy());
         builder.endObject();
 
-        final BytesReference bytes = BytesReference.bytes(builder);
-
-        Files.write(configPath, bytes.array());
+        builder.close();
+        outputStream.close();
     }
 }

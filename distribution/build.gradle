@@ -296,18 +296,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libFiles =
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
-        // The following includes / excludes move some dependencies so that they are only usable within
-        // the Elasticsearch server process, and not by supporting tools. This avoids classpath clashes.
-        from(configurations.libs) {
-          exclude 'bc-fips*.jar'
-          exclude 'bcpg-fips*.jar'
-        }
-        into('internal') {
-          from(configurations.libs) {
-            include 'bc-fips*.jar'
-            include 'bcpg-fips*.jar'
-          }
-        }
+        from(configurations.libs)
         into('tools/geoip-cli') {
           from(configurations.libsGeoIpCli)
         }

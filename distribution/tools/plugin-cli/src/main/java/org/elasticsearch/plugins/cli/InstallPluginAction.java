@@ -40,8 +40,8 @@ import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.InstallPluginProvider;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
-import org.elasticsearch.plugins.PluginLogger;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginLogger;
 import org.elasticsearch.plugins.PluginsService;
 
 import java.io.BufferedReader;
@@ -447,7 +447,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         logger.debug("Retrieving zip from " + urlString);
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
-        URLConnection urlConnection = url.openConnection();
+        URLConnection urlConnection = this.proxy == null ? url.openConnection() : url.openConnection(this.proxy);
         urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
         try (
             InputStream in = batch
@@ -506,7 +506,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
 
     @SuppressForbidden(reason = "URL#openStream")
     private InputStream urlOpenStream(final URL url) throws IOException {
-        return url.openStream();
+        return this.proxy == null ? url.openStream() : url.openConnection(proxy).getInputStream();
     }
 
     /**
@@ -702,7 +702,9 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
     // pkg private for tests
     URL openUrl(String urlString) throws IOException {
         URL checksumUrl = new URL(urlString);
-        HttpURLConnection connection = (HttpURLConnection) checksumUrl.openConnection();
+        HttpURLConnection connection = this.proxy == null
+            ? (HttpURLConnection) checksumUrl.openConnection()
+            : (HttpURLConnection) checksumUrl.openConnection(this.proxy);
         if (connection.getResponseCode() == 404) {
             return null;
         }

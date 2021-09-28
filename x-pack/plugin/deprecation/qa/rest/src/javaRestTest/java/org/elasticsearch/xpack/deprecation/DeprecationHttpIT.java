@@ -629,6 +629,87 @@ public class DeprecationHttpIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * Check that deprecation messages can be recorded to an index
+     */
+    public void testDeprecationIndexingCacheReset() throws Exception {
+        try {
+            configureWriteDeprecationLogsToIndex(true);
+
+            final Request getRequest = createTestRequest("GET");
+            assertOK(client().performRequest(getRequest));
+
+            client().performRequest(new Request("DELETE", "/_logging/deprecation_cache"));
+
+            assertOK(client().performRequest(getRequest));
+
+            assertBusy(() -> {
+                Response response;
+                try {
+                    client().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_refresh?ignore_unavailable=true"));
+                    response = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_search"));
+                } catch (Exception e) {
+                    // It can take a moment for the index to be created. If it doesn't exist then the client
+                    // throws an exception. Translate it into an assertion error so that assertBusy() will
+                    // continue trying.
+                    throw new AssertionError(e);
+                }
+                assertOK(response);
+
+                ObjectMapper mapper = new ObjectMapper();
+                final JsonNode jsonNode = mapper.readTree(response.getEntity().getContent());
+
+                final int hits = jsonNode.at("/hits/total/value").intValue();
+                assertThat(hits, greaterThan(0));
+
+                List<Map<String, Object>> documents = new ArrayList<>();
+
+                for (int i = 0; i < hits; i++) {
+                    final JsonNode hit = jsonNode.at("/hits/hits/" + i + "/_source");
+
+                    final Map<String, Object> document = new HashMap<>();
+                    hit.fields().forEachRemaining(entry -> document.put(entry.getKey(), entry.getValue().textValue()));
+
+                    documents.add(document);
+                }
+
+                logger.warn(documents);
+                assertThat(documents, hasSize(5));
+
+                assertThat(
+                    documents,
+                    hasItems(
+                        allOf(
+                            hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
+                            hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
+                        ),
+                        allOf(
+                            hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
+                            hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
+                        ),
+                        allOf(
+                            hasEntry("elasticsearch.event.category", "cache_reset"),
+                            hasEntry(KEY_FIELD_NAME, "cache_reset"),
+                            hasEntry("log.level", "WARN"),
+                            hasEntry("message", "Deprecation cache was reset")
+                        ),
+                        allOf(
+                            hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
+                            hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
+                        ),
+                        allOf(
+                            hasEntry(KEY_FIELD_NAME, "deprecated_settings"),
+                            hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead")
+                        )
+                    )
+                );
+            }, 30, TimeUnit.SECONDS);
+        } finally {
+            configureWriteDeprecationLogsToIndex(null);
+            client().performRequest(new Request("DELETE", "_data_stream/" + DATA_STREAM_NAME));
+        }
+    }
+
     private void configureWriteDeprecationLogsToIndex(Boolean value) throws IOException {
         final Request request = new Request("PUT", "_cluster/settings");
         request.setJsonEntity("{ \"transient\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");

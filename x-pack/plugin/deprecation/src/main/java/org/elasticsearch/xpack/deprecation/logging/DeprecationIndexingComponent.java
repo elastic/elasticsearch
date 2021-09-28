@@ -56,9 +56,11 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     private final DeprecationIndexingAppender appender;
     private final BulkProcessor processor;
-    private final RateLimitingFilter filter;
+    private final RateLimitingFilter rateLimitingFilterForIndexing;
 
-    public DeprecationIndexingComponent(Client client, Settings settings) {
+    public DeprecationIndexingComponent(Client client, Settings settings, RateLimitingFilter rateLimitingFilterForIndexing) {
+        this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
+
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
         final Consumer<IndexRequest> consumer = this.processor::add;
 
@@ -70,8 +72,8 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
             .setConfiguration(configuration)
             .build();
 
-        this.filter = new RateLimitingFilter();
-        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, ecsLayout, consumer);
+        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender",
+            rateLimitingFilterForIndexing, ecsLayout, consumer);
     }
 
     @Override
@@ -106,7 +108,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
             // We've flipped from disabled to enabled. Make sure we start with a clean cache of
             // previously-seen keys, otherwise we won't index anything.
             if (newEnabled) {
-                this.filter.reset();
+                this.rateLimitingFilterForIndexing.reset();
             }
             appender.setEnabled(newEnabled);
         }

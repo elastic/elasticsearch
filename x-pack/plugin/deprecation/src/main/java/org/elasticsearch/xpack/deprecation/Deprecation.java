@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.RateLimitingFilter;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -29,11 +30,13 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.deprecation.logging.DeprecationCacheResetAction;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingTemplateRegistry;
+import org.elasticsearch.xpack.deprecation.logging.RestDeprecationCacheResetAction;
+import org.elasticsearch.xpack.deprecation.logging.TransportDeprecationCacheResetAction;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -48,7 +51,8 @@ public class Deprecation extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
                 new ActionHandler<>(DeprecationInfoAction.INSTANCE, TransportDeprecationInfoAction.class),
-                new ActionHandler<>(NodesDeprecationCheckAction.INSTANCE, TransportNodeDeprecationCheckAction.class));
+                new ActionHandler<>(NodesDeprecationCheckAction.INSTANCE, TransportNodeDeprecationCheckAction.class),
+                new ActionHandler<>(DeprecationCacheResetAction.INSTANCE, TransportDeprecationCacheResetAction.class));
     }
 
     @Override
@@ -58,7 +62,7 @@ public class Deprecation extends Plugin implements ActionPlugin {
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
 
-        return Collections.singletonList(new RestDeprecationInfoAction());
+        return List.of(new RestDeprecationInfoAction(), new RestDeprecationCacheResetAction());
     }
 
     @Override
@@ -79,10 +83,13 @@ public class Deprecation extends Plugin implements ActionPlugin {
             new DeprecationIndexingTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
         templateRegistry.initialize();
 
-        final DeprecationIndexingComponent component = new DeprecationIndexingComponent(client, environment.settings());
+        final RateLimitingFilter rateLimitingFilterForIndexing = new RateLimitingFilter();
+
+        final DeprecationIndexingComponent component = new DeprecationIndexingComponent(client, environment.settings(),
+            rateLimitingFilterForIndexing);
         clusterService.addListener(component);
 
-        return List.of(component);
+        return List.of(component, rateLimitingFilterForIndexing);
     }
 
     @Override

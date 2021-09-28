@@ -130,7 +130,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     private static void aggregateDataTierNodeCounts(NodeStats nodeStats, Map<String, TierStatsAccumulator> tiersStats) {
         nodeStats.getNode().getRoles().stream()
             .map(DiscoveryNodeRole::roleName)
-            .filter(DataTier.ALL_DATA_TIERS::contains)
+            .filter(DataTier::validTierName)
             .forEach(tier -> tiersStats.computeIfAbsent(tier, k -> new TierStatsAccumulator()).nodeCount++);
     }
 

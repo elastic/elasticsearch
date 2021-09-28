@@ -140,7 +140,7 @@ returns this:
     "geo": {
       "continent_name": "North America",
       "country_name": "United States",
-      "country_iso_code": "US",
+      "country_iso_code": "US"
     }
   }
 }

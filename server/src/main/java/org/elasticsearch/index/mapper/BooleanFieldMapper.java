@@ -98,11 +98,11 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BooleanFieldMapper build(ContentPath contentPath) {
-            MappedFieldType ft = new BooleanFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
+        public BooleanFieldMapper build(MapperBuilderContext context) {
+            MappedFieldType ft = new BooleanFieldType(context.buildFullName(name), indexed.getValue(), stored.getValue(),
                 docValues.getValue(), nullValue.getValue(), scriptValues(), meta.getValue());
 
-            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
         private FieldValues<Boolean> scriptValues() {
@@ -213,13 +213,8 @@ public class BooleanFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
-            }
-            if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+            checkNoFormat(format);
+            checkNoTimeZone(timeZone);
             return DocValueFormat.BOOLEAN;
         }
 

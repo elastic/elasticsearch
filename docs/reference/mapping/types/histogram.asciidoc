@@ -24,6 +24,14 @@ per document. Nested arrays are not supported.
 * `histogram` fields do not support sorting.
 ========
 
+[[histogram-params]]
+==== Parameters
+
+include::numeric.asciidoc[tag=time_series_metric]
++
+For `histogram` fields, this parameter accepts `histogram`. You can't update
+this parameter for existing fields.
+
 [[histogram-uses]]
 ==== Uses
 

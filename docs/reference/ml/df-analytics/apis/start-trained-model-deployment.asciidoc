@@ -7,20 +7,23 @@
 <titleabbrev>Start trained model deployment</titleabbrev>
 ++++
 
+Starts a new trained model deployment.
+
 [[start-trained-model-deployment-request]]
 == {api-request-title}
 
-`POST _ml/trained_models/<model_id>/deployent/_start` 
-////
+`POST _ml/trained_models/<model_id>/deployent/_start`
+
 [[start-trained-model-deployment-prereq]]
 == {api-prereq-title}
+Requires the `manage_ml` cluster privilege. This privilege is included in the
+`machine_learning_admin` built-in role.
 
-////
-////
 [[start-trained-model-deployment-desc]]
 == {api-description-title}
 
-////
+Currently only `pytorch` models are supported for deployment. When deployed,
+the model attempts allocation to every machine learning node.
 
 [[start-trained-model-deployment-path-params]]
 == {api-path-parms-title}
@@ -36,19 +39,44 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 (Optional, time)
 Controls the amount of time to wait for the model to deploy. Defaults
 to 20 seconds.
-////
-[role="child_attributes"]
-[[start-trained-model-deployment-results]]
-== {api-response-body-title}
 
-////
-////
-[[ml-get-trained-models-response-codes]]
-== {api-response-codes-title}
+`wait_for`::
+(Optional, string)
+Specifies the allocation status to wait for before returning. Defaults to
+`started`. The value `starting` indicates deployment is starting but not yet on
+any node. The value `started` indicates the model has started on at least one
+node. The value `fully_allocated` indicates the deployment has started on all
+valid nodes.
 
-////
-////
 [[start-trained-model-deployment-example]]
 == {api-examples-title}
 
-////
+The following example starts a new deployment for a
+`elastic__d`istilbert-base-uncased-finetuned-conll03-english` trained model: 
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/deployment/_start?wait_for=started&timeout=1m
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+    "allocation": {
+        "task_parameters": {
+            "model_id": "elastic__distilbert-base-uncased-finetuned-conll03-english",
+            "model_bytes": 265632637
+        },
+        "routing_table": {
+            "uckeG3R8TLe2MMNBQ6AGrw": {
+                "routing_state": "started",
+                "reason": ""
+            }
+        },
+        "allocation_state": "started"
+    }
+}
+----

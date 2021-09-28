@@ -13,20 +13,20 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
-import org.elasticsearch.gradle.internal.Jdk;
-import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
+import org.elasticsearch.gradle.internal.Jdk;
+import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
+import org.elasticsearch.gradle.internal.conventions.GUtils;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
-import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
-import org.elasticsearch.gradle.util.GradleUtils;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.internal.vagrant.VagrantExtension;
-import org.elasticsearch.gradle.internal.conventions.GUtils;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -34,6 +34,8 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Specs;
@@ -310,9 +312,9 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private static Configuration configureExamplePlugin(Project project) {
         Configuration examplePlugin = project.getConfigurations().create(EXAMPLE_PLUGIN_CONFIGURATION);
+        examplePlugin.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
         DependencyHandler deps = project.getDependencies();
-        Map<String, String> examplePluginProject = Map.of("path", ":example-plugins:custom-settings", "configuration", "zip");
-        deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(examplePluginProject));
+        deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.create("org.elasticsearch.examples:custom-settings:1.0.0-SNAPSHOT"));
         return examplePlugin;
     }
 
@@ -364,38 +366,16 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            ALL_INTERNAL.stream().forEach(type -> {
-                for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    if (bundledJdk == false) {
-                        // We'll never publish an ARM (aarch64) build without a bundled JDK.
-                        if (architecture == Architecture.AARCH64) {
-                            continue;
-                        }
-                        // All our Docker images include a bundled JDK so it doesn't make sense to test without one.
-                        if (type.isDocker()) {
-                            continue;
-                        }
-                    }
-                    currentDistros.add(
-                        createDistro(distributions, architecture, type, null, bundledJdk, VersionProperties.getElasticsearch())
-                    );
-                }
-            });
+            ALL_INTERNAL.stream().forEach(type -> currentDistros.add(
+                createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
+            ));
         }
 
         for (Architecture architecture : Architecture.values()) {
             for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
-                for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    if (bundledJdk == false && architecture != Architecture.X64) {
-                        // We will never publish distributions for non-x86 (amd64) platforms
-                        // without a bundled JDK
-                        continue;
-                    }
-
-                    currentDistros.add(
-                        createDistro(distributions, architecture, ARCHIVE, platform, bundledJdk, VersionProperties.getElasticsearch())
-                    );
-                }
+                currentDistros.add(
+                    createDistro(distributions, architecture, ARCHIVE, platform, true, VersionProperties.getElasticsearch())
+                );
             }
         }
 

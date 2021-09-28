@@ -28,8 +28,7 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/{index}/_rollup/data")
-                .replaces(GET, "/{index}/_xpack/rollup/data", RestApiVersion.V_7).build()
+            Route.builder(GET, "/{index}/_rollup/data").replaces(GET, "/{index}/_xpack/rollup/data", RestApiVersion.V_7).build()
         );
     }
 
@@ -37,8 +36,7 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String index = restRequest.param(INDEX.getPreferredName());
         IndicesOptions options = IndicesOptions.fromRequest(restRequest, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED);
-        GetRollupIndexCapsAction.Request request =
-            new GetRollupIndexCapsAction.Request(Strings.splitStringByCommaToArray(index), options);
+        GetRollupIndexCapsAction.Request request = new GetRollupIndexCapsAction.Request(Strings.splitStringByCommaToArray(index), options);
         return channel -> client.execute(GetRollupIndexCapsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

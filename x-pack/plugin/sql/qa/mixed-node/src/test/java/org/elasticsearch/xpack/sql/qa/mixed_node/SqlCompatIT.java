@@ -64,37 +64,48 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         });
     }
 
-    public void testNullsOrderBeforeMissingOrderSupport() throws IOException {
+    public void testNullsOrderBeforeMissingOrderSupportQueryingNewNode() throws IOException {
+        testNullsOrderBeforeMissingOrderSupport(newNodesClient);
+    }
+
+    public void testNullsOrderBeforeMissingOrderSupportQueryingOldNode() throws IOException {
+        testNullsOrderBeforeMissingOrderSupport(oldNodesClient);
+    }
+
+    private void testNullsOrderBeforeMissingOrderSupport(RestClient client) throws IOException {
         assumeTrue(
             "expected some nodes without support for missing_order but got none",
             bwcVersion.before(INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION)
         );
 
-        for (RestClient bwcClient : Arrays.asList(newNodesClient, oldNodesClient)) {
-            List<Integer> result = runOrderByNullsLastQuery(bwcClient);
+        List<Integer> result = runOrderByNullsLastQuery(client);
 
-            assertEquals(3, result.size());
-            assertNull(result.get(0));
-            assertEquals(Integer.valueOf(1), result.get(1));
-            assertEquals(Integer.valueOf(2), result.get(2));
-        }
+        assertEquals(3, result.size());
+        assertNull(result.get(0));
+        assertEquals(Integer.valueOf(1), result.get(1));
+        assertEquals(Integer.valueOf(2), result.get(2));
     }
 
-    public void testNullsOrderWithMissingOrderSupport() throws IOException {
+    public void testNullsOrderWithMissingOrderSupportQueryingNewNode() throws IOException {
+        testNullsOrderWithMissingOrderSupport(newNodesClient);
+    }
+
+    public void testNullsOrderWithMissingOrderSupportQueryingOldNode() throws IOException {
+        testNullsOrderWithMissingOrderSupport(oldNodesClient);
+    }
+
+    private void testNullsOrderWithMissingOrderSupport(RestClient client) throws IOException {
         assumeTrue(
             "expected all nodes with support for missing_order but got some without",
             bwcVersion.onOrAfter(INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION)
         );
 
-        // TODO: add oldNodesClient once PR is backported to 7.x
-        for (RestClient bwcClient : Arrays.asList(newNodesClient)) {
-            List<Integer> result = runOrderByNullsLastQuery(bwcClient);
+        List<Integer> result = runOrderByNullsLastQuery(client);
 
-            assertEquals(3, result.size());
-            assertEquals(Integer.valueOf(1), result.get(0));
-            assertEquals(Integer.valueOf(2), result.get(1));
-            assertNull(result.get(2));
-        }
+        assertEquals(3, result.size());
+        assertEquals(Integer.valueOf(1), result.get(0));
+        assertEquals(Integer.valueOf(2), result.get(1));
+        assertNull(result.get(2));
     }
 
     @SuppressWarnings("unchecked")

@@ -56,15 +56,18 @@ public class DataTierAllocationDecider extends AllocationDecider {
             for (String s : setting.split(",")) {
                 if (DataTier.validTierName(s) == false) {
                     throw new IllegalArgumentException(
-                            "invalid tier names found in [" + setting + "] allowed values are " + DataTier.ALL_DATA_TIERS);
+                        "invalid tier names found in [" + setting + "] allowed values are " + DataTier.ALL_DATA_TIERS);
                 }
             }
         }
     }
 
     private static class DataTierValidator implements Setting.Validator<String> {
-        private static final Collection<Setting<?>> dependencies = List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
-            SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING);
+
+        private static final Collection<Setting<?>> dependencies = List.of(
+            IndexModule.INDEX_STORE_TYPE_SETTING,
+            SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING
+        );
 
         public static String getDefaultTierPreference(Settings settings) {
             if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)) {

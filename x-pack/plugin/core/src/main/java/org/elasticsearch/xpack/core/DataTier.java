@@ -43,7 +43,7 @@ public class DataTier {
         for (String tier : ALL_DATA_TIERS) {
             assert tier.equals(DATA_FROZEN) || tier.contains(DATA_FROZEN) == false
                 : "can't have two tier names containing [" + DATA_FROZEN + "] because it would break setting validation optimizations" +
-                    " in the data tier allocation decider";
+                " in the data tier allocation decider";
         }
     }
 
@@ -139,9 +139,8 @@ public class DataTier {
                 logger.debug("index [{}] specifies custom index level routing filtering, skipping tier allocation", indexName);
                 return Settings.EMPTY;
             } else {
-                // Otherwise, put the setting in place by default, the "hot"
-                // tier if the index is part of a data stream, the "content"
-                // tier if it is not.
+                // Otherwise, put the setting in place by default, the "hot" tier if the index is part of a data stream,
+                // the "content" tier if it is not.
                 if (isDataStreamIndex) {
                     return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_HOT).build();
                 } else {

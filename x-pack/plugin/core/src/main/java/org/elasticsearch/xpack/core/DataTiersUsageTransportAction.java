@@ -110,8 +110,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
 
     // Visible for testing
     static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> calculateStats(List<NodeStats> nodesStats,
-                                                                                   Map<String, String> indexByTier,
-                                                                                   RoutingNodes routingNodes) {
+                                                                                  Map<String, String> indexByTier,
+                                                                                  RoutingNodes routingNodes) {
         Map<String, TierStatsAccumulator> statsAccumulators = new HashMap<>();
         for (NodeStats nodeStats : nodesStats) {
             aggregateDataTierNodeCounts(nodeStats, statsAccumulators);
@@ -138,7 +138,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
      * Locate which indices are hosted on the node specified by the NodeStats, then group and aggregate the available index stats by tier.
      */
     private static void aggregateDataTierIndexStats(NodeStats nodeStats, RoutingNodes routingNodes, Map<String, String> indexByTier,
-                                             Map<String, TierStatsAccumulator> accumulators) {
+                                                    Map<String, TierStatsAccumulator> accumulators) {
         final RoutingNode node = routingNodes.node(nodeStats.getNode().getId());
         if (node != null) {
             StreamSupport.stream(node.spliterator(), false)
@@ -152,7 +152,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
      * Determine which tier an index belongs in, then accumulate its stats into that tier's stats.
      */
     private static void classifyIndexAndCollectStats(Index index, NodeStats nodeStats, Map<String, String> indexByTier,
-                                              RoutingNode node, Map<String, TierStatsAccumulator> accumulators) {
+                                                     RoutingNode node, Map<String, TierStatsAccumulator> accumulators) {
         // Look up which tier this index belongs to (its most preferred)
         String indexTier = indexByTier.get(index.getName());
         if (indexTier != null) {

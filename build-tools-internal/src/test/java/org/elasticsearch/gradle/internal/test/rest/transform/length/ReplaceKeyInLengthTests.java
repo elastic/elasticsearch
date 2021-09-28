@@ -23,7 +23,7 @@ public class ReplaceKeyInLengthTests extends TransformTests {
         String test_original = "/rest/transform/length/length_replace_original.yml";
         List<ObjectNode> tests = getTests(test_original);
 
-        String test_transformed = "/rest/transform/length/length_replace_transformed.yml";
+        String test_transformed = "/rest/transform/length/length_replace_transformed_key.yml";
         List<ObjectNode> expectedTransformation = getTests(test_transformed);
 
         List<ObjectNode> transformedTests = transformTests(

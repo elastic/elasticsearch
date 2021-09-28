@@ -41,7 +41,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         String input = "The capital of " + BertTokenizer.MASK_TOKEN + " is Paris";
 
         List<String> vocab = Arrays.asList("The", "capital", "of", BertTokenizer.MASK_TOKEN, "is", "Paris", "France");
-        List<String> tokens = Arrays.asList(input.split(" "));
+        String[] tokens = input.split(" ");
         int[] tokenMap = new int[] {0, 1, 2, 3, 4, 5};
         int[] tokenIds = new int[] {0, 1, 2, 3, 4, 5};
 
@@ -68,7 +68,7 @@ public class FillMaskProcessorTests extends ESTestCase {
 
     public void testProcessResults_GivenMissingTokens() {
         TokenizationResult tokenization = new TokenizationResult(Collections.emptyList());
-        tokenization.addTokenization("", Collections.emptyList(), new int[] {}, new int[] {});
+        tokenization.addTokenization("", new String[]{}, new int[] {}, new int[] {});
 
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);

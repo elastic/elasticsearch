@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
@@ -227,9 +228,12 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         );
     }
 
-    public void infer(TrainedModelDeploymentTask task, Map<String, Object> doc, TimeValue timeout,
+    public void infer(TrainedModelDeploymentTask task,
+                      InferenceConfig config,
+                      Map<String, Object> doc,
+                      TimeValue timeout,
                       ActionListener<InferenceResults> listener) {
-        deploymentManager.infer(task, doc, timeout, listener);
+        deploymentManager.infer(task, config, doc, timeout, listener);
     }
 
     public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {

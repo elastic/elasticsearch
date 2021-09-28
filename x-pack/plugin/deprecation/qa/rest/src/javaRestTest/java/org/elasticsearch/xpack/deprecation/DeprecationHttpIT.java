@@ -299,6 +299,74 @@ public class DeprecationHttpIT extends ESRestTestCase {
         }
     }
 
+
+    public void testDisableDeprecationLogIndexing() throws Exception {
+        try {
+            final Request getRequest = createTestRequest("GET");
+            assertOK(client().performRequest(getRequest));
+            configureWriteDeprecationLogsToIndex(false);
+
+            final Request postRequest = createTestRequest("POST");
+            assertOK(client().performRequest(postRequest));
+
+            assertBusy(() -> {
+                Response response;
+                try {
+                    client().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_refresh?ignore_unavailable=true"));
+                    response = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_search"));
+                } catch (Exception e) {
+                    // It can take a moment for the index to be created. If it doesn't exist then the client
+                    // throws an exception. Translate it into an assertion error so that assertBusy() will
+                    // continue trying.
+                    throw new AssertionError(e);
+                }
+                assertOK(response);
+
+                ObjectMapper mapper = new ObjectMapper();
+                final JsonNode jsonNode = mapper.readTree(response.getEntity().getContent());
+
+                final int hits = jsonNode.at("/hits/total/value").intValue();
+                assertThat(hits, greaterThan(0));
+
+                List<Map<String, Object>> documents = new ArrayList<>();
+
+                for (int i = 0; i < hits; i++) {
+                    final JsonNode hit = jsonNode.at("/hits/hits/" + i + "/_source");
+
+                    final Map<String, Object> document = new HashMap<>();
+                    hit.fields().forEachRemaining(entry -> document.put(entry.getKey(), entry.getValue().textValue()));
+
+                    documents.add(document);
+                }
+
+                logger.warn(documents);
+                assertThat(documents, hasSize(2));
+
+                assertThat(
+                    documents,
+                    hasItems(
+//                        allOf(
+//                            hasEntry(KEY_FIELD_NAME, "deprecated_route_POST_/_test_cluster/deprecated_settings"),
+//                            hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
+//                        ),
+                        allOf(
+                            hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
+                            hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
+                        ),
+                        allOf(
+                            hasEntry(KEY_FIELD_NAME, "deprecated_settings"),
+                            hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead")
+                        )
+                    )
+                );
+            }, 30, TimeUnit.SECONDS);
+        } finally {
+            configureWriteDeprecationLogsToIndex(null);
+            client().performRequest(new Request("DELETE", "_data_stream/" + DATA_STREAM_NAME));
+        }
+    }
+
+
     private Request createTestRequest(String method) throws IOException {
         final Request getRequest = new Request(method, "/_test_cluster/deprecated_settings");
         final RequestOptions options = getRequest.getOptions().toBuilder().addHeader("X-Opaque-Id", "some xid").build();

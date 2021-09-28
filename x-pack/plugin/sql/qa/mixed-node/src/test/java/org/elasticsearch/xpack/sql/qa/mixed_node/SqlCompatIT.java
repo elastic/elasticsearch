@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
-import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION;
+import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION;
 
 public class SqlCompatIT extends BaseRestSqlTestCase {
 
@@ -67,7 +67,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     public void testNullsOrderBeforeMissingOrderSupport() throws IOException {
         assumeTrue(
             "expected some nodes without support for missing_order but got none",
-            bwcVersion.before(MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION)
+            bwcVersion.before(INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION)
         );
 
         for (RestClient bwcClient : Arrays.asList(newNodesClient, oldNodesClient)) {
@@ -83,7 +83,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     public void testNullsOrderWithMissingOrderSupport() throws IOException {
         assumeTrue(
             "expected all nodes with support for missing_order but got some without",
-            bwcVersion.onOrAfter(MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION)
+            bwcVersion.onOrAfter(INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION)
         );
 
         // TODO: add oldNodesClient once PR is backported to 7.x

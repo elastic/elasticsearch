@@ -234,4 +234,15 @@ been removed in 8.0.0. This parameter is a no-op and has no effect on the query.
 Discontinue use of the `type` parameter. `geo_bounding_box` queries that include
 this parameter will return an error.
 ====
+
+.The `type` query has been removed.
+[%collapsible]
+====
+*Details* +
+The `type` query has been removed. Mapping types have been removed in 8.0.
+
+*Impact* +
+Discontinue use of the `type` query. Requests that include the `type` query
+will return an error.
+====
 //end::notable-breaking-changes[]

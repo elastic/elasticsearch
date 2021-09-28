@@ -66,6 +66,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
+import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX_PATTERN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemIndexPlugin, Closeable, PersistentTaskPlugin, ActionPlugin {
@@ -160,7 +161,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         SystemIndexDescriptor geoipDatabasesIndex = SystemIndexDescriptor.builder()
-            .setIndexPattern(DATABASES_INDEX)
+            .setIndexPattern(DATABASES_INDEX_PATTERN)
             .setDescription("GeoIP databases")
             .setMappings(mappings())
             .setSettings(Settings.builder()

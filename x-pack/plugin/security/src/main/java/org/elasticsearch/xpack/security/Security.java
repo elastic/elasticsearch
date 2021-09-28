@@ -1287,7 +1287,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
      private static SystemIndexDescriptor getSecurityMainIndexDescriptor() {
          return SystemIndexDescriptor.builder()
              // This can't just be `.security-*` because that would overlap with the tokens index pattern
-             .setIndexPattern(".security-[0-9]+")
+             .setIndexPattern(".security-[0-9]+*")
              .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
              .setDescription("Contains Security configuration")
              .setMappings(getIndexMappings())
@@ -1302,7 +1302,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
      private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
          return SystemIndexDescriptor.builder()
-             .setIndexPattern(".security-tokens-[0-9]+")
+             .setIndexPattern(".security-tokens-[0-9]+*")
              .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
              .setDescription("Contains auth token data")
              .setMappings(getTokenIndexMappings())

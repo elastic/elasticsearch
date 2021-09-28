@@ -95,7 +95,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction.getApplicationNames;

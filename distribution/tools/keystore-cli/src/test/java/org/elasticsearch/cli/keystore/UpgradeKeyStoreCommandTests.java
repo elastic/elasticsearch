@@ -38,23 +38,28 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
-    public void testKeystoreUpgrade() throws Exception {
+    public void testKeystoreUpgradeV3() throws Exception {
+        assertKeystoreUpgrade("/format-v3-elasticsearch.keystore", KeyStoreWrapper.V3_VERSION);
+    }
+
+    public void testKeystoreUpgradeV4() throws Exception {
+        assertKeystoreUpgrade("/format-v4-elasticsearch.keystore", KeyStoreWrapper.V4_VERSION);
+    }
+
+    private void assertKeystoreUpgrade(String file, int version) throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
-        try (
-            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
-            OutputStream os = Files.newOutputStream(keystore)
-        ) {
+        try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream(file); OutputStream os = Files.newOutputStream(keystore)) {
             is.transferTo(os);
         }
         try (KeyStoreWrapper beforeUpgrade = KeyStoreWrapper.load(env.configFile())) {
             assertNotNull(beforeUpgrade);
-            assertThat(beforeUpgrade.getFormatVersion(), equalTo(3));
+            assertThat(beforeUpgrade.getFormatVersion(), equalTo(version));
         }
         execute();
         try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configFile())) {
             assertNotNull(afterUpgrade);
-            assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.FORMAT_VERSION));
+            assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.CURRENT_VERSION));
             afterUpgrade.decrypt(new char[0]);
             assertThat(afterUpgrade.getSettingNames(), hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
         }

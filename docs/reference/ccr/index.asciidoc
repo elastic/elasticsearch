@@ -32,7 +32,7 @@ If newer, the versions must also be compatible as outlined in the following matr
 [[ccr-version-compatibility]]
 .Version compatibility matrix
 ====
-include::../modules/remote-clusters.asciidoc[tag=remote-cluster-compatibility-matrix]
+include::../modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
 [discrete]

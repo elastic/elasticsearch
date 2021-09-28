@@ -28,28 +28,31 @@ public final class NodeMetadata {
 
     static final String NODE_ID_KEY = "node_id";
     static final String NODE_VERSION_KEY = "node_version";
+    static final String PREVIOUS_NODE_VERSION_KEY = "previous_node_version";
 
     private final String nodeId;
 
     private final Version nodeVersion;
 
-    public NodeMetadata(final String nodeId, final Version nodeVersion) {
+    private final Version previousNodeVersion;
+
+    public NodeMetadata(final String nodeId, final Version nodeVersion, final Version previousNodeVersion) {
         this.nodeId = Objects.requireNonNull(nodeId);
         this.nodeVersion = Objects.requireNonNull(nodeVersion);
+        this.previousNodeVersion = previousNodeVersion;
     }
 
-    @Override
-    public boolean equals(Object o) {
+    @Override public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeMetadata that = (NodeMetadata) o;
-        return nodeId.equals(that.nodeId) &&
-            nodeVersion.equals(that.nodeVersion);
+        return nodeId.equals(that.nodeId) && nodeVersion.equals(that.nodeVersion) && Objects.equals(
+            previousNodeVersion,
+            that.previousNodeVersion);
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(nodeId, nodeVersion);
+    @Override public int hashCode() {
+        return Objects.hash(nodeId, nodeVersion, previousNodeVersion);
     }
 
     @Override
@@ -57,6 +60,7 @@ public final class NodeMetadata {
         return "NodeMetadata{" +
             "nodeId='" + nodeId + '\'' +
             ", nodeVersion=" + nodeVersion +
+            ", previousNodeVersion=" + previousNodeVersion +
             '}';
     }
 
@@ -68,10 +72,14 @@ public final class NodeMetadata {
         return nodeVersion;
     }
 
+    public Version previousNodeVersion() {
+        return previousNodeVersion;
+    }
+
     public NodeMetadata upgradeToCurrentVersion() {
         if (nodeVersion.equals(Version.V_EMPTY)) {
             assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "version is required in the node metadata from v9 onwards";
-            return new NodeMetadata(nodeId, Version.CURRENT);
+            return new NodeMetadata(nodeId, Version.CURRENT, Version.V_EMPTY);
         }
 
         if (nodeVersion.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
@@ -84,12 +92,13 @@ public final class NodeMetadata {
                 "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]");
         }
 
-        return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT);
+        return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT, nodeVersion);
     }
 
     private static class Builder {
         String nodeId;
         Version nodeVersion;
+        Version previousNodeVersion;
 
         public void setNodeId(String nodeId) {
             this.nodeId = nodeId;
@@ -97,6 +106,10 @@ public final class NodeMetadata {
 
         public void setNodeVersionId(int nodeVersionId) {
             this.nodeVersion = Version.fromId(nodeVersionId);
+        }
+
+        public void setPreviousNodeVersionId(int previousNodeVersionId) {
+            this.previousNodeVersion = Version.fromId(previousNodeVersionId);
         }
 
         public NodeMetadata build() {
@@ -107,8 +120,11 @@ public final class NodeMetadata {
             } else {
                 nodeVersion = this.nodeVersion;
             }
+            if (this.previousNodeVersion == null) {
+                previousNodeVersion = nodeVersion;
+            }
 
-            return new NodeMetadata(nodeId, nodeVersion);
+            return new NodeMetadata(nodeId, nodeVersion, previousNodeVersion);
         }
     }
 
@@ -125,6 +141,7 @@ public final class NodeMetadata {
             objectParser = new ObjectParser<>("node_meta_data", ignoreUnknownFields, Builder::new);
             objectParser.declareString(Builder::setNodeId, new ParseField(NODE_ID_KEY));
             objectParser.declareInt(Builder::setNodeVersionId, new ParseField(NODE_VERSION_KEY));
+            objectParser.declareInt(Builder::setPreviousNodeVersionId, new ParseField(PREVIOUS_NODE_VERSION_KEY));
         }
 
         @Override
@@ -138,6 +155,7 @@ public final class NodeMetadata {
         public void toXContent(XContentBuilder builder, NodeMetadata nodeMetadata) throws IOException {
             builder.field(NODE_ID_KEY, nodeMetadata.nodeId);
             builder.field(NODE_VERSION_KEY, nodeMetadata.nodeVersion.id);
+            builder.field(PREVIOUS_NODE_VERSION_KEY, nodeMetadata.previousNodeVersion.id);
         }
 
         @Override

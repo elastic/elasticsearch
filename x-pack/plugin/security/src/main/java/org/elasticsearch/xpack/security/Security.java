@@ -411,8 +411,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     }
 
-    private void runStartupChecks(Settings settings, NodeMetadata nodeMetadata) {
-        possiblyValidateImplicitSecurityBehaviorOnUpdate(settings, nodeMetadata);
+    private void runStartupChecks(Settings settings) {
         validateRealmSettings(settings);
         if (XPackSettings.FIPS_MODE_ENABLED.get(settings)) {
             validateForFips(settings);
@@ -450,7 +449,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
         }
-        runStartupChecks(settings, nodeMetadata);
+        runStartupChecks(settings);
         scriptServiceReference.set(scriptService);
         // We need to construct the checks here while the secure settings are still available.
         // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
@@ -458,6 +457,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         checks.addAll(Arrays.asList(
             new TokenSSLBootstrapCheck(),
             new PkiRealmBootstrapCheck(getSslService()),
+            new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata),
             new TLSLicenseBootstrapCheck()));
         checks.addAll(InternalRealms.getBootstrapChecks(settings, environment));
         this.bootstrapChecks.set(Collections.unmodifiableList(checks));
@@ -1070,35 +1070,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 sb.append(++index).append(": ").append(error).append(";\n");
             }
             throw new IllegalArgumentException(sb.toString());
-        }
-    }
-
-    void possiblyValidateImplicitSecurityBehaviorOnUpdate(Settings settings, NodeMetadata nodeMetadata) {
-        if (null == nodeMetadata) {
-            // No Node metadata for given node
-            return;
-        }
-        final XPackLicenseState licenseState = getLicenseState();
-        if (licenseState.getLicenseExpiryDate() == Long.MAX_VALUE) {
-            // License hasn't been recovered yet from disk of cluster state
-            return;
-        }
-        final License.OperationMode license = licenseState.getOperationMode();
-        final Version lastKnownVersion = nodeMetadata.nodeVersion();
-        // pre v7.2.0 nodes have Version.EMPTY and its id is 0, so Version#before handles this successfully
-        if (lastKnownVersion.before(Version.V_8_0_0)
-            && XPackSettings.SECURITY_ENABLED.exists(settings) == false
-            && (license == License.OperationMode.BASIC || license == License.OperationMode.TRIAL)) {
-            throw new IllegalStateException(
-                "The default value for ["
-                    + XPackSettings.SECURITY_ENABLED.getKey()
-                    + "] has changed. See https://www.elastic.co/guide/en/elasticsearch/reference/"
-                    + Version.CURRENT.major
-                    + "."
-                    + Version.CURRENT.minor
-                    + "/security-minimal-setup.html to enable security, or explicitly disable security by "
-                    + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml before restarting the node"
-            );
         }
     }
 

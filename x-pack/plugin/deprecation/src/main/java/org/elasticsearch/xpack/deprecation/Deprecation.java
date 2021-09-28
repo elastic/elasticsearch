@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent.USE_X_OPAQUE_ID_IN_FILTERING;
 import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent.WRITE_DEPRECATION_LOGS_TO_INDEX;
 
 /**
@@ -86,6 +87,6 @@ public class Deprecation extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(WRITE_DEPRECATION_LOGS_TO_INDEX);
+        return List.of(USE_X_OPAQUE_ID_IN_FILTERING, WRITE_DEPRECATION_LOGS_TO_INDEX);
     }
 }

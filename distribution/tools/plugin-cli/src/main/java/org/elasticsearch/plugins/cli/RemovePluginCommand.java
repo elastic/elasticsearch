@@ -49,7 +49,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
         final List<PluginDescriptor> plugins = arguments.values(options).stream().map(PluginDescriptor::new).collect(Collectors.toList());
 
-        final RemovePluginAction action = new RemovePluginAction(terminal, env, options.has(purgeOption));
+        final RemovePluginAction action = new RemovePluginAction(new TerminalLogger(terminal), env, options.has(purgeOption));
         action.execute(plugins);
     }
 }

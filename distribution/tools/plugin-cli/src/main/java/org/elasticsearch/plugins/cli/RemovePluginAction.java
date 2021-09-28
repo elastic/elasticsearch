@@ -9,11 +9,11 @@
 package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginLogger;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RemovePluginProvider;
 
@@ -31,8 +31,6 @@ import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
-
 /**
  * An action for the plugin CLI to remove plugins from Elasticsearch.
  */
@@ -42,19 +40,19 @@ public class RemovePluginAction implements RemovePluginProvider {
     /** A plugin cannot be removed because it is extended by another plugin. */
     static final int PLUGIN_STILL_USED = 11;
 
-    private final Terminal terminal;
+    private final PluginLogger logger;
     private final Environment env;
     private boolean purge;
 
     /**
      * Creates a new action.
      *
-     * @param terminal   the terminal to use for input/output
+     * @param logger   the terminal to use for input/output
      * @param env        the environment for the local node
      * @param purge      if true, plugin configuration files will be removed but otherwise preserved
      */
-    RemovePluginAction(Terminal terminal, Environment env, boolean purge) {
-        this.terminal = terminal;
+    RemovePluginAction(PluginLogger logger, Environment env, boolean purge) {
+        this.logger = logger;
         this.env = env;
         this.purge = purge;
     }
@@ -127,7 +125,7 @@ public class RemovePluginAction implements RemovePluginProvider {
         final Path pluginConfigDir = env.configFile().resolve(pluginId);
         final Path removing = env.pluginsFile().resolve(".removing-" + pluginId);
 
-        terminal.println("-> removing [" + pluginId + "]...");
+        logger.info("-> removing [" + pluginId + "]...");
 
         final List<Path> pluginPaths = new ArrayList<>();
 
@@ -139,7 +137,7 @@ public class RemovePluginAction implements RemovePluginProvider {
             try (Stream<Path> paths = Files.list(pluginDir)) {
                 pluginPaths.addAll(paths.collect(Collectors.toList()));
             }
-            terminal.println(VERBOSE, "removing [" + pluginDir + "]");
+            logger.debug("removing [" + pluginDir + "]");
         }
 
         final Path pluginBinDir = env.binFile().resolve(pluginId);
@@ -148,7 +146,7 @@ public class RemovePluginAction implements RemovePluginProvider {
                 pluginPaths.addAll(paths.collect(Collectors.toList()));
             }
             pluginPaths.add(pluginBinDir);
-            terminal.println(VERBOSE, "removing [" + pluginBinDir + "]");
+            logger.debug("removing [" + pluginBinDir + "]");
         }
 
         if (Files.exists(pluginConfigDir)) {
@@ -157,7 +155,7 @@ public class RemovePluginAction implements RemovePluginProvider {
                     pluginPaths.addAll(paths.collect(Collectors.toList()));
                 }
                 pluginPaths.add(pluginConfigDir);
-                terminal.println(VERBOSE, "removing [" + pluginConfigDir + "]");
+                logger.debug("removing [" + pluginConfigDir + "]");
             } else {
                 /*
                  * By default we preserve the config files in case the user is upgrading the plugin, but we print a message so the user
@@ -168,7 +166,7 @@ public class RemovePluginAction implements RemovePluginProvider {
                     "-> preserving plugin config files [%s] in case of upgrade; use --purge if not needed",
                     pluginConfigDir
                 );
-                terminal.println(message);
+                logger.info(message);
             }
         }
 
@@ -187,7 +185,7 @@ public class RemovePluginAction implements RemovePluginProvider {
              * We need to suppress the marker file already existing as we could be in this state if a previous removal attempt failed and
              * the user is attempting to remove the plugin again.
              */
-            terminal.println(VERBOSE, "marker file [" + removing + "] already exists");
+            logger.debug("marker file [" + removing + "] already exists");
         }
 
         // add the plugin directory

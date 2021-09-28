@@ -27,7 +27,7 @@ import java.util.Locale;
  * The available methods are similar to those of {@link Console}, with the ability
  * to read either normal text or a password, and the ability to print a line
  * of text. Printing is also gated by the {@link Verbosity} of the terminal,
- * which allows {@link #println(Verbosity,String)} calls which act like a logger,
+ * which allows {@link #println(Verbosity,CharSequence)} calls which act like a logger,
  * only actually printing if the verbosity level of the terminal is above
  * the verbosity of the message.
 */

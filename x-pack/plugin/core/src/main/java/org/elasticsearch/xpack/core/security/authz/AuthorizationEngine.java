@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
@@ -151,6 +152,11 @@ public interface AuthorizationEngine {
     void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener);
 
+
+    default void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                       Metadata metadata, ActionListener<Set<String>> listener) {
+        loadAuthorizedIndices(requestInfo, authorizationInfo, metadata.getIndicesLookup(), listener);
+    }
 
     /**
      * Asynchronously checks that the permissions a user would have for a given list of names do

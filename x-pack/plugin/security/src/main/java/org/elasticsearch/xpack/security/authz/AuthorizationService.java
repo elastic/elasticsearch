@@ -358,7 +358,7 @@ public class AuthorizationService {
                 authzEngine.loadAuthorizedIndices(
                     requestInfo,
                     authzInfo,
-                    metadata.getIndicesLookup(),
+                    metadata,
                     authzIndicesListener.map(authzIndices -> {
                         timeChecker.done(authzIndices);
                         return authzIndices;

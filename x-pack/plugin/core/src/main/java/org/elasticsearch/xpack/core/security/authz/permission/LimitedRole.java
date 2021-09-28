@@ -56,6 +56,10 @@ public final class LimitedRole extends Role {
         throw new UnsupportedOperationException("cannot retrieve run_as permission on limited role");
     }
 
+    public Role getLimitedBy() {
+        return limitedBy;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

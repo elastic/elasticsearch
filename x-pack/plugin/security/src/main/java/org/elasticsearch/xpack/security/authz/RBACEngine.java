@@ -30,10 +30,12 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
@@ -62,6 +64,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -91,6 +94,8 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
@@ -437,6 +442,53 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
+    private final Map<AuthorizedIndicesCacheKey, ListenableFuture<Set<String>>> authorizedIndicesLookup = new ConcurrentHashMap<>();
+
+    @Override
+    public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                      Metadata metadata, ActionListener<Set<String>> listener) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo) {
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+            final TransportRequest request = requestInfo.getRequest();
+            final IndicesPermission limitedByIndicesPermission;
+            if (role instanceof LimitedRole) {
+                limitedByIndicesPermission = ((LimitedRole) role).getLimitedBy().indices();
+            } else {
+                limitedByIndicesPermission = null;
+            }
+            final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
+            final AuthorizedIndicesCacheKey cacheKey = new AuthorizedIndicesCacheKey(metadata.version(),
+                requestInfo.getAction(),
+                includeDataStreams,
+                role.indices(),
+                limitedByIndicesPermission);
+
+            final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
+            final ListenableFuture<Set<String>> listenableFuture = authorizedIndicesLookup.computeIfAbsent(cacheKey, k -> {
+                valueAlreadyInCache.set(false);
+                return new ListenableFuture<>();
+            });
+
+            if (valueAlreadyInCache.get()) {
+                listenableFuture.addListener(listener);
+            } else {
+                loadAuthorizedIndices(requestInfo, authorizationInfo, metadata.getIndicesLookup(),
+                    ActionListener.wrap(authorizedIndices -> {
+                        authorizedIndicesLookup.remove(cacheKey, listenableFuture);
+                        listener.onResponse(authorizedIndices);
+                        listenableFuture.onResponse(authorizedIndices);
+                    }, e -> {
+                        authorizedIndicesLookup.remove(cacheKey, listenableFuture);
+                        listener.onFailure(e);
+                        listenableFuture.onFailure(e);
+                    }));
+            }
+        } else {
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
+        }
+    }
+
     @Override
     public void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                                   Map<String, List<String>> indexNameToNewNames,
@@ -733,5 +785,42 @@ public class RBACEngine implements AuthorizationEngine {
             action.equals(DeleteAsyncResultAction.NAME) ||
             action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME) ||
             action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
+    }
+
+    private static class AuthorizedIndicesCacheKey {
+        private final long metadataVersion;
+        private final String action;
+        private final boolean includeDataStreams;
+        private final IndicesPermission indicesPermission;
+        private final IndicesPermission limitedByIndicesPermission;
+
+        AuthorizedIndicesCacheKey(
+            long metadataVersion, String action, boolean includeDataStreams,
+            IndicesPermission indicesPermission, IndicesPermission limitedByIndicesPermission) {
+            this.metadataVersion = metadataVersion;
+            this.action = action;
+            this.includeDataStreams = includeDataStreams;
+            this.indicesPermission = indicesPermission;
+            this.limitedByIndicesPermission = limitedByIndicesPermission;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            AuthorizedIndicesCacheKey that = (AuthorizedIndicesCacheKey) o;
+            return metadataVersion == that.metadataVersion
+                && includeDataStreams == that.includeDataStreams
+                && action.equals(that.action)
+                && Objects.equals(indicesPermission, that.indicesPermission)
+                && Objects.equals(limitedByIndicesPermission, that.limitedByIndicesPermission);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(metadataVersion, action, includeDataStreams, indicesPermission, limitedByIndicesPermission);
+        }
     }
 }

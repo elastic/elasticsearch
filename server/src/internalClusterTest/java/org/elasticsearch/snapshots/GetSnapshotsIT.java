@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestB
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -191,7 +190,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                             || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
                     ),
                 internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()),
-                3
+                3 // Short time-out is enough, we don't want wait 30 sec if there's no updates
             );
         } catch (Throwable ignore) {
             // Happens when the test-index-1 snapshots weren't all finished successfully, but the snapshots are blocked on the data nodes

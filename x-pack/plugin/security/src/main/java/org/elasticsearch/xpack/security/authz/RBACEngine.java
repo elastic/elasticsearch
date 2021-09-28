@@ -639,7 +639,9 @@ public class RBACEngine implements AuthorizationEngine {
         final String targetIndexName = getSingleTargetIndexName(request);
         if (targetIndexName != null) {
             effectiveIndices = new HashSet<>();
-            effectiveIndices.add(targetIndexName);
+            if (indices.contains(targetIndexName)) {
+                effectiveIndices.add(targetIndexName);
+            }
             final IndexAbstraction targetIndexAbstraction = aliasAndIndexLookup.get(targetIndexName);
             assert targetIndexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX : "target index must be a concrete index";
             targetIndexAbstraction.getAliases().stream().filter(indices::contains).forEach(effectiveIndices::add);

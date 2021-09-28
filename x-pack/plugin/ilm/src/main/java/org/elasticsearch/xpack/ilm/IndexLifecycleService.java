@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -56,6 +57,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -307,13 +309,15 @@ public class IndexLifecycleService
         return policyRegistry.policyExists(policyId);
     }
 
+    private final AtomicBoolean pending = new AtomicBoolean();
+
     /**
      * executes the policy execution on the appropriate indices by running cluster-state tasks per index.
-     *
+     * <p>
      * If stopping ILM was requested, and it is safe to stop, this will also be done here
      * when possible after no policies are executed.
      *
-     * @param clusterState the current cluster state
+     * @param clusterState           the current cluster state
      * @param fromClusterStateChange whether things are triggered from the cluster-state-listener or the scheduler
      */
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
@@ -329,7 +333,13 @@ public class IndexLifecycleService
             return;
         }
 
+        if (fromClusterStateChange && pending.getAndSet(true)) {
+            return;
+        }
+
         boolean safeToStop = true; // true until proven false by a run policy
+
+        boolean tasksScheduled = false;
 
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
@@ -347,6 +357,7 @@ public class IndexLifecycleService
                             logger.info("waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
                                 idxMeta.getIndex().getName(), policyName, stepKey.getName());
                             if (fromClusterStateChange) {
+                                tasksScheduled = true;
                                 lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
                             } else {
                                 lifecycleRunner.runPeriodicStep(policyName, clusterState.metadata(), idxMeta);
@@ -359,6 +370,7 @@ public class IndexLifecycleService
                         }
                     } else {
                         if (fromClusterStateChange) {
+                            tasksScheduled = true;
                             lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
                         } else {
                             lifecycleRunner.runPeriodicStep(policyName, clusterState.metadata(), idxMeta);
@@ -378,6 +390,28 @@ public class IndexLifecycleService
                     // Don't rethrow the exception, we don't want a failure for one index to be
                     // called to cause actions not to be triggered for further indices
                 }
+            }
+        }
+        if (fromClusterStateChange) {
+            if (tasksScheduled) {
+                clusterService.submitStateUpdateTask("pending-task", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return currentState;
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        pending.set(false);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        pending.set(false);
+                    }
+                });
+            } else {
+                pending.set(false);
             }
         }
 

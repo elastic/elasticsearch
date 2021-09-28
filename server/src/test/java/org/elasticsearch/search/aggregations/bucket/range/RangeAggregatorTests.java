@@ -102,7 +102,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * Regression Test for https://github.com/elastic/elasticsearch/issues/77033
+     * Confirm that a non-representable decimal stored as a double correctly follows the half-open interval rule
      */
     public void testDoubleRangesExclusiveEndpoint() throws IOException {
         final String fieldName = "double";
@@ -125,7 +125,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * Regression Test for https://github.com/elastic/elasticsearch/issues/77033
+     * Confirm that a non-representable decimal stored as a float correctly follows the half-open interval rule
      */
     public void testFloatRangesExclusiveEndpoint() throws IOException {
         final String fieldName = "float";
@@ -134,7 +134,30 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.04D).addRange("r2", 0.04D, 1.0D),
             new MatchAllDocsQuery(),
             iw -> {
-                iw.addDocument(List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.floatToSortableInt(0.04F))));
+                iw.addDocument(NumberType.FLOAT.createFields(fieldName, 0.04F, false, true, false));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals(0, ranges.get(0).getDocCount());
+                assertEquals(1, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
+    /**
+     * Confirm that a non-representable decimal stored as a half_float correctly follows the half-open interval rule
+     */
+    public void testHalfFloatRangesExclusiveEndpoint() throws IOException {
+        final String fieldName = "halfFloat";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.HALF_FLOAT);
+        testCase(
+            new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.0152D).addRange("r2", 0.0152D, 1.0D),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(NumberType.HALF_FLOAT.createFields(fieldName, 0.0152F, false, true, false));
             },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;

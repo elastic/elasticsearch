@@ -72,7 +72,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     RestoreSnapshotResponse> {
 
     private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = List.of(
-        DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING
+        DataTierAllocationDecider.TIER_PREFERENCE_SETTING
     );
 
     private final Client client;
@@ -233,7 +233,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false) // can be overridden
-                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, request.storage().defaultDataTiersPreference())
+                .put(DataTierAllocationDecider.TIER_PREFERENCE, request.storage().defaultDataTiersPreference())
                 .put(request.indexSettings())
                 .put(
                     buildIndexSettings(

@@ -83,7 +83,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     static Map<String, String> tierIndices(ImmutableOpenMap<String, IndexMetadata> indices) {
         Map<String, String> indexByTier = new HashMap<>();
         indices.forEach(entry -> {
-            String tierPref = entry.value.getSettings().get(DataTierAllocationDecider.INDEX_ROUTING_PREFER);
+            String tierPref = entry.value.getSettings().get(DataTierAllocationDecider.TIER_PREFERENCE);
             if (Strings.hasText(tierPref)) {
                 String[] tiers = tierPref.split(",");
                 if (tiers.length > 0) {

@@ -46,10 +46,10 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "data_tier";
 
-    public static final String INDEX_ROUTING_PREFER = "index.routing.allocation.include._tier_preference";
+    public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";
 
     private static final DataTierValidator VALIDATOR = new DataTierValidator();
-    public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = new Setting<>(new Setting.SimpleKey(INDEX_ROUTING_PREFER),
+    public static final Setting<String> TIER_PREFERENCE_SETTING = new Setting<>(new Setting.SimpleKey(TIER_PREFERENCE),
         DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR, Property.Dynamic, Property.IndexScope);
 
     private static void validateTierSetting(String setting) {
@@ -153,7 +153,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
     private Decision shouldIndexPreferTier(IndexMetadata indexMetadata, Set<DiscoveryNodeRole> roles,
                                            PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
         Settings indexSettings = indexMetadata.getSettings();
-        String tierPreference = INDEX_ROUTING_PREFER_SETTING.get(indexSettings);
+        String tierPreference = TIER_PREFERENCE_SETTING.get(indexSettings);
 
         if (Strings.hasText(tierPreference)) {
             Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes());

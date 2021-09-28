@@ -60,7 +60,7 @@ public class DataTier {
     /**
      * Based on the provided target tier it will return a comma separated list of preferred tiers.
      * ie. if `data_cold` is the target tier, it will return `data_cold,data_warm,data_hot`
-     * This is usually used in conjunction with {@link DataTierAllocationDecider#INDEX_ROUTING_PREFER_SETTING}
+     * This is usually used in conjunction with {@link DataTierAllocationDecider#TIER_PREFERENCE_SETTING}
      */
     public static String getPreferredTiersConfiguration(String targetTier) {
         int indexOfTargetTier = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(targetTier);
@@ -128,9 +128,9 @@ public class DataTier {
         @Override
         public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings indexSettings) {
             Set<String> settings = indexSettings.keySet();
-            if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_PREFER)) {
+            if (settings.contains(DataTierAllocationDecider.TIER_PREFERENCE)) {
                 // just a marker -- this null value will be removed or overridden by the template/request settings
-                return Settings.builder().putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER).build();
+                return Settings.builder().putNull(DataTierAllocationDecider.TIER_PREFERENCE).build();
             } else if (settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".")) ||
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".")) ||
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {
@@ -141,9 +141,9 @@ public class DataTier {
                 // Otherwise, put the setting in place by default, the "hot" tier if the index is part of a data stream,
                 // the "content" tier if it is not.
                 if (isDataStreamIndex) {
-                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_HOT).build();
+                    return Settings.builder().put(DataTierAllocationDecider.TIER_PREFERENCE, DATA_HOT).build();
                 } else {
-                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_CONTENT).build();
+                    return Settings.builder().put(DataTierAllocationDecider.TIER_PREFERENCE, DATA_CONTENT).build();
                 }
             }
         }

@@ -31,63 +31,64 @@ public class SunThreadInfo {
         isThreadAllocatedMemoryEnabled = getMethod("isThreadAllocatedMemoryEnabled");
     }
 
-    public static boolean isThreadAllocatedMemorySupported(){
-        if (isThreadAllocatedMemorySupported == null){
+    public static boolean isThreadAllocatedMemorySupported() {
+        if (isThreadAllocatedMemorySupported == null) {
             logger.warn("isThreadAllocatedMemorySupported is not available");
             return false;
         }
 
         try {
-            return (boolean)isThreadAllocatedMemorySupported.invoke(threadMXBean);
-        }catch (Exception e){
+            return (boolean) isThreadAllocatedMemorySupported.invoke(threadMXBean);
+        } catch (Exception e) {
             logger.warn("exception while invoke isThreadAllocatedMemorySupported", e);
             return false;
         }
     }
 
-    public static boolean isThreadAllocatedMemoryEnabled(){
-        if (isThreadAllocatedMemoryEnabled == null){
+    public static boolean isThreadAllocatedMemoryEnabled() {
+        if (isThreadAllocatedMemoryEnabled == null) {
             logger.warn("isThreadAllocatedMemoryEnabled is not available");
             return false;
         }
 
         try {
-            return (boolean)isThreadAllocatedMemoryEnabled.invoke(threadMXBean);
-        }catch (Exception e){
+            return (boolean) isThreadAllocatedMemoryEnabled.invoke(threadMXBean);
+        } catch (Exception e) {
             logger.warn("exception while invoke isThreadAllocatedMemoryEnabled", e);
             return false;
         }
     }
 
-    public static long getThreadAllocatedBytes(long id){
-        if (getThreadAllocatedBytes == null){
+    public static long getThreadAllocatedBytes(long id) {
+        if (getThreadAllocatedBytes == null) {
             logger.warn("getThreadAllocatedBytes is not available");
             return 0;
         }
 
-        if (isThreadAllocatedMemorySupported() == false || isThreadAllocatedMemoryEnabled() == false){
+        if (isThreadAllocatedMemorySupported() == false || isThreadAllocatedMemoryEnabled() == false) {
             return 0;
         }
 
-        if (id <= 0){
+        if (id <= 0) {
             return 0;
         }
 
         try {
-            long bytes = (long)getThreadAllocatedBytes.invoke(threadMXBean, id);
-            if (bytes < 0){
+            long bytes = (long) getThreadAllocatedBytes.invoke(threadMXBean, id);
+            if (bytes < 0) {
                 logger.debug("OS reported a negative thread allocated size [{}]", bytes);
+                return 0;
             }
             return bytes;
-        }catch (Exception e){
+        } catch (Exception e) {
             logger.warn("exception retrieving thread allocated memory", e);
             return 0;
         }
     }
 
-    private static Method getMethod(String methodName,Class<?>... parameterTypes) {
+    private static Method getMethod(String methodName, Class<?>... parameterTypes) {
         try {
-            Method method =  Class.forName("com.sun.management.ThreadMXBean").getMethod(methodName,parameterTypes);
+            Method method = Class.forName("com.sun.management.ThreadMXBean").getMethod(methodName, parameterTypes);
             return method;
         } catch (Exception e) {
             // not available
@@ -95,4 +96,3 @@ public class SunThreadInfo {
         }
     }
 }
-

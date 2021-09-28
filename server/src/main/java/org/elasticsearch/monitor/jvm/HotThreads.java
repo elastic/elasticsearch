@@ -195,7 +195,7 @@ public class HotThreads {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
 
-        if (type.equals(ReportType.MEM) && SunThreadInfo.isThreadAllocatedMemorySupported() == false) {
+        if (type == ReportType.MEM && SunThreadInfo.isThreadAllocatedMemorySupported() == false) {
             throw new ElasticsearchException("thread allocated memory is not supported on this JDK");
         }
 
@@ -249,10 +249,10 @@ public class HotThreads {
                     continue; // thread is not alive yet or died before the first snapshot - ignore it!
                 }
 
-                if (type.equals(ReportType.MEM)) {
+                if (type == ReportType.MEM) {
                     sb.append(String.format(Locale.ROOT, "%n%s memory allocated by thread '%s'%n",
                         new ByteSizeValue(timeOrBytes), threadName));
-                }else {
+                } else {
                     double percent = (((double) timeOrBytes) / interval.nanos()) * 100;
                     sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
                         percent, TimeValue.timeValueNanos(timeOrBytes), interval, type.getTypeValue(), threadName));

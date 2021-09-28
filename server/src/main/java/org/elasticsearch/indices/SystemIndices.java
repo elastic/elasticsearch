@@ -102,12 +102,12 @@ public class SystemIndices {
         this.systemNameRunAutomaton = new CharacterRunAutomaton(systemNameAutomaton);
     }
 
-    private static void ensurePatternsAllowSuffix(Map<String, Feature> features) {
+    static void ensurePatternsAllowSuffix(Map<String, Feature> features) {
         String suffixPattern = "*" + UPGRADED_INDEX_SUFFIX;
-        final List<String> descriptorsWithNoRoomForSuffix = features.values()
+        final List<String> descriptorsWithNoRoomForSuffix = features.entrySet()
             .stream()
             .flatMap(
-                feature -> feature.getIndexDescriptors()
+                feature -> feature.getValue().getIndexDescriptors()
                     .stream()
                     // The below filter & map are inside the enclosing flapMap so we have access to both the feature and the descriptor
                     .filter(descriptor -> overlaps(descriptor.getIndexPattern(), suffixPattern) == false)
@@ -115,7 +115,7 @@ public class SystemIndices {
                         descriptor -> new ParameterizedMessage(
                             "pattern [{}] from feature [{}]",
                             descriptor.getIndexPattern(),
-                            feature.getName()
+                            feature.getKey()
                         ).getFormattedMessage()
                     )
             )

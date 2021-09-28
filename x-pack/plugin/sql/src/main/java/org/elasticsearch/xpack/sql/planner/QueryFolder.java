@@ -724,7 +724,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                     // TODO: might need to validate whether the target field or group actually exist
                     if (group != null && group != Aggs.IMPLICIT_GROUP_KEY) {
-                        qContainer = qContainer.updateGroup(group.with(direction));
+                        qContainer = qContainer.updateGroup(group.with(direction, missing));
                     }
 
                     // field

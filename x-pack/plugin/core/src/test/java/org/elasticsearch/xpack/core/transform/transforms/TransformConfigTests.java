@@ -733,7 +733,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertThat(
             deprecatedConfig.checkForDeprecations(xContentRegistry()),
             equalTo(
-                List.of(
+                org.elasticsearch.core.List.of(
                     new DeprecationIssue(
                         Level.WARNING,
                         "Transform [" + id + "] uses deprecated max_page_search_size",

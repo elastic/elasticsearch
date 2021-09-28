@@ -52,6 +52,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Exponent;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.LenientlyParsedOutputAggregator;
@@ -184,11 +186,23 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             new ParseField(TextEmbeddingConfig.NAME), TextEmbeddingConfig::fromXContentLenient));
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, new ParseField(TextEmbeddingConfig.NAME),
             TextEmbeddingConfig::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedInferenceConfig.class,
+            new ParseField(ZeroShotClassificationConfig.NAME), ZeroShotClassificationConfig::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class,
+            new ParseField(ZeroShotClassificationConfig.NAME),
+            ZeroShotClassificationConfig::fromXContentStrict));
 
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, ClassificationConfigUpdate.NAME,
             ClassificationConfigUpdate::fromXContentStrict));
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, RegressionConfigUpdate.NAME,
             RegressionConfigUpdate::fromXContentStrict));
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                InferenceConfigUpdate.class,
+                new ParseField(ZeroShotClassificationConfigUpdate.NAME),
+                ZeroShotClassificationConfigUpdate::fromXContentStrict
+            )
+        );
 
         // Inference models
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceModel.class, Ensemble.NAME, EnsembleInferenceModel::fromXContent));
@@ -288,6 +302,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             PassThroughConfig.NAME, PassThroughConfig::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
             TextEmbeddingConfig.NAME, TextEmbeddingConfig::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
+            ZeroShotClassificationConfig.NAME, ZeroShotClassificationConfig::new));
 
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
             ClassificationConfigUpdate.NAME.getPreferredName(), ClassificationConfigUpdate::new));
@@ -297,6 +313,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             ResultsFieldUpdate.NAME, ResultsFieldUpdate::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
             EmptyConfigUpdate.NAME, EmptyConfigUpdate::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
+            ZeroShotClassificationConfigUpdate.NAME, ZeroShotClassificationConfigUpdate::new));
 
         // Location
         namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModelLocation.class,

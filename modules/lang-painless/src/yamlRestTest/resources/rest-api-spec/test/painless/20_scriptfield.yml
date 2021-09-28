@@ -156,7 +156,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            source: "doc.date.value.dayOfWeekEnum.value"
+                            source: "doc.date.value.dayOfWeek.value"
 
     - match: { hits.hits.0.fields.bar.0: 7}
 
@@ -169,7 +169,7 @@ setup:
           script_fields:
             bar:
               script:
-                source: "field('date').getValue(new Date()).dayOfWeekEnum.value"
+                source: "field('date').getValue(new Date()).dayOfWeek.value"
 
   - match: { hits.hits.0.fields.bar.0: 7}
 
@@ -185,7 +185,7 @@ setup:
                             source: >
                               StringBuilder b = new StringBuilder();
                               for (def date : doc.dates) {
-                                b.append(" ").append(date.getDayOfWeekEnum().value);
+                                b.append(" ").append(date.getDayOfWeek().value);
                               }
                               return b.toString().trim()
 
@@ -203,7 +203,7 @@ setup:
                 source: >
                   StringBuilder b = new StringBuilder();
                   for (def date : field('dates').getValues()) {
-                    b.append(" ").append(date.getDayOfWeekEnum().value);
+                    b.append(" ").append(date.getDayOfWeek().value);
                   }
                   return b.toString().trim()
 

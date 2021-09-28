@@ -1507,7 +1507,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testSortMetaField() throws Exception {
         client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true))
+            .setPersistentSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true))
             .get();
         try {
             createIndex("test");
@@ -1540,7 +1540,7 @@ public class FieldSortIT extends ESIntegTestCase {
         } finally {
             // unset cluster setting
             client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
+                .setPersistentSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
                 .get();
         }
     }

@@ -66,8 +66,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     @After
     public void cleanup() throws Exception {
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull("*"))
-            .setTransientSettings(Settings.builder().putNull("*")));
+            .setPersistentSettings(Settings.builder().putNull("*")));
     }
 
     public void testSimpleScrollQueryThenFetch() throws Exception {

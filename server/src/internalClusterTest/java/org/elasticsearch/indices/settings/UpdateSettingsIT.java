@@ -136,42 +136,18 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .put("cluster.acc.test.pw", "asdf")).get());
         assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
-        iae = expectThrows(IllegalArgumentException.class, () ->
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put("cluster.acc.test.pw", "asdf")).get());
-        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+            .put("cluster.acc.test.pw", "asdf")
+            .put("cluster.acc.test.user", "asdf")).get();
 
         iae = expectThrows(IllegalArgumentException.class, () ->
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put("cluster.acc.test.pw", "asdf")).setPersistentSettings(Settings.builder()
-            .put("cluster.acc.test.user", "asdf")).get());
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+                .putNull("cluster.acc.test.user")).get());
         assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
-        if (randomBoolean()) {
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put("cluster.acc.test.pw", "asdf")
-                .put("cluster.acc.test.user", "asdf")).get();
-            iae = expectThrows(IllegalArgumentException.class, () ->
-                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                    .putNull("cluster.acc.test.user")).get());
-            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .putNull("cluster.acc.test.pw")
-                .putNull("cluster.acc.test.user")).get();
-        } else {
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-                .put("cluster.acc.test.pw", "asdf")
-                .put("cluster.acc.test.user", "asdf")).get();
-
-            iae = expectThrows(IllegalArgumentException.class, () ->
-                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-                    .putNull("cluster.acc.test.user")).get());
-            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
-
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-                .putNull("cluster.acc.test.pw")
-                .putNull("cluster.acc.test.user")).get();
-        }
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+            .putNull("cluster.acc.test.pw")
+            .putNull("cluster.acc.test.user")).get();
 
     }
 

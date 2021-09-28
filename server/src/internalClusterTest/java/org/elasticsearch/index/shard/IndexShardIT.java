@@ -588,7 +588,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testCircuitBreakerIncrementedByIndexShard() throws Exception {
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("network.breaker.inflight_requests.overhead", 0.0)).get();
+                .setPersistentSettings(Settings.builder().put("network.breaker.inflight_requests.overhead", 0.0)).get();
 
         // Generate a couple of segments
         client().prepareIndex("test", "_doc", "1")
@@ -611,7 +611,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         checkAccountingBreaker();
 
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("indices.breaker.total.limit", "1kb")).get();
+                .setPersistentSettings(Settings.builder().put("indices.breaker.total.limit", "1kb")).get();
 
         // Test that we're now above the parent limit due to the segments
         Exception e = expectThrows(Exception.class,
@@ -622,7 +622,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertThat(e.getCause().getMessage(), containsString("[parent] Data too large, data for [preallocate[aggregations]]"));
 
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
+                .setPersistentSettings(Settings.builder()
                         .putNull("indices.breaker.total.limit")
                         .putNull("network.breaker.inflight_requests.overhead")).get();
 

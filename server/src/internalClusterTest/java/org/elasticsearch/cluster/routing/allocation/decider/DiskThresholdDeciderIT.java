@@ -136,7 +136,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         refreshDiskUsage();
 
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())
                 .build())
             .get());
@@ -150,7 +150,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertBusy(() -> assertThat(getShardRoutings(dataNode0Id, indexName), empty()));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey())
                 .build())
             .get());

@@ -205,7 +205,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final Settings settings = Settings.builder()
             .put("cluster.metadata.display_name", "my cluster")
             .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         whenExportersAreReady(() -> {
             final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
@@ -597,7 +597,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                 .put("xpack.monitoring.exporters._local.enabled", true)
                 .build();
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         assertBusy(() -> assertThat("[_local] exporter not enabled yet", getMonitoringUsageExportersDefined(), is(true)));
 
@@ -625,7 +625,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                 .putNull("cluster.metadata.display_name")
                 .build();
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         assertBusy(() -> assertThat("Exporters are not yet stopped", getMonitoringUsageExportersDefined(), is(false)));
         assertBusy(() -> {

@@ -88,13 +88,13 @@ public class EquivalenceIT extends ESIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Collections.singletonMap("search.max_buckets", Integer.MAX_VALUE))
+            .setPersistentSettings(Collections.singletonMap("search.max_buckets", Integer.MAX_VALUE))
             .get();
     }
 
     @After
     private void cleanupMaxBuckets() {
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Collections.singletonMap("search.max_buckets", null)).get();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Collections.singletonMap("search.max_buckets", null)).get();
     }
 
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported

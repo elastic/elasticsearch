@@ -57,7 +57,7 @@ public class CloneIndexIT extends ESIntegTestCase {
 
         // disable rebalancing to be able to capture the right stats. balancing can move the target primary
         // making it hard to pin point the source shards.
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"
         )).get();
         try {
@@ -105,7 +105,7 @@ public class CloneIndexIT extends ESIntegTestCase {
             assertEquals(version, target.getIndexToSettings().get("target").getAsVersion("index.version.created", null));
         } finally {
             // clean up
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(
                 EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String)null
             )).get();
         }

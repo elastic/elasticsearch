@@ -312,7 +312,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable",
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable",
             "none")).get();
         client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(indexSettings()).get();
         internalCluster().fullRestart();

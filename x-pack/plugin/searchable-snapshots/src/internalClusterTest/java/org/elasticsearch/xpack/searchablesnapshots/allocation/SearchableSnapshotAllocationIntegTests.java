@@ -104,7 +104,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(
+                .setPersistentSettings(
                     Settings.builder()
                         .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), allocation.name())
                         .build()

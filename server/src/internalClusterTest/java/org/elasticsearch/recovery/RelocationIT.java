@@ -406,7 +406,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> stopping replica assignment");
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
+                .setPersistentSettings(Settings.builder()
                         .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");

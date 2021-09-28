@@ -102,7 +102,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
         ClusterUpdateSettingsResponse response1 = client().admin().cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(transientSettings)
+                .setPersistentSettings(transientSettings)
                 .get();
 
         assertAcked(response1);
@@ -133,6 +133,6 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
     @After
     public void cleanup() throws Exception {
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull(SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey())));
+            .setPersistentSettings(Settings.builder().putNull(SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey())));
     }
 }

@@ -108,7 +108,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
             .put("xpack.monitoring.exporters._http.ssl.verification_mode", "full")
             .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
                 .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
     }
 
     @After
@@ -123,7 +123,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
             .putNull("xpack.monitoring.exporters._http.ssl.verification_mode")
             .putNull("xpack.monitoring.exporters._http.ssl.certificate_authorities")
             .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
     }
 
     private boolean getMonitoringUsageExportersDefined() throws Exception {

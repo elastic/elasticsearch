@@ -364,6 +364,6 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()).build() :
             Settings.builder().put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), value).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
     }
 }

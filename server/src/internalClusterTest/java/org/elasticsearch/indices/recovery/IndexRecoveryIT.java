@@ -214,7 +214,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     private void slowDownRecovery(ByteSizeValue shardSize) {
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
         assertTrue(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
+                .setPersistentSettings(Settings.builder()
                                 // one chunk per sec..
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
                                 // small chunks
@@ -224,7 +224,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     private void restoreRecoverySpeed() {
         assertTrue(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
+                .setPersistentSettings(Settings.builder()
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20mb")
                                 .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
                 ).get().isAcknowledged());

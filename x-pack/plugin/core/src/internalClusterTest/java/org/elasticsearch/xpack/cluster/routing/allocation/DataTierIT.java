@@ -259,7 +259,7 @@ public class DataTierIT extends ESIntegTestCase {
 
         // Exclude all data_cold nodes
         client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_cold")
                 .build())
             .get();

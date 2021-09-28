@@ -75,7 +75,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .putNull("logger.org.elasticsearch.xpack.ml.datafeed")
                 .build()).get();
         cleanUp();
@@ -342,7 +342,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .put("logger.org.elasticsearch.xpack.ml.datafeed", "TRACE")
                 .build()).get();
         String indexName = "stop-restart-data";

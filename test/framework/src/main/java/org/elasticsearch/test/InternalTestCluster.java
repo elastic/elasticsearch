@@ -2288,7 +2288,7 @@ public final class InternalTestCluster extends TestCluster {
             // there should be at least one master to update
             logger.debug("updating min_master_nodes to [{}]", minMasterNodes);
             try {
-                assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+                assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
                     Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes)
                 ));
             } catch (Exception e) {

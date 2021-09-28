@@ -35,7 +35,6 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
                         .cluster()
                         .prepareUpdateSettings()
                         .setPersistentSettings(Settings.builder().putNull("*"))
-                        .setTransientSettings(Settings.builder().putNull("*"))
                         .get();
     }
 
@@ -82,10 +81,6 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
 
     public void testUpgradePersistentSettingsOnUpdate() {
         runUpgradeSettingsOnUpdateTest((settings, builder) -> builder.setPersistentSettings(settings), Metadata::persistentSettings);
-    }
-
-    public void testUpgradeTransientSettingsOnUpdate() {
-        runUpgradeSettingsOnUpdateTest((settings, builder) -> builder.setTransientSettings(settings), Metadata::transientSettings);
     }
 
     private void runUpgradeSettingsOnUpdateTest(

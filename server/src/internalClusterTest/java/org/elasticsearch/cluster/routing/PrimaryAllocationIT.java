@@ -499,8 +499,10 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         String timeout = randomFrom("0s", "1s", "2s");
         assertAcked(
             client(master).admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
-                .setPersistentSettings(Settings.builder().put("indices.replication.retry_timeout", timeout)).get());
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put("indices.replication.retry_timeout", timeout)
+                        .put("cluster.routing.allocation.enable", "none")).get());
         logger.info("--> Indexing with gap in seqno to ensure that some operations will be replayed in resync");
         long numDocs = scaledRandomIntBetween(5, 50);
         for (int i = 0; i < numDocs; i++) {
@@ -536,7 +538,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         }, 1, TimeUnit.MINUTES);
         assertAcked(
             client(master).admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "all")).get());
+                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "all")).get());
         partition.stopDisrupting();
         partition.ensureHealthy(internalCluster());
         logger.info("--> stop disrupting network and re-enable allocation");

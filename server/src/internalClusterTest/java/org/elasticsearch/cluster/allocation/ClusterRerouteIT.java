@@ -328,7 +328,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         Settings newSettings = Settings.builder()
                 .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
                 .build();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(newSettings).execute().actionGet();
 
         logger.info("--> starting a second node");
         String node_2 = internalCluster().startNode(commonSettings);

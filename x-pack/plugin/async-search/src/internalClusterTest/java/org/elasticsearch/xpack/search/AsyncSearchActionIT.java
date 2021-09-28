@@ -470,7 +470,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
         int limit = 1000; // is not big enough to store the response
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
+        updateSettingsRequest.persistentSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         ExecutionException e = expectThrows(ExecutionException.class,
@@ -480,7 +480,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting."));
 
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
+        updateSettingsRequest.persistentSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 }

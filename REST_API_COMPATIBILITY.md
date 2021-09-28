@@ -1,6 +1,6 @@
 #  REST API compatibility developers guide
 
-REST API compatibility is intended to minimize the impact for breaking changes applied to the REST API. Compatibility is implemented is a best effort to strike a balance between preserving the REST API contract across major versions while still allowing for breaking changes. URL paths, parameters, HTTP verbs, request bodies and response bodies are all covered by REST API compatibility.
+REST API compatibility is intended to minimize the impact for breaking changes applied to the REST API. Compatibility is implemented in a best effort to strike a balance between preserving the REST API contract across major versions while still allowing for breaking changes. URL paths, parameters, HTTP verbs, request bodies and response bodies are all covered by REST API compatibility.
 
 ### Example use case
 

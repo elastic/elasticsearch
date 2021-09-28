@@ -143,8 +143,13 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
         byte[] loadedTemplate = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(MonitoredSystem.ES).loadBytes();
-        Map<String, Object> template =
-            XContentHelper.convertToMap(XContentType.JSON.xContent(), loadedTemplate, 0, loadedTemplate.length, false);
+        Map<String, Object> template = XContentHelper.convertToMap(
+            XContentType.JSON.xContent(),
+            loadedTemplate,
+            0,
+            loadedTemplate.length,
+            false
+        );
         Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues.extractValue(
             "mappings._doc.properties.enrich_executing_policy_stats.properties",
             template

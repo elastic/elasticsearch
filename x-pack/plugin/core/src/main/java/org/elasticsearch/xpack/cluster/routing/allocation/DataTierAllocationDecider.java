@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -49,7 +50,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     private static final DataTierValidator VALIDATOR = new DataTierValidator();
     public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = new Setting<>(new Setting.SimpleKey(INDEX_ROUTING_PREFER),
-        DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR, Property.Dynamic, Property.IndexScope);
 
     private static void validateTierSetting(String setting) {
         if (Strings.hasText(setting)) {

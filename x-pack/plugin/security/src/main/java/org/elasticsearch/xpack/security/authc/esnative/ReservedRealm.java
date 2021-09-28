@@ -202,7 +202,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-
     public void users(ActionListener<Collection<User>> listener) {
         if (realmEnabled == false) {
             listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());

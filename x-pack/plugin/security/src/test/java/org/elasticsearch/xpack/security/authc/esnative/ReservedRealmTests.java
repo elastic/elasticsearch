@@ -130,7 +130,18 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testAuthenticationDisabled() throws Throwable {
-        Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        if (randomBoolean()) {
+            mockSecureSettings.setString("bootstrap.password", "foobar");
+        }
+        if (randomBoolean()) {
+            mockSecureSettings.setString("autoconfiguration.password_hash",
+                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("barbaz".toCharArray()))));
+        }
+        Settings settings = Settings.builder()
+            .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
+            .setSecureSettings(mockSecureSettings)
+            .build();
         final ReservedRealm reservedRealm =
             new ReservedRealm(mock(Environment.class), settings, usersStore,
                 new AnonymousUser(settings), threadPool);
@@ -197,11 +208,23 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testLookup() throws Exception {
-        final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-                new AnonymousUser(Settings.EMPTY), threadPool);
         final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
+        // auto conf and bootstrap passwords only influence the elastic user
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        if (randomBoolean()) {
+            mockSecureSettings.setString("bootstrap.password", "foobar");
+        }
+        if (randomBoolean()) {
+            mockSecureSettings.setString("autoconfiguration.password_hash",
+                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("barbaz".toCharArray()))));
+        }
+        final ReservedRealm reservedRealm =
+            new ReservedRealm(mock(Environment.class),
+                Settings.builder()
+                    .setSecureSettings(mockSecureSettings)
+                    .build(), usersStore,
+                new AnonymousUser(Settings.EMPTY), threadPool);
 
         PlainActionFuture<User> listener = new PlainActionFuture<>();
         reservedRealm.doLookupUser(principal, listener);
@@ -217,7 +240,18 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testLookupDisabled() throws Exception {
-        Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        if (randomBoolean()) {
+            mockSecureSettings.setString("bootstrap.password", "foobar");
+        }
+        if (randomBoolean()) {
+            mockSecureSettings.setString("autoconfiguration.password_hash",
+                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("barbaz".toCharArray()))));
+        }
+        Settings settings = Settings.builder()
+            .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
+            .setSecureSettings(mockSecureSettings)
+            .build();
         final ReservedRealm reservedRealm =
             new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
                 threadPool);
@@ -232,9 +266,18 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testLookupDisabledAnonymous() throws Exception {
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        if (randomBoolean()) {
+            mockSecureSettings.setString("bootstrap.password", "foobar");
+        }
+        if (randomBoolean()) {
+            mockSecureSettings.setString("autoconfiguration.password_hash",
+                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("barbaz".toCharArray()))));
+        }
         Settings settings = Settings.builder()
             .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
             .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
+            .setSecureSettings(mockSecureSettings)
             .build();
         final ReservedRealm reservedRealm =
             new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
@@ -245,6 +288,7 @@ public class ReservedRealmTests extends ESTestCase {
         PlainActionFuture<User> listener = new PlainActionFuture<>();
         reservedRealm.doLookupUser(principal, assertListenerIsOnlyCalledOnce(listener));
         assertThat(listener.actionGet(), equalTo(expectedUser));
+        verifyZeroInteractions(usersStore);
     }
 
     public void testLookupThrows() throws Exception {
@@ -301,9 +345,18 @@ public class ReservedRealmTests extends ESTestCase {
 
     public void testGetUsersDisabled() {
         final boolean anonymousEnabled = randomBoolean();
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        if (randomBoolean()) {
+            mockSecureSettings.setString("bootstrap.password", "foobar");
+        }
+        if (randomBoolean()) {
+            mockSecureSettings.setString("autoconfiguration.password_hash",
+                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("barbaz".toCharArray()))));
+        }
         Settings settings = Settings.builder()
             .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
             .put(AnonymousUser.ROLES_SETTING.getKey(), anonymousEnabled ? "user" : "")
+            .setSecureSettings(mockSecureSettings)
             .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser,
@@ -318,26 +371,38 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testFailedAuthentication() throws Exception {
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        if (randomBoolean()) {
+            mockSecureSettings.setString("bootstrap.password", "foobar");
+        }
+        if (randomBoolean()) {
+            mockSecureSettings.setString("autoconfiguration.password_hash",
+                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("barbaz".toCharArray()))));
+        }
         SecureString password = new SecureString("password".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
         char[] hash = hasher.hash(password);
+        User reservedUser = randomReservedUser(randomBoolean());
+        String principal = reservedUser.principal();
         ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
-        mockGetAllReservedUserInfo(usersStore, Collections.singletonMap("elastic", userInfo));
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
+        mockGetAllReservedUserInfo(usersStore, Collections.singletonMap(principal, userInfo));
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class),
+            Settings.builder().setSecureSettings(mockSecureSettings).build(),
+            usersStore,
             new AnonymousUser(Settings.EMPTY), threadPool);
 
         if (randomBoolean()) {
             PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
 
-            reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, password), future);
+            reservedRealm.authenticate(new UsernamePasswordToken(principal, password), future);
             User user = future.actionGet().getUser();
-            assertEquals(new ElasticUser(true), user);
+            assertEquals(reservedUser, user);
         }
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
-        reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecureString("foobar".toCharArray())), future);
-        assertFailedAuthentication(future, ElasticUser.NAME);
+        reservedRealm.authenticate(new UsernamePasswordToken(principal, new SecureString("foobar".toCharArray())), future);
+        assertFailedAuthentication(future, principal);
     }
 
     private void assertFailedAuthentication(PlainActionFuture<AuthenticationResult> future, String principal) throws Exception {
@@ -391,8 +456,7 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
                 new SecureString("bazbar".toCharArray())),
             listener);
-        result = listener.get();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
+        assertFailedAuthentication(listener, ElasticUser.NAME);
     }
 
     public void testAutoconfigElasticPasswordWorksWhenElasticUserIsMissing() throws Exception {
@@ -433,11 +497,9 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
                 new SecureString("wrong password".toCharArray())),
             listener);
-        result = listener.get();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
+        assertFailedAuthentication(listener, ElasticUser.NAME);
         verify(usersStore, times(2)).getReservedUserInfo(eq("elastic"), anyActionListener());
         verify(usersStore).createElasticUser(any(char[].class), anyActionListener());
-        verifyNoMoreInteractions(usersStore);
     }
 
     public void testAutoconfigElasticPasswordAuthnErrorWhenHashPromotionFails() throws Exception {
@@ -478,6 +540,10 @@ public class ReservedRealmTests extends ESTestCase {
     public void testBootstrapElasticPasswordFailsOnceElasticUserExists() throws Exception {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar");
+        if (randomBoolean()) {
+            mockSecureSettings.setString("autoconfiguration.password_hash",
+                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("barbaz".toCharArray()))));
+        }
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
@@ -497,6 +563,10 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
             mockSecureSettings.getString("bootstrap.password")), listener);
         assertFailedAuthentication(listener, "elastic");
+        listener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
+            new SecureString("barbaz".toCharArray())), listener);
+        assertFailedAuthentication(listener, "elastic");
         // now try with the real password
         listener = new PlainActionFuture<>();
         reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(), password), listener);
@@ -504,10 +574,40 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
     }
 
+    public void testAutoconfigPasswordHashFailsOnceElasticUserExists() throws Exception {
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("autoconfiguration.password_hash",
+            new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("auto_password".toCharArray()))));
+        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+            new AnonymousUser(Settings.EMPTY), threadPool);
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        // Mocked users store is initiated with default hashing algorithm
+        final Hasher hasher = Hasher.resolve("bcrypt");
+        doAnswer(getAnswer(true, new SecureString("password".toCharArray()), hasher)).when(usersStore)
+            .getReservedUserInfo(eq("elastic"), anyActionListener());
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
+            new SecureString("password".toCharArray())), listener);
+        final AuthenticationResult result = listener.get();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        // but auto config password does not work
+        listener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
+            new SecureString("auto_password".toCharArray())), listener);
+        assertFailedAuthentication(listener, "elastic");
+        verify(usersStore, times(2)).getReservedUserInfo(eq("elastic"), anyActionListener());
+        verify(usersStore, times(0)).createElasticUser(any(char[].class), anyActionListener());
+    }
+
     public void testNonElasticUsersCannotUseBootstrapPassword() throws Exception {
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();
         final String password = randomAlphaOfLengthBetween(8, 24);
         mockSecureSettings.setString("bootstrap.password", password);
+        if (randomBoolean()) {
+            mockSecureSettings.setString("autoconfiguration.password_hash",
+                new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("barbaz".toCharArray()))));
+        }
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
@@ -524,6 +624,28 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
         final AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
+    }
+
+    public void testNonElasticUsersCannotUseAutoconfigPasswordHash() throws Exception {
+        final MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        final String password = randomAlphaOfLengthBetween(8, 24);
+        mockSecureSettings.setString("autoconfiguration.password_hash",
+            new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString(password.toCharArray()))));
+        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+            new AnonymousUser(Settings.EMPTY), threadPool);
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+
+        final String principal = randomFrom(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
+            APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        doAnswer((i) -> {
+            ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
+            callback.onResponse(null);
+            return null;
+        }).when(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, new SecureString(password.toCharArray())), listener);
+        assertFailedAuthentication(listener, principal);
     }
 
     private User randomReservedUser(boolean enabled) {

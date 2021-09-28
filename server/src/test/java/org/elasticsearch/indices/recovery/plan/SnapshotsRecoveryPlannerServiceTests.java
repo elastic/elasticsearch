@@ -32,6 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
 import org.elasticsearch.snapshots.Snapshot;
@@ -57,6 +58,7 @@ import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.index.engine.Engine.HISTORY_UUID_KEY;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -205,7 +207,16 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             final org.apache.lucene.util.Version luceneVersion;
             if (compatibleVersion) {
                 snapshotVersion = randomBoolean() ? null : randomCompatibleVersion(random(), Version.CURRENT);
-                luceneVersion = randomCompatibleVersion(random(), Version.CURRENT).luceneVersion;
+                // If snapshotVersion is not present,
+                // then lucene version must be < RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION
+                if (snapshotVersion == null) {
+                    luceneVersion = randomVersionBetween(random(),
+                        Version.V_7_0_0,
+                        RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION
+                    ).luceneVersion;
+                } else {
+                    luceneVersion = randomCompatibleVersion(random(), Version.CURRENT).luceneVersion;
+                }
             } else {
                 snapshotVersion = randomBoolean() ? null : Version.fromId(Integer.MAX_VALUE);
                 luceneVersion = org.apache.lucene.util.Version.parse("255.255.255");

@@ -1219,7 +1219,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
     }
 
-    public void testSeqNoBasedRecoveryCleanSnapshotFilesAndRecoversFromFallbackPlanAfterAFailure() throws Exception {
+    public void testSeqNoBasedRecoveryRecoversFromFallbackPlanAfterAFailure() throws Exception {
         try (Store store = newStore(createTempDir("source"), false)) {
             IndexShard shard = mock(IndexShard.class);
             when(shard.store()).thenReturn(store);
@@ -1242,6 +1242,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             List<RecoverSnapshotFileResponse> inFlightRecoverSnapshotFileRequests = new CopyOnWriteArrayList<>();
             AtomicBoolean retryingUsingFallbackPlan = new AtomicBoolean();
             AtomicBoolean snapshotFileRecoveryFailed = new AtomicBoolean();
+
+            AtomicInteger receiveFileInfoFromSnapshotCalls = new AtomicInteger();
+            AtomicInteger receiveFileInfoFromSourceCalls = new AtomicInteger();
             Set<StoreFileMetadata> filesRecoveredFromSource = ConcurrentCollections.newConcurrentSet();
             TestRecoveryTargetHandler recoveryTarget = new Phase1RecoveryTargetHandler() {
                 @Override
@@ -1257,12 +1260,16 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     if (snapshotFileRecoveryFailed.get()) {
                         filesToRecover = fallbackPlan.getSourceFilesToRecover();
                         retryingUsingFallbackPlan.set(true);
+                        assertThat(receiveFileInfoFromSnapshotCalls.get(), is(equalTo(1)));
+                        assertThat(receiveFileInfoFromSourceCalls.incrementAndGet(), is(equalTo(1)));
                     } else {
                         filesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover()
                             .getSnapshotFiles()
                             .stream()
                             .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
                             .collect(Collectors.toList());
+                        assertThat(receiveFileInfoFromSnapshotCalls.incrementAndGet(), is(equalTo(1)));
+                        assertThat(receiveFileInfoFromSourceCalls.get(), is(equalTo(0)));
                     }
 
                     for (int i = 0; i < phase1FileNames.size(); i++) {
@@ -1371,6 +1378,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
             future.get();
 
+            assertThat(retryingUsingFallbackPlan.get(), is(equalTo(true)));
             assertThat(filesRecoveredFromSource.size(), is(equalTo(fallbackPlan.getSourceFilesToRecover().size())));
             for (StoreFileMetadata fileRecoveredFromSource : filesRecoveredFromSource) {
                 assertThat(containsFile(fallbackPlan.getSourceFilesToRecover(), fileRecoveredFromSource), is(equalTo(true)));

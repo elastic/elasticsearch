@@ -1722,6 +1722,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
                 + " is not found in commit";
         final org.apache.lucene.util.Version commitLuceneVersion = segmentCommitInfos.getCommitLuceneVersion();
+        // This relies in the previous minor having another lucene version 
         assert commitLuceneVersion.onOrAfter(RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion) == false ||
             userData.containsKey(Engine.ES_VERSION) && Version.fromString(userData.get(Engine.ES_VERSION)).onOrBefore(Version.CURRENT) :
             "commit point has an invalid ES_VERSION value. commit point lucene version [" + commitLuceneVersion + "]," +

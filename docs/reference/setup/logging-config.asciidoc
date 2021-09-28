@@ -234,6 +234,17 @@ The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.
 ---------------------------
 // NOTCONSOLE
 
+Deprecation logs are indexed into `.logs-deprecation.elasticsearch-default` data stream by default.
+You can disable deprecation log indexing by changing a
+`cluster.deprecation_indexing.enabled` setting to false.
+
+==== Deprecation logs throttling
+Deprecation logs are deduplicated based on a deprecated feature key
+and x-opaque-id so that if a feature is repeatedly used, it will not overload the deprecation logs.
+This applies to both indexed deprecation logs and logs emitted to log files.
+You can disable the use of `x-opaque-id` in throttling by changing
+`cluster.deprecation_indexing.x_opaque_id_used.enabled` to false
+
 [discrete]
 [[json-logging]]
 === JSON log format

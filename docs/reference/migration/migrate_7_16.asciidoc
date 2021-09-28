@@ -41,7 +41,7 @@ logging>>.
 *Details* +
 The `xpack.monitoring.exporters.*.use_ingest` property has been deprecated in 7.16.0 and
 will be removed in 8.0.0. This parameter controls the creation of pipelines for monitoring
-indices that currently have no function.
+indices. These pipelines currently have no function.
 
 *Impact* +
 Discontinue the use of the `xpack.monitoring.exporters.*.use_ingest` setting.

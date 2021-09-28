@@ -112,9 +112,9 @@ final class Bootstrap {
         // mlockall if requested
         if (mlockAll) {
             if (Constants.WINDOWS) {
-                Natives.tryVirtualLock();
+               Natives.tryVirtualLock();
             } else {
-                Natives.tryMlockall();
+               Natives.tryMlockall();
             }
         }
 
@@ -169,11 +169,10 @@ final class Bootstrap {
         }
 
         initializeNatives(
-            environment.tmpFile(),
-            BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
-            true, // always install system call filters, not user-configurable since 8.0.0
-            BootstrapSettings.CTRLHANDLER_SETTING.get(settings)
-        );
+                environment.tmpFile(),
+                BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
+                true, // always install system call filters, not user-configurable since 8.0.0
+                BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 
         // initialize probes before the security manager is installed
         initializeProbes();
@@ -187,9 +186,8 @@ final class Bootstrap {
                         LoggerContext context = (LoggerContext) LogManager.getContext(false);
                         Configurator.shutdown(context);
                         if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                            throw new IllegalStateException(
-                                "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
-                            );
+                            throw new IllegalStateException("Node didn't stop within 10 seconds. " +
+                                    "Any outstanding requests or tasks might get killed.");
                         }
                     } catch (IOException ex) {
                         throw new ElasticsearchException("failed to stop node", ex);
@@ -223,9 +221,7 @@ final class Bootstrap {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final BootstrapContext context,
-                final BoundTransportAddress boundTransportAddress,
-                List<BootstrapCheck> checks
-            ) throws NodeValidationException {
+                final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
                 BootstrapChecks.check(context, boundTransportAddress, checks);
             }
         };
@@ -234,11 +230,10 @@ final class Bootstrap {
     // visible for tests
 
     private static Environment createEnvironment(
-        final Path pidFile,
-        final SecureSettings secureSettings,
-        final Settings initialSettings,
-        final Path configPath
-    ) {
+            final Path pidFile,
+            final SecureSettings secureSettings,
+            final Settings initialSettings,
+            final Path configPath) {
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
             builder.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile);
@@ -247,13 +242,9 @@ final class Bootstrap {
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(
-            builder.build(),
-            Collections.emptyMap(),
-            configPath,
-            // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
-            () -> System.getenv("HOSTNAME")
-        );
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath,
+                // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
+                () -> System.getenv("HOSTNAME"));
     }
 
     private void start() throws NodeValidationException {
@@ -278,8 +269,11 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    static void init(final boolean foreground, final Path pidFile, final boolean quiet, final Environment initialEnv)
-        throws BootstrapException, NodeValidationException, UserException {
+    static void init(
+            final boolean foreground,
+            final Path pidFile,
+            final boolean quiet,
+            final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init(getSysOutReference());
@@ -307,6 +301,7 @@ final class Bootstrap {
                 throw new BootstrapException(e);
             }
         }
+
 
         try {
             final boolean closeStandardStreams = (foreground == false) || quiet;
@@ -411,7 +406,7 @@ final class Bootstrap {
 
     @SuppressForbidden(reason = "System#out")
     private static Runnable getSysOutCloser() {
-        return System.out::close;
+       return System.out::close;
     }
 
     @SuppressForbidden(reason = "System#err")
@@ -421,13 +416,8 @@ final class Bootstrap {
 
     private static void checkLucene() {
         if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
-            throw new AssertionError(
-                "Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                    + Version.CURRENT.luceneVersion
-                    + "]  but the current lucene version is ["
-                    + org.apache.lucene.util.Version.LATEST
-                    + "]"
-            );
+            throw new AssertionError("Lucene version mismatch this version of Elasticsearch requires lucene version ["
+                + Version.CURRENT.luceneVersion + "]  but the current lucene version is [" + org.apache.lucene.util.Version.LATEST + "]");
         }
     }
 

@@ -90,6 +90,34 @@ public class RemovePluginAction implements RemovePluginProvider {
         }
     }
 
+    private void ensurePluginsNotUsedByOtherPlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
+        // First make sure nothing extends this plugin
+        final Map<String, List<String>> usedBy = new HashMap<>();
+        Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
+        for (PluginsService.Bundle bundle : bundles) {
+            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
+                for (PluginDescriptor plugin : plugins) {
+                    String pluginId = plugin.getId();
+                    if (extendedPlugin.equals(pluginId)) {
+                        usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(pluginId);
+                    }
+                }
+            }
+        }
+        if (usedBy.isEmpty()) {
+            return;
+        }
+
+        final StringJoiner message = new StringJoiner("\n");
+        message.add("Cannot remove plugins because the following are extended by other plugins:");
+        usedBy.forEach((key, value) -> {
+            String s = "\t" + key + " used by " + value;
+            message.add(s);
+        });
+
+        throw new UserException(PLUGIN_STILL_USED, message.toString());
+    }
+
     private void checkCanRemove(PluginDescriptor plugin) throws UserException {
         String pluginId = plugin.getId();
         final Path pluginDir = env.pluginsFile().resolve(pluginId);
@@ -195,33 +223,5 @@ public class RemovePluginAction implements RemovePluginProvider {
         pluginPaths.add(removing);
 
         IOUtils.rm(pluginPaths.toArray(new Path[0]));
-    }
-
-    private void ensurePluginsNotUsedByOtherPlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
-        // First make sure nothing extends this plugin
-        final Map<String, List<String>> usedBy = new HashMap<>();
-        Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
-        for (PluginsService.Bundle bundle : bundles) {
-            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
-                for (PluginDescriptor plugin : plugins) {
-                    String pluginId = plugin.getId();
-                    if (extendedPlugin.equals(pluginId)) {
-                        usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(pluginId);
-                    }
-                }
-            }
-        }
-        if (usedBy.isEmpty()) {
-            return;
-        }
-
-        final StringJoiner message = new StringJoiner("\n");
-        message.add("Cannot remove plugins because the following are extended by other plugins:");
-        usedBy.forEach((key, value) -> {
-            String s = "\t" + key + " used by " + value;
-            message.add(s);
-        });
-
-        throw new UserException(PLUGIN_STILL_USED, message.toString());
     }
 }

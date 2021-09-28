@@ -130,7 +130,7 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             settings.put("xpack.monitoring.exporters._local.enabled", true);
 
             awaitCallApi("cluster.put_settings", emptyMap(),
-                    singletonList(singletonMap("transient", settings)),
+                    singletonList(singletonMap("persistent", settings)),
                     response -> {
                         Object acknowledged = response.evaluate("acknowledged");
                         return acknowledged != null && (Boolean) acknowledged;
@@ -156,7 +156,7 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             settings.put("xpack.monitoring.exporters._local.enabled", null);
 
             awaitCallApi("cluster.put_settings", emptyMap(),
-                    singletonList(singletonMap("transient", settings)),
+                    singletonList(singletonMap("persistent", settings)),
                     response -> {
                         Object acknowledged = response.evaluate("acknowledged");
                         return acknowledged != null && (Boolean) acknowledged;

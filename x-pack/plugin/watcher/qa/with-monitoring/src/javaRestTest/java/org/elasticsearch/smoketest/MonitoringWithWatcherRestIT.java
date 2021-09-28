@@ -37,7 +37,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
     public void cleanExporters() throws Exception {
         Request cleanupSettingsRequest = new Request("PUT", "/_cluster/settings");
         cleanupSettingsRequest.setJsonEntity(Strings.toString(jsonBuilder().startObject()
-                .startObject("transient")
+                .startObject("persistent")
                     .nullField("xpack.monitoring.exporters.*")
                 .endObject().endObject()));
         adminClient().performRequest(cleanupSettingsRequest);
@@ -50,7 +50,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
         Request request = new Request("PUT", "/_cluster/settings");
         request.setJsonEntity(Strings.toString(jsonBuilder().startObject()
-                .startObject("transient")
+                .startObject("persistent")
                     .field("xpack.monitoring.exporters.my_local_exporter.type", "local")
                     .field("xpack.monitoring.exporters.my_local_exporter.cluster_alerts.management.enabled", true)
                 .endObject().endObject()));
@@ -67,7 +67,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
         Request request = new Request("PUT", "/_cluster/settings");
         request.setJsonEntity(Strings.toString(jsonBuilder().startObject()
-                .startObject("transient")
+                .startObject("persistent")
                     .field("xpack.monitoring.exporters.my_http_exporter.type", "http")
                     .field("xpack.monitoring.exporters.my_http_exporter.host", httpHost)
                     .field("xpack.monitoring.exporters.my_http_exporter.cluster_alerts.management.enabled", true)

@@ -102,10 +102,10 @@ endif::[]
 == Archived settings
 
 {es} typically removes support for deprecated settings at major version
-releases. If you upgrade a cluster that contains a deprecated persistent cluster
-setting to a version that no longer supports that setting, {es} automatically
-archives the setting. Similarly, if you upgrade a cluster that contains an
-index with an unsupported index setting, {es} archives the index setting.
+releases. If you upgrade a cluster with a deprecated persistent cluster setting
+to a version that no longer supports the setting, {es} automatically archives
+that setting. Similarly, if you upgrade a cluster that contains an index with an
+unsupported index setting, {es} archives the index setting.
 
 Archived settings start with the `archived.` prefix and are ignored by {es}.
 

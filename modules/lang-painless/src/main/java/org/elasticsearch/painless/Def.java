@@ -12,7 +12,6 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
@@ -1200,15 +1199,6 @@ public final class Def {
                      "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
                      String.class.getCanonicalName());
         }
-    }
-
-    // TODO: remove this when the transition from Joda to Java datetimes is completed
-    public static ZonedDateTime defToZonedDateTime(final Object value) {
-        if (value instanceof JodaCompatibleZonedDateTime) {
-            return ((JodaCompatibleZonedDateTime)value).getZonedDateTime();
-        }
-
-        return (ZonedDateTime)value;
     }
 
     /**

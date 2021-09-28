@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryItem;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -508,7 +509,7 @@ class IndexLifecycleRunner {
                 failure));
     }
 
-    private final Set<IndexLifecycleClusterStateUpdateTask> executingTasks = new HashSet<>();
+    private final Set<IndexLifecycleClusterStateUpdateTask> executingTasks = Collections.synchronizedSet(new HashSet<>());
 
     /**
      * Tracks already executing {@link IndexLifecycleClusterStateUpdateTask} tasks in {@link #executingTasks} to prevent queueing up
@@ -520,25 +521,14 @@ class IndexLifecycleRunner {
      * @param task   task to submit unless already tracked in {@link #executingTasks}.
      */
     private void submitUnlessAlreadyQueued(String source, IndexLifecycleClusterStateUpdateTask task) {
-        if (registerTask(task)) {
-            task.addListener(ActionListener.wrap(() -> unregisterTask(task)));
+        if (executingTasks.add(task)) {
+            task.addListener(ActionListener.wrap(() -> {
+                final boolean removed = executingTasks.remove(task);
+                assert removed : "tried to unregister unknown task [" + task + "]";
+            }));
             clusterService.submitStateUpdateTask(source, task);
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }
-    }
-
-    private boolean registerTask(IndexLifecycleClusterStateUpdateTask task) {
-        synchronized (executingTasks) {
-            return executingTasks.add(task);
-        }
-    }
-
-    private void unregisterTask(IndexLifecycleClusterStateUpdateTask task) {
-        final boolean removed;
-        synchronized (executingTasks) {
-            removed = executingTasks.remove(task);
-        }
-        assert removed : "tried to unregister unknown task [" + task + "]";
     }
 }

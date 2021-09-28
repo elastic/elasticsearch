@@ -493,7 +493,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Determines if data streams are preserved upon completion of this test. The default implementation wipes data streams.
+     * Determines if data streams are preserved upon completion of this test. The default implementation does not wipe data streams.
      *
      * @return whether or not to preserve data streams
      */
@@ -551,7 +551,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected Set<String> preserveILMPolicyIds() {
         return Sets.newHashSet("ilm-history-ilm-policy", "slm-history-ilm-policy",
-            "watch-history-ilm-policy", "ml-size-based-ilm-policy", "logs", "metrics");
+            "watch-history-ilm-policy", "ml-size-based-ilm-policy", "logs", "metrics", ".deprecation-indexing-ilm-policy");
     }
 
     /**

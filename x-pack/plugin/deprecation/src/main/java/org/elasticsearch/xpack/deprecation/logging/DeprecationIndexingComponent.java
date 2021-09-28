@@ -112,11 +112,12 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
         if (appender.isEnabled() != newEnabled) {
             // We've flipped from disabled to enabled. Make sure we start with a clean cache of
             // previously-seen keys, otherwise we won't index anything.
-            if (newEnabled) {
-                this.filter.reset();
-            }
+//            if (newEnabled) {
+//                this.filter.reset();
+//            }
             appender.setEnabled(newEnabled);
         }
+        this.filter.reset();
     }
 
     /**

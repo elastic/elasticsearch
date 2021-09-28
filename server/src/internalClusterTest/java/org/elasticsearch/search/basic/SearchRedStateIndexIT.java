@@ -106,7 +106,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
                 .get();
 
         assertAcked(response1);
-        assertEquals(response1.getTransientSettings().getAsBoolean(key, null), allowPartialResults);
+        assertEquals(response1.getPersistentSettings().getAsBoolean(key, null), allowPartialResults);
     }
 
     private void buildRedIndex(int numShards) throws Exception {

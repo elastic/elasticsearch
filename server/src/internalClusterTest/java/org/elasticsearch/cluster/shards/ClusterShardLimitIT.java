@@ -340,7 +340,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                     .prepareUpdateSettings()
                     .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
                     .get();
-                assertEquals(shardsPerNode, response.getTransientSettings().getAsInt(shardsPerNodeKey, -1).intValue());
+                assertEquals(shardsPerNode, response.getPersistentSettings().getAsInt(shardsPerNodeKey, -1).intValue());
             }
         } catch (IllegalArgumentException ex) {
             fail(ex.getMessage());

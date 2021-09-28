@@ -72,7 +72,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().cluster()::putSettingsAsync);
 
         assertAcked(setResponse);
-        assertThat(setResponse.getTransientSettings().get(persistentSettingKey), nullValue());
         assertThat(setResponse.getPersistentSettings().get(persistentSettingKey), notNullValue());
         assertThat(setResponse.getPersistentSettings().get(persistentSettingKey), equalTo(persistentSettingValue));
 

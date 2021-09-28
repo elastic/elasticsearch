@@ -6,6 +6,20 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[[_type-search-matches-no-docs]]
+.A search on the `_type` field now matches no documents.
+[%collapsible]
+====
+*Details* +
+A search on the `_type` metadata field now matches no documents, regardless of
+the query string. In 7.x, a search for `_doc` in the `_type` field would match
+the same documents as a `match_all` query.
+
+*Impact* +
+Remove queries on the `_type` field from your search requests and search
+templates. Searches that include these queries may return no results.
+====
+
 [[msearch-empty-line-support]]
 .The multi search API now parses an empty first line as action metadata in text files.
 [%collapsible]

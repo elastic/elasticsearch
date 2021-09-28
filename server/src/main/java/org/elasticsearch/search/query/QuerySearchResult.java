@@ -10,11 +10,14 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
@@ -33,7 +36,7 @@ import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
-
+    private final static org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(QuerySearchResult.class);
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
@@ -59,6 +62,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private int nodeQueueSize = -1;
 
     private final boolean isNull;
+
+    private final AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {
+        if (aggregations != null) {
+            aggregations.close();
+            aggregations = null;
+        }
+    });
 
     public QuerySearchResult() {
         this(false);
@@ -187,6 +197,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return hasAggs;
     }
 
+    public void retainAggregationsUntilConsumed() {
+        if (aggregations != null) {
+            incRef();
+        }
+    }
     /**
      * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
      * @throws IllegalStateException if the aggregations have already been consumed.
@@ -200,6 +215,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         } finally {
             aggregations.close();
             aggregations = null;
+            decRef();
         }
     }
 
@@ -207,6 +223,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (aggregations != null) {
             aggregations.close();
             aggregations = null;
+            decRef();
         }
     }
 
@@ -404,5 +421,38 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public float getMaxScore() {
         return maxScore;
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    // todo: remove this and the logger before merging
+    @Override
+    protected void finalize() throws Throwable {
+        if (Assertions.ENABLED) {
+            if (refCounted.hasReferences()) {
+                // cannot really assert this.
+                logger.info("LEAK: " + this);
+//                 finalizer thread errors are not reported anywhere.
+//                new Thread(() -> { assert refCounted.hasReferences() == false : where; }).start();
+            }
+        }
     }
 }

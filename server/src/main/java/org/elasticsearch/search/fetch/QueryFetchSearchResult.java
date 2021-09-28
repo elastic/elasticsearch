@@ -72,4 +72,26 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
         queryResult.writeTo(out);
         fetchResult.writeTo(out);
     }
+
+
+    @Override
+    public void incRef() {
+        queryResult.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return queryResult.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return queryResult.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return queryResult.hasReferences();
+    }
+
 }

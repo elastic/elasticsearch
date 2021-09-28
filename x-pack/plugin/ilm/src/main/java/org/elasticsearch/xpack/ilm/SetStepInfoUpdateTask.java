@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SetStepInfoUpdateTask extends AbstractILMClusterStateUpdateTask {
+public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask {
 
     private static final Logger logger = LogManager.getLogger(SetStepInfoUpdateTask.class);
 
@@ -77,8 +77,7 @@ public class SetStepInfoUpdateTask extends AbstractILMClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
-        super.onFailure(source, e);
+    public void handleFailure(String source, Exception e) {
         logger.warn(
             new ParameterizedMessage(
                 "policy [{}] for index [{}] failed trying to set step info for step [{}].",

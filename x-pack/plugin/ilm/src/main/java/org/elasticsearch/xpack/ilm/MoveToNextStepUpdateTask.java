@@ -21,7 +21,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
-public class MoveToNextStepUpdateTask extends AbstractILMClusterStateUpdateTask {
+public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(MoveToNextStepUpdateTask.class);
 
     private final Index index;
@@ -66,8 +66,7 @@ public class MoveToNextStepUpdateTask extends AbstractILMClusterStateUpdateTask 
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        super.clusterStateProcessed(source, oldState, newState);
+    public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
         if (oldState.equals(newState) == false) {
             stateChangeConsumer.accept(newState);
         }
@@ -90,8 +89,7 @@ public class MoveToNextStepUpdateTask extends AbstractILMClusterStateUpdateTask 
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
-        super.onFailure(source, e);
+    public void handleFailure(String source, Exception e) {
         logger.warn(
             new ParameterizedMessage(
                 "policy [{}] for index [{}] failed trying to move from step [{}] to step [{}].",

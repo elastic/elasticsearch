@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
-public class ExecuteStepsUpdateTask extends AbstractILMClusterStateUpdateTask {
+public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(ExecuteStepsUpdateTask.class);
     private final String policy;
     private final Index index;
@@ -176,8 +176,7 @@ public class ExecuteStepsUpdateTask extends AbstractILMClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        super.clusterStateProcessed(source, oldState, newState);
+    public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
         if (oldState.equals(newState) == false) {
             IndexMetadata indexMetadata = newState.metadata().index(index);
             if (indexMetadata != null) {
@@ -202,8 +201,7 @@ public class ExecuteStepsUpdateTask extends AbstractILMClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
-        super.onFailure(source, e);
+    public void handleFailure(String source, Exception e) {
         logger.warn(new ParameterizedMessage("policy [{}] for index [{}] failed on step [{}].", policy, index, startStep.getKey()), e);
     }
 

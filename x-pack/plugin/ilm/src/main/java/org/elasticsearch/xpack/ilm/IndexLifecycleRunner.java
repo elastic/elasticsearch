@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -376,7 +377,7 @@ class IndexLifecycleRunner {
             }
         } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             logger.debug("[{}] running policy with current-step [{}]", indexMetadata.getIndex().getName(), currentStep.getKey());
-            submitStateUpdateTask(String.format(Locale.ROOT, "ilm-execute-cluster-state-steps [%s]", currentStep),
+            submitUnlessAlreadyQueued(String.format(Locale.ROOT, "ilm-execute-cluster-state-steps [%s]", currentStep),
                 new ExecuteStepsUpdateTask(policy, indexMetadata.getIndex(), currentStep, stepRegistry, this, nowSupplier));
         } else {
             logger.trace("[{}] ignoring step execution from cluster state change event [{}]", index, currentStep.getKey());
@@ -389,7 +390,7 @@ class IndexLifecycleRunner {
      */
     private void moveToStep(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey newStepKey) {
         logger.debug("[{}] moving to step [{}] {} -> {}", index.getName(), policy, currentStepKey, newStepKey);
-        submitStateUpdateTask(
+        submitUnlessAlreadyQueued(
             String.format(Locale.ROOT, "ilm-move-to-step {policy [%s], index [%s], currentStep [%s], nextStep [%s]}", policy,
                 index.getName(), currentStepKey, newStepKey),
             new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState ->
@@ -422,7 +423,7 @@ class IndexLifecycleRunner {
      * changing other execution state.
      */
     private void setStepInfo(Index index, String policy, @Nullable Step.StepKey currentStepKey, ToXContentObject stepInfo) {
-        submitStateUpdateTask(
+        submitUnlessAlreadyQueued(
             String.format(Locale.ROOT, "ilm-set-step-info {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(),
                 currentStepKey),
             new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
@@ -507,28 +508,37 @@ class IndexLifecycleRunner {
                 failure));
     }
 
-    private final Set<AbstractILMClusterStateUpdateTask> executingTasks = new HashSet<>();
+    private final Set<IndexLifecycleClusterStateUpdateTask> executingTasks = new HashSet<>();
 
-    private boolean registerTask(AbstractILMClusterStateUpdateTask task) {
-        synchronized (executingTasks) {
-            return executingTasks.add(task);
-        }
-    }
-
-    private void unregisterTask(AbstractILMClusterStateUpdateTask task) {
-        final boolean removed;
-        synchronized (executingTasks) {
-            removed = executingTasks.remove(task);
-        }
-        assert removed : "tried to unregister unknown task [" + task + "]";
-    }
-
-    private void submitStateUpdateTask(String source, AbstractILMClusterStateUpdateTask task) {
+    /**
+     * Tracks already executing {@link IndexLifecycleClusterStateUpdateTask} tasks in {@link #executingTasks} to prevent queueing up
+     * duplicate cluster state updates.
+     * TODO: refactor ILM logic so that this is not required any longer. It is unreasonably expensive to only filter out duplicate tasks at
+     *       this point given how these tasks are mostly set up on the cluster state applier thread.
+     *
+     * @param source source string as used in {@link ClusterService#submitStateUpdateTask(String, ClusterStateTaskConfig)}
+     * @param task   task to submit unless already tracked in {@link #executingTasks}.
+     */
+    private void submitUnlessAlreadyQueued(String source, IndexLifecycleClusterStateUpdateTask task) {
         if (registerTask(task)) {
             task.addListener(ActionListener.wrap(() -> unregisterTask(task)));
             clusterService.submitStateUpdateTask(source, task);
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }
+    }
+
+    private boolean registerTask(IndexLifecycleClusterStateUpdateTask task) {
+        synchronized (executingTasks) {
+            return executingTasks.add(task);
+        }
+    }
+
+    private void unregisterTask(IndexLifecycleClusterStateUpdateTask task) {
+        final boolean removed;
+        synchronized (executingTasks) {
+            removed = executingTasks.remove(task);
+        }
+        assert removed : "tried to unregister unknown task [" + task + "]";
     }
 }

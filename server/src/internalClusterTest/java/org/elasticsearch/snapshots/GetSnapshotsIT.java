@@ -15,8 +15,11 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
@@ -178,7 +181,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
         awaitNumberOfSnapshotsInProgress(inProgressCount);
         try {
-            awaitClusterState(
+            ClusterServiceUtils.awaitClusterState(logger,
                 state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
                     .entries()
                     .stream()
@@ -186,9 +189,13 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     .allMatch(
                         e -> e.getKey().getIndexName().equals("test-index-1") == false
                             || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
-                    )
+                    ),
+                internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()),
+                3
             );
         } catch (Throwable ignore) {
+            // Happens when the test-index-1 snapshots weren't all finished successfully, but the snapshots are blocked on the data nodes
+            // which is also fine, we just want to make sure they don't change.
         }
 
         final String[] repos = { repoName };

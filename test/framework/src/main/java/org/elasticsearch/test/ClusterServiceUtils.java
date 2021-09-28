@@ -179,6 +179,13 @@ public class ClusterServiceUtils {
     public static void awaitClusterState(Logger logger,
                                          Predicate<ClusterState> statePredicate,
                                          ClusterService clusterService) throws Exception {
+        awaitClusterState(logger, statePredicate, clusterService, 30);
+    }
+
+    public static void awaitClusterState(Logger logger,
+                                         Predicate<ClusterState> statePredicate,
+                                         ClusterService clusterService,
+                                         int timeoutSeconds) throws Exception {
         final ClusterStateObserver observer = new ClusterStateObserver(
             clusterService,
             null,
@@ -203,7 +210,7 @@ public class ClusterServiceUtils {
                     assert false : "onTimeout called with no timeout set";
                 }
             }, statePredicate);
-            future.get(30L, TimeUnit.SECONDS);
+            future.get(timeoutSeconds, TimeUnit.SECONDS);
         }
     }
 }

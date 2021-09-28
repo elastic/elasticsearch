@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import org.elasticsearch.ElasticsearchAuthenticationProcessingError;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -33,12 +35,14 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -47,8 +51,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -85,7 +91,24 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("Invalid algorithm"));
     }
 
-    // TODO check Reserved Realm auto config hash error
+    public void testInvalidAutoConfigPasswordHashFails() {
+        char[] invalidAutoConfHash =
+            randomFrom(Hasher.MD5.hash(new SecureString(randomAlphaOfLengthBetween(0, 8).toCharArray())),
+                Hasher.SHA1.hash(new SecureString(randomAlphaOfLengthBetween(0, 8).toCharArray())),
+                Hasher.SSHA256.hash(new SecureString(randomAlphaOfLengthBetween(0, 8).toCharArray())),
+                randomAlphaOfLengthBetween(1, 16).toCharArray(),
+                new char[0]
+                );
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("autoconfiguration.password_hash", new String(invalidAutoConfHash));
+        if (randomBoolean()) {
+            mockSecureSettings.setString("bootstrap.password", "foobar");
+        }
+        Settings invalidSettings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new ReservedRealm(mock(Environment.class),
+            invalidSettings, usersStore, new AnonymousUser(Settings.EMPTY), threadPool));
+        assertThat(exception.getMessage(), containsString("Invalid password hash for elastic user auto configuration"));
+    }
 
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
         final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME, UsernamesField.LOGSTASH_NAME,
@@ -327,8 +350,55 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testBootstrapElasticPasswordWorksWhenElasticUserIsMissing() throws Exception {
+        doAnswer((i) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ReservedUserInfo> callback = (ActionListener<ReservedUserInfo>) i.getArguments()[1];
+            callback.onResponse(null);
+            return null;
+        }).when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
+
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar");
+        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+
+        ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+            new AnonymousUser(Settings.EMPTY), threadPool);
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
+                mockSecureSettings.getString("bootstrap.password")),
+            listener);
+        AuthenticationResult result = listener.get();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+
+        // add auto configured password which should be ignored because the bootstrap password has priority
+        mockSecureSettings.setString("autoconfiguration.password_hash", new String(randomFrom(Hasher.BCRYPT, Hasher.PBKDF2)
+            .hash(new SecureString("bazbar".toCharArray()))));
+        settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+
+        reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(Settings.EMPTY), threadPool);
+
+        // authn still works for the bootstrap password
+        listener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
+                new SecureString("foobar".toCharArray())),
+            listener);
+        result = listener.get();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+
+        // authn fails for the auto configured password hash
+        listener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
+                new SecureString("bazbar".toCharArray())),
+            listener);
+        result = listener.get();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
+    }
+
+    public void testAutoconfigElasticPasswordWorksWhenElasticUserIsMissing() throws Exception {
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        char[] autoconfHash = randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("foobar".toCharArray()));
+        mockSecureSettings.setString("autoconfiguration.password_hash", new String(autoconfHash));
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
@@ -341,11 +411,68 @@ public class ReservedRealmTests extends ESTestCase {
             callback.onResponse(null);
             return null;
         }).when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
+        // mock auto config password is promoted successfully
+        doAnswer((i) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ReservedUserInfo> callback = (ActionListener<ReservedUserInfo>) i.getArguments()[1];
+            callback.onResponse(null);
+            return null;
+        }).when(usersStore).createElasticUser(any(char[].class), anyActionListener());
         reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-                mockSecureSettings.getString("bootstrap.password")),
+                new SecureString("foobar".toCharArray())),
             listener);
-        final AuthenticationResult result = listener.get();
+        AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        verify(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
+        ArgumentCaptor<char[]> userHashCaptor = ArgumentCaptor.forClass(char[].class);
+        verify(usersStore).createElasticUser(userHashCaptor.capture(), anyActionListener());
+        assertThat(userHashCaptor.getValue(), is(autoconfHash));
+
+        // wrong password doesn't attempt to promote
+        listener = new PlainActionFuture<>();
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
+                new SecureString("wrong password".toCharArray())),
+            listener);
+        result = listener.get();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
+        verify(usersStore, times(2)).getReservedUserInfo(eq("elastic"), anyActionListener());
+        verify(usersStore).createElasticUser(any(char[].class), anyActionListener());
+        verifyNoMoreInteractions(usersStore);
+    }
+
+    public void testAutoconfigElasticPasswordAuthnErrorWhenHashPromotionFails() throws Exception {
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        char[] autoconfHash = randomFrom(Hasher.BCRYPT, Hasher.PBKDF2).hash(new SecureString("foobar".toCharArray()));
+        mockSecureSettings.setString("autoconfiguration.password_hash", new String(autoconfHash));
+        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+            new AnonymousUser(Settings.EMPTY), threadPool);
+        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+
+        doAnswer((i) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ReservedUserInfo> callback = (ActionListener<ReservedUserInfo>) i.getArguments()[1];
+            callback.onResponse(null);
+            return null;
+        }).when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
+        // mock auto config password is NOT promoted successfully
+        doAnswer((i) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ReservedUserInfo> callback = (ActionListener<ReservedUserInfo>) i.getArguments()[1];
+            callback.onFailure(new Exception("any failure to promote the auto configured password"));
+            return null;
+        }).when(usersStore).createElasticUser(any(char[].class), anyActionListener());
+        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
+                    new SecureString("foobar".toCharArray())),
+                listener);
+        ExecutionException exception = expectThrows(ExecutionException.class, () -> listener.get());
+        assertThat(exception.getCause(), instanceOf(ElasticsearchAuthenticationProcessingError.class));
+        assertThat(((ElasticsearchAuthenticationProcessingError)exception.getCause()).status(), is(RestStatus.INTERNAL_SERVER_ERROR));
+        verify(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
+        ArgumentCaptor<char[]> userHashCaptor = ArgumentCaptor.forClass(char[].class);
+        verify(usersStore).createElasticUser(userHashCaptor.capture(), anyActionListener());
+        assertThat(userHashCaptor.getValue(), is(autoconfHash));
     }
 
     public void testBootstrapElasticPasswordFailsOnceElasticUserExists() throws Exception {

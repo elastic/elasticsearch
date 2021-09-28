@@ -85,12 +85,16 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
-        if (AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(settings) && false == BOOTSTRAP_ELASTIC_PASSWORD.exists(settings)) {
-            char[] autoconfigPasswordHash = AUTOCONFIG_ELASTIC_PASSWORD_HASH.get(settings).getChars();
+        char[] autoconfigPasswordHash = null;
+        // validate the password hash setting value, even if it is not going to be used
+        if (AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(settings)) {
+            autoconfigPasswordHash = AUTOCONFIG_ELASTIC_PASSWORD_HASH.get(settings).getChars();
             if (autoconfigPasswordHash.length == 0 || Set.of(Hasher.SHA1, Hasher.MD5, Hasher.SSHA256, Hasher.NOOP)
                 .contains(Hasher.resolveFromHash(autoconfigPasswordHash))) {
                 throw new IllegalArgumentException("Invalid password hash for elastic user auto configuration");
             }
+        }
+        if (AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(settings) && false == BOOTSTRAP_ELASTIC_PASSWORD.exists(settings)) {
             autoconfigUserInfo = new ReservedUserInfo(autoconfigPasswordHash, true);
             bootstrapUserInfo = null;
         } else {

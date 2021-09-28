@@ -26,8 +26,7 @@ public class ElasticsearchAuthenticationProcessingError extends ElasticsearchSec
 
     public ElasticsearchAuthenticationProcessingError(String msg, RestStatus status, Throwable cause, Object... args) {
         super(msg, status, cause, args);
-        assert status == RestStatus.INTERNAL_SERVER_ERROR;
-        assert status == RestStatus.SERVICE_UNAVAILABLE;
+        assert status == RestStatus.INTERNAL_SERVER_ERROR || status == RestStatus.SERVICE_UNAVAILABLE;
     }
 
     public ElasticsearchAuthenticationProcessingError(StreamInput in) throws IOException {

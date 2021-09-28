@@ -83,7 +83,7 @@ public enum IndexMode {
                 );
             }
 
-            if (timestamp > endTime) {
+            if (timestamp >= endTime) {
                 throw new IllegalArgumentException(
                     "time series index @timestamp value [" + timestamp + "] must be smaller than " + endTime
                 );

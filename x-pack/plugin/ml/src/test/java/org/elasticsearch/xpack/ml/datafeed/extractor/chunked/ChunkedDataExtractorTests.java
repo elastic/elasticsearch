@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.mock.orig.Mockito;
@@ -159,7 +159,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     public void testExtractionGivenSpecifiedChunkAndAggs() throws IOException {
         chunkSpan = TimeValue.timeValueSeconds(1);
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2300L, true, 1000L);
-        extractor.setNextResponse(createSearchResponse(0L, 1000L, 2200L));
+        // 0 hits with non-empty data is possible with rollups
+        extractor.setNextResponse(createSearchResponse(randomFrom(0L, 2L, 10000L), 1000L, 2200L));
 
         InputStream inputStream1 = mock(InputStream.class);
         InputStream inputStream2 = mock(InputStream.class);
@@ -200,7 +201,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         TestDataExtractor extractor = new TestDataExtractor(100_000L, 450_000L, true, 200L);
 
-        extractor.setNextResponse(createSearchResponse(0L, 100_000L, 400_000L));
+        // 0 hits with non-empty data is possible with rollups
+        extractor.setNextResponse(createSearchResponse(randomFrom(0L, 2L, 10000L), 100_000L, 400_000L));
 
         InputStream inputStream1 = mock(InputStream.class);
         InputStream inputStream2 = mock(InputStream.class);
@@ -502,6 +504,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
         assertThat(extractor.hasNext(), is(true));
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
+    }
+
+    public void testNoDataSummaryHasNoData() {
+        ChunkedDataExtractor.DataSummary summary = ChunkedDataExtractor.AggregatedDataSummary.noDataSummary(randomNonNegativeLong());
+        assertFalse(summary.hasData());
     }
 
     private SearchResponse createSearchResponse(long totalHits, long earliestTime, long latestTime) {

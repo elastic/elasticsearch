@@ -7,18 +7,18 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import joptsimple.OptionSet;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -35,7 +35,6 @@ import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
 
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -44,13 +43,11 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -131,8 +128,8 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         assertThat(spDescriptor.getAttributeConsumingServices(), iterableWithSize(1));
         assertThat(spDescriptor.getAttributeConsumingServices().get(0).isDefault(), equalTo(true));
         assertThat(spDescriptor.getAttributeConsumingServices().get(0).getIndex(), equalTo(1));
-        assertThat(spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes(), iterableWithSize(1));
-        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes().get(0);
+        assertThat(spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes(), iterableWithSize(1));
+        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes().get(0);
         assertThat(uidAttribute.getName(), equalTo("urn:oid:0.9.2342.19200300.100.1.1"));
         assertThat(uidAttribute.getFriendlyName(), equalTo("principal"));
 
@@ -155,9 +152,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
             final X509Certificate xmlCert = x509.get(0).getX509Certificates().get(0);
             assertThat(xmlCert.getValue(), startsWith("MIIDWDCCAkCgAwIBAgIVANRTZaFrK+Pz19O8TZsb3HSJmAWpMA0GCSqGSIb3DQEB"));
 
-            // Verify that OpenSAML things the XML representation is the same as our input
+            // Verify that OpenSAML thinks the XML representation is the same as our input
             final java.security.cert.X509Certificate javaCert = KeyInfoSupport.getCertificate(xmlCert);
-            assertThat(CertParsingUtils.readCertificates(Collections.singletonList(certPath)), arrayContaining(javaCert));
+            assertThat(javaCert, equalTo(CertParsingUtils.readX509Certificate(certPath)));
         } else {
             assertThat(spDescriptor.getKeyDescriptors(), iterableWithSize(0));
         }
@@ -260,7 +257,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final SPSSODescriptor spDescriptor = (SPSSODescriptor) descriptor.getRoleDescriptors().get(0);
 
         assertThat(spDescriptor.getAttributeConsumingServices(), iterableWithSize(1));
-        final List<RequestedAttribute> attributes = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes();
+        final List<RequestedAttribute> attributes = spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes();
         assertThat(attributes, iterableWithSize(4));
 
         assertThat(attributes.get(0).getFriendlyName(), equalTo("mail"));
@@ -305,7 +302,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final SPSSODescriptor spDescriptor = (SPSSODescriptor) descriptor.getRoleDescriptors().get(0);
 
         assertThat(spDescriptor.getAttributeConsumingServices(), iterableWithSize(1));
-        final List<RequestedAttribute> attributes = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes();
+        final List<RequestedAttribute> attributes = spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes();
         assertThat(attributes, iterableWithSize(2));
 
         assertThat(attributes.get(0).getFriendlyName(), nullValue());
@@ -367,7 +364,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         assertThat(spDescriptor.getAssertionConsumerServices().get(0).getIndex(), equalTo(1));
         assertThat(spDescriptor.getAssertionConsumerServices().get(0).getBinding(), equalTo(SAMLConstants.SAML2_POST_BINDING_URI));
 
-        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes().get(0);
+        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes().get(0);
         assertThat(uidAttribute.getName(), equalTo("urn:oid:0.9.2342.19200300.100.1.1"));
         assertThat(uidAttribute.getFriendlyName(), equalTo("principal"));
 
@@ -446,7 +443,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final UserException userException = expectThrows(UserException.class, () -> command.possiblySignDescriptor(terminal, options,
                 descriptor, env));
         assertThat(userException.getMessage(), containsString("Unable to create metadata document"));
-        assertThat(terminal.getErrorOutput(), containsString("Error parsing Private Key from"));
+        assertThat(terminal.getErrorOutput(), containsString("cannot load PEM private key from ["));
     }
 
     public void testSigningMetadataWithPem() throws Exception {
@@ -651,8 +648,8 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         assertThat(spDescriptor.getAttributeConsumingServices(), iterableWithSize(1));
         assertThat(spDescriptor.getAttributeConsumingServices().get(0).isDefault(), equalTo(true));
         assertThat(spDescriptor.getAttributeConsumingServices().get(0).getIndex(), equalTo(1));
-        assertThat(spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes(), iterableWithSize(1));
-        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes().get(0);
+        assertThat(spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes(), iterableWithSize(1));
+        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestedAttributes().get(0);
         assertThat(uidAttribute.getName(), equalTo("urn:oid:0.9.2342.19200300.100.1.1"));
         assertThat(uidAttribute.getFriendlyName(), equalTo("principal"));
 
@@ -732,11 +729,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
 
     private boolean validateSignature(Signature signature) {
         try {
-            Certificate[] certificates = CertParsingUtils.
-                    readCertificates(Collections.singletonList(getDataPath("saml.crt").toString()), newEnvironment());
-            PrivateKey key = PemUtils.readPrivateKey(getDataPath("saml.key"),
-                    ""::toCharArray);
-            Credential verificationCredential = new BasicX509Credential((java.security.cert.X509Certificate) certificates[0], key);
+            java.security.cert.X509Certificate certificate = CertParsingUtils.readX509Certificate(getDataPath("saml.crt"));
+            PrivateKey key = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(getDataPath("saml.key"), ""::toCharArray);
+            Credential verificationCredential = new BasicX509Credential(certificate, key);
             SAMLSignatureProfileValidator profileValidator = new SAMLSignatureProfileValidator();
             profileValidator.validate(signature);
             SignatureValidator.validate(signature, verificationCredential);

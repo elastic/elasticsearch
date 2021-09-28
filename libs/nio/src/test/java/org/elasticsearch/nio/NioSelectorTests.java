@@ -8,8 +8,8 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;

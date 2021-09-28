@@ -18,7 +18,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,7 +40,7 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.collect.Tuple.tuple;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -212,14 +212,14 @@ public class AnnotationPersisterTests extends ESTestCase {
     }
 
     private static BulkItemResponse bulkItemSuccess(String docId) {
-        return new BulkItemResponse(
+        return BulkItemResponse.success(
             1,
             DocWriteRequest.OpType.INDEX,
             new IndexResponse(new ShardId(AnnotationIndex.WRITE_ALIAS_NAME, "uuid", 1), docId, 0, 0, 1, true));
     }
 
     private static BulkItemResponse bulkItemFailure(String docId) {
-        return new BulkItemResponse(
+        return BulkItemResponse.failure(
             2,
             DocWriteRequest.OpType.INDEX,
             new BulkItemResponse.Failure("my-index", docId, new Exception("boom")));

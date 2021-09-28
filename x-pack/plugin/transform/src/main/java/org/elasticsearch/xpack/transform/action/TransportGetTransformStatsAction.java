@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -147,9 +147,9 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             request.getPageParams(),
             request.isAllowNoMatch(),
             ActionListener.wrap(hitsAndIds -> {
-                TransformNodes.throwIfNoTransformNodes(clusterState);
+                boolean hasAnyTransformNode = TransformNodes.hasAnyTransformNode(clusterState.getNodes());
                 boolean requiresRemote = hitsAndIds.v2().v2().stream().anyMatch(config -> config.getSource().requiresRemoteCluster());
-                if (TransformNodes.redirectToAnotherNodeIfNeeded(
+                if (hasAnyTransformNode && TransformNodes.redirectToAnotherNodeIfNeeded(
                         clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, finalListener)) {
                     return;
                 }

@@ -68,17 +68,17 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             final ServiceAccountTokenId accountTokenId = parsePrincipalAndTokenName(arguments.values(options), env.settings());
             final Hasher hasher = Hasher.resolve(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(env.settings()));
-            final Path serviceTokensFile = FileServiceAccountsTokenStore.resolveFile(env);
+            final Path serviceTokensFile = FileServiceAccountTokenStore.resolveFile(env);
 
             FileAttributesChecker attributesChecker = new FileAttributesChecker(serviceTokensFile);
-            final Map<String, char[]> tokenHashes = new TreeMap<>(FileServiceAccountsTokenStore.parseFile(serviceTokensFile, null));
+            final Map<String, char[]> tokenHashes = new TreeMap<>(FileServiceAccountTokenStore.parseFile(serviceTokensFile, null));
 
             try (ServiceAccountToken token = ServiceAccountToken.newToken(accountTokenId.getAccountId(), accountTokenId.getTokenName())) {
                 if (tokenHashes.containsKey(token.getQualifiedName())) {
                     throw new UserException(ExitCodes.CODE_ERROR, "Service token [" + token.getQualifiedName() + "] already exists");
                 }
                 tokenHashes.put(token.getQualifiedName(), hasher.hash(token.getSecret()));
-                FileServiceAccountsTokenStore.writeFile(serviceTokensFile, tokenHashes);
+                FileServiceAccountTokenStore.writeFile(serviceTokensFile, tokenHashes);
                 terminal.println("SERVICE_TOKEN " + token.getQualifiedName() + " = " + token.asBearerString());
             }
 
@@ -100,15 +100,15 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             final ServiceAccountTokenId accountTokenId = parsePrincipalAndTokenName(arguments.values(options), env.settings());
             final String qualifiedName = accountTokenId.getQualifiedName();
-            final Path serviceTokensFile = FileServiceAccountsTokenStore.resolveFile(env);
+            final Path serviceTokensFile = FileServiceAccountTokenStore.resolveFile(env);
 
             FileAttributesChecker attributesChecker = new FileAttributesChecker(serviceTokensFile);
-            final Map<String, char[]> tokenHashes = new TreeMap<>(FileServiceAccountsTokenStore.parseFile(serviceTokensFile, null));
+            final Map<String, char[]> tokenHashes = new TreeMap<>(FileServiceAccountTokenStore.parseFile(serviceTokensFile, null));
 
             if (tokenHashes.remove(qualifiedName) == null) {
                 throw new UserException(ExitCodes.CODE_ERROR, "Service token [" + qualifiedName + "] does not exist");
             } else {
-                FileServiceAccountsTokenStore.writeFile(serviceTokensFile, tokenHashes);
+                FileServiceAccountTokenStore.writeFile(serviceTokensFile, tokenHashes);
             }
             attributesChecker.check(terminal);
         }
@@ -141,8 +141,8 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
                 }
                 filter = filter.and(k -> k.startsWith(principal + "/"));
             }
-            final Path serviceTokensFile = FileServiceAccountsTokenStore.resolveFile(env);
-            final Map<String, char[]> tokenHashes = new TreeMap<>(FileServiceAccountsTokenStore.parseFile(serviceTokensFile, null));
+            final Path serviceTokensFile = FileServiceAccountTokenStore.resolveFile(env);
+            final Map<String, char[]> tokenHashes = new TreeMap<>(FileServiceAccountTokenStore.parseFile(serviceTokensFile, null));
             for (String key : tokenHashes.keySet()) {
                 if (filter.test(key)) {
                     terminal.println(key);
@@ -169,7 +169,7 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
                 + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",") + "]");
         }
         if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
-            throw new UserException(ExitCodes.CODE_ERROR, Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE);
+            throw new UserException(ExitCodes.CODE_ERROR, Validation.formatInvalidServiceTokenNameErrorMessage(tokenName));
         }
         return new ServiceAccountTokenId(ServiceAccountId.fromPrincipal(principal), tokenName);
     }

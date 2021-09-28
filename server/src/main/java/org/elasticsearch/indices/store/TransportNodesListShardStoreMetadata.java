@@ -21,13 +21,13 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -81,8 +81,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
     }
 
     @Override
-    protected NodeStoreFilesMetadata newNodeResponse(StreamInput in) throws IOException {
-        return new NodeStoreFilesMetadata(in);
+    protected NodeStoreFilesMetadata newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        final NodeStoreFilesMetadata nodeStoreFilesMetadata = new NodeStoreFilesMetadata(in, node);
+        assert nodeStoreFilesMetadata.getNode() == node;
+        return nodeStoreFilesMetadata;
     }
 
     @Override
@@ -345,10 +347,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
 
     public static class NodeStoreFilesMetadata extends BaseNodeResponse {
 
-        private StoreFilesMetadata storeFilesMetadata;
+        private final StoreFilesMetadata storeFilesMetadata;
 
-        public NodeStoreFilesMetadata(StreamInput in) throws IOException {
-            super(in);
+        public NodeStoreFilesMetadata(StreamInput in, DiscoveryNode node) throws IOException {
+            super(in, node);
             storeFilesMetadata = new StoreFilesMetadata(in);
         }
 
@@ -362,7 +364,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
         }
 
         public static NodeStoreFilesMetadata readListShardStoreNodeOperationResponse(StreamInput in) throws IOException {
-            return new NodeStoreFilesMetadata(in);
+            return new NodeStoreFilesMetadata(in, null);
         }
 
         @Override

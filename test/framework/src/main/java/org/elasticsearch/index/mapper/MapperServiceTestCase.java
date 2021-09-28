@@ -18,8 +18,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -69,6 +69,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
@@ -152,7 +153,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
-    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
 
@@ -377,7 +378,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public Collection<MappedFieldType> getFieldTypes() {
+            public Set<String> getMatchingFieldNames(String pattern) {
                 throw new UnsupportedOperationException();
             }
 
@@ -477,6 +478,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public boolean enableRewriteToFilterByFilter() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public void close() {
                 throw new UnsupportedOperationException();
             }
@@ -518,8 +524,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
             inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
-        when(searchExecutionContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
-            inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
+        when(searchExecutionContext.getMatchingFieldNames(anyObject())).thenAnswer(
+            inv -> mapperService.mappingLookup().getMatchingFieldNames(inv.getArguments()[0].toString())
         );
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
         when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {

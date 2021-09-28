@@ -54,6 +54,8 @@ setup:
         refresh: true
         body: |
           {"index":{}}
+          {"timestamp": 1516897304000, "temperature": 202, "voltage": 0.0, "node": "c"}
+          {"index":{}}
           {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
           {"index":{}}
           {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
@@ -88,7 +90,7 @@ setup:
         body:
           sort: timestamp
           fields: [voltage_percent, voltage_percent_from_source, voltage_sqrts]
-  - match: {hits.total.value: 6}
+  - match: {hits.total.value: 7}
   - match: {hits.hits.0.fields.voltage_percent: [0.6896551724137931] }
   - match: {hits.hits.0.fields.voltage_percent_from_source: [0.6896551724137931] }
   # Scripts that scripts that emit multiple values are supported and their results are sorted
@@ -98,6 +100,7 @@ setup:
   - match: {hits.hits.3.fields.voltage_percent: [0.8793103448275862] }
   - match: {hits.hits.4.fields.voltage_percent: [1.0] }
   - match: {hits.hits.5.fields.voltage_percent: [0.896551724137931] }
+  - match: {hits.hits.6.fields.voltage_percent: [0.0] }
 
 ---
 "docvalue_fields":
@@ -107,7 +110,7 @@ setup:
         body:
           sort: timestamp
           docvalue_fields: [voltage_percent, voltage_percent_from_source, voltage_sqrts]
-  - match: {hits.total.value: 6}
+  - match: {hits.total.value: 7}
   - match: {hits.hits.0.fields.voltage_percent: [0.6896551724137931] }
   - match: {hits.hits.0.fields.voltage_percent_from_source: [0.6896551724137931] }
   # Scripts that scripts that emit multiple values are supported and their results are sorted
@@ -117,6 +120,7 @@ setup:
   - match: {hits.hits.3.fields.voltage_percent: [0.8793103448275862] }
   - match: {hits.hits.4.fields.voltage_percent: [1.0] }
   - match: {hits.hits.5.fields.voltage_percent: [0.896551724137931] }
+  - match: {hits.hits.6.fields.voltage_percent: [0.0] }
 
 ---
 "terms agg":
@@ -128,10 +132,10 @@ setup:
             v10:
               terms:
                 field: voltage_percent
-  - match: {hits.total.value: 6}
-  - match: {aggregations.v10.buckets.0.key: 0.6896551724137931}
+  - match: {hits.total.value: 7}
+  - match: {aggregations.v10.buckets.0.key: 0.0}
   - match: {aggregations.v10.buckets.0.doc_count: 1}
-  - match: {aggregations.v10.buckets.1.key: 0.7241379310344828}
+  - match: {aggregations.v10.buckets.1.key: 0.6896551724137931}
   - match: {aggregations.v10.buckets.1.doc_count: 1}
 
 ---
@@ -144,8 +148,29 @@ setup:
             range:
               voltage_percent:
                 lt: .7
-  - match: {hits.total.value: 1}
-  - match: {hits.hits.0._source.voltage: 4.0}
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 0.0}
+  - match: {hits.hits.1._source.voltage: 4.0}
+  
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_percent:
+                lt: 0.0
+  - match: {hits.total.value: 0}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_percent:
+                gt: 0.0
+  - match: {hits.total.value: 6}
 
   - do:
       search:

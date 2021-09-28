@@ -56,7 +56,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, boolean trackReaderKey) throws IOException {
         this.uidField = uidField;
         final Terms terms = reader.terms(uidField);
         if (terms == null) {
@@ -77,8 +77,12 @@ final class PerThreadIDVersionAndSeqNoLookup {
             throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field; _uid terms [" + terms + "]");
         }
         Object readerKey = null;
-        assert (readerKey = reader.getCoreCacheHelper().getKey()) != null;
+        assert trackReaderKey ? (readerKey = reader.getCoreCacheHelper().getKey()) != null : readerKey == null;
         this.readerKey = readerKey;
+    }
+
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
+        this(reader, uidField, true);
     }
 
     /** Return null if id is not found.
@@ -89,7 +93,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      */
     public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context)
         throws IOException {
-        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
+        assert readerKey == null || context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
         int docID = getDocID(id, context);
 
@@ -144,7 +148,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
 
     /** Return null if id is not found. */
     DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
-        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
+        assert readerKey == null || context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
         final int docID = getDocID(id, context);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {

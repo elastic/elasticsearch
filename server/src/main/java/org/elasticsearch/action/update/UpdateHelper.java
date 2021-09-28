@@ -15,9 +15,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -282,7 +282,7 @@ public class UpdateHelper {
             sourceLookup.setSource(source);
             Object value = sourceLookup.filter(request.fetchSource());
             try {
-                final int initialCapacity = Math.min(1024, sourceAsBytes.length());
+                final int initialCapacity = sourceAsBytes != null ? Math.min(1024, sourceAsBytes.length()) : 1024;
                 BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
                 try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
                     builder.value(value);

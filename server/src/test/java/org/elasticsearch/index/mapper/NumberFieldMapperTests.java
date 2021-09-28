@@ -61,14 +61,14 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 b -> {
                     minimalMapping(b);
                     b.field("script", "test");
-                    b.field("on_script_error", "reject");
+                    b.field("on_script_error", "fail");
                 },
                 b -> {
                     minimalMapping(b);
                     b.field("script", "test");
-                    b.field("on_script_error", "ignore");
+                    b.field("on_script_error", "continue");
                 },
-                m -> assertThat((m).onScriptError, equalTo("ignore")));
+                m -> assertThat((m).onScriptError, equalTo("continue")));
         }
     }
 
@@ -235,17 +235,70 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testOutOfRangeValues() throws IOException {
-
         for(OutOfRangeSpec item : outOfRangeSpecs()) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", item.type.typeName())));
-            try {
-                mapper.parse(source(item::write));
-                fail("Mapper parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
-            } catch (MapperParsingException e) {
-                assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
-                    e.getCause().getMessage(), containsString(item.message));
-            }
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(item::write)));
+            assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                e.getCause().getMessage(), containsString(item.message));
         }
+    }
+
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        // dimension = false is allowed
+        assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
+
+        // dimension = true is not allowed
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Parameter [time_series_dimension] cannot be set"));
+    }
+
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+
+        assertMetricType("gauge", NumberFieldMapper.NumberFieldType::getMetricType);
+        assertMetricType("counter", NumberFieldMapper.NumberFieldType::getMetricType);
+
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "histogram");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [histogram] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "unknown");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+    }
+
+    public void testMetricAndDocvalues() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "counter").field("doc_values", false);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
     }
 
     @Override
@@ -258,10 +311,10 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context == LongFieldScript.CONTEXT) {
-            return (T) LongScriptFieldType.PARSE_FROM_SOURCE;
+            return (T) LongFieldScript.PARSE_FROM_SOURCE;
         }
         if (context == DoubleFieldScript.CONTEXT) {
-            return (T) DoubleScriptFieldType.PARSE_FROM_SOURCE;
+            return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
         }
         throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
     }

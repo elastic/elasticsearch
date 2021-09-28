@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -52,6 +53,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME, NodesCachesStatsResponse::new);
 
     private final Supplier<FrozenCacheService> frozenCacheService;
+    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportSearchableSnapshotsNodeCachesStatsAction(
@@ -59,7 +61,8 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        SearchableSnapshots.FrozenCacheServiceSupplier frozenCacheService
+        SearchableSnapshots.FrozenCacheServiceSupplier frozenCacheService,
+        XPackLicenseState licenseState
     ) {
         super(
             ACTION_NAME,
@@ -74,6 +77,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             NodeCachesStatsResponse.class
         );
         this.frozenCacheService = frozenCacheService;
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -91,7 +95,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     }
 
     @Override
-    protected NodeCachesStatsResponse newNodeResponse(StreamInput in) throws IOException {
+    protected NodeCachesStatsResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeCachesStatsResponse(in);
     }
 
@@ -114,6 +118,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     @Override
     protected NodeCachesStatsResponse nodeOperation(NodeRequest request, Task task) {
+        SearchableSnapshots.ensureValidLicense(licenseState);
         final FrozenCacheService.Stats frozenCacheStats;
         if (frozenCacheService.get() != null) {
             frozenCacheStats = frozenCacheService.get().getStats();
@@ -240,6 +245,38 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             }
             builder.endObject();
             return builder;
+        }
+
+        public int getNumRegions() {
+            return numRegions;
+        }
+
+        public long getSize() {
+            return size;
+        }
+
+        public long getRegionSize() {
+            return regionSize;
+        }
+
+        public long getWrites() {
+            return writes;
+        }
+
+        public long getBytesWritten() {
+            return bytesWritten;
+        }
+
+        public long getReads() {
+            return reads;
+        }
+
+        public long getBytesRead() {
+            return bytesRead;
+        }
+
+        public long getEvictions() {
+            return evictions;
         }
     }
 

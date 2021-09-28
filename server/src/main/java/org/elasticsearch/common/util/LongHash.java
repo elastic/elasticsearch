@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Specialized hash table implementation similar to BytesRefHash that maps

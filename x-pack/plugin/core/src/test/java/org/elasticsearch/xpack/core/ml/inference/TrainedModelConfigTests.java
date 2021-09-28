@@ -24,7 +24,14 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocationTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -52,8 +59,26 @@ import static org.hamcrest.Matchers.not;
 public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<TrainedModelConfig> {
 
     private boolean lenient;
-
     public static TrainedModelConfig.Builder createTestInstance(String modelId) {
+        return createTestInstance(modelId, false);
+    }
+
+    public static TrainedModelConfig.Builder createTestInstance(String modelId, boolean lenient) {
+
+        InferenceConfig[] inferenceConfigs = lenient ?
+            // Because of vocab config validations on parse, only test on lenient
+            new InferenceConfig[] {
+                ClassificationConfigTests.randomClassificationConfig(),
+                RegressionConfigTests.randomRegressionConfig(),
+                NerConfigTests.createRandom(),
+                PassThroughConfigTests.createRandom(),
+                TextClassificationConfigTests.createRandom(),
+                FillMaskConfigTests.createRandom(),
+                TextEmbeddingConfigTests.createRandom()
+           } : new InferenceConfig[] {
+                ClassificationConfigTests.randomClassificationConfig(),
+                RegressionConfigTests.randomRegressionConfig()
+          };
         List<String> tags = Arrays.asList(generateRandomStringArray(randomIntBetween(0, 5), 15, false));
         return TrainedModelConfig.builder()
             .setInput(TrainedModelInputTests.createRandomInput())
@@ -61,17 +86,16 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setCreateTime(Instant.ofEpochMilli(randomLongBetween(Instant.MIN.getEpochSecond(), Instant.MAX.getEpochSecond())))
             .setVersion(Version.CURRENT)
             .setModelId(modelId)
+            .setModelType(randomFrom(TrainedModelType.values()))
             .setCreatedBy(randomAlphaOfLength(10))
-            .setDescription(randomBoolean() ? null : randomAlphaOfLength(100))
+            .setDescription(randomBoolean() ? null : randomAlphaOfLength(10))
             .setEstimatedHeapMemory(randomNonNegativeLong())
             .setEstimatedOperations(randomNonNegativeLong())
             .setLicenseLevel(randomFrom(License.OperationMode.PLATINUM.description(),
-                License.OperationMode.ENTERPRISE.description(),
-                License.OperationMode.GOLD.description(),
                 License.OperationMode.BASIC.description()))
-            .setInferenceConfig(randomFrom(ClassificationConfigTests.randomClassificationConfig(),
-                RegressionConfigTests.randomRegressionConfig()))
-            .setTags(tags);
+            .setInferenceConfig(randomFrom(inferenceConfigs))
+            .setTags(tags)
+            .setLocation(randomBoolean() ? null : IndexLocationTests.randomInstance());
     }
 
     @Before
@@ -96,7 +120,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
 
     @Override
     protected TrainedModelConfig createTestInstance() {
-        return createTestInstance(randomAlphaOfLength(10)).build();
+        return createTestInstance(randomAlphaOfLength(10), lenient).build();
     }
 
     @Override
@@ -114,8 +138,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 
@@ -134,6 +157,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());
         TrainedModelConfig config = new TrainedModelConfig(
             randomAlphaOfLength(10),
+            TrainedModelType.TREE_ENSEMBLE,
             randomAlphaOfLength(10),
             Version.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),
@@ -149,7 +173,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                 Stream.generate(() -> randomAlphaOfLength(10))
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
-            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()));
+            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
+            null);
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         assertThat(reference.utf8ToString(), containsString("\"compressed_definition\""));
@@ -168,12 +193,13 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         assertThat(reference.utf8ToString(), containsString("\"definition\""));
         assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
     }
-    
+
     public void testParseWithBothDefinitionAndCompressedSupplied() throws IOException {
         TrainedModelConfig.LazyModelDefinition lazyModelDefinition = TrainedModelConfig.LazyModelDefinition
             .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());
         TrainedModelConfig config = new TrainedModelConfig(
             randomAlphaOfLength(10),
+            TrainedModelType.TREE_ENSEMBLE,
             randomAlphaOfLength(10),
             Version.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),
@@ -189,7 +215,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                 Stream.generate(() -> randomAlphaOfLength(10))
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
-            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()));
+            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
+            null);
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         Map<String, Object> objectMap = XContentHelper.convertToMap(reference, true, XContentType.JSON).v2();
@@ -207,10 +234,22 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         }
     }
 
-    public void testValidateWithNullDefinition() {
+    public void testValidateWithBothDefinitionAndLocation() {
         ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
-            () -> TrainedModelConfig.builder().validate());
-        assertThat(ex.getMessage(), containsString("[definition] must not be null."));
+            () -> TrainedModelConfig.builder()
+                .setLocation(IndexLocationTests.randomInstance())
+                .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+                .setModelType(TrainedModelType.PYTORCH)
+                .validate());
+        assertThat(ex.getMessage(), containsString("[definition] and [location] are both defined but only one can be used."));
+    }
+
+    public void testValidateWithWithMissingTypeAndDefinition() {
+        ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
+            () -> TrainedModelConfig.builder()
+                .setLocation(IndexLocationTests.randomInstance())
+                .validate());
+        assertThat(ex.getMessage(), containsString("[model_type] must be set if [definition] is not defined"));
     }
 
     public void testValidateWithInvalidID() {
@@ -260,9 +299,9 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         xContentTester(this::createParser,
             () -> {
             try {
-                String compressedString = InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
-                return createTestInstance(randomAlphaOfLength(10))
-                    .setDefinitionFromString(compressedString)
+                BytesReference bytes = InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
+                return createTestInstance(randomAlphaOfLength(10), lenient)
+                    .setDefinitionFromBytes(bytes)
                     .build();
             } catch (IOException ex) {
                 fail(ex.getMessage());
@@ -291,10 +330,10 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         xContentTester(this::createParser,
             () -> {
                 try {
-                    String compressedString =
+                    BytesReference bytes =
                         InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
-                    return createTestInstance(randomAlphaOfLength(10))
-                        .setDefinitionFromString(compressedString)
+                    return createTestInstance(randomAlphaOfLength(10), lenient)
+                        .setDefinitionFromBytes(bytes)
                         .build();
                 } catch (IOException ex) {
                     fail(ex.getMessage());
@@ -327,6 +366,10 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         }
         if (version.before(Version.V_7_8_0)) {
             builder.setInferenceConfig(null);
+        }
+        if (version.before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED)) {
+            builder.setModelType((TrainedModelType)null);
+            builder.setLocation(null);
         }
         return builder.build();
     }

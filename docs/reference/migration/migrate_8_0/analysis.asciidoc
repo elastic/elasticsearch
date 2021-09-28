@@ -6,9 +6,6 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
-
 [[ngram-edgengram-filter-names-removed]]
 .The `nGram` and `edgeNGram` token filter names have been removed.
 [%collapsible]
@@ -37,3 +34,4 @@ emit a deprecation warning. The tokenizer name should be changed to the fully eq
 Use the `ngram` and `edge_ngram` tokenizers. Requests to create new indices
 using the `nGram` and `edgeNGram` tokenizer names will return an error.
 ====
+// end::notable-breaking-changes[]

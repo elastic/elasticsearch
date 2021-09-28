@@ -19,9 +19,9 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Script producing IP addresses. Unlike the other {@linkplain AbstractFieldScript}s
@@ -39,6 +39,40 @@ import java.util.function.Consumer;
  */
 public abstract class IpFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("ip_field", Factory.class);
+
+    public static final IpFieldScript.Factory PARSE_FROM_SOURCE
+        = (field, params, lookup) -> (IpFieldScript.LeafFactory) ctx -> new IpFieldScript
+        (
+            field,
+            params,
+            lookup,
+            ctx
+        ) {
+        @Override
+        public void execute() {
+            emitFromSource();
+        }
+    };
+
+    public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
+        return (leafFieldName, params, searchLookup) -> {
+            CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
+                return new IpFieldScript(leafFieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void setDocument(int docId) {
+                        compositeFieldScript.setDocument(docId);
+                    }
+
+                    @Override
+                    public void execute() {
+                        emitFromCompositeScript(compositeFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -88,21 +122,21 @@ public abstract class IpFieldScript extends AbstractFieldScript {
     }
 
     /**
-     * Reorders the values from the last time {@link #values()} was called to
-     * how this would appear in doc-values order. Truncates garbage values
-     * based on {@link #count()}.
-     */
-    public final BytesRef[] asDocValues() {
-        BytesRef[] truncated = Arrays.copyOf(values, count());
-        Arrays.sort(truncated);
-        return truncated;
-    }
-
-    /**
      * The number of results produced the last time {@link #runForDoc(int)} was called.
      */
     public final int count() {
         return count;
+    }
+
+    @Override
+    protected void emitFromObject(Object v) {
+        if (v instanceof String) {
+            try {
+                emit((String) v);
+            } catch (Exception e) {
+                // ignore parsing exceptions
+            }
+        }
     }
 
     public final void emit(String v) {

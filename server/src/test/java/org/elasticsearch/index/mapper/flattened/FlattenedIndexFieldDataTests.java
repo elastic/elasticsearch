@@ -23,9 +23,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldData;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -42,11 +42,12 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
-            indicesService.getCircuitBreakerService(),
-            indexService.mapperService());
+            indicesService.getCircuitBreakerService()
+        );
 
-        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("json").build(new ContentPath(1));
-        KeyedFlattenedFieldType fieldType1 = fieldMapper.keyedFieldType("key");
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("flattened")
+            .build(MapperBuilderContext.ROOT);
+        MappedFieldType fieldType1 = fieldMapper.fieldType().getChildFieldType("key");
 
         AtomicInteger onCacheCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
@@ -63,7 +64,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
         IndexWriter writer = new IndexWriter(directory, config);
 
         Document doc = new Document();
-        doc.add(new SortedSetDocValuesField("json._keyed", new BytesRef("some_key\0some_value")));
+        doc.add(new SortedSetDocValuesField("flattened._keyed", new BytesRef("some_key\0some_value")));
         writer.addDocument(doc);
         writer.commit();
         writer.addDocument(doc);
@@ -83,7 +84,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
         assertEquals(1, onCacheCalled.get());
 
         // Load global field data for the subfield 'other_key'.
-        KeyedFlattenedFieldType fieldType2 = fieldMapper.keyedFieldType("other_key");
+        MappedFieldType fieldType2 = fieldMapper.fieldType().getChildFieldType("other_key");
         IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");
         });

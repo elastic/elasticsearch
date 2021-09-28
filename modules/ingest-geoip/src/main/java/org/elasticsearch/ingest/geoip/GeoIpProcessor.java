@@ -17,14 +17,19 @@ import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Country;
 import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Subdivision;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -37,11 +42,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTaskWithId;
 
 public final class GeoIpProcessor extends AbstractProcessor {
 
@@ -51,6 +58,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private static final String ASN_DB_SUFFIX = "-ASN";
 
     private final String field;
+    private final Supplier<Boolean> isValid;
     private final String targetField;
     private final CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier;
     private final Set<Property> properties;
@@ -59,10 +67,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     /**
      * Construct a geo-IP processor.
-     *  @param tag           the processor tag
+     *
+     * @param tag           the processor tag
      * @param description   the processor description
      * @param field         the source field to geo-IP map
-     * @param supplier    a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
+     * @param supplier      a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
+     * @param isValid
      * @param targetField   the target field
      * @param properties    the properties; ideally this is lazily-loaded once on first use
      * @param ignoreMissing true if documents with a missing value for the field should be ignored
@@ -73,12 +83,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final String description,
         final String field,
         final CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier,
+        final Supplier<Boolean> isValid,
         final String targetField,
         final Set<Property> properties,
         final boolean ignoreMissing,
         final boolean firstOnly) {
         super(tag, description);
         this.field = field;
+        this.isValid = isValid;
         this.targetField = targetField;
         this.supplier = supplier;
         this.properties = properties;
@@ -94,7 +106,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument ingestDocument) throws IOException {
         Object ip = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
 
-        if (ip == null && ignoreMissing) {
+        if (isValid.get() == false) {
+            ingestDocument.appendFieldValue("tags", "_geoip_expired_database", false);
+            return ingestDocument;
+        } else if (ip == null && ignoreMissing) {
             return ingestDocument;
         } else if (ip == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
@@ -342,20 +357,22 @@ public final class GeoIpProcessor extends AbstractProcessor {
         ));
 
         private final DatabaseRegistry databaseRegistry;
+        private final ClusterService clusterService;
 
         List<DatabaseReaderLazyLoader> getAllDatabases() {
             return databaseRegistry.getAllDatabases();
         }
 
-        public Factory(DatabaseRegistry databaseRegistry) {
+        public Factory(DatabaseRegistry databaseRegistry, ClusterService clusterService) {
             this.databaseRegistry = databaseRegistry;
+            this.clusterService = clusterService;
         }
 
         @Override
         public GeoIpProcessor create(
-                final Map<String, Processor.Factory> registry,
-                final String processorTag,
-                final String description, final Map<String, Object> config) throws IOException {
+            final Map<String, Processor.Factory> registry,
+            final String processorTag,
+            final String description, final Map<String, Object> config) throws IOException {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
             String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
@@ -413,7 +430,31 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     "] doesn't match with expected suffix [" + expectedSuffix + "]";
                 return loader;
             };
-            return new GeoIpProcessor(processorTag, description, ipField, supplier, targetField, properties, ignoreMissing, firstOnly);
+            Supplier<Boolean> isValid = () -> {
+                ClusterState currentState = clusterService.state();
+                assert currentState != null;
+
+                PersistentTask<?> task = getTaskWithId(currentState, GeoIpDownloader.GEOIP_DOWNLOADER);
+                if (task == null || task.getState() == null) {
+                    return true;
+                }
+                GeoIpTaskState state = (GeoIpTaskState) task.getState();
+                GeoIpTaskState.Metadata metadata = state.getDatabases().get(databaseFile);
+                // we never remove metadata from cluster state, if metadata is null we deal with built-in database, which is always valid
+                if (metadata == null) {
+                    return true;
+                }
+
+                boolean valid = metadata.isValid(currentState.metadata().settings());
+                if (valid && metadata.isCloseToExpiration()) {
+                    HeaderWarning.addWarning("database [{}] was not updated for over 25 days, geoip processor will stop working if there " +
+                        "is no update for 30 days", databaseFile);
+                }
+
+                return valid;
+            };
+            return new GeoIpProcessor(processorTag, description, ipField, supplier, isValid, targetField, properties, ignoreMissing,
+                firstOnly);
         }
     }
 

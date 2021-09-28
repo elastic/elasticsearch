@@ -11,10 +11,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -24,7 +22,7 @@ import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class EqlRestValidationTestCase extends ESRestTestCase {
+public abstract class EqlRestValidationTestCase extends RemoteClusterAwareEqlRestTestCase {
 
     private static final String indexName = "test_eql";
     protected static final String[] existentIndexWithWildcard = new String[] {indexName + ",inexistent*", indexName + "*,inexistent*",
@@ -35,8 +33,8 @@ public abstract class EqlRestValidationTestCase extends ESRestTestCase {
 
     @Before
     public void prepareIndices() throws IOException {
-        if (client().performRequest(new Request("HEAD", "/" + indexName)).getStatusLine().getStatusCode() == 404) {
-            createIndex(indexName, Settings.EMPTY);
+        if (provisioningClient().performRequest(new Request("HEAD", "/" + indexName)).getStatusLine().getStatusCode() == 404) {
+            createIndex(indexName, (String) null);
         }
 
         Object[] fieldsAndValues = new Object[] {"event_type", "my_event", "@timestamp", "2020-10-08T12:35:48Z", "val", 0};
@@ -47,9 +45,9 @@ public abstract class EqlRestValidationTestCase extends ESRestTestCase {
         document.endObject();
         final Request request = new Request("POST", "/" + indexName + "/_doc/" + 0);
         request.setJsonEntity(Strings.toString(document));
-        assertOK(client().performRequest(request));
+        assertOK(provisioningClient().performRequest(request));
 
-        assertOK(adminClient().performRequest(new Request("POST", "/" + indexName + "/_refresh")));
+        assertOK(provisioningAdminClient().performRequest(new Request("POST", "/" + indexName + "/_refresh")));
     }
 
     protected abstract String getInexistentIndexErrorMessage();
@@ -82,7 +80,7 @@ public abstract class EqlRestValidationTestCase extends ESRestTestCase {
 
     protected void assertErrorMessages(String[] indices, String reqParameter, String errorMessage) throws IOException {
         for (String indexName : indices) {
-            assertErrorMessage(indexName, reqParameter, errorMessage + "[" + indexName + "]");
+            assertErrorMessage(indexName, reqParameter, errorMessage + "[" + indexPattern(indexName) + "]");
         }
     }
 
@@ -95,7 +93,7 @@ public abstract class EqlRestValidationTestCase extends ESRestTestCase {
     }
 
     private Request createRequest(String indexName, String reqParameter) throws IOException {
-        final Request request = new Request("POST", "/" + indexName + "/_eql/search" + reqParameter);
+        final Request request = new Request("POST", "/" + indexPattern(indexName) + "/_eql/search" + reqParameter);
         request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder()
             .startObject()
             .field("event_category_field", "event_type")
@@ -111,5 +109,9 @@ public abstract class EqlRestValidationTestCase extends ESRestTestCase {
             Response response = client().performRequest(request);
             assertOK(response);
         }
+    }
+
+    protected String indexPattern(String index) {
+        return index;
     }
 }

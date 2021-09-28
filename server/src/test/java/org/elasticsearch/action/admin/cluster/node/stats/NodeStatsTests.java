@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -191,6 +192,7 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(ioStats.getTotalReadOperations(), deserializedIoStats.getTotalReadOperations());
                     assertEquals(ioStats.getTotalWriteKilobytes(), deserializedIoStats.getTotalWriteKilobytes());
                     assertEquals(ioStats.getTotalWriteOperations(), deserializedIoStats.getTotalWriteOperations());
+                    assertEquals(ioStats.getTotalIOTimeMillis(), deserializedIoStats.getTotalIOTimeMillis());
                     assertEquals(ioStats.getDevicesStats().length, deserializedIoStats.getDevicesStats().length);
                     for (int i = 0; i < ioStats.getDevicesStats().length; i++) {
                         FsInfo.DeviceStats deviceStats = ioStats.getDevicesStats()[i];
@@ -200,6 +202,7 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(deviceStats.readOperations(), deserializedDeviceStats.readOperations());
                         assertEquals(deviceStats.writeKilobytes(), deserializedDeviceStats.writeKilobytes());
                         assertEquals(deviceStats.writeOperations(), deserializedDeviceStats.writeOperations());
+                        assertEquals(deviceStats.ioTimeInMillis(), deserializedDeviceStats.ioTimeInMillis());
                     }
                 }
                 if (nodeStats.getTransport() == null) {
@@ -257,6 +260,9 @@ public class NodeStatsTests extends ESTestCase {
 
                         compilations += generatedStats.getCompilations();
                         assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
+
+                        assertEquals(generatedStats.getCacheEvictionsHistory(), deserStats.getCacheEvictionsHistory());
+                        assertEquals(generatedStats.getCompilationsHistory(), deserStats.getCompilationsHistory());
                     }
                     assertEquals(evictions, scriptStats.getCacheEvictions());
                     assertEquals(limited, scriptStats.getCompilationLimitTriggered());
@@ -274,6 +280,87 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(queueStats.getCommitted(), deserializedDiscoveryStats.getQueueStats().getCommitted());
                         assertEquals(queueStats.getTotal(), deserializedDiscoveryStats.getQueueStats().getTotal());
                         assertEquals(queueStats.getPending(), deserializedDiscoveryStats.getQueueStats().getPending());
+                    }
+
+                    final PublishClusterStateStats publishStats = discoveryStats.getPublishStats();
+                    if (publishStats == null) {
+                        assertNull(deserializedDiscoveryStats.getPublishStats());
+                    } else {
+                        final PublishClusterStateStats deserializedPublishStats = deserializedDiscoveryStats.getPublishStats();
+                        assertEquals(
+                            publishStats.getFullClusterStateReceivedCount(),
+                            deserializedPublishStats.getFullClusterStateReceivedCount());
+                        assertEquals(
+                            publishStats.getCompatibleClusterStateDiffReceivedCount(),
+                            deserializedPublishStats.getCompatibleClusterStateDiffReceivedCount());
+                        assertEquals(
+                            publishStats.getIncompatibleClusterStateDiffReceivedCount(),
+                            deserializedPublishStats.getIncompatibleClusterStateDiffReceivedCount());
+                    }
+
+                    final ClusterStateUpdateStats clusterStateUpdateStats = discoveryStats.getClusterStateUpdateStats();
+                    if (clusterStateUpdateStats == null) {
+                        assertNull(deserializedDiscoveryStats.getClusterStateUpdateStats());
+                    } else {
+                        final ClusterStateUpdateStats deserializedClusterStateUpdateStats
+                            = deserializedDiscoveryStats.getClusterStateUpdateStats();
+                        assertEquals(
+                            clusterStateUpdateStats.getUnchangedTaskCount(),
+                            deserializedClusterStateUpdateStats.getUnchangedTaskCount());
+                        assertEquals(
+                            clusterStateUpdateStats.getPublicationSuccessCount(),
+                            deserializedClusterStateUpdateStats.getPublicationSuccessCount());
+                        assertEquals(
+                            clusterStateUpdateStats.getPublicationFailureCount(),
+                            deserializedClusterStateUpdateStats.getPublicationFailureCount());
+                        assertEquals(
+                            clusterStateUpdateStats.getUnchangedComputationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getUnchangedComputationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getUnchangedNotificationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getUnchangedNotificationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulComputationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulComputationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulPublicationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulPublicationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulContextConstructionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulContextConstructionElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulCommitElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulCommitElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulCompletionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulCompletionElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulMasterApplyElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulMasterApplyElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getSuccessfulNotificationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getSuccessfulNotificationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedComputationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedComputationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedPublicationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedPublicationElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedContextConstructionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedContextConstructionElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedCommitElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedCommitElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedCompletionElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedCompletionElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedMasterApplyElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedMasterApplyElapsedMillis());
+                        assertEquals(
+                            clusterStateUpdateStats.getFailedNotificationElapsedMillis(),
+                            deserializedClusterStateUpdateStats.getFailedNotificationElapsedMillis());
                     }
                 }
                 IngestStats ingestStats = nodeStats.getIngestStats();
@@ -414,10 +501,12 @@ public class NodeStatsTests extends ESTestCase {
             for (int i = 0; i < numDeviceStats; i++) {
                 FsInfo.DeviceStats previousDeviceStats = randomBoolean() ? null :
                         new FsInfo.DeviceStats(randomInt(), randomInt(), randomAlphaOfLengthBetween(3, 10),
-                                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), null);
+                            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                            randomNonNegativeLong(), null);
                 deviceStatsArray[i] =
                     new FsInfo.DeviceStats(randomInt(), randomInt(), randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong(),
-                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), previousDeviceStats);
+                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        previousDeviceStats);
             }
             FsInfo.IoStats ioStats = new FsInfo.IoStats(deviceStatsArray);
             int numPaths = randomIntBetween(0, 10);
@@ -436,6 +525,7 @@ public class NodeStatsTests extends ESTestCase {
             List<HttpStats.ClientStats> clientStats = new ArrayList<>(numClients);
             for (int k = 0; k < numClients; k++) {
                 var cs = new HttpStats.ClientStats(
+                    randomInt(),
                     randomAlphaOfLength(6),
                     randomAlphaOfLength(6),
                     randomAlphaOfLength(6),
@@ -468,25 +558,53 @@ public class NodeStatsTests extends ESTestCase {
             List<ScriptContextStats> stats = new ArrayList<>(numContents);
             HashSet<String> contexts = new HashSet<>();
             for (int i = 0; i < numContents; i++) {
+                long compile = randomLongBetween(0, 1024);
+                long eviction = randomLongBetween(0, 1024);
+                String context = randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12));
+                contexts.add(context);
                 stats.add(new ScriptContextStats(
-                    randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12)),
+                    context,
+                    compile,
+                    eviction,
                     randomLongBetween(0, 1024),
-                    randomLongBetween(0, 1024),
-                    randomLongBetween(0, 1024))
+                    randomTimeSeries(),
+                    randomTimeSeries())
                 );
             }
             scriptStats = new ScriptStats(stats);
         }
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
-                randomBoolean()
+            randomBoolean()
                 ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt())
                 : null,
-                randomBoolean()
+            randomBoolean()
                 ? new PublishClusterStateStats(
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong())
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong())
+                : null,
+            randomBoolean()
+                ? new ClusterStateUpdateStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong())
                 : null)
             : null;
         IngestStats ingestStats = null;
@@ -552,6 +670,17 @@ public class NodeStatsTests extends ESTestCase {
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
                 ingestStats, adaptiveSelectionStats, null);
+    }
+
+    private static ScriptContextStats.TimeSeries randomTimeSeries() {
+        if (randomBoolean()) {
+            long day = randomLongBetween(0, 1024);
+            long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
+            long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
+            return new ScriptContextStats.TimeSeries(five, fifteen, day);
+        } else {
+            return new ScriptContextStats.TimeSeries();
+        }
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

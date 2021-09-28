@@ -1,4 +1,5 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
@@ -64,7 +65,6 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     setting 'indices.lifecycle.history_index_enabled', 'false'
     setting 'ingest.geoip.downloader.enabled', 'false'
     systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
-    systemProperty 'es.shutdown_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }
 
@@ -84,6 +84,8 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   configFile 'KeywordTokenizer.rbbi'
   extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
+  extraConfigFile 'httpCa.p12', file("./httpCa.p12")
+  extraConfigFile 'transport.p12', file("./transport.p12")
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 
@@ -376,36 +378,6 @@ buildRestTests.setups['user_hits'] = '''
             {"timestamp": "2019-01-03T13:00:00", "user_id": "2"}
             {"index":{}}
             {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
-
-
-// Fake bank account data used by getting-started.asciidoc
-buildRestTests.setups['bank'] = '''
-  - do:
-        indices.create:
-          index: bank
-          body:
-            settings:
-              number_of_shards: 5
-              number_of_routing_shards: 5
-  - do:
-        bulk:
-          index: bank
-          refresh: true
-          body: |
-#bank_data#
-'''
-/* Load the actual accounts only if we're going to use them. This complicates
- * dependency checking but that is a small price to pay for not building a
- * 400kb string every time we start the build. */
-File accountsFile = new File("$projectDir/src/test/resources/accounts.json")
-buildRestTests.inputs.file(accountsFile)
-buildRestTests.doFirst {
-  String accounts = accountsFile.getText('UTF-8')
-  // Indent like a yaml test needs
-  accounts = accounts.replaceAll('(?m)^', '            ')
-  buildRestTests.setups['bank'] =
-    buildRestTests.setups['bank'].replace('#bank_data#', accounts)
-}
 
 // Used by sampler and diversified-sampler aggregation docs
 buildRestTests.setups['stackoverflow'] = '''
@@ -1543,6 +1515,29 @@ setups['setup-repository'] = '''
             location: buildDir/cluster/shared/repo
 '''
 
+// Used by snapshot restore docs
+setups['setup-snapshots'] = setups['setup-repository'] + '''
+  - do:
+      bulk:
+        index: my-index
+        refresh: true
+        body: |
+          {"index":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      bulk:
+        index: logs-my_app-default
+        refresh: true
+        body: |
+          {"create":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      snapshot.create:
+        repository: my_repository
+        snapshot: my_snapshot_2099.05.06
+        wait_for_completion: true
+'''
+
 // Fake sec logs data used by EQL search
   setups['atomic_red_regsvr32'] = setups['my_data_stream'] + '''
   - do:
@@ -1552,6 +1547,47 @@ setups['setup-repository'] = '''
           body: |
 #atomic_red_data#
 '''
+  // fake data used by the correlation bucket agg
+  buildRestTests.setups['correlate_latency'] = '''
+  - do:
+        indices.create:
+          index: correlate_latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                latency:
+                  type: double
+                version:
+                  type: keyword
+  - do:
+        bulk:
+          index: correlate_latency
+          refresh: true
+          body: |'''
+
+
+  for (int i = 100; i < 200; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "1.0"}"""
+  }
+  for (int i = 0; i < 100; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "2.0"}"""
+  }
+
   /* Load the actual events only if we're going to use them. */
   File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
   inputs.file(atomicRedRegsvr32File)

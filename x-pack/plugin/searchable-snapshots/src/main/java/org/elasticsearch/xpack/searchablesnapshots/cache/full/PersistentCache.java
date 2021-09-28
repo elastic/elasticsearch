@@ -65,7 +65,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -337,10 +336,8 @@ public class PersistentCache implements Closeable {
         final List<CacheIndexWriter> writers = new ArrayList<>();
         boolean success = false;
         try {
-            final NodeEnvironment.NodePath[] nodePaths = nodeEnvironment.nodePaths();
-            for (NodeEnvironment.NodePath nodePath : nodePaths) {
-                writers.add(createCacheIndexWriter(nodePath));
-            }
+            final NodeEnvironment.NodePath nodePath = nodeEnvironment.nodePath();
+            writers.add(createCacheIndexWriter(nodePath));
             success = true;
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to create persistent cache writers", e);
@@ -396,11 +393,10 @@ public class PersistentCache implements Closeable {
     static Map<String, Document> loadDocuments(NodeEnvironment nodeEnvironment) {
         final Map<String, Document> documents = new HashMap<>();
         try {
-            for (NodeEnvironment.NodePath nodePath : nodeEnvironment.nodePaths()) {
-                final Path directoryPath = resolveCacheIndexFolder(nodePath);
-                if (Files.exists(directoryPath)) {
-                    documents.putAll(loadDocuments(directoryPath));
-                }
+            NodeEnvironment.NodePath nodePath = nodeEnvironment.nodePath();
+            final Path directoryPath = resolveCacheIndexFolder(nodePath);
+            if (Files.exists(directoryPath)) {
+                documents.putAll(loadDocuments(directoryPath));
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to load existing documents from persistent cache index", e);
@@ -450,23 +446,22 @@ public class PersistentCache implements Closeable {
             throw new IllegalStateException("Cannot clean searchable snapshot caches: node is a data node");
         }
         try {
-            for (NodeEnvironment.NodePath nodePath : nodeEnvironment.nodePaths()) {
-                for (String indexUUID : nodeEnvironment.availableIndexFoldersForPath(nodePath)) {
-                    for (ShardId shardId : nodeEnvironment.findAllShardIds(new Index("_unknown_", indexUUID))) {
-                        final Path shardDataPath = nodePath.resolve(shardId);
-                        final ShardPath shardPath = new ShardPath(false, shardDataPath, shardDataPath, shardId);
-                        final Path cacheDir = getShardCachePath(shardPath);
-                        if (Files.isDirectory(cacheDir)) {
-                            logger.debug("deleting searchable snapshot shard cache directory [{}]", cacheDir);
-                            IOUtils.rm(cacheDir);
-                        }
+            NodeEnvironment.NodePath nodePath = nodeEnvironment.nodePath();
+            for (String indexUUID : nodeEnvironment.availableIndexFoldersForPath(nodePath)) {
+                for (ShardId shardId : nodeEnvironment.findAllShardIds(new Index("_unknown_", indexUUID))) {
+                    final Path shardDataPath = nodePath.resolve(shardId);
+                    final ShardPath shardPath = new ShardPath(false, shardDataPath, shardDataPath, shardId);
+                    final Path cacheDir = getShardCachePath(shardPath);
+                    if (Files.isDirectory(cacheDir)) {
+                        logger.debug("deleting searchable snapshot shard cache directory [{}]", cacheDir);
+                        IOUtils.rm(cacheDir);
                     }
                 }
-                final Path cacheIndexDir = resolveCacheIndexFolder(nodePath);
-                if (Files.isDirectory(cacheIndexDir)) {
-                    logger.debug("deleting searchable snapshot lucene directory [{}]", cacheIndexDir);
-                    IOUtils.rm(cacheIndexDir);
-                }
+            }
+            final Path cacheIndexDir = resolveCacheIndexFolder(nodePath);
+            if (Files.isDirectory(cacheIndexDir)) {
+                logger.debug("deleting searchable snapshot lucene directory [{}]", cacheIndexDir);
+                IOUtils.rm(cacheIndexDir);
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to clean up searchable snapshots cache", e);
@@ -666,8 +661,8 @@ public class PersistentCache implements Closeable {
             super(
                 "Persistent cache index not found for cache file path ["
                     + cacheFile.getFile()
-                    + "] using node paths "
-                    + Arrays.toString(nodeEnvironment.nodeDataPaths())
+                    + "] using node path "
+                    + nodeEnvironment.nodeDataPath()
             );
         }
     }

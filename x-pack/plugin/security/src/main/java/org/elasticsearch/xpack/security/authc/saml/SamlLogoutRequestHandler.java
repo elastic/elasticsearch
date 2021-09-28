@@ -11,7 +11,7 @@ import java.util.Objects;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.core.EncryptedID;
 import org.opensaml.saml.saml2.core.LogoutRequest;
@@ -109,7 +109,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
     private String getSessionIndex(LogoutRequest logoutRequest) {
         return logoutRequest.getSessionIndexes()
                 .stream()
-                .map(as -> as.getSessionIndex())
+                .map(as -> as.getValue())
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);

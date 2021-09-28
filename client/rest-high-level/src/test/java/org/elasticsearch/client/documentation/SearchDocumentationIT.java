@@ -23,8 +23,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -45,9 +48,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -80,12 +83,13 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Avg;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
@@ -145,7 +149,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::search-request-preference
             searchRequest.preference("_local"); // <1>
             // end::search-request-preference
-            assertNotNull(client.search(searchRequest, RequestOptions.DEFAULT));
+            assertNotNull(client.search(searchRequest, IGNORE_THROTTLED_WARNING));
         }
         {
             // tag::search-source-basics
@@ -495,15 +499,15 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             // tag::search-request-profiling-get
-            Map<String, ProfileShardResult> profilingResults =
+            Map<String, SearchProfileShardResult> profilingResults =
                     searchResponse.getProfileResults(); // <1>
-            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) { // <2>
+            for (Map.Entry<String, SearchProfileShardResult> profilingResult : profilingResults.entrySet()) { // <2>
                 String key = profilingResult.getKey(); // <3>
-                ProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
+                SearchProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
             }
             // end::search-request-profiling-get
 
-            ProfileShardResult profileShardResult = profilingResults.values().iterator().next();
+            SearchProfileShardResult profileShardResult = profilingResults.values().iterator().next();
             assertNotNull(profileShardResult);
 
             // tag::search-request-profiling-queries
@@ -719,6 +723,63 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             boolean succeeded = clearScrollResponse.isSucceeded();
             // end::search-scroll-example
             assertTrue(succeeded);
+        }
+    }
+
+    public void testPointInTime() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        BulkRequest request = new BulkRequest();
+        request.add(new IndexRequest("posts").id("1").source(XContentType.JSON, "lang", "Java"));
+        request.add(new IndexRequest("posts").id("2").source(XContentType.JSON, "lang", "Python"));
+        request.add(new IndexRequest("posts").id("3").source(XContentType.JSON, "lang", "Go"));
+        request.add(new IndexRequest("posts").id("4").source(XContentType.JSON, "lang", "Rust"));
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
+        assertSame(RestStatus.OK, bulkResponse.status());
+        assertFalse(bulkResponse.hasFailures());
+
+        // tag::open-point-in-time
+        OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest("posts"); // <1>
+        openRequest.keepAlive(TimeValue.timeValueMinutes(30)); // <2>
+        OpenPointInTimeResponse openResponse = client.openPointInTime(openRequest, RequestOptions.DEFAULT);
+        String pitId = openResponse.getPointInTimeId(); // <3>
+        // end::open-point-in-time
+        assertNotNull(pitId);
+
+        // tag::search-point-in-time
+        SearchRequest searchRequest = new SearchRequest();
+        final PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(pitId); // <1>
+        pointInTimeBuilder.setKeepAlive("2m"); // <2>
+        searchRequest.source(new SearchSourceBuilder().pointInTimeBuilder(pointInTimeBuilder)); // <3>
+        SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
+        // end::search-point-in-time
+        assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
+
+        // tag::close-point-in-time
+        ClosePointInTimeRequest closeRequest = new ClosePointInTimeRequest(pitId); // <1>
+        ClearScrollResponse closeResponse = client.closePointInTime(closeRequest, RequestOptions.DEFAULT);
+        boolean succeeded = closeResponse.isSucceeded();
+        // end::close-point-in-time
+        assertTrue(succeeded);
+
+        // Open a point in time with optional arguments
+        {
+            openRequest = new OpenPointInTimeRequest("posts").keepAlive(TimeValue.timeValueMinutes(10));
+            // tag::open-point-in-time-indices-option
+            openRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED); // <1>
+            // end::open-point-in-time-indices-option
+
+            // tag::open-point-in-time-routing
+            openRequest.routing("routing"); // <1>
+            // end::open-point-in-time-routing
+
+            // tag::open-point-in-time-preference
+            openRequest.preference("_local"); // <1>
+            // end::open-point-in-time-preference
+
+            openResponse = client.openPointInTime(openRequest, IGNORE_THROTTLED_WARNING);
+            pitId = openResponse.getPointInTimeId();
+            client.closePointInTime(new ClosePointInTimeRequest(pitId), RequestOptions.DEFAULT);
         }
     }
 
@@ -1058,8 +1119,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
         // end::field-caps-request-indicesOptions
 
+        RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
         // tag::field-caps-execute
-        FieldCapabilitiesResponse response = client.fieldCaps(request, RequestOptions.DEFAULT);
+        FieldCapabilitiesResponse response = client.fieldCaps(request, requestOptions);
         // end::field-caps-execute
 
         // tag::field-caps-response
@@ -1310,7 +1372,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 .indicesOptions(IndicesOptions.lenientExpandOpen()) // <3>
                 .preference("_local"); // <4>
             // end::count-request-args
-            assertNotNull(client.count(countRequest, RequestOptions.DEFAULT));
+            assertNotNull(client.count(countRequest, IGNORE_THROTTLED_WARNING));
         }
         {
             // tag::count-source-basics

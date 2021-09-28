@@ -8,9 +8,9 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,7 +35,8 @@ public final class ConnectionProfile {
         if (profile == null) {
             return fallbackProfile;
         } else if (profile.getConnectTimeout() != null && profile.getHandshakeTimeout() != null
-            && profile.getPingInterval() != null && profile.getCompressionEnabled() != null) {
+            && profile.getPingInterval() != null && profile.getCompressionEnabled() != null
+            && profile.getCompressionScheme() != null) {
             return profile;
         } else {
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
@@ -50,6 +51,9 @@ public final class ConnectionProfile {
             }
             if (profile.getCompressionEnabled() == null) {
                 builder.setCompressionEnabled(fallbackProfile.getCompressionEnabled());
+            }
+            if (profile.getCompressionScheme() == null) {
+                builder.setCompressionScheme(fallbackProfile.getCompressionScheme());
             }
             return builder.build();
         }
@@ -72,6 +76,7 @@ public final class ConnectionProfile {
         builder.setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings));
         builder.setPingInterval(TransportSettings.PING_SCHEDULE.get(settings));
         builder.setCompressionEnabled(TransportSettings.TRANSPORT_COMPRESS.get(settings));
+        builder.setCompressionScheme(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
         // if we are not master eligible we don't need a dedicated channel to publish the state
@@ -89,7 +94,8 @@ public final class ConnectionProfile {
      */
     public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, @Nullable TimeValue connectTimeout,
                                                               @Nullable TimeValue handshakeTimeout, @Nullable TimeValue pingInterval,
-                                                              @Nullable Boolean compressionEnabled) {
+                                                              @Nullable Compression.Enabled compressionEnabled,
+                                                              @Nullable Compression.Scheme compressionScheme) {
         Builder builder = new Builder();
         builder.addConnections(1, channelType);
         final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);
@@ -107,6 +113,9 @@ public final class ConnectionProfile {
         if (compressionEnabled != null) {
             builder.setCompressionEnabled(compressionEnabled);
         }
+        if (compressionScheme != null) {
+            builder.setCompressionScheme(compressionScheme);
+        }
         return builder.build();
     }
 
@@ -115,16 +124,19 @@ public final class ConnectionProfile {
     private final TimeValue connectTimeout;
     private final TimeValue handshakeTimeout;
     private final TimeValue pingInterval;
-    private final Boolean compressionEnabled;
+    private final Compression.Enabled compressionEnabled;
+    private final Compression.Scheme compressionScheme;
 
     private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
-                              TimeValue handshakeTimeout, TimeValue pingInterval, Boolean compressionEnabled) {
+                              TimeValue handshakeTimeout, TimeValue pingInterval, Compression.Enabled compressionEnabled,
+                              Compression.Scheme compressionScheme) {
         this.handles = handles;
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
         this.handshakeTimeout = handshakeTimeout;
         this.pingInterval = pingInterval;
         this.compressionEnabled = compressionEnabled;
+        this.compressionScheme = compressionScheme;
     }
 
     /**
@@ -136,7 +148,8 @@ public final class ConnectionProfile {
         private int numConnections = 0;
         private TimeValue connectTimeout;
         private TimeValue handshakeTimeout;
-        private Boolean compressionEnabled;
+        private Compression.Enabled compressionEnabled;
+        private Compression.Scheme compressionScheme;
         private TimeValue pingInterval;
 
         /** create an empty builder */
@@ -151,6 +164,7 @@ public final class ConnectionProfile {
             connectTimeout = source.getConnectTimeout();
             handshakeTimeout = source.getHandshakeTimeout();
             compressionEnabled = source.getCompressionEnabled();
+            compressionScheme = source.getCompressionScheme();
             pingInterval = source.getPingInterval();
         }
         /**
@@ -184,10 +198,18 @@ public final class ConnectionProfile {
         }
 
         /**
-         * Sets compression enabled for this connection profile
+         * Sets compression enabled configuration for this connection profile
          */
-        public Builder setCompressionEnabled(boolean compressionEnabled) {
+        public Builder setCompressionEnabled(Compression.Enabled compressionEnabled) {
             this.compressionEnabled = compressionEnabled;
+            return this;
+        }
+
+        /**
+         * Sets compression scheme for this connection profile
+         */
+        public Builder setCompressionScheme(Compression.Scheme compressionScheme) {
+            this.compressionScheme = compressionScheme;
             return this;
         }
 
@@ -222,7 +244,7 @@ public final class ConnectionProfile {
                 throw new IllegalStateException("not all types are added for this connection profile - missing types: " + types);
             }
             return new ConnectionProfile(Collections.unmodifiableList(handles), numConnections, connectTimeout, handshakeTimeout,
-                pingInterval, compressionEnabled);
+                pingInterval, compressionEnabled, compressionScheme);
         }
 
     }
@@ -249,11 +271,19 @@ public final class ConnectionProfile {
     }
 
     /**
-     * Returns boolean indicating if compression is enabled or <code>null</code> if no explicit compression
+     * Returns the compression enabled configuration or <code>null</code> if no explicit compression configuration
      * is set on this profile.
      */
-    public Boolean getCompressionEnabled() {
+    public Compression.Enabled getCompressionEnabled() {
         return compressionEnabled;
+    }
+
+    /**
+     * Returns the configured compression scheme or <code>null</code> if no explicit
+     * compression scheme is set on this profile.
+     */
+    public Compression.Scheme getCompressionScheme() {
+        return compressionScheme;
     }
 
     /**

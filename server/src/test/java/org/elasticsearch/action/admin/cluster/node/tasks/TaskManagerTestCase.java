@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -146,13 +146,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
 
         @Override
-        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+        protected NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             return new NodeResponse(in);
         }
 
         @Override
         protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
-
     }
 
     public static class TestNode implements Releasable {

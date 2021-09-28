@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 

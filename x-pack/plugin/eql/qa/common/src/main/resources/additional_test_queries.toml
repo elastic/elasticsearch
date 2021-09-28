@@ -274,20 +274,6 @@ file where file_name : ("winini?.exe", "lsass.e?e") and opcode == 2
 expected_event_ids  = [65, 86]
 
 [[queries]]
-name = "wildcardFunctionWildcardPattern"
-query = '''
-file where wildcard(file_name, "winini*.exe", "lsass.*") and opcode == 2
-'''
-expected_event_ids  = [65, 86]
-
-[[queries]]
-name = "wildcardFunctionQuestionMarkPattern"
-query = '''
-file where wildcard(file_name, "winini?.exe", "lsass.e?e") and opcode == 2
-'''
-expected_event_ids  = [65, 86]
-
-[[queries]]
 name = "insensitiveInSingleArg"
 query = 'process where string(serial_event_id) in~ ("1")'
 expected_event_ids  = [1]

@@ -84,7 +84,7 @@ fi
 
 export HOSTNAME=$HOSTNAME
 
-${source.path.env}
+@source.path.env@
 
 if [ -z "$ES_PATH_CONF" ]; then
   echo "ES_PATH_CONF must be set to the configuration path"
@@ -94,9 +94,9 @@ fi
 # now make ES_PATH_CONF absolute
 ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
-ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
-ES_DISTRIBUTION_TYPE=${es.distribution.type}
-ES_BUNDLED_JDK=${es.bundled_jdk}
+ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
+ES_DISTRIBUTION_TYPE=@es.distribution.type@
+ES_BUNDLED_JDK=@es.bundled_jdk@
 
 if [[ "$ES_BUNDLED_JDK" == "false" ]]; then
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
@@ -111,7 +111,7 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
 
   # Parse Docker env vars to customize Elasticsearch
   #
-  # e.g. Setting the env var cluster.name=testcluster
+  # e.g. Setting the env var cluster.name=testcluster or ES_CLUSTER_NAME=testcluster
   #
   # will cause Elasticsearch to be invoked with -Ecluster.name=testcluster
   #
@@ -119,17 +119,25 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
 
   declare -a es_arg_array
 
-  while IFS='=' read -r envvar_key envvar_value
-  do
-    # Elasticsearch settings need to have at least two dot separated lowercase
-    # words, e.g. `cluster.name`
-    if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
-      if [[ ! -z $envvar_value ]]; then
-        es_opt="-E${envvar_key}=${envvar_value}"
-        es_arg_array+=("${es_opt}")
-      fi
+  # Elasticsearch settings need to either:
+  # a. have at least two dot separated lower case words, e.g. `cluster.name`, or
+  while IFS='=' read -r envvar_key envvar_value; do
+    if [[ -n "$envvar_value" ]]; then
+      es_opt="-E${envvar_key}=${envvar_value}"
+      es_arg_array+=("${es_opt}")
     fi
-  done <<< "$(env)"
+  done <<< "$(env | grep -E '^[-a-z0-9_]+(\.[-a-z0-9_]+)+=')"
+
+  # b. be upper cased with underscore separators and prefixed with `ES_SETTING_`, e.g. `ES_SETTING_CLUSTER_NAME`.
+  #    Underscores in setting names are escaped by writing them as a double-underscore e.g. "__"
+  while IFS='=' read -r envvar_key envvar_value; do
+    if [[ -n "$envvar_value" ]]; then
+      # The long-hand sed `y` command works in any sed variant.
+      envvar_key="$(echo "$envvar_key" | sed -e 's/^ES_SETTING_//; s/_/./g ; s/\.\./_/g; y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' )"
+      es_opt="-E${envvar_key}=${envvar_value}"
+      es_arg_array+=("${es_opt}")
+    fi
+  done <<< "$(env | grep -E '^ES_SETTING(_{1,2}[A-Z]+)+=')"
 
   # Reset the positional parameters to the es_arg_array values and any existing positional params
   set -- "$@" "${es_arg_array[@]}"

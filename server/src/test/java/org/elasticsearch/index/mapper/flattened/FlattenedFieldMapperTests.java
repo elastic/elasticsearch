@@ -65,6 +65,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             m -> assertEquals(10, ((FlattenedFieldMapper)m).depthLimit()));
     }
 
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));

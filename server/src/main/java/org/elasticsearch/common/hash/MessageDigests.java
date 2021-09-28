@@ -8,6 +8,11 @@
 
 package org.elasticsearch.common.hash;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.bytes.BytesReference;
+
+import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
@@ -115,6 +120,26 @@ public final class MessageDigests {
             result[2 * i + 1] = HEX_DIGITS[b & 0xf];
         }
         return result;
+    }
+
+    /**
+     * Updates the given digest with the given bytes reference and the returns the result of the digest.
+     *
+     * @param bytesReference bytes to add to digest
+     * @param digest         digest to update and return the result for
+     * @return digest result
+     */
+    public static byte[] digest(BytesReference bytesReference, MessageDigest digest) {
+        final BytesRefIterator iterator = bytesReference.iterator();
+        BytesRef ref;
+        try {
+            while ((ref = iterator.next()) != null) {
+                digest.update(ref.bytes, ref.offset, ref.length);
+            }
+        } catch (IOException e) {
+            throw new AssertionError("no actual IO happens here", e);
+        }
+        return digest.digest();
     }
 
 }

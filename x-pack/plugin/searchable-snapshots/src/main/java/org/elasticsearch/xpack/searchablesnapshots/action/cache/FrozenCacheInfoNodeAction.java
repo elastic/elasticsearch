@@ -53,7 +53,7 @@ public class FrozenCacheInfoNodeAction extends ActionType<FrozenCacheInfoRespons
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
             super(NAME, transportService, actionFilters, Request::new);
-            response = new FrozenCacheInfoResponse(SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes() > 0);
+            response = new FrozenCacheInfoResponse(SNAPSHOT_CACHE_SIZE_SETTING.get(settings).isNonZeroSize());
         }
 
         @Override

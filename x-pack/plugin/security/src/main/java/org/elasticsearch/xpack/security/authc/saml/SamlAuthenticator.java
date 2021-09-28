@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.security.authc.saml;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.TimeValue;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
@@ -216,7 +216,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         final Instant now = now();
         final Instant pastNow = now.minusMillis(maxSkewInMillis());
         if (authnStatement.getSessionNotOnOrAfter() != null &&
-            pastNow.isBefore(toInstant(authnStatement.getSessionNotOnOrAfter())) == false) {
+            pastNow.isBefore(authnStatement.getSessionNotOnOrAfter()) == false) {
             throw samlException("Rejecting SAML assertion's Authentication Statement because [{}] is on/after [{}]", pastNow,
                 authnStatement.getSessionNotOnOrAfter());
         }
@@ -224,7 +224,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         if (reqAuthnCtxClassRef.isEmpty() == false) {
             String authnCtxClassRefValue = null;
             if (authnStatement.getAuthnContext() != null && authnStatement.getAuthnContext().getAuthnContextClassRef() != null) {
-                authnCtxClassRefValue = authnStatement.getAuthnContext().getAuthnContextClassRef().getAuthnContextClassRef();
+                authnCtxClassRefValue = authnStatement.getAuthnContext().getAuthnContextClassRef().getURI();
             }
             if (Strings.isNullOrEmpty(authnCtxClassRefValue) || reqAuthnCtxClassRef.contains(authnCtxClassRefValue) == false) {
                 throw samlException("Rejecting SAML assertion as the AuthnContextClassRef [{}] is not one of the ({}) that were " +
@@ -308,8 +308,8 @@ class SamlAuthenticator extends SamlResponseHandler {
 
     private boolean checkAudienceRestriction(AudienceRestriction restriction) {
         final String spEntityId = this.getSpConfiguration().getEntityId();
-        if (restriction.getAudiences().stream().map(Audience::getAudienceURI).anyMatch(spEntityId::equals) == false) {
-            restriction.getAudiences().stream().map(Audience::getAudienceURI).forEach(uri -> {
+        if (restriction.getAudiences().stream().map(Audience::getURI).anyMatch(spEntityId::equals) == false) {
+            restriction.getAudiences().stream().map(Audience::getURI).forEach(uri -> {
                 int diffChar;
                 for (diffChar = 0; diffChar < uri.length() && diffChar < spEntityId.length(); diffChar++) {
                     if (uri.charAt(diffChar) != spEntityId.charAt(diffChar)) {
@@ -338,10 +338,10 @@ class SamlAuthenticator extends SamlResponseHandler {
         final Instant now = now();
         final Instant futureNow = now.plusMillis(maxSkewInMillis());
         final Instant pastNow = now.minusMillis(maxSkewInMillis());
-        if (conditions.getNotBefore() != null && futureNow.isBefore(toInstant(conditions.getNotBefore()))) {
+        if (conditions.getNotBefore() != null && futureNow.isBefore(conditions.getNotBefore())) {
             throw samlException("Rejecting SAML assertion because [{}] is before [{}]", futureNow, conditions.getNotBefore());
         }
-        if (conditions.getNotOnOrAfter() != null && pastNow.isBefore(toInstant(conditions.getNotOnOrAfter())) == false) {
+        if (conditions.getNotOnOrAfter() != null && pastNow.isBefore(conditions.getNotOnOrAfter()) == false) {
             throw samlException("Rejecting SAML assertion because [{}] is on/after [{}]", pastNow, conditions.getNotOnOrAfter());
         }
     }

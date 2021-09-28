@@ -237,8 +237,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             null,
             null,
             null,
-            randomRetentionLeaseStats(isLeaderIndex)
-        );
+            randomRetentionLeaseStats(isLeaderIndex));
     }
 
     private RetentionLeaseStats randomRetentionLeaseStats(boolean isLeaderIndex) {

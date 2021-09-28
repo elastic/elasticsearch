@@ -10,10 +10,8 @@ package org.elasticsearch.indices;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.CheckedSupplier;
@@ -28,8 +26,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappingLookup;
 
 import java.io.Closeable;
@@ -55,8 +53,6 @@ import java.util.concurrent.ConcurrentMap;
  * is functional.
  */
 public final class IndicesRequestCache implements RemovalListener<IndicesRequestCache.Key, BytesReference>, Closeable {
-
-    private static final Logger logger = LogManager.getLogger(IndicesRequestCache.class);
 
     /**
      * A setting to enable or disable request caching on an index level. Its dynamic by default
@@ -104,18 +100,19 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
     BytesReference getOrCompute(CacheEntity cacheEntity, CheckedSupplier<BytesReference, IOException> loader,
                                 MappingLookup.CacheKey mappingCacheKey, DirectoryReader reader, BytesReference cacheKey) throws Exception {
-        assert reader.getReaderCacheHelper() != null;
-        final Key key =  new Key(cacheEntity, mappingCacheKey, reader.getReaderCacheHelper().getKey(), cacheKey);
+        final ESCacheHelper cacheHelper = ElasticsearchDirectoryReader.getESReaderCacheHelper(reader);
+        assert cacheHelper != null;
+        final Key key = new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key
-            CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getReaderCacheHelper().getKey());
+            CleanupKey cleanupKey = new CleanupKey(cacheEntity, cacheHelper.getKey());
             if (registeredClosedListeners.containsKey(cleanupKey) == false) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
                 if (previous == null) {
-                    ElasticsearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
+                    cacheHelper.addClosedListener(cleanupKey);
                 }
             }
             /*
@@ -211,10 +208,10 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
         public final CacheEntity entity; // use as identity equality
         public final MappingLookup.CacheKey mappingCacheKey;
-        public final IndexReader.CacheKey readerCacheKey;
+        public final Object readerCacheKey;
         public final BytesReference value;
 
-        Key(CacheEntity entity, MappingLookup.CacheKey mappingCacheKey, IndexReader.CacheKey readerCacheKey, BytesReference value) {
+        Key(CacheEntity entity, MappingLookup.CacheKey mappingCacheKey, Object readerCacheKey, BytesReference value) {
             this.entity = entity;
             this.mappingCacheKey = Objects.requireNonNull(mappingCacheKey);
             this.readerCacheKey = Objects.requireNonNull(readerCacheKey);
@@ -267,17 +264,17 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         }
     }
 
-    private class CleanupKey implements IndexReader.ClosedListener {
+    private class CleanupKey implements ESCacheHelper.ClosedListener {
         final CacheEntity entity;
-        final IndexReader.CacheKey readerCacheKey;
+        final Object readerCacheKey;
 
-        private CleanupKey(CacheEntity entity, IndexReader.CacheKey readerCacheKey) {
+        private CleanupKey(CacheEntity entity, Object readerCacheKey) {
             this.entity = entity;
             this.readerCacheKey = readerCacheKey;
         }
 
         @Override
-        public void onClose(IndexReader.CacheKey cacheKey) {
+        public void onClose(Object cacheKey) {
             Boolean remove = registeredClosedListeners.remove(this);
             if (remove != null) {
                 keysToClean.add(this);
@@ -343,6 +340,10 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      */
     int count() {
         return cache.count();
+    }
+
+    Iterable<Key> cachedKeys() {
+        return cache.keys();
     }
 
     int numRegisteredCloseListeners() { // for testing

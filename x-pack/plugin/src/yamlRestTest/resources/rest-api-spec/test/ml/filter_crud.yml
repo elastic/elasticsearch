@@ -241,7 +241,6 @@ setup:
                   ]}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }

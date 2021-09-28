@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Truncate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
@@ -24,13 +26,13 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -1073,30 +1075,59 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testTopHitsFirstArgConstant() {
-        assertEquals("1:8: first argument of [FIRST('foo', int)] must be a table column, found constant ['foo']",
-            error("SELECT FIRST('foo', int) FROM test"));
+        String topHitsFunction = randomTopHitsFunction();
+        assertEquals("1:8: first argument of [" + topHitsFunction + "('foo', int)] must be a table column, found constant ['foo']",
+            error("SELECT " + topHitsFunction + "('foo', int) FROM test"));
     }
 
     public void testTopHitsSecondArgConstant() {
-        assertEquals("1:8: second argument of [LAST(int, 10)] must be a table column, found constant [10]",
-            error("SELECT LAST(int, 10) FROM test"));
+        String topHitsFunction = randomTopHitsFunction();
+        assertEquals("1:8: second argument of [" + topHitsFunction + "(int, 10)] must be a table column, found constant [10]",
+            error("SELECT " + topHitsFunction + "(int, 10) FROM test"));
     }
 
     public void testTopHitsFirstArgTextWithNoKeyword() {
-        assertEquals("1:8: [FIRST(text)] cannot operate on first argument field of data type [text]: " +
+        String topHitsFunction = randomTopHitsFunction();
+        assertEquals("1:8: [" + topHitsFunction + "(text)] cannot operate on first argument field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
-            error("SELECT FIRST(text) FROM test"));
+            error("SELECT " + topHitsFunction + "(text) FROM test"));
     }
 
     public void testTopHitsSecondArgTextWithNoKeyword() {
-        assertEquals("1:8: [LAST(keyword, text)] cannot operate on second argument field of data type [text]: " +
+        String topHitsFunction = randomTopHitsFunction();
+        assertEquals("1:8: [" + topHitsFunction + "(keyword, text)] cannot operate on second argument field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
-            error("SELECT LAST(keyword, text) FROM test"));
+            error("SELECT " + topHitsFunction + "(keyword, text) FROM test"));
+    }
+
+    public void testTopHitsByHavingUnsupported() {
+        String topHitsFunction = randomTopHitsFunction();
+        int column = 31 + topHitsFunction.length();
+        assertEquals("1:" + column + ": filtering is unsupported for function [" + topHitsFunction + "(int)]",
+                error("SELECT " + topHitsFunction + "(int) FROM test HAVING " + topHitsFunction + "(int) > 10"));
     }
 
     public void testTopHitsGroupByHavingUnsupported() {
-        assertEquals("1:50: HAVING filter is unsupported for function [FIRST(int)]",
-            error("SELECT FIRST(int) FROM test GROUP BY text HAVING FIRST(int) > 10"));
+        String topHitsFunction = randomTopHitsFunction();
+        int column = 45 + topHitsFunction.length();
+        assertEquals("1:" + column + ": filtering is unsupported for function [" + topHitsFunction + "(int)]",
+            error("SELECT " + topHitsFunction + "(int) FROM test GROUP BY text HAVING " + topHitsFunction + "(int) > 10"));
+    }
+
+    public void testTopHitsHavingWithSubqueryUnsupported() {
+        String filter = randomFrom("WHERE", "HAVING");
+        int column = 99 + filter.length();
+        assertEquals("1:" + column + ": filtering is unsupported for functions [FIRST(int), LAST(int)]",
+                error("SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT FIRST(int) AS f, LAST(int) AS l FROM test))) " +
+                        filter + " f > 10 or l < 10"));
+    }
+
+    public void testTopHitsGroupByHavingWithSubqueryUnsupported() {
+        String filter = randomFrom("WHERE", "HAVING");
+        int column = 113 + filter.length();
+        assertEquals("1:" + column + ": filtering is unsupported for functions [FIRST(int), LAST(int)]",
+                error("SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT FIRST(int) AS f, LAST(int) AS l FROM test GROUP BY bool))) " +
+                        filter + " f > 10 or l < 10"));
     }
 
     public void testMinOnInexactUnsupported() {
@@ -1328,5 +1359,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testSubselectWithOrderWhereOnAggregate() {
         accept("SELECT * FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool ORDER BY bool) WHERE a > 10");
+    }
+
+    public void testNestedAggregate() {
+        Consumer<String> checkMsg = (String sql) -> {
+            var actual = error(sql);
+            assertTrue(actual, actual.contains("Nested aggregations in sub-selects are not supported."));
+        };
+
+        checkMsg.accept("SELECT SUM(c) FROM (SELECT COUNT(*) c FROM test)");
+        checkMsg.accept("SELECT COUNT(*) FROM (SELECT SUM(int) c FROM test)");
+        checkMsg.accept("SELECT i FROM (SELECT int i FROM test GROUP BY i) GROUP BY i");
+        checkMsg.accept("SELECT c FROM (SELECT SUM(int) c FROM test) GROUP BY c HAVING COUNT(*) > 10");
+        checkMsg.accept("SELECT COUNT(*) FROM (SELECT int i FROM test GROUP BY i)");
+        checkMsg.accept("SELECT a.i, COUNT(a.c) FROM (SELECT int i, COUNT(int) c FROM test GROUP BY int) a GROUP BY c");
+    }
+
+    private String randomTopHitsFunction() {
+        return randomFrom(Arrays.asList(First.class, Last.class)).getSimpleName().toUpperCase(Locale.ROOT);
     }
 }

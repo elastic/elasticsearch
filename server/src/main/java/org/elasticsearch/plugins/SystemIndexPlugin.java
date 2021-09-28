@@ -13,6 +13,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 
@@ -35,6 +37,10 @@ public interface SystemIndexPlugin extends ActionPlugin {
         return Collections.emptyList();
     }
 
+    default Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+        return Collections.emptyList();
+    }
+
     /**
      * @return The name of the feature, as used for specifying feature states in snapshot creation and restoration.
      */
@@ -46,12 +52,13 @@ public interface SystemIndexPlugin extends ActionPlugin {
     String getFeatureDescription();
 
     /**
-     * Returns a list of index patterns for "associated indices": indices which depend on this plugin's system indices, but are not
+     * Returns a list of descriptors for "associated indices": indices which depend on this plugin's system indices, but are not
      * themselves system indices.
      *
-     * @return A list of index patterns which depend on the contents of this plugin's system indices, but are not themselves system indices
+     * @return A list of descriptors of indices which depend on the contents of this plugin's system indices, but are not themselves system
+     * indices
      */
-    default Collection<String> getAssociatedIndexPatterns() {
+    default Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
         return Collections.emptyList();
     }
 
@@ -68,7 +75,7 @@ public interface SystemIndexPlugin extends ActionPlugin {
 
         SystemIndices.Feature.cleanUpFeature(
             getSystemIndexDescriptors(clusterService.getSettings()),
-            getAssociatedIndexPatterns(),
+            getAssociatedIndexDescriptors(),
             getFeatureName(),
             clusterService,
             client,

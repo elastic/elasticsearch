@@ -14,9 +14,12 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoShapeUtils;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -25,6 +28,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -47,6 +51,8 @@ import java.util.Map;
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  */
 public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoShapeFieldMapper.class);
 
     public static final String CONTENT_TYPE = "geo_shape";
 
@@ -82,29 +88,36 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
 
         @Override
-        public GeoShapeFieldMapper build(ContentPath contentPath) {
+        public GeoShapeFieldMapper build(MapperBuilderContext context) {
+            if (multiFieldsBuilder.hasMultiFields()) {
+                DEPRECATION_LOGGER.critical(
+                    DeprecationCategory.MAPPINGS,
+                    "geo_shape_multifields",
+                    "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future"
+                );
+            }
             GeometryParser geometryParser = new GeometryParser(
                 orientation.get().value().getAsBoolean(),
                 coerce.get().value(),
                 ignoreZValue.get().value());
             GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser);
             GeoShapeFieldType ft = new GeoShapeFieldType(
-                buildFullName(contentPath),
+                context.buildFullName(name),
                 indexed.get(),
                 orientation.get().value(),
                 geoShapeParser,
                 meta.get());
-            return new GeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(),
-                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), buildFullName(contentPath)),
+            return new GeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(),
+                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), context.buildFullName(name)),
                 geoShapeParser, this);
         }
     }
 
-    public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {
+    public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType<Geometry> implements GeoShapeQueryable {
 
         public GeoShapeFieldType(String name, boolean indexed, Orientation orientation,
                                  Parser<Geometry> parser, Map<String, String> meta) {
-            super(name, indexed, false, false, false, parser, orientation, meta);
+            super(name, indexed, false, false, parser, orientation, meta);
         }
 
         @Override
@@ -125,22 +138,18 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             }
             return LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
         }
+
+        @Override
+        protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
+            return GeometryFormatterFactory.getFormatter(format, Function.identity());
+        }
     }
 
-    @SuppressWarnings("deprecation")
+    @Deprecated
     public static Mapper.TypeParser PARSER = (name, node, parserContext) -> {
-        FieldMapper.Builder builder;
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
-        if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
-            builder = new LegacyGeoShapeFieldMapper.Builder(
-                name,
-                parserContext.indexVersionCreated(),
-                ignoreMalformedByDefault,
-                coerceByDefault);
-        } else {
-            builder = new Builder(name, ignoreMalformedByDefault, coerceByDefault);
-        }
+        FieldMapper.Builder builder = new Builder(name, ignoreMalformedByDefault, coerceByDefault);
         builder.parse(name, parserContext, node);
         return builder;
     };
@@ -175,20 +184,12 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     @Override
-    @SuppressWarnings("deprecation")
-    protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        if (mergeWith instanceof LegacyGeoShapeFieldMapper) {
-            String strategy = ((LegacyGeoShapeFieldMapper)mergeWith).strategy();
-            throw new IllegalArgumentException("mapper [" + name()
-                + "] of type [geo_shape] cannot change strategy from [BKD] to [" + strategy + "]");
+    protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
+        if (geometry == null) {
+            return;
         }
-        super.checkIncomingMergeType(mergeWith);
-    }
-
-    @Override
-    protected void index(ParseContext context, Geometry geometry) throws IOException {
-        context.doc().addAll(indexer.indexShape(geometry));
-        createFieldNamesField(context);
+        context.doc().addAll(indexer.indexShape(indexer.prepareForIndexing(geometry)));
+        context.addToFieldNames(fieldType().name());
     }
 
     @Override

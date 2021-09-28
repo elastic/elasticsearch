@@ -13,9 +13,8 @@ import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.expressions.js.VariableContext;
 import org.apache.lucene.search.DoubleValuesSource;
-import org.apache.lucene.search.SortField;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -232,7 +231,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         for (String variable : expr.variables) {
             try {
                 if (variable.equals("_score")) {
-                    bindings.add(new SortField("_score", SortField.Type.SCORE));
+                    bindings.add("_score", DoubleValuesSource.SCORES);
                     needsScores = true;
                 } else if (vars != null && vars.containsKey(variable)) {
                     bindFromParams(vars, bindings, variable);
@@ -283,7 +282,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         for (String variable : expr.variables) {
             try {
                 if (variable.equals("_score")) {
-                    bindings.add(new SortField("_score", SortField.Type.SCORE));
+                    bindings.add("_score", DoubleValuesSource.SCORES);
                     needsScores = true;
                 } else if (variable.equals("_value")) {
                     specialValue = new ReplaceableConstDoubleValueSource();
@@ -331,9 +330,9 @@ public class ExpressionScriptEngine implements ScriptEngine {
      */
     private static FilterScript.LeafFactory newFilterScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         ScoreScript.LeafFactory searchLeafFactory = newScoreScript(expr, lookup, vars);
-        return ctx -> {
-            ScoreScript script = searchLeafFactory.newInstance(ctx);
-            return new FilterScript(vars, lookup, ctx) {
+        return docReader -> {
+            ScoreScript script = searchLeafFactory.newInstance(docReader);
+            return new FilterScript(vars, lookup, docReader) {
                 @Override
                 public boolean execute() {
                     return script.execute(null) != 0.0;
@@ -355,7 +354,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         for (String variable : expr.variables) {
             try {
                 if (variable.equals("_score")) {
-                    bindings.add(new SortField("_score", SortField.Type.SCORE));
+                    bindings.add("_score", DoubleValuesSource.SCORES);
                     needsScores = true;
                 } else if (variable.equals("_value")) {
                     specialValue = new ReplaceableConstDoubleValueSource();

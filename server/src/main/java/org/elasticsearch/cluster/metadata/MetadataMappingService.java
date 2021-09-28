@@ -19,12 +19,12 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.indices.IndicesService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -89,9 +88,9 @@ public class MetadataMappingService {
         }
 
         private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request,
-                                          Map<Index, MapperService> indexMapperServices) throws IOException {
+                                          Map<Index, MapperService> indexMapperServices) {
 
-            CompressedXContent mappingUpdateSource = new CompressedXContent(request.source());
+            final CompressedXContent mappingUpdateSource = request.source();
             final Metadata metadata = currentState.metadata();
             final List<IndexMetadata> updateList = new ArrayList<>();
             for (Index index : request.indices()) {
@@ -99,7 +98,10 @@ public class MetadataMappingService {
                 // IMPORTANT: always get the metadata from the state since it get's batched
                 // and if we pull it from the indexService we might miss an update etc.
                 final IndexMetadata indexMetadata = currentState.getMetadata().getIndexSafe(index);
-
+                DocumentMapper existingMapper = mapperService.documentMapper();
+                if (existingMapper != null && existingMapper.mappingSource().equals(mappingUpdateSource)) {
+                    continue;
+                }
                 // this is paranoia... just to be sure we use the exact same metadata tuple on the update that
                 // we used for the validation, it makes this mechanism little less scary (a little)
                 updateList.add(indexMetadata);
@@ -176,6 +178,32 @@ public class MetadataMappingService {
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        final Metadata metadata = clusterService.state().metadata();
+        boolean noop = true;
+        for (Index index : request.indices()) {
+            final IndexMetadata indexMetadata = metadata.index(index);
+            if (indexMetadata == null) {
+                // local store recovery sends a mapping update request during application of a cluster state on t he data node which
+                // might we receive here before the CS update that created the index has been applied on all nodes and thus the index
+                // isn't found in the state yet but will be visible to the CS update below
+                noop = false;
+                break;
+            }
+            final MappingMetadata mappingMetadata = indexMetadata.mapping();
+            if (mappingMetadata == null) {
+                noop = false;
+                break;
+            }
+            if (request.source().equals(mappingMetadata.source()) == false) {
+                noop = false;
+                break;
+            }
+        }
+        if (noop) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
+
         clusterService.submitStateUpdateTask("put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),

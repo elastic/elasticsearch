@@ -179,6 +179,13 @@ public class DissectParserTests extends ESTestCase {
         assertMiss("%{*a} %{&a} {a} %{*b} %{&b}", "foo bar x baz lol");
     }
 
+    public void testPartialKeyDefinition() {
+        assertMatch("%{a} %%{b},%{c}", "foo %bar,baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
+        assertMatch("%{a} %{b},%%{c}", "foo bar,%baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
+        assertMatch("%%{a} %{b},%{c}", "%foo bar,baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
+        assertMatch("%foo %{bar}", "%foo test", Arrays.asList("bar"),  Arrays.asList("test"));
+    }
+
     public void testAppendAndAssociate() {
         assertMatch("%{a} %{+a} %{*b} %{&b}", "foo bar baz lol", Arrays.asList("a", "baz"), Arrays.asList("foobar", "lol"));
         assertMatch("%{a->} %{+a/2} %{+a/1} %{*b} %{&b}", "foo      bar baz lol x",

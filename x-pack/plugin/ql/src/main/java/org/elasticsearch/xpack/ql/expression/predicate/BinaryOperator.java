@@ -7,13 +7,15 @@
 package org.elasticsearch.xpack.ql.expression.predicate;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 
 /**
  * Operator is a specialized binary predicate where both sides have the compatible types
@@ -25,7 +27,7 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
         super(source, left, right, function);
     }
 
-    protected abstract TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal);
+    protected abstract TypeResolution resolveInputType(Expression e, ParamOrdinal paramOrdinal);
 
     public abstract BinaryOperator<T, U, R, F> swapLeftAndRight();
 
@@ -35,11 +37,11 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = resolveInputType(left(), ParamOrdinal.FIRST);
+        TypeResolution resolution = resolveInputType(left(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
-        return resolveInputType(right(), ParamOrdinal.SECOND);
+        return resolveInputType(right(), SECOND);
     }
 
     protected boolean isCommutative() {

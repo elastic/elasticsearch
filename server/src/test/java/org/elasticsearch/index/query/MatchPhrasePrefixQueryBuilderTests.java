@@ -112,7 +112,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     public void testPhraseOnFieldWithNoTerms() {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
         matchQuery.analyzer("whitespace");
-        expectThrows(IllegalStateException.class, () -> matchQuery.doToQuery(createSearchExecutionContext()));
+        expectThrows(IllegalArgumentException.class, () -> matchQuery.doToQuery(createSearchExecutionContext()));
     }
 
     public void testPhrasePrefixZeroTermsQuery() throws IOException {

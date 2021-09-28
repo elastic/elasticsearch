@@ -9,7 +9,7 @@
 package org.elasticsearch.common.util;
 
 
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;

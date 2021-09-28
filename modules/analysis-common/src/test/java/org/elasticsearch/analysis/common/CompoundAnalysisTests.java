@@ -55,6 +55,7 @@ public class CompoundAnalysisTests extends ESTestCase {
             MatcherAssert.assertThat(terms,
                     hasItems("donau", "dampf", "schiff", "donaudampfschiff", "spargel", "creme", "suppe", "spargelcremesuppe"));
         }
+        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {

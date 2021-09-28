@@ -35,7 +35,7 @@ ST_AsWKT(
 
 *Input*:
 
-<1> geometry
+<1> geometry. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -60,7 +60,8 @@ ST_WKTToSQL(
 
 *Input*:
 
-<1> string WKT representation of geometry
+<1> string WKT representation of geometry. If `null`, the function returns
+`null`.
 
 *Output*: geometry
 
@@ -86,7 +87,7 @@ ST_GeometryType(
 
 *Input*:
 
-<1> geometry
+<1> geometry. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -110,7 +111,7 @@ ST_X(
 
 *Input*:
 
-<1> geometry
+<1> geometry. If `null`, the function returns `null`.
 
 *Output*: double
 
@@ -134,7 +135,7 @@ ST_Y(
 
 *Input*:
 
-<1> geometry
+<1> geometry. If `null`, the function returns `null`.
 
 *Output*: double
 
@@ -158,7 +159,7 @@ ST_Z(
 
 *Input*:
 
-<1> geometry
+<1> geometry. If `null`, the function returns `null`.
 
 *Output*: double
 
@@ -183,8 +184,8 @@ ST_Distance(
 
 *Input*:
 
-<1> source geometry
-<2> target geometry
+<1> source geometry. If `null`, the function returns `null`.
+<2> target geometry. If `null`, the function returns `null`.
 
 *Output*: Double
 

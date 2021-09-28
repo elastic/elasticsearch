@@ -86,7 +86,7 @@ public class URLRepository extends BlobStoreRepository {
     public URLRepository(RepositoryMetadata metadata, Environment environment,
                          NamedXContentRegistry namedXContentRegistry, ClusterService clusterService, BigArrays bigArrays,
                          RecoverySettings recoverySettings, URLHttpClient.Factory httpClientFactory) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.cleanPath());
+        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
 
         if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) ==  false) {
             throw new RepositoryException(metadata.name(), "missing url");

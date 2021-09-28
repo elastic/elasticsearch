@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.security.user;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 
 import java.util.Collections;

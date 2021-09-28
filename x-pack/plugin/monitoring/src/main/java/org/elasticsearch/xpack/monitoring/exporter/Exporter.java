@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -81,14 +81,6 @@ public abstract class Exporter implements AutoCloseable {
             },
             Property.Dynamic,
             Property.NodeScope));
-    /**
-     * Every {@code Exporter} adds the ingest pipeline to bulk requests, but they should, at the exporter level, allow that to be disabled.
-     * <p>
-     * Note: disabling it obviously loses any benefit of using it, but it does allow clusters that don't run with ingest to not use it.
-     */
-    public static final Setting.AffixSetting<Boolean> USE_INGEST_PIPELINE_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","use_ingest",
-                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * Every {@code Exporter} allows users to explicitly disable cluster alerts.
      */
@@ -178,7 +170,7 @@ public abstract class Exporter implements AutoCloseable {
     }
 
     public static List<Setting.AffixSetting<?>> getSettings() {
-        return Arrays.asList(USE_INGEST_PIPELINE_SETTING, CLUSTER_ALERTS_MANAGEMENT_SETTING, TYPE_SETTING, ENABLED_SETTING,
+        return Arrays.asList(CLUSTER_ALERTS_MANAGEMENT_SETTING, TYPE_SETTING, ENABLED_SETTING,
                 INDEX_NAME_TIME_FORMAT_SETTING, CLUSTER_ALERTS_BLACKLIST_SETTING);
     }
 

@@ -113,7 +113,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
                         builder.field(Fields.NUM_DOCS, segment.getNumDocs());
                         builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
                         builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSize());
-                        builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, new ByteSizeValue(segment.getMemoryInBytes()));
+                        builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, new ByteSizeValue(0));
                         builder.field(Fields.COMMITTED, segment.isCommitted());
                         builder.field(Fields.SEARCH, segment.isSearch());
                         if (segment.getVersion() != null) {
@@ -127,13 +127,6 @@ public class IndicesSegmentResponse extends BroadcastResponse {
                         }
                         if (segment.getSegmentSort() != null) {
                             toXContent(builder, segment.getSegmentSort());
-                        }
-                        if (segment.ramTree != null) {
-                            builder.startArray(Fields.RAM_TREE);
-                            for (Accountable child : segment.ramTree.getChildResources()) {
-                                toXContent(builder, child);
-                            }
-                            builder.endArray();
                         }
                         if (segment.attributes != null && segment.attributes.isEmpty() == false) {
                             builder.field("attributes", segment.attributes);

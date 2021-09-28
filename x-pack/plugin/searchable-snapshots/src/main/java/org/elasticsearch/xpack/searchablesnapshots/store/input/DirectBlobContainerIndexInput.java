@@ -10,10 +10,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
@@ -73,10 +73,9 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
-        long sequentialReadSize,
-        int bufferSize
+        long sequentialReadSize
     ) {
-        this(name, directory, fileInfo, context, stats, 0L, 0L, fileInfo.length(), sequentialReadSize, bufferSize);
+        this(name, directory, fileInfo, context, stats, 0L, 0L, fileInfo.length(), sequentialReadSize);
         stats.incrementOpenCount();
     }
 
@@ -89,15 +88,13 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long position,
         long offset,
         long length,
-        long sequentialReadSize,
-        int bufferSize
+        long sequentialReadSize
     ) {
         super(logger, name, directory, fileInfo, context, stats, offset, length, ByteRange.EMPTY, ByteRange.EMPTY); // TODO should use blob
                                                                                                                     // cache
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
-        setBufferSize(bufferSize);
     }
 
     @Override
@@ -272,8 +269,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             length,
             // Clones might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
             // solution: do not optimize sequential reads on clones.
-            NO_SEQUENTIAL_READ_OPTIMIZATION,
-            getBufferSize()
+            NO_SEQUENTIAL_READ_OPTIMIZATION
         );
         clone.isClone = true;
         return clone;
@@ -293,8 +289,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 length,
                 // Slices might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
                 // solution: do not optimize sequential reads on slices.
-                NO_SEQUENTIAL_READ_OPTIMIZATION,
-                getBufferSize()
+                NO_SEQUENTIAL_READ_OPTIMIZATION
             );
             slice.isClone = true;
             slice.seek(0L);

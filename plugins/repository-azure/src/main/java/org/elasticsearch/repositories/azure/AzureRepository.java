@@ -102,13 +102,13 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final String basePath = Strings.trimLeadingCharacter(Repository.BASE_PATH_SETTING.get(metadata.settings()), '/');
         if (Strings.hasLength(basePath)) {
             // Remove starting / if any
-            BlobPath path = new BlobPath();
+            BlobPath path = BlobPath.EMPTY;
             for(final String elem : basePath.split("/")) {
                 path = path.add(elem);
             }
             return path;
         } else {
-            return BlobPath.cleanPath();
+            return BlobPath.EMPTY;
         }
     }
 
@@ -124,7 +124,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
-        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService);
+        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, bigArrays);
 
         logger.debug(() -> new ParameterizedMessage(
             "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",

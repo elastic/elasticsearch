@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 public class RestartTimeInfo {
 

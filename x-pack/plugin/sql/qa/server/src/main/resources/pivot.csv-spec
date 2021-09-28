@@ -186,7 +186,7 @@ null           |48396.28571428572|62140.666666666664
 ;
 
 sumWithoutSubquery
-schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|name:s|1:i|2:i
+schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|name:s|1:l|2:l
 // tag::sumWithoutSubquery
 SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (1, 2)) LIMIT 5;
 
@@ -205,7 +205,7 @@ SELECT *
 FROM (SELECT client_ip, status, bytes_in FROM logs WHERE NVL(bytes_in, 0) = 0)
 PIVOT (SUM(bytes_in) FOR status IN ('OK','Error'));
 
-   client_ip   |     'OK'      |    'Error'    
+   client_ip:s |     'OK':l    |    'Error':l
 ---------------+---------------+---------------
 10.0.1.199     |0              |null           
 10.0.1.205     |0              |null           

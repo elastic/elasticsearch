@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -22,7 +23,6 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -33,18 +33,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * Listens for a node to go over the high watermark and kicks off an empty
@@ -136,13 +137,20 @@ public class DiskThresholdMonitor {
             final DiskUsage usage = entry.value;
             final RoutingNode routingNode = routingNodes.node(node);
 
+            if (isDedicatedFrozenNode(routingNode)) {
+                ByteSizeValue total = ByteSizeValue.ofBytes(usage.getTotalBytes());
+                long frozenFloodStageThreshold = diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(total).getBytes();
+                if (usage.getFreeBytes() < frozenFloodStageThreshold) {
+                    logger.warn("flood stage disk watermark [{}] exceeded on {}",
+                        diskThresholdSettings.describeFrozenFloodStageThreshold(total), usage);
+                }
+                // skip checking high/low watermarks for frozen nodes, since frozen shards have only insignificant local storage footprint
+                // and this allows us to use more of the local storage for cache.
+                continue;
+            }
+
             if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
-                if (isFrozenOnlyNode(routingNode)) {
-                    logger.warn("flood stage disk watermark [{}] exceeded on {}",
-                        diskThresholdSettings.describeFloodStageThreshold(), usage);
-                    continue;
-                }
 
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
@@ -159,12 +167,6 @@ public class DiskThresholdMonitor {
                 logger.warn("flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
                     diskThresholdSettings.describeFloodStageThreshold(), usage);
 
-                continue;
-            }
-
-            if (isFrozenOnlyNode(routingNode)) {
-                // skip checking high/low watermarks for frozen nodes, since frozen shards have only insignificant local storage footprint
-                // and this allows us to use more of the local storage for cache.
                 continue;
             }
 
@@ -293,9 +295,8 @@ public class DiskThresholdMonitor {
             logger.trace("no reroute required");
             listener.onResponse(null);
         }
-        final Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting()
-            .spliterator(), false)
-            .map(c -> c.key)
+        final Set<String> indicesToAutoRelease = state.routingTable().indicesRouting().stream()
+            .map(Map.Entry::getKey)
             .filter(index -> indicesNotToAutoRelease.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .collect(Collectors.toSet());
@@ -366,13 +367,11 @@ public class DiskThresholdMonitor {
         }
     }
 
-    private boolean isFrozenOnlyNode(RoutingNode routingNode) {
+    private boolean isDedicatedFrozenNode(RoutingNode routingNode) {
         if (routingNode == null) {
             return false;
         }
         DiscoveryNode node = routingNode.node();
-        return node.getRoles().contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) &&
-            node.getRoles().stream().filter(DiscoveryNodeRole::canContainData)
-                .anyMatch(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
+        return node.isDedicatedFrozenNode();
     }
 }

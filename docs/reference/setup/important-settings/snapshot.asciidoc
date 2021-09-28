@@ -1,6 +1,6 @@
 [[important-settings-backups]]
 [discrete]
-=== Cluster backups
+==== Cluster backups
 
 In a disaster, <<snapshot-restore,snapshots>> can prevent permanent data loss.
 <<snapshot-lifecycle-management,{slm-cap}>> is the easiest way to take regular

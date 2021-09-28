@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.Token;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -43,6 +43,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 
 abstract class CommandBuilder extends LogicalPlanBuilder {
 
@@ -115,7 +117,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         }
         boolean graphViz = ctx.format != null && ctx.format.getType() == SqlBaseLexer.GRAPHVIZ;
         Explain.Format format = graphViz ? Explain.Format.GRAPHVIZ : Explain.Format.TEXT;
-        boolean verify = (ctx.verify != null ? Booleans.parseBoolean(ctx.verify.getText().toLowerCase(Locale.ROOT), true) : true);
+        boolean verify = (ctx.verify == null || Booleans.parseBoolean(ctx.verify.getText().toLowerCase(Locale.ROOT), true));
 
         return new Explain(source, plan(ctx.statement()), type, format, verify);
     }

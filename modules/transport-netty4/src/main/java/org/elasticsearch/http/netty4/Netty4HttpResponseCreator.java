@@ -17,8 +17,8 @@ import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpResponse;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.util.List;
 

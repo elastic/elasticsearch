@@ -9,7 +9,7 @@
 
 package org.elasticsearch.common.xcontent.support.filtering;
 
-import org.elasticsearch.common.Glob;
+import org.elasticsearch.core.Glob;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,6 +50,13 @@ public class FilterPath {
 
     boolean isDoubleWildcard() {
         return doubleWildcard;
+    }
+
+    public boolean hasDoubleWildcard() {
+        if (filter == null) {
+            return false;
+        }
+        return filter.indexOf("**") >= 0;
     }
 
     boolean isSimpleWildcard() {

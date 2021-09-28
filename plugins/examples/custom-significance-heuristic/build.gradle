@@ -12,6 +12,6 @@ esplugin {
   name 'custom-significance-heuristic'
   description 'An example plugin showing how to write and register a custom significance heuristic'
   classname 'org.elasticsearch.example.customsigheuristic.CustomSignificanceHeuristicPlugin'
-  licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
+  licenseFile rootProject.file('SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }

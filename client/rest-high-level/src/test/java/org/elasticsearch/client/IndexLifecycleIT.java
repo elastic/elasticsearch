@@ -41,7 +41,7 @@ import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.client.ilm.UnfollowAction;
 import org.elasticsearch.client.ilm.WaitForSnapshotAction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

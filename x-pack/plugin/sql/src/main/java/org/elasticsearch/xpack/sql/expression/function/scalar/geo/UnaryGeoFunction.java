@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
@@ -20,6 +19,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isGeo;
 
@@ -42,7 +42,7 @@ public abstract class UnaryGeoFunction extends UnaryScalarFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isGeo(field(), operation().toString(), Expressions.ParamOrdinal.DEFAULT);
+        return isGeo(field(), operation().toString(), DEFAULT);
     }
 
     @Override

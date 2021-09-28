@@ -8,8 +8,8 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.TimeValue;
 
 import java.lang.reflect.Method;
 
@@ -69,9 +69,12 @@ public final class ScriptContext<FactoryType> {
     /** The default max compilation rate for scripts in this context.  Script compilation is throttled if this is exceeded */
     public final Tuple<Integer, TimeValue> maxCompilationRateDefault;
 
+    /** Determines if the script can be stored as part of the cluster state. */
+    public final boolean allowStoredScript;
+
     /** Construct a context with the related instance and compiled classes with caller provided cache defaults */
     public ScriptContext(String name, Class<FactoryType> factoryClazz, int cacheSizeDefault, TimeValue cacheExpireDefault,
-                        Tuple<Integer, TimeValue> maxCompilationRateDefault) {
+                        Tuple<Integer, TimeValue> maxCompilationRateDefault, boolean allowStoredScript) {
         this.name = name;
         this.factoryClazz = factoryClazz;
         Method newInstanceMethod = findMethod("FactoryType", factoryClazz, "newInstance");
@@ -96,13 +99,14 @@ public final class ScriptContext<FactoryType> {
         this.cacheSizeDefault = cacheSizeDefault;
         this.cacheExpireDefault = cacheExpireDefault;
         this.maxCompilationRateDefault = maxCompilationRateDefault;
+        this.allowStoredScript = allowStoredScript;
     }
 
     /** Construct a context with the related instance and compiled classes with defaults for cacheSizeDefault, cacheExpireDefault and
-     *  maxCompilationRateDefault */
+     *  maxCompilationRateDefault and allow scripts of this context to be stored scripts */
     public ScriptContext(String name, Class<FactoryType> factoryClazz) {
         // cache size default, cache expire default, max compilation rate are defaults from ScriptService.
-        this(name, factoryClazz, 100, TimeValue.timeValueMillis(0), new Tuple<>(75, TimeValue.timeValueMinutes(5)));
+        this(name, factoryClazz, 100, TimeValue.timeValueMillis(0), new Tuple<>(75, TimeValue.timeValueMinutes(5)), true);
     }
 
     /** Returns a method with the given name, or throws an exception if multiple are found. */

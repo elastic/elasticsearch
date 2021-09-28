@@ -8,7 +8,7 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.results.Bucket;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
-import org.junit.After;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -29,15 +29,12 @@ import static org.hamcrest.Matchers.is;
 public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest, transform").build();
-    }
-
-    @After
-    public void preCleanup() throws Exception {
-        // Updating a transform will leave indexing an audit message in-flight, so
-        // we need to wait for that to complete or it could interfere with deleting
-        // all the indices
-        waitForPendingTasks();
+        return Settings.builder()
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest, transform")
+            // TODO Change this to run with security enabled
+            // https://github.com/elastic/elasticsearch/issues/75940
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            .build();
     }
 
     public void testPreviewTransformWithRemoteIndex() {

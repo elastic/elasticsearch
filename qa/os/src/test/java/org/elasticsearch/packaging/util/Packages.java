@@ -10,6 +10,7 @@ package org.elasticsearch.packaging.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
@@ -89,6 +90,13 @@ public class Packages {
         if (distribution.hasJdk == false) {
             Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
+
+        if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_13_0)) {
+            ServerUtils.disableGeoIpDownloader(installation);
+        }
+        // https://github.com/elastic/elasticsearch/issues/75940
+        // TODO Figure out how to run all packaging tests with security enabled which is now the default behavior
+        ServerUtils.possiblyDisableSecurityFeatures(installation);
         return installation;
     }
 
@@ -170,13 +178,15 @@ public class Packages {
         assertThat(es.config, file(Directory, "root", "elasticsearch", p750));
         assertThat(sh.run("find \"" + es.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
 
-        final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
-        assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
-        assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+        // We introduced the jvm.options.d folder in 7.7
+        if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_7_0)) {
+            final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
+            assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
+            assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+        }
 
         Stream.of("elasticsearch.keystore", "elasticsearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
-        assertThat(es.config(".elasticsearch.keystore.initial_md5sum"), file(File, "root", "elasticsearch", p644));
 
         assertThat(sh.run("sudo -u elasticsearch " + es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
@@ -237,12 +247,18 @@ public class Packages {
     /**
      * Starts Elasticsearch, without checking that startup is successful.
      */
-    public static Shell.Result runElasticsearchStartCommand(Shell sh) throws IOException {
+    public static Shell.Result runElasticsearchStartCommand(Shell sh) {
         if (isSystemd()) {
+            Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
             sh.run("systemctl is-enabled elasticsearch.service");
-            return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
+            Result exitCode = sh.runIgnoreExitCode("systemctl start elasticsearch.service");
+            if (exitCode.isSuccess() == false) {
+                logger.warn(sh.runIgnoreExitCode("systemctl status elasticsearch.service").stdout);
+                logger.warn(journald.getLogs().stdout);
+            }
+            return exitCode;
         }
         return sh.runIgnoreExitCode("service elasticsearch start");
     }

@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.ArrayList;
@@ -30,6 +30,10 @@ public class HttpSettings {
             DEFAULT_READ_TIMEOUT, Property.NodeScope);
     static final Setting<TimeValue> CONNECTION_TIMEOUT = Setting.timeSetting("xpack.http.default_connection_timeout",
             DEFAULT_CONNECTION_TIMEOUT, Property.NodeScope);
+    static final Setting<Boolean> TCP_KEEPALIVE = Setting.boolSetting("xpack.http.tcp.keep_alive",
+            true, Property.NodeScope);
+    static final Setting<TimeValue> CONNECTION_POOL_TTL = Setting.timeSetting("xpack.http.connection_pool_ttl",
+            TimeValue.MINUS_ONE, Property.NodeScope);
 
     private static final String PROXY_HOST_KEY = "xpack.http.proxy.host";
     private static final String PROXY_PORT_KEY = "xpack.http.proxy.port";
@@ -48,13 +52,15 @@ public class HttpSettings {
             new ByteSizeValue(50, ByteSizeUnit.MB),   // max
             Property.NodeScope);
 
-    private static final SSLConfigurationSettings SSL = SSLConfigurationSettings.withPrefix(SSL_KEY_PREFIX);
+    private static final SSLConfigurationSettings SSL = SSLConfigurationSettings.withPrefix(SSL_KEY_PREFIX, true);
 
     public static List<? extends Setting<?>> getSettings() {
         final ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(SSL.getAllSettings());
+        settings.addAll(SSL.getEnabledSettings());
         settings.add(READ_TIMEOUT);
         settings.add(CONNECTION_TIMEOUT);
+        settings.add(TCP_KEEPALIVE);
+        settings.add(CONNECTION_POOL_TTL);
         settings.add(PROXY_HOST);
         settings.add(PROXY_PORT);
         settings.add(PROXY_SCHEME);

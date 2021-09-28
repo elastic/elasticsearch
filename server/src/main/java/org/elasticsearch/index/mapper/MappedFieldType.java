@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -24,20 +25,19 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -165,6 +165,13 @@ public abstract class MappedFieldType {
         }
     }
 
+    /**
+     * @return true if field has been marked as a dimension field
+     */
+    public boolean isDimension() {
+        return false;
+    }
+
     /** Generates a query that will only match documents that contain the given value.
      *  The default implementation returns a {@link TermQuery} over the value bytes
      *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type or if the field is not searchable
@@ -237,6 +244,11 @@ public abstract class MappedFieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
+    public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+        throw new QueryShardException(context, "Can only use wildcard queries on keyword, text and wildcard fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
     public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
         @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
         throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name
@@ -253,17 +265,19 @@ public abstract class MappedFieldType {
         }
     }
 
-    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+            SearchExecutionContext context) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+        SearchExecutionContext context) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
         throw new IllegalArgumentException("Can only use phrase prefix queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
@@ -279,10 +293,34 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Create an {@link IntervalsSource} to be used for proximity queries
+     * Create an {@link IntervalsSource} for the given term.
      */
-    public IntervalsSource intervals(String query, int max_gaps, boolean ordered,
-                                     NamedAnalyzer analyzer, boolean prefix) throws IOException {
+    public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
+        throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    /**
+     * Create an {@link IntervalsSource} for the given prefix.
+     */
+    public IntervalsSource prefixIntervals(BytesRef prefix, SearchExecutionContext context) {
+        throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    /**
+     * Create a fuzzy {@link IntervalsSource} for the given term.
+     */
+    public IntervalsSource fuzzyIntervals(String term, int maxDistance, int prefixLength,
+            boolean transpositions, SearchExecutionContext context) {
+        throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    /**
+     * Create a wildcard {@link IntervalsSource} for the given pattern.
+     */
+    public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
         throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
@@ -335,17 +373,32 @@ public abstract class MappedFieldType {
         return false;
     }
 
-    /** Return a {@link DocValueFormat} that can be used to display and parse
-     *  values as returned by the fielddata API.
-     *  The default implementation returns a {@link DocValueFormat#RAW}. */
+    /**
+     * Pick a {@link DocValueFormat} that can be used to display and parse
+     * values of fields of this type.
+     */
     public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
+        checkNoFormat(format);
+        checkNoTimeZone(timeZone);
+        return DocValueFormat.RAW;
+    }
+
+    /**
+     * Validate the provided {@code format} is null.
+     */
+    protected void checkNoFormat(@Nullable String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
         }
+    }
+
+    /**
+     * Validate the provided {@code timeZone} is null.
+     */
+    protected void checkNoTimeZone(@Nullable ZoneId timeZone) {
         if (timeZone != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
         }
-        return DocValueFormat.RAW;
     }
 
     /**
@@ -398,5 +451,23 @@ public abstract class MappedFieldType {
         NONE, // this field is not collapsable
         KEYWORD,
         NUMERIC
+    }
+
+    /**
+     * This method is used to support auto-complete services and implementations
+     * are expected to find terms beginning with the provided string very quickly.
+     * If fields cannot look up matching terms quickly they should return null.
+     * The returned TermEnum should implement next(), term() and doc_freq() methods
+     * but postings etc are not required.
+     * @param caseInsensitive if matches should be case insensitive
+     * @param string the partially complete word the user has typed (can be empty)
+     * @param queryShardContext the shard context
+     * @param searchAfter - usually null. If supplied the TermsEnum result must be positioned after the provided term (used for pagination)
+     * @return null or an enumeration of matching terms and their doc frequencies
+     * @throws IOException Errors accessing data
+     */
+    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+        throws IOException {
+        return null;
     }
 }

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -24,7 +23,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -181,16 +179,11 @@ public class MetadataNodesIT extends ESIntegTestCase {
 
     private boolean indexDirectoryExists(String nodeName, Index index) {
         NodeEnvironment nodeEnv = ((InternalTestCluster) cluster()).getInstance(NodeEnvironment.class, nodeName);
-        for (Path path : nodeEnv.indexPaths(index)) {
-            if (Files.exists(path)) {
-                return true;
-            }
-        }
-        return false;
+        return Files.exists(nodeEnv.indexPath(index));
     }
 
     private ImmutableOpenMap<String, IndexMetadata> getIndicesMetadataOnNode(String nodeName) {
-        final Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, nodeName);
+        final Coordinator coordinator = internalCluster().getInstance(Coordinator.class, nodeName);
         return coordinator.getApplierState().getMetadata().getIndices();
     }
 }

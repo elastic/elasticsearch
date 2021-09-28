@@ -16,7 +16,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
@@ -47,7 +46,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
@@ -158,7 +157,7 @@ public class StoreTests extends ESTestCase {
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long length = indexInput.length();
         IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetadata("foo1.bar", length, checksum,
-            MIN_SUPPORTED_LUCENE_VERSION), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+            MIN_SUPPORTED_LUCENE_VERSION.toString()), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         while (length > 0) {
             if (random().nextInt(10) == 0) {
                 verifyingOutput.writeByte(indexInput.readByte());
@@ -191,7 +190,7 @@ public class StoreTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexOutput verifyingOutput =
             new Store.LuceneVerifyingIndexOutput(new StoreFileMetadata("foo.bar", 0, Store.digestToString(0),
-                MIN_SUPPORTED_LUCENE_VERSION),
+                MIN_SUPPORTED_LUCENE_VERSION.toString()),
                 dir.createOutput("foo1.bar", IOContext.DEFAULT));
         try {
             Store.verify(verifyingOutput);
@@ -210,10 +209,10 @@ public class StoreTests extends ESTestCase {
             BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
             output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         }
-        output.writeInt(CodecUtil.FOOTER_MAGIC);
-        output.writeInt(0);
+        CodecUtil.writeBEInt(output, CodecUtil.FOOTER_MAGIC);
+        CodecUtil.writeBEInt(output, 0);
         String checksum = Store.digestToString(output.getChecksum());
-        output.writeLong(output.getChecksum() + 1); // write a wrong checksum to the file
+        CodecUtil.writeBELong(output, output.getChecksum() + 1); // write a wrong checksum to the file
         output.close();
 
         IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
@@ -221,7 +220,7 @@ public class StoreTests extends ESTestCase {
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long length = indexInput.length();
         IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetadata("foo1.bar", length, checksum,
-            MIN_SUPPORTED_LUCENE_VERSION), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+            MIN_SUPPORTED_LUCENE_VERSION.toString()), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         length -= 8; // we write the checksum in the try / catch block below
         while (length > 0) {
             if (random().nextInt(10) == 0) {
@@ -276,7 +275,7 @@ public class StoreTests extends ESTestCase {
         Directory dir = newDirectory();
         int length = scaledRandomIntBetween(10, 1024);
         IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetadata("foo1.bar", length, "",
-            MIN_SUPPORTED_LUCENE_VERSION), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+            MIN_SUPPORTED_LUCENE_VERSION.toString()), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         try {
             while (length > 0) {
                 verifyingOutput.writeByte((byte) random().nextInt());
@@ -335,7 +334,7 @@ public class StoreTests extends ESTestCase {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
-                assertThat(meta.writtenBy(), equalTo(Version.LATEST));
+                assertThat(meta.writtenBy(), equalTo(Version.LATEST.toString()));
                 if (meta.name().endsWith(".si") || meta.name().startsWith("segments_")) {
                     assertThat(meta.hash().length, greaterThan(0));
                 }
@@ -459,8 +458,7 @@ public class StoreTests extends ESTestCase {
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
-            if (IndexWriter.WRITE_LOCK_NAME.equals(file) == false &&
-                    IndexFileNames.OLD_SEGMENTS_GEN.equals(file) == false && file.startsWith("extra") == false) {
+            if (IndexWriter.WRITE_LOCK_NAME.equals(file) == false && file.startsWith("extra") == false) {
                 assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " +
                     store.directory().listAll().length, metadata.asMap().containsKey(file));
             } else {
@@ -828,9 +826,9 @@ public class StoreTests extends ESTestCase {
 
     protected Store.MetadataSnapshot createMetadataSnapshot() {
         StoreFileMetadata storeFileMetadata1 =
-            new StoreFileMetadata("segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION);
+            new StoreFileMetadata("segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION.toString());
         StoreFileMetadata storeFileMetadata2 =
-            new StoreFileMetadata("no_segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION);
+            new StoreFileMetadata("no_segments", 1, "666", MIN_SUPPORTED_LUCENE_VERSION.toString());
         Map<String, StoreFileMetadata> storeFileMetadataMap = new HashMap<>();
         storeFileMetadataMap.put(storeFileMetadata1.name(), storeFileMetadata1);
         storeFileMetadataMap.put(storeFileMetadata2.name(), storeFileMetadata2);

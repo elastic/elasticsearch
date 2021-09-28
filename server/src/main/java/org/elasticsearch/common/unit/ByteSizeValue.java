@@ -35,6 +35,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue ONE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
 
     public static ByteSizeValue ofBytes(long size) {
         return new ByteSizeValue(size);
@@ -202,6 +204,20 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         if (sValue == null) {
             return defaultValue;
         }
+        switch (sValue) {
+            case "0":
+            case "0b":
+            case "0B":
+                return ZERO;
+            case "1b":
+            case "1B":
+                // "1" is deliberately omitted, the units are required for all values except "0" and "-1"
+                return ONE;
+            case "-1":
+            case "-1b":
+            case "-1B":
+                return MINUS_ONE;
+        }
         String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
         if (lowerSValue.endsWith("k")) {
             return parse(sValue, lowerSValue, "k", ByteSizeUnit.KB, settingName);
@@ -224,18 +240,24 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         } else if (lowerSValue.endsWith("pb")) {
             return parse(sValue, lowerSValue, "pb", ByteSizeUnit.PB, settingName);
         } else if (lowerSValue.endsWith("b")) {
-            return new ByteSizeValue(Long.parseLong(lowerSValue.substring(0, lowerSValue.length() - 1).trim()), ByteSizeUnit.BYTES);
-        } else if (lowerSValue.equals("-1")) {
-            // Allow this special value to be unit-less:
-            return new ByteSizeValue(-1, ByteSizeUnit.BYTES);
-        } else if (lowerSValue.equals("0")) {
-            // Allow this special value to be unit-less:
-            return new ByteSizeValue(0, ByteSizeUnit.BYTES);
+            return parseBytes(lowerSValue, settingName, sValue);
         } else {
             // Missing units:
             throw new ElasticsearchParseException(
                     "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized", settingName,
                     sValue);
+        }
+    }
+
+    private static ByteSizeValue parseBytes(String lowerSValue, String settingName, String initialInput) {
+        String s = lowerSValue.substring(0, lowerSValue.length() - 1).trim();
+        try {
+            return new ByteSizeValue(Long.parseLong(s), ByteSizeUnit.BYTES);
+        } catch (NumberFormatException e) {
+            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
+        } catch (IllegalArgumentException e) {
+            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}] as a size in bytes", e, settingName,
+                initialInput);
         }
     }
 
@@ -249,7 +271,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                 try {
                     final double doubleValue = Double.parseDouble(s);
                     DeprecationLoggerHolder.deprecationLogger
-                        .deprecate(DeprecationCategory.PARSING, "fractional_byte_values",
+                        .critical(DeprecationCategory.PARSING, "fractional_byte_values",
                          "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
                          initialInput, settingName);
                     return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));

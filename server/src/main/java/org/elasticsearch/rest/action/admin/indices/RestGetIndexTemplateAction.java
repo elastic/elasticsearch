@@ -11,7 +11,7 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -57,7 +57,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.compatibleApiWarning("get_index_template_include_type_name", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.compatibleCritical("get_index_template_include_type_name", TYPES_DEPRECATION_MESSAGE);
         }
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 

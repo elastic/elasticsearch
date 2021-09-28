@@ -19,6 +19,10 @@ updates, use the <<geoip-stats-api,GeoIP stats API>>.
 If your cluster can't connect to the Elastic GeoIP endpoint or you want to
 manage your own updates, see <<manage-geoip-database-updates>>.
 
+If {es} can't connect to the endpoint for 30 days all updated databases will become
+invalid. {es} will stop enriching documents with geoip data and will add `tags: ["_geoip_expired_database"]`
+field instead.
+
 [[using-ingest-geoip]]
 ==== Using the `geoip` Processor in a Pipeline
 
@@ -136,7 +140,7 @@ returns this:
     "geo": {
       "continent_name": "North America",
       "country_name": "United States",
-      "country_iso_code": "US",
+      "country_iso_code": "US"
     }
   }
 }
@@ -367,7 +371,10 @@ You can also use custom city, country, and ASN `.mmdb` files. These files must
 be uncompressed and use the respective `-City.mmdb`, `-Country.mmdb`, or
 `-ASN.mmdb` extensions.
 
-. Copy the database files to `$ES_CONFIG/ingest-geoip`.
+. On {ess} deployments upload database using
+a {cloud}/ec-custom-bundles.html[custom bundle].
+
+. On self-managed deployments copy the database files to `$ES_CONFIG/ingest-geoip`.
 
 . In your `geoip` processors, configure the `database_file` parameter to use a
 custom database file.

@@ -16,9 +16,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * The {@code DataTier} class encapsulates the formalization of the "content",
@@ -37,18 +37,38 @@ public class DataTier {
     public static final String DATA_COLD = "data_cold";
     public static final String DATA_FROZEN = "data_frozen";
 
-    public static final Set<String> ALL_DATA_TIERS =
-        new HashSet<>(Arrays.asList(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD, DATA_FROZEN));
+    public static final Set<String> ALL_DATA_TIERS = Set.of(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD, DATA_FROZEN);
+
+    static {
+        for (String tier : ALL_DATA_TIERS) {
+            assert tier.equals(DATA_FROZEN) || tier.contains(DATA_FROZEN) == false
+                : "can't have two tier names containing [" + DATA_FROZEN + "] because it would break setting validation optimizations" +
+                    " in the data tier allocation decider";
+        }
+    }
+
+    // Represents an ordered list of data tiers from frozen to hot (or slow to fast)
+    private static final List<String> ORDERED_FROZEN_TO_HOT_TIERS =
+        List.of(DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
 
     /**
      * Returns true if the given tier name is a valid tier
      */
     public static boolean validTierName(String tierName) {
-        return DATA_CONTENT.equals(tierName) ||
-            DATA_HOT.equals(tierName) ||
-            DATA_WARM.equals(tierName) ||
-            DATA_COLD.equals(tierName) ||
-            DATA_FROZEN.equals(tierName);
+        return ALL_DATA_TIERS.contains(tierName);
+    }
+
+    /**
+     * Based on the provided target tier it will return a comma separated list of preferred tiers.
+     * ie. if `data_cold` is the target tier, it will return `data_cold,data_warm,data_hot`
+     * This is usually used in conjunction with {@link DataTierAllocationDecider#INDEX_ROUTING_PREFER_SETTING}
+     */
+    public static String getPreferredTiersConfiguration(String targetTier) {
+        int indexOfTargetTier = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(targetTier);
+        if (indexOfTargetTier == -1) {
+            throw new IllegalArgumentException("invalid data tier [" + targetTier + "]");
+        }
+        return ORDERED_FROZEN_TO_HOT_TIERS.stream().skip(indexOfTargetTier).collect(Collectors.joining(","));
     }
 
     /**
@@ -98,8 +118,10 @@ public class DataTier {
 
     /**
      * This setting provider injects the setting allocating all newly created indices with
-     * {@code index.routing.allocation.include._tier: "data_hot"} unless the user overrides the
-     * setting while the index is being created (in a create index request for instance)
+     * {@code index.routing.allocation.include._tier_preference: "data_hot"} for a data stream index
+     * or {@code index.routing.allocation.include._tier_preference: "data_content"} for an index not part of
+     * a data stream unless the user overrides the setting while the index is being created
+     * (in a create index request for instance)
      */
     public static class DefaultHotAllocationSettingProvider implements IndexSettingProvider {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);

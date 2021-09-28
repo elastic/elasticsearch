@@ -141,13 +141,12 @@ public final class TransformNodes {
     /**
      * Get the number of transform nodes in the cluster
      *
-     * @param clusterState state
+     * @param nodes nodes to examine
      * @return number of transform nodes
      */
-    public static long getNumberOfTransformNodes(ClusterState clusterState) {
-        return StreamSupport.stream(clusterState.getNodes().spliterator(), false)
-            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE))
-            .count();
+    public static boolean hasAnyTransformNode(DiscoveryNodes nodes) {
+        return StreamSupport.stream(nodes.spliterator(), false)
+            .anyMatch(node -> node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE));
     }
 
     /**
@@ -160,8 +159,7 @@ public final class TransformNodes {
      */
     public static void warnIfNoTransformNodes(ClusterState clusterState) {
         if (TransformMetadata.getTransformMetadata(clusterState).isResetMode() == false) {
-            long transformNodes = getNumberOfTransformNodes(clusterState);
-            if (transformNodes == 0) {
+            if (hasAnyTransformNode(clusterState.getNodes()) == false) {
                 HeaderWarning.addWarning(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
             }
         }
@@ -174,8 +172,7 @@ public final class TransformNodes {
      * @param clusterState state
      */
     public static void throwIfNoTransformNodes(ClusterState clusterState) {
-        long transformNodes = getNumberOfTransformNodes(clusterState);
-        if (transformNodes == 0) {
+        if (hasAnyTransformNode(clusterState.getNodes()) == false) {
             throw ExceptionsHelper.badRequestException(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
         }
     }

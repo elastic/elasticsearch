@@ -8,9 +8,8 @@ package org.elasticsearch.xpack.sql.plan.logical;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Executable;
@@ -19,25 +18,18 @@ import org.elasticsearch.xpack.sql.session.Session;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
-
-public class LocalRelation extends LogicalPlan implements Executable {
+public class LocalRelation extends LeafPlan implements Executable {
 
     private final Executable executable;
 
     public LocalRelation(Source source, Executable executable) {
-        super(source, emptyList());
+        super(source);
         this.executable = executable;
     }
 
     @Override
     protected NodeInfo<LocalRelation> info() {
         return NodeInfo.create(this, LocalRelation::new, executable);
-    }
-
-    @Override
-    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 
     public Executable executable() {
@@ -78,8 +70,4 @@ public class LocalRelation extends LogicalPlan implements Executable {
         return Objects.equals(executable, other.executable);
     }
 
-    @Override
-    public String nodeString() {
-        return nodeName() + NodeUtils.limitedToString(output());
-    }
 }

@@ -17,18 +17,17 @@ import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
-import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Collections;
@@ -38,7 +37,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public final class SimilarityService extends AbstractIndexComponent {
+public final class SimilarityService {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityService.class);
     public static final String DEFAULT_SIMILARITY = "BM25";
     private static final Map<String, Function<Version, Supplier<Similarity>>> DEFAULTS;
@@ -79,9 +78,8 @@ public final class SimilarityService extends AbstractIndexComponent {
 
     public SimilarityService(IndexSettings indexSettings, ScriptService scriptService,
                              Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities) {
-        super(indexSettings);
         Map<String, Supplier<Similarity>> providers = new HashMap<>(similarities.size());
-        Map<String, Settings> similaritySettings = this.indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
+        Map<String, Settings> similaritySettings = indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
 
         for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {
             String name = entry.getKey();
@@ -113,7 +111,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
-            deprecationLogger.deprecate(DeprecationCategory.QUERIES, "base_similarity_ignored",
+            deprecationLogger.critical(DeprecationCategory.QUERIES, "base_similarity_ignored",
                 "The [base] similarity is ignored since query normalization and coords have been removed");
         }
     }

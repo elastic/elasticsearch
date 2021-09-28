@@ -94,6 +94,20 @@ The following conditions apply for restoring snapshots and indices across versio
 The one caveat is that snapshots taken by {es} 2.0 can be restored in clusters running {es} 5.0.
 ====
 
+ifeval::["{release-state}"!="released"]
+[[snapshot-prerelease-build-compatibility]]
+NOTE: This documentation is for {es} {version}, which is not yet released. The
+compatibility table above applies only to snapshots taken in a released version
+of {es}. If you're testing a pre-release build of {es} then you can also take
+and restore snapshots as normal, but you must not use the same snapshot
+repository with other builds of {es} even if the builds are the same version.
+Different pre-release builds of {es} may use different and incompatible
+repository layouts. If the repository layout is incompatible with the {es} build
+in use then taking and restoring snapshots may result in errors or may appear to
+succeed having silently lost some data. You should discard the repository when
+moving to a different build.
+endif::[]
+
 Each snapshot can contain indices created in various versions of {es}. This
 includes backing indices created for data streams. When restoring a snapshot, it
 must be possible to restore all of these indices into the target cluster. If any
@@ -118,8 +132,8 @@ understand the time requirements before proceeding.
 
 include::register-repository.asciidoc[]
 include::take-snapshot.asciidoc[]
-include::restore-snapshot.asciidoc[]
 include::monitor-snapshot-restore.asciidoc[]
 include::delete-snapshot.asciidoc[]
+include::restore-snapshot.asciidoc[]
 include::../slm/index.asciidoc[]
 include::../searchable-snapshots/index.asciidoc[]

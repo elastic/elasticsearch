@@ -12,9 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.repositories.IndexId;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -81,5 +83,13 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
                 content.decRef();
             }
         }
+    }
+
+    @Override
+    public void restoreFileFromSnapshot(String repository,
+                                        IndexId indexId,
+                                        BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+                                        ActionListener<Void> listener) {
+        executor.execute(() -> target.restoreFileFromSnapshot(repository, indexId, snapshotFile, listener));
     }
 }

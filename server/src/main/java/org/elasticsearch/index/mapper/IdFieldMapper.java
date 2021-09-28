@@ -154,7 +154,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     IndexFieldDataCache cache,
                     CircuitBreakerService breakerService
                 ) {
-                    deprecationLogger.deprecate(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                    deprecationLogger.critical(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache,
                         breakerService);
                     return new IndexFieldData<>() {
@@ -250,9 +250,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) {
-        BytesRef id = Uid.encodeId(context.sourceToParse().id());
-        context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
+    public void preParse(DocumentParserContext context) {
+        context.doc().add(idField(context.sourceToParse().id()));
+    }
+
+    public static Field idField(String id) {
+        return new Field(NAME, Uid.encodeId(id), Defaults.FIELD_TYPE);
     }
 
     @Override

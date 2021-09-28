@@ -93,4 +93,3 @@ Rank features that correlate negatively with the score should set
 the <<query-dsl-rank-feature-query,`rank_feature`>> query to modify the scoring formula
 in such a way that the score decreases with the value of the feature instead of
 increasing.
-

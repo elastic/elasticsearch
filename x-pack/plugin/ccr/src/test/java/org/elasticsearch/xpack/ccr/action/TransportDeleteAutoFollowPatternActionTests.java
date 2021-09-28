@@ -39,6 +39,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
                 new AutoFollowPattern(
                     "eu_cluster",
                     existingPatterns,
+                    Collections.emptyList(),
                     null,
                     Settings.EMPTY, true,
                     null,
@@ -67,6 +68,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
                 new AutoFollowPattern(
                     "asia_cluster",
                     existingPatterns,
+                    Collections.emptyList(),
                     null,
                     Settings.EMPTY,
                     true,
@@ -118,6 +120,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
                 new AutoFollowPattern(
                     "eu_cluster",
                     existingPatterns,
+                    Collections.emptyList(),
                     null,
                     Settings.EMPTY,
                     true,

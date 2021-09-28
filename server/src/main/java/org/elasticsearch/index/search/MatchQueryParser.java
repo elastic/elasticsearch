@@ -11,23 +11,23 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.elasticsearch.ElasticsearchException;
@@ -425,11 +425,6 @@ public class MatchQueryParser {
             return new SpanOrQuery(spanQueries);
         }
 
-        @Override
-        protected SpanQuery createSpanQuery(TokenStream in, String field) throws IOException {
-            return createSpanQuery(in, field, false);
-        }
-
         private SpanQuery createSpanQuery(TokenStream in, String field, boolean isPrefix) throws IOException {
             TermToBytesRefAttribute termAtt = in.getAttribute(TermToBytesRefAttribute.class);
             PositionIncrementAttribute posIncAtt = in.getAttribute(PositionIncrementAttribute.class);
@@ -564,8 +559,7 @@ public class MatchQueryParser {
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                checkForPositions(field);
-                return fieldType.phraseQuery(stream, slop, enablePositionIncrements);
+                return fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -577,8 +571,7 @@ public class MatchQueryParser {
         @Override
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                checkForPositions(field);
-                return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements);
+                return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -589,10 +582,7 @@ public class MatchQueryParser {
 
         private Query analyzePhrasePrefix(String field, TokenStream stream, int slop, int positionCount) throws IOException {
             try {
-                if (positionCount > 1) {
-                    checkForPositions(field);
-                }
-                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions);
+                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -740,12 +730,6 @@ public class MatchQueryParser {
                 return clauses.get(0);
             } else {
                 return new SpanNearQuery(clauses.toArray(new SpanQuery[0]), 0, true);
-            }
-        }
-
-        private void checkForPositions(String field) {
-            if (fieldType.getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
         }
     }

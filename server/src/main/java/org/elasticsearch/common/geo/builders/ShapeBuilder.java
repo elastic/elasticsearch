@@ -33,7 +33,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -427,44 +426,6 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
         @Override
         public int compare(Edge o1, Edge o2) {
             return Double.compare(o1.intersect.y, o2.intersect.y);
-        }
-    }
-
-    public enum Orientation {
-        LEFT,
-        RIGHT;
-
-        public static final Orientation CLOCKWISE = Orientation.LEFT;
-        public static final Orientation COUNTER_CLOCKWISE = Orientation.RIGHT;
-        public static final Orientation CW = Orientation.LEFT;
-        public static final Orientation CCW = Orientation.RIGHT;
-
-        public void writeTo (StreamOutput out) throws IOException {
-            out.writeBoolean(this == Orientation.RIGHT);
-        }
-
-        public static Orientation readFrom (StreamInput in) throws IOException {
-            return in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
-        }
-
-        public boolean getAsBoolean() {
-            return this == Orientation.RIGHT;
-        }
-
-        public static Orientation fromString(String orientation) {
-            orientation = orientation.toLowerCase(Locale.ROOT);
-            switch (orientation) {
-                case "right":
-                case "counterclockwise":
-                case "ccw":
-                    return Orientation.RIGHT;
-                case "left":
-                case "clockwise":
-                case "cw":
-                    return Orientation.LEFT;
-                default:
-                    throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
-            }
         }
     }
 

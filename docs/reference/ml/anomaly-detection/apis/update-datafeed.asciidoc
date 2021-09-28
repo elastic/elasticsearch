@@ -20,10 +20,8 @@ Updates certain properties of a {dfeed}.
 [[ml-update-datafeed-prereqs]]
 == {api-prereq-title}
 
-* If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
-cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
-
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-update-datafeed-desc]]
 == {api-description-title}
@@ -57,10 +55,34 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
 `chunking_config`::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
++
+.Properties of `chunking_config`
+[%collapsible%open]
+====
+`mode`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
+
+`time_span`:::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
+====
 
 `delayed_data_check_config`::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
++
+.Properties of `delayed_data_check_config`
+[%collapsible%open]
+====
+`check_window`::
+(<<time-units,time units>>)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-check-window]
+
+`enabled`::
+(Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config-enabled]
+====
 
 `frequency`::
 (Optional, <<time-units, time units>>)

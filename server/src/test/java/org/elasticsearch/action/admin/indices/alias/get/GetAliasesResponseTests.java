@@ -8,9 +8,11 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -19,6 +21,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<GetAliasesResponse> {
 
@@ -34,7 +37,8 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
 
     @Override
     protected GetAliasesResponse mutateInstance(GetAliasesResponse response) {
-        return new GetAliasesResponse(mutateAliases(response.getAliases()));
+        return new GetAliasesResponse(mutateAliases(response.getAliases()),
+            randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance))));
     }
 
     private static ImmutableOpenMap<String, List<AliasMetadata>> mutateAliases(ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
@@ -75,7 +79,8 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
     }
 
     private static GetAliasesResponse createTestItem() {
-        return new GetAliasesResponse(createIndicesAliasesMap(0, 5).build());
+        return new GetAliasesResponse(mutateAliases(createIndicesAliasesMap(0, 5).build()
+        ), randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance))));
     }
 
     private static ImmutableOpenMap.Builder<String, List<AliasMetadata>> createIndicesAliasesMap(int min, int max) {
@@ -94,7 +99,11 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
     }
 
     public static AliasMetadata createAliasMetadata() {
-        Builder builder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
+        return createAliasMetadata(s -> false);
+    }
+
+    public static AliasMetadata createAliasMetadata(Predicate<String> t) {
+        Builder builder = AliasMetadata.builder(randomValueOtherThanMany(t, () -> randomAlphaOfLengthBetween(3, 10)));
         if (randomBoolean()) {
             builder.routing(randomAlphaOfLengthBetween(3, 10));
         }

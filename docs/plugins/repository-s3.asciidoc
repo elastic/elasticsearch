@@ -125,7 +125,10 @@ settings belong in the `elasticsearch.yml` file.
 `protocol`::
 
     The protocol to use to connect to S3. Valid values are either `http` or
-    `https`. Defaults to `https`.
+    `https`. Defaults to `https`. When using HTTPS, this plugin validates the
+    repository's certificate chain using the JVM-wide truststore. Ensure that
+    the root certificate authority is in this truststore using the JVM's
+    `keytool` tool.
 
 `proxy.host`::
 
@@ -303,8 +306,8 @@ include::repository-shared-settings.asciidoc[]
     setting a buffer size lower than `5mb` is not allowed since it will prevent
     the use of the Multipart API and may result in upload errors. It is also not
     possible to set a buffer size greater than `5gb` as it is the maximum upload
-    size allowed by S3. Defaults to the minimum between `100mb` and `5%` of the
-    heap size.
+    size allowed by S3. Defaults to `100mb` or `5%` of JVM heap, whichever is
+    smaller.
 
 `canned_acl`::
 
@@ -452,6 +455,33 @@ bucket, in this example, named "foo".
 
 The bucket needs to exist to register a repository for snapshots. If you did not
 create the bucket then the repository registration will fail.
+
+===== Cleaning up multi-part uploads
+
+{es} uses S3's multi-part upload process to upload larger blobs to the
+repository. The multi-part upload process works by dividing each blob into
+smaller parts, uploading each part independently, and then completing the
+upload in a separate step. This reduces the amount of data that {es} must
+re-send if an upload fails: {es} only needs to re-send the part that failed
+rather than starting from the beginning of the whole blob. The storage for each
+part is charged independently starting from the time at which the part was
+uploaded.
+
+If a multi-part upload cannot be completed then it must be aborted in order to
+delete any parts that were successfully uploaded, preventing further storage
+charges from accumulating. {es} will automatically abort a multi-part upload on
+failure, but sometimes the abort request itself fails. For example, if the
+repository becomes inaccessible or the instance on which {es} is running is
+terminated abruptly then {es} cannot complete or abort any ongoing uploads.
+
+You must make sure that failed uploads are eventually aborted to avoid
+unnecessary storage costs. You can use the
+https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html[List
+multipart uploads API] to list the ongoing uploads and look for any which are
+unusually long-running, or you can
+https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpu-abort-incomplete-mpu-lifecycle-config.html[configure
+a bucket lifecycle policy] to automatically abort incomplete uploads once they
+reach a certain age.
 
 [[repository-s3-aws-vpc]]
 [discrete]

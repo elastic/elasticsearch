@@ -36,7 +36,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -44,10 +46,10 @@ import static org.mockito.Mockito.when;
 
 public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testInterceptorThrowsWhenFLSDLSEnabled() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -86,14 +88,14 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index("foofoo"));
         }
         PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-        RequestInfo requestInfo = new RequestInfo(authentication, indicesAliasesRequest, action);
+        RequestInfo requestInfo = new RequestInfo(authentication, indicesAliasesRequest, action, null);
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         doAnswer(invocationOnMock -> {
             ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
             listener.onResponse(AuthorizationResult.deny());
             return null;
-        }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
-            any(ActionListener.class));
+        }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), anyMap(),
+            anyActionListener());
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
                 () -> {
                     interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
@@ -103,10 +105,10 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                 securityException.getMessage());
     }
 
+    @SuppressWarnings("unchecked")
     public void testInterceptorThrowsWhenTargetHasGreaterPermissions() throws Exception {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -131,13 +133,13 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-            RequestInfo requestInfo = new RequestInfo(authentication, indicesAliasesRequest, action);
+            RequestInfo requestInfo = new RequestInfo(authentication, indicesAliasesRequest, action, null);
             doAnswer(invocationOnMock -> {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.deny());
                 return null;
             }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
-                any(ActionListener.class));
+                anyActionListener());
             ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
                 () -> {
                     interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
@@ -159,13 +161,13 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
 
         {
             PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
-            RequestInfo requestInfo = new RequestInfo(authentication, successRequest, action);
+            RequestInfo requestInfo = new RequestInfo(authentication, successRequest, action, null);
             doAnswer(invocationOnMock -> {
                 ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
                 listener.onResponse(AuthorizationResult.granted());
                 return null;
             }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
-                any(ActionListener.class));
+                anyActionListener());
             interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
             plainActionFuture.actionGet();
         }

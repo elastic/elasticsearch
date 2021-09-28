@@ -82,7 +82,6 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                             indexName,
                             Settings.builder()
                                 .put("index.routing.allocation.exclude._id", upgradedNodeId)
-                                .build()
                         );
                     }
 
@@ -105,13 +104,11 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                         indexName,
                         Settings.builder()
                             .putNull("index.routing.allocation.exclude._id")
-                            .build()
                     );
                 }
 
                 // Drop replicas
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0));
-                ensureGreen(indexName);
 
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
                 ensureGreen(indexName);
@@ -120,22 +117,6 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                 break;
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
-        }
-    }
-
-    private void updateIndexSettings(String indexName, Settings settings) throws IOException {
-        try (XContentBuilder builder = jsonBuilder()) {
-
-            builder.startObject();
-            {
-                settings.toXContent(builder, EMPTY_PARAMS);
-                builder.field("index.routing.allocation.exclude._id", (String) null);
-            }
-            builder.endObject();
-
-            Request request = new Request(HttpPut.METHOD_NAME, indexName + "/_settings");
-            request.setJsonEntity(Strings.toString(builder));
-            assertOK(client().performRequest(request));
         }
     }
 

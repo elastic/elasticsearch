@@ -14,9 +14,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.InstallPluginProvider;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.RemovePluginProvider;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -105,12 +111,30 @@ public class PluginsManager {
 
         printRequiredChanges(pluginsToRemove, pluginsToInstall, pluginsToUpgrade);
 
-        final PluginRemover pluginRemover = new PluginRemover(env, true);
-        final PluginInstaller pluginInstaller = new PluginInstaller(env, modules, officialPlugins);
+        if (pluginsToRemove.isEmpty() && pluginsToInstall.isEmpty() && pluginsToUpgrade.isEmpty()) {
+            return;
+        }
+
+        ClassLoader classLoader = buildClassLoader(env);
+
+        @SuppressWarnings("unchecked")
+        Class<InstallPluginProvider> installClass = (Class<InstallPluginProvider>) classLoader.loadClass(
+            "org.elasticsearch.plugins.cli.InstallPluginAction"
+        );
+        @SuppressWarnings("unchecked")
+        Class<RemovePluginProvider> removeClass = (Class<RemovePluginProvider>) classLoader.loadClass(
+            "org.elasticsearch.plugins.cli.RemovePluginAction"
+        );
+
+        InstallPluginProvider pluginInstaller = installClass.getDeclaredConstructor(Environment.class, Boolean.class).newInstance(env, true);
+        RemovePluginProvider pluginRemover = removeClass.getDeclaredConstructor(Environment.class).newInstance(env);
+
+        // final PluginRemover pluginRemover = new PluginRemover(env, true);
+        // final PluginInstaller pluginInstaller = new PluginInstaller(env, modules, officialPlugins);
 
         // 5. Remove any plugins that are not in the descriptor
         if (pluginsToRemove.isEmpty() == false) {
-            pluginRemover.execute(existingPlugins, pluginsToRemove);
+            pluginRemover.execute(pluginsToRemove);
         }
 
         // 6. Add any plugins that are in the descriptor but missing from disk
@@ -122,7 +146,7 @@ public class PluginsManager {
         // 7. Upgrade plugins
         if (pluginsToUpgrade.isEmpty() == false) {
             pluginRemover.setPurge(false);
-            pluginRemover.execute(existingPlugins, pluginsToUpgrade);
+            pluginRemover.execute(pluginsToUpgrade);
 
             pluginInstaller.execute(pluginsToUpgrade);
         }
@@ -259,6 +283,15 @@ public class PluginsManager {
             printSummary.accept("remove", pluginsToRemove);
             printSummary.accept("install", pluginsToInstall);
             printSummary.accept("upgrade", pluginsToUpgrade);
+        }
+    }
+
+    private ClassLoader buildClassLoader(Environment env) throws PluginSyncException {
+        try {
+            final URL pluginCli = env.libFile().resolve("tools").resolve("plugin-cli").resolve("*").toUri().toURL();
+            return URLClassLoader.newInstance(new URL[] { pluginCli }, PluginsManager.class.getClassLoader());
+        } catch (MalformedURLException e) {
+            throw new PluginSyncException("Failed to build URL for plugin-cli jars", e);
         }
     }
 }

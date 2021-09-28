@@ -13,7 +13,9 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.RemovePluginProvider;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -34,7 +36,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 /**
  * An action for the plugin CLI to remove plugins from Elasticsearch.
  */
-class RemovePluginAction {
+public class RemovePluginAction implements RemovePluginProvider {
 
     // exit codes for remove
     /** A plugin cannot be removed because it is extended by another plugin. */
@@ -42,7 +44,7 @@ class RemovePluginAction {
 
     private final Terminal terminal;
     private final Environment env;
-    private final boolean purge;
+    private boolean purge;
 
     /**
      * Creates a new action.
@@ -57,6 +59,14 @@ class RemovePluginAction {
         this.purge = purge;
     }
 
+    public boolean isPurge() {
+        return purge;
+    }
+
+    public void setPurge(boolean purge) {
+        this.purge = purge;
+    }
+
     /**
      * Remove the plugin specified by {@code pluginName}.
      *
@@ -66,7 +76,7 @@ class RemovePluginAction {
      * @throws UserException if plugin directory does not exist
      * @throws UserException if the plugin bin directory is not a directory
      */
-    void execute(List<PluginDescriptor> plugins) throws IOException, UserException {
+    public void execute(List<PluginDescriptor> plugins) throws IOException, UserException {
         if (plugins == null || plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");
         }
@@ -80,34 +90,6 @@ class RemovePluginAction {
         for (PluginDescriptor plugin : plugins) {
             removePlugin(plugin);
         }
-    }
-
-    private void ensurePluginsNotUsedByOtherPlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
-        // First make sure nothing extends this plugin
-        final Map<String, List<String>> usedBy = new HashMap<>();
-        Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
-        for (PluginsService.Bundle bundle : bundles) {
-            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
-                for (PluginDescriptor plugin : plugins) {
-                    String pluginId = plugin.getId();
-                    if (extendedPlugin.equals(pluginId)) {
-                        usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(pluginId);
-                    }
-                }
-            }
-        }
-        if (usedBy.isEmpty()) {
-            return;
-        }
-
-        final StringJoiner message = new StringJoiner("\n");
-        message.add("Cannot remove plugins because the following are extended by other plugins:");
-        usedBy.forEach((key, value) -> {
-            String s = "\t" + key + " used by " + value;
-            message.add(s);
-        });
-
-        throw new UserException(PLUGIN_STILL_USED, message.toString());
     }
 
     private void checkCanRemove(PluginDescriptor plugin) throws UserException {
@@ -215,5 +197,33 @@ class RemovePluginAction {
         pluginPaths.add(removing);
 
         IOUtils.rm(pluginPaths.toArray(new Path[0]));
+    }
+
+    private void ensurePluginsNotUsedByOtherPlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
+        // First make sure nothing extends this plugin
+        final Map<String, List<String>> usedBy = new HashMap<>();
+        Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
+        for (PluginsService.Bundle bundle : bundles) {
+            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
+                for (PluginDescriptor plugin : plugins) {
+                    String pluginId = plugin.getId();
+                    if (extendedPlugin.equals(pluginId)) {
+                        usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(pluginId);
+                    }
+                }
+            }
+        }
+        if (usedBy.isEmpty()) {
+            return;
+        }
+
+        final StringJoiner message = new StringJoiner("\n");
+        message.add("Cannot remove plugins because the following are extended by other plugins:");
+        usedBy.forEach((key, value) -> {
+            String s = "\t" + key + " used by " + value;
+            message.add(s);
+        });
+
+        throw new UserException(PLUGIN_STILL_USED, message.toString());
     }
 }

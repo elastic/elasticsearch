@@ -38,7 +38,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.plugins.InstallPluginProvider;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsService;
 
@@ -50,6 +52,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -115,7 +118,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * elasticsearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
  */
-class InstallPluginAction implements Closeable {
+public class InstallPluginAction implements Closeable, InstallPluginProvider {
 
     private static final String PROPERTY_STAGING_ID = "es.plugins.staging";
 
@@ -182,6 +185,7 @@ class InstallPluginAction implements Closeable {
     private final Terminal terminal;
     private Environment env;
     private boolean batch;
+    private Proxy proxy = null;
 
     InstallPluginAction(Terminal terminal, Environment env, boolean batch) {
         this.terminal = terminal;
@@ -189,8 +193,12 @@ class InstallPluginAction implements Closeable {
         this.batch = batch;
     }
 
-    // pkg private for testing
-    void execute(List<PluginDescriptor> plugins) throws Exception {
+    @Override
+    public void setProxy(Proxy proxy) {
+        this.proxy = proxy;
+    }
+
+    public void execute(List<PluginDescriptor> plugins) throws Exception {
         if (plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");
         }

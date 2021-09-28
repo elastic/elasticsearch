@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.plugins.PluginDescriptor;
 
 import java.io.IOException;
 import java.net.URI;

@@ -185,34 +185,30 @@ public class TransformUpdaterTests extends ESTestCase {
         );
 
         transformConfigManager.putOldTransformConfiguration(oldConfig, ActionListener.wrap(r -> {}, e -> {}));
-        transformConfigManager.putOldTransformCheckpoint(
-            new TransformCheckpoint(
-                oldConfig.getId(),
-                0L, // timestamp
+        TransformCheckpoint checkpoint = new TransformCheckpoint(
+            oldConfig.getId(),
+            0L, // timestamp
+            42L, // checkpoint
+            Collections.singletonMap("index_1", new long[] { 1, 2, 3, 4 }), // index checkpoints
+            0L
+        );
+        transformConfigManager.putOldTransformCheckpoint(checkpoint, ActionListener.wrap(r -> {}, e -> {}));
+
+        TransformStoredDoc stateDoc = new TransformStoredDoc(
+            oldConfig.getId(),
+            new TransformState(
+                TransformTaskState.STARTED,
+                IndexerState.INDEXING,
+                null, // position
                 42L, // checkpoint
-                Collections.emptyMap(), // index checkpoints
-                0L
+                null, // reason
+                null, // progress
+                null, // node attributes
+                false // shouldStopAtNextCheckpoint
             ),
-            ActionListener.wrap(r -> {}, e -> {})
+            TransformIndexerStatsTests.randomStats()
         );
-        transformConfigManager.putOrUpdateOldTransformStoredDoc(
-            new TransformStoredDoc(
-                oldConfig.getId(),
-                new TransformState(
-                    TransformTaskState.STARTED,
-                    IndexerState.INDEXING,
-                    null, // position
-                    42L, // checkpoint
-                    null, // reason
-                    null, // progress
-                    null, // node attributes
-                    false // shouldStopAtNextCheckpoint
-                ),
-                TransformIndexerStatsTests.randomStats()
-            ),
-            null,
-            ActionListener.wrap(r -> {}, e -> {})
-        );
+        transformConfigManager.putOrUpdateOldTransformStoredDoc(stateDoc, null, ActionListener.wrap(r -> {}, e -> {}));
 
         assertConfiguration(listener -> transformConfigManager.getTransformConfiguration(oldConfig.getId(), listener), config -> {});
 
@@ -245,7 +241,20 @@ public class TransformUpdaterTests extends ESTestCase {
 
         assertCheckpoint(
             listener -> transformConfigManager.getTransformCheckpointForUpdate(oldConfig.getId(), 42L, listener),
-            checkpointAndVersion -> { assertEquals(InMemoryTransformConfigManager.CURRENT_INDEX, checkpointAndVersion.v2().getIndex()); }
+            checkpointAndVersion -> {
+                assertEquals(InMemoryTransformConfigManager.CURRENT_INDEX, checkpointAndVersion.v2().getIndex());
+                assertEquals(42L, checkpointAndVersion.v1().getCheckpoint());
+                assertEquals(checkpoint.getIndicesCheckpoints(), checkpointAndVersion.v1().getIndicesCheckpoints());
+            }
+        );
+
+        assertStoredState(
+            listener -> transformConfigManager.getTransformStoredDoc(oldConfig.getId(), false, listener),
+            storedDocAndVersion -> {
+                assertEquals(InMemoryTransformConfigManager.CURRENT_INDEX, storedDocAndVersion.v2().getIndex());
+                assertEquals(stateDoc.getTransformState(), storedDocAndVersion.v1().getTransformState());
+                assertEquals(stateDoc.getTransformStats(), storedDocAndVersion.v1().getTransformStats());
+            }
         );
 
         // same as dry run
@@ -312,8 +321,10 @@ public class TransformUpdaterTests extends ESTestCase {
         assertAsync(function, furtherTests);
     }
 
-    private void assertStoredState(Consumer<ActionListener<TransformStoredDoc>> function, Consumer<TransformStoredDoc> furtherTests)
-        throws InterruptedException {
+    private void assertStoredState(
+        Consumer<ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>>> function,
+        Consumer<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> furtherTests
+    ) throws InterruptedException {
         assertAsync(function, furtherTests);
     }
 

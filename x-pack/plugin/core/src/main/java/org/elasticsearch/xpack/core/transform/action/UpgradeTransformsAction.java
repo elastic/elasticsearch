@@ -61,33 +61,54 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
-        private final boolean acknowledged;
+        private final boolean success;
+        private final Long updated;
+        private final Long noAction;
+        private final Long needsUpdate;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            acknowledged = in.readBoolean();
+            success = in.readBoolean();
+            updated = in.readOptionalVLong();
+            noAction = in.readOptionalVLong();
+            needsUpdate = in.readOptionalVLong();
         }
 
-        public Response(boolean acknowledged) {
+        public Response(boolean success, Long updated, Long noAction, Long needsUpdate) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.acknowledged = acknowledged;
+            this.success = success;
+            this.updated = updated;
+            this.noAction = noAction;
+            this.needsUpdate = needsUpdate;
         }
 
-        public boolean isAcknowledged() {
-            return acknowledged;
+        public boolean isSuccess() {
+            return success;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(acknowledged);
+            out.writeBoolean(success);
+            out.writeOptionalVLong(updated);
+            out.writeOptionalVLong(noAction);
+            out.writeOptionalVLong(needsUpdate);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field("acknowledged", acknowledged);
+            builder.field("success", success);
+            if (updated != null) {
+                builder.field("updated", updated);
+            }
+            if (noAction != null) {
+                builder.field("no_action", noAction);
+            }
+            if (needsUpdate != null) {
+                builder.field("needsUpdate", needsUpdate);
+            }
             builder.endObject();
             return builder;
         }
@@ -102,12 +123,15 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
                 return false;
             }
             Response response = (Response) obj;
-            return acknowledged == response.acknowledged;
+            return success == response.success
+                && this.updated == response.updated
+                && this.noAction == response.noAction
+                && this.needsUpdate == response.needsUpdate;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(acknowledged);
+            return Objects.hash(success, updated, noAction, needsUpdate);
         }
     }
 }

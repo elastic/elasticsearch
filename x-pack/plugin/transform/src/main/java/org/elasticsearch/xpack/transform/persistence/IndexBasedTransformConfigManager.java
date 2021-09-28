@@ -15,6 +15,8 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -26,6 +28,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -62,7 +66,9 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -96,10 +102,16 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     private static final Logger logger = LogManager.getLogger(IndexBasedTransformConfigManager.class);
 
     private final Client client;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NamedXContentRegistry xContentRegistry;
 
-    public IndexBasedTransformConfigManager(Client client, NamedXContentRegistry xContentRegistry) {
+    public IndexBasedTransformConfigManager(
+        Client client,
+        IndexNameExpressionResolver expressionResolver,
+        NamedXContentRegistry xContentRegistry
+    ) {
         this.client = client;
+        this.indexNameExpressionResolver = expressionResolver;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -247,6 +259,41 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 listener.onResponse(response.getDeleted());
             }, listener::onFailure)
         );
+    }
+
+    @Override
+    public void deleteOldIndices(ClusterState state, ActionListener<Long> listener) {
+        Set<String> indicesToDelete = new HashSet<>(
+            Arrays.asList(
+                indexNameExpressionResolver.concreteIndexNames(
+                    state,
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
+                    TransformInternalIndexConstants.INDEX_NAME_PATTERN
+                )
+            )
+        );
+
+        indicesToDelete.addAll(
+            Arrays.asList(
+                indexNameExpressionResolver.concreteIndexNames(
+                    state,
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
+                    TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+                )
+            )
+        );
+
+        indicesToDelete.remove(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+
+        DeleteIndexRequest deleteRequest = new DeleteIndexRequest(indicesToDelete.toArray(new String[0]));
+
+        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteIndexAction.INSTANCE, deleteRequest, ActionListener.wrap(response -> {
+            if (response.isAcknowledged() == false) {
+                listener.onFailure(new ElasticsearchStatusException("Failed to delete internal indices", RestStatus.INTERNAL_SERVER_ERROR));
+                return;
+            }
+            listener.onResponse((long) indicesToDelete.size());
+        }, listener::onFailure));
     }
 
     private void putTransformConfiguration(
@@ -508,7 +555,8 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 // in versioned indexes (like transform)
                 if (requiredMatches.isOnlyExact()) {
                     foundConfigsListener.onResponse(
-                        new Tuple<>((long) ids.size(), Tuple.tuple(new ArrayList<>(ids), new ArrayList<>(configs))));
+                        new Tuple<>((long) ids.size(), Tuple.tuple(new ArrayList<>(ids), new ArrayList<>(configs)))
+                    );
                 } else {
                     foundConfigsListener.onResponse(new Tuple<>(totalHits, Tuple.tuple(new ArrayList<>(ids), new ArrayList<>(configs))));
                 }

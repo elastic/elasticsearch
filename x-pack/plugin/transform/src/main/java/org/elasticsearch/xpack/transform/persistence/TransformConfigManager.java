@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -84,6 +85,16 @@ public interface TransformConfigManager {
      * @param listener listener to alert on completion, returning number of deleted checkpoints
      */
     void deleteOldCheckpoints(String transformId, long deleteCheckpointsBelow, long deleteOlderThan, ActionListener<Long> listener);
+
+    /**
+     * This deletes all _old_ internal storages(indices) except the most recent one.
+     *
+     * CAUTION: Deletes data without checks! Special method for upgrades.
+     *
+     * @param state a recent cluster state, required to resolve index names
+     * @param listener listener to call on completion, returning the number of deleted indices
+     */
+    void deleteOldIndices(ClusterState state, ActionListener<Long> listener);
 
     /**
      * Get a stored checkpoint, requires the transform id as well as the checkpoint id

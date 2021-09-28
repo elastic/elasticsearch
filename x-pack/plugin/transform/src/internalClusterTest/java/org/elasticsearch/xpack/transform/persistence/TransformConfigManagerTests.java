@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -52,7 +53,11 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
     @Before
     public void createComponents() {
-        transformConfigManager = new IndexBasedTransformConfigManager(client(), xContentRegistry());
+        transformConfigManager = new IndexBasedTransformConfigManager(
+            client(),
+            TestIndexNameExpressionResolver.newInstance(),
+            xContentRegistry()
+        );
     }
 
     public void testGetMissingTransform() throws InterruptedException {
@@ -234,7 +239,9 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
                 3L,
                 tuple(
                     Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand"),
-                    Arrays.asList(transformConfig1, transformConfig2, transformConfig3))),
+                    Arrays.asList(transformConfig1, transformConfig2, transformConfig3)
+                )
+            ),
             null,
             null
         );
@@ -246,7 +253,9 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
                 3L,
                 tuple(
                     Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand"),
-                    Arrays.asList(transformConfig1, transformConfig2, transformConfig3))),
+                    Arrays.asList(transformConfig1, transformConfig2, transformConfig3)
+                )
+            ),
             null,
             null
         );

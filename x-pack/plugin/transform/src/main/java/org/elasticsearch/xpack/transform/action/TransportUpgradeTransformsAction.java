@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,7 +34,6 @@ import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Req
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
-import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.action.TransformUpdater.UpdateResult;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -43,7 +41,6 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 
 import java.util.ArrayDeque;
-import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
@@ -210,9 +207,34 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         Map<UpdateResult.Status, Long> updatesByStatus = new HashMap<>();
 
         recursiveExpandTransformIdsAndUpgrade(updatesByStatus, request.isDryRun(), startPage, ActionListener.wrap(r -> {
-            // todo: cleanup indexes
-            // todo: complete response with statuses
-            listener.onResponse(new UpgradeTransformsAction.Response(true));
+            if (request.isDryRun() == false) {
+                transformConfigManager.deleteOldIndices(state, ActionListener.wrap(deletedIndices -> {
+                    logger.debug("Deleted [{}] old transform internal indices", deletedIndices);
+
+                    long updated = updatesByStatus.containsKey(UpdateResult.Status.UPDATED)
+                        ? updatesByStatus.get(UpdateResult.Status.UPDATED)
+                        : 0;
+
+                    long skipped = updatesByStatus.containsKey(UpdateResult.Status.NONE)
+                        ? updatesByStatus.get(UpdateResult.Status.NONE)
+                        : 0;
+
+                    logger.info("Successfully upgraded all transforms, (updated: [{}], skipped [{}])", updated, skipped);
+
+                    listener.onResponse(
+                        new UpgradeTransformsAction.Response(
+                            true,
+                            updatesByStatus.get(UpdateResult.Status.UPDATED),
+                            updatesByStatus.get(UpdateResult.Status.NONE),
+                            null
+                        )
+                    );
+                }, listener::onFailure));
+            } else {
+                listener.onResponse(
+                    new UpgradeTransformsAction.Response(true, null, null, updatesByStatus.get(UpdateResult.Status.NEEDS_UPDATE))
+                );
+            }
         }, listener::onFailure));
 
     }
@@ -220,31 +242,6 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
     @Override
     protected ClusterBlockException checkBlock(UpgradeTransformsAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> getExistingTask(String id, ClusterState state) {
-        PersistentTasksCustomMetadata pTasksMeta = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        if (pTasksMeta == null) {
-            return null;
-        }
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> existingTask = pTasksMeta.findTasks(
-            TransformTaskParams.NAME,
-            t -> t.getId().equals(id)
-        );
-        if (existingTask.isEmpty()) {
-            return null;
-        } else {
-            assert (existingTask.size() == 1);
-            PersistentTasksCustomMetadata.PersistentTask<?> pTask = existingTask.iterator().next();
-            if (pTask.getParams() instanceof TransformTaskParams) {
-                return (PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>) pTask;
-            }
-            throw new ElasticsearchStatusException(
-                "Found transform persistent task [" + id + "] with incorrect params",
-                RestStatus.INTERNAL_SERVER_ERROR
-            );
-        }
     }
 
 }

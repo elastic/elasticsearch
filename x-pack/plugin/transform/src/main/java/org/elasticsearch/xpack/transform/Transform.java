@@ -267,7 +267,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
+        TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, expressionResolver, xContentRegistry);
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService);
         TransformCheckpointService checkpointService =
             new TransformCheckpointService(Clock.systemUTC(), settings, clusterService, configManager, auditor);

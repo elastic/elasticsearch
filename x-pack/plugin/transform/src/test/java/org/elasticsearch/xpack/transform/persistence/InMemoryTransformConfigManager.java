@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -123,6 +124,21 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
         deletedDocs += sizeBeforeDelete - checkpointsById.size();
 
         listener.onResponse(deletedDocs);
+    }
+
+    @Override
+    public void deleteOldIndices(ClusterState state, ActionListener<Long> listener) {
+        if (oldCheckpoints.isEmpty() && oldConfigs.isEmpty() && oldTransformStoredDocs.isEmpty()) {
+            listener.onResponse(0L);
+            return;
+        }
+
+        // found old documents, emulate index deletion
+        oldCheckpoints.clear();
+        oldConfigs.clear();
+        oldTransformStoredDocs.clear();
+
+        listener.onResponse(1L);
     }
 
     @Override

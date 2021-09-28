@@ -48,7 +48,7 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'azure-fixture-repository-test-kit')
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 

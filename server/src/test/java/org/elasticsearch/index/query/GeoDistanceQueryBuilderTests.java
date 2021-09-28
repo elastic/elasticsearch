@@ -13,7 +13,6 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -138,11 +136,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                     queryBuilder.distance()),
                     dvQuery);
         } else {
-            if (context.indexVersionCreated().before(Version.V_6_6_0)) {
-                assertEquals(LegacyGeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
-            } else {
-                assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
-            }
+            assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
         }
     }
 

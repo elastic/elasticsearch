@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 restResources {
@@ -13,7 +13,7 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   // Data streams is basic, but a few tests test data streams in combination with paid features
   setting 'xpack.license.self_generated.type', 'trial'

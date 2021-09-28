@@ -174,7 +174,7 @@ final class RemoteRequestBuilders {
     private static String encodeIndex(String s) {
         if (s.contains("%")) { // already encoded, pass-through to allow this in mixed version clusters
             checkIndexOrType("Index", s);
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "reindex_url_encoded_index", DEPRECATED_URL_ENCODED_INDEX_WARNING);
+            DEPRECATION_LOGGER.critical(DeprecationCategory.API, "reindex_url_encoded_index", DEPRECATED_URL_ENCODED_INDEX_WARNING);
             return s;
         }
         try {

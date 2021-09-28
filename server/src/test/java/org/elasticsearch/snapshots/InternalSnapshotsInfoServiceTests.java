@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -382,19 +381,9 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private void applyClusterState(final String reason, final Function<ClusterState, ClusterState> applier) {
-        PlainActionFuture.get(
+        PlainActionFuture.<Void, RuntimeException>get(
             future -> clusterService.getClusterApplierService()
-                .onNewClusterState(reason, () -> applier.apply(clusterService.state()), new ClusterApplier.ClusterApplyListener() {
-                    @Override
-                    public void onSuccess() {
-                        future.onResponse(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        future.onFailure(e);
-                    }
-                })
+                .onNewClusterState(reason, () -> applier.apply(clusterService.state()), future)
         );
     }
 

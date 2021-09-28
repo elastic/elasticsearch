@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -696,9 +695,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         clusterApplier.onNewClusterState("apply cluster state (from master [" + reason + "])",
             this::clusterState,
-            new ClusterApplyListener() {
+            new ActionListener<Void>() {
                 @Override
-                public void onSuccess() {
+                public void onResponse(Void ignored) {
                     try {
                         pendingStatesQueue.markAsProcessed(newClusterState);
                     } catch (Exception e) {
@@ -911,7 +910,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 .build();
 
             committedState.set(clusterState);
-            clusterApplier.onNewClusterState(reason, this::clusterState, e -> {}); // don't wait for state to be applied
+            clusterApplier.onNewClusterState(
+                reason,
+                this::clusterState,
+                ActionListener.wrap(() -> {})); // don't wait for state to be applied
         }
     }
 

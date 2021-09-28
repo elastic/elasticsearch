@@ -12,18 +12,19 @@ import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
@@ -126,11 +127,22 @@ public final class TimeSeriesRestDriver {
 
     public static void createNewSingletonPolicy(RestClient client, String policyName, String phaseName, LifecycleAction action)
         throws IOException {
-        createNewSingletonPolicy(client, policyName, phaseName, action, TimeValue.ZERO);
+        createNewSingletonPolicy(client, policyName, phaseName, action, (RequestOptions) null);
+    }
+
+    public static void createNewSingletonPolicy(RestClient client, String policyName, String phaseName, LifecycleAction action,
+                                                RequestOptions requestOptions)
+        throws IOException {
+        createNewSingletonPolicy(client, policyName, phaseName, action, TimeValue.ZERO, requestOptions);
     }
 
     public static void createNewSingletonPolicy(RestClient client, String policyName, String phaseName, LifecycleAction action,
                                                 TimeValue after) throws IOException {
+        createNewSingletonPolicy(client, policyName, phaseName, action, after, null);
+    }
+
+    public static void createNewSingletonPolicy(RestClient client, String policyName, String phaseName, LifecycleAction action,
+                                                TimeValue after, RequestOptions requestOptions) throws IOException {
         Phase phase = new Phase(phaseName, after, singletonMap(action.getWriteableName(), action));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
@@ -139,6 +151,9 @@ public final class TimeSeriesRestDriver {
             "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
         Request request = new Request("PUT", "_ilm/policy/" + policyName);
         request.setEntity(entity);
+        if (requestOptions != null) {
+            request.setOptions(requestOptions);
+        }
         client.performRequest(request);
     }
 
@@ -204,6 +219,13 @@ public final class TimeSeriesRestDriver {
     public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase,
                                     @Nullable Phase warmPhase, @Nullable Phase coldPhase,
                                     @Nullable Phase frozenPhase, @Nullable Phase deletePhase) throws IOException {
+        createPolicy(client, policyName, hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase, null);
+    }
+
+    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase,
+                                    @Nullable Phase warmPhase, @Nullable Phase coldPhase,
+                                    @Nullable Phase frozenPhase, @Nullable Phase deletePhase, @Nullable RequestOptions requestOptions)
+        throws IOException {
         if (hotPhase == null && warmPhase == null && coldPhase == null && deletePhase == null) {
             throw new IllegalArgumentException("specify at least one phase");
         }
@@ -230,6 +252,9 @@ public final class TimeSeriesRestDriver {
             "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
         Request request = new Request("PUT", "_ilm/policy/" + policyName);
         request.setEntity(entity);
+        if (requestOptions != null) {
+            request.setOptions(requestOptions);
+        }
         client.performRequest(request);
     }
 

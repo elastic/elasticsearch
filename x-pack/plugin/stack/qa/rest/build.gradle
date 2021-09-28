@@ -1,4 +1,6 @@
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.authenticated-testclusters'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))}
@@ -9,18 +11,8 @@ restResources {
   }
 }
 
-def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),
-                          password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
-
-tasks.named("yamlRestTest").configure {
-  systemProperty 'tests.rest.cluster.username', clusterCredentials.username
-  systemProperty 'tests.rest.cluster.password', clusterCredentials.password
-}
-
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
-  user clusterCredentials
 }

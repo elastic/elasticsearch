@@ -55,7 +55,7 @@ public final class SimilarityService {
             } else {
                 final ClassicSimilarity similarity = SimilarityProviders.createClassicSimilarity(Settings.EMPTY, version);
                 return () -> {
-                    deprecationLogger.deprecate(DeprecationCategory.QUERIES, "classic_similarity",
+                    deprecationLogger.critical(DeprecationCategory.QUERIES, "classic_similarity",
                         "The [classic] similarity is now deprecated in favour of BM25, which is generally "
                             + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                             + "instead.");
@@ -79,7 +79,7 @@ public final class SimilarityService {
                         throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
                                 + "similarity or build a custom [scripted] similarity instead.");
                     } else {
-                        deprecationLogger.deprecate(DeprecationCategory.QUERIES, "classic_similarity",
+                        deprecationLogger.critical(DeprecationCategory.QUERIES, "classic_similarity",
                             "The [classic] similarity is now deprecated in favour of BM25, which is generally "
                                 + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                                 + "instead.");
@@ -143,7 +143,7 @@ public final class SimilarityService {
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
-            deprecationLogger.deprecate(DeprecationCategory.QUERIES, "base_similarity_ignored",
+            deprecationLogger.critical(DeprecationCategory.QUERIES, "base_similarity_ignored",
                 "The [base] similarity is ignored since query normalization and coords have been removed");
         }
     }
@@ -264,7 +264,7 @@ public final class SimilarityService {
         if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException(message);
         } else if (indexCreatedVersion.onOrAfter(Version.V_6_5_0)) {
-            deprecationLogger.deprecate(DeprecationCategory.QUERIES, "similarity_failure", message);
+            deprecationLogger.critical(DeprecationCategory.QUERIES, "similarity_failure", message);
         }
     }
 

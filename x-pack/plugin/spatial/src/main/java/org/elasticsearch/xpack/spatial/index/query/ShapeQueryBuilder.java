@@ -158,7 +158,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
 
         ShapeQueryBuilder builder;
         if (pgsqb.type != null) {
-            deprecationLogger.deprecate(DeprecationCategory.TYPES, "geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.TYPES, "geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         if (pgsqb.shape != null) {

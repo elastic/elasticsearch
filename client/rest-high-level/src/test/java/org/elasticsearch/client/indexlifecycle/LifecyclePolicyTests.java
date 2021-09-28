@@ -33,7 +33,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
     private static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
         ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME);
     private static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
-        FreezeAction.NAME, SearchableSnapshotAction.NAME);
+        SearchableSnapshotAction.NAME);
     private static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME, WaitForSnapshotAction.NAME);
 
     private String lifecycleName;

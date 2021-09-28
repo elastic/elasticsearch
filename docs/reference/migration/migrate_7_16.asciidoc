@@ -9,10 +9,28 @@ your application to {es} 7.16.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+* <<breaking_716_ilm_changes>>
+
 * <<breaking_716_monitoring_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
+
+[discrete]
+[[breaking-changes-7.16]]
+=== Breaking changes
+
+The following changes in {es} 7.16 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 7.16, review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
 
 [discrete]
 [[deprecated-7.16]]
@@ -29,6 +47,23 @@ using any deprecated functionality, enable <<deprecation-logging, deprecation
 logging>>.
 
 // tag::notable-breaking-changes[]
+[discrete]
+[[breaking_716_ilm_changes]]
+==== {ilm-cap} ({ilm-init}) changes
+
+//tag::notable-breaking-changes[]
+[[ilm-freeze-noop]]
+.The ILM `freeze` action has been deprecated and will be a no-op in a future release.
+[%collapsible]
+====
+*Details* +
+The ILM freeze action is now deprecated. This is because frozen indices provide no benefit given improvements in heap memory
+utilization. In 8.0 the freeze action will be a no-op and perform no action on the index, as the freeze API endpoint
+has been removed in 8.0.
+
+*Impact* +
+Update your ILM policies to remove the `freeze` action from the `cold` phase.
+====
 
 [discrete]
 [[breaking_716_monitoring_changes]]

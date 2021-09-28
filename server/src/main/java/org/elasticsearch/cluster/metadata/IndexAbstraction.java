@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +76,13 @@ public interface IndexAbstraction {
     default boolean isDataStreamRelated() {
         return false;
     }
+
+    /**
+     * @return the names of aliases referring to this instance.
+     *         Returns <code>null</code> if aliases can't point to this instance.
+     */
+    @Nullable
+    List<String> getAliases();
 
     /**
      * An index abstraction type.
@@ -162,6 +170,11 @@ public interface IndexAbstraction {
         @Override
         public boolean isSystem() {
             return concreteIndex.isSystem();
+        }
+
+        @Override
+        public List<String> getAliases() {
+            return Arrays.asList(concreteIndex.getAliases().keys().toArray(String.class));
         }
     }
 
@@ -255,6 +268,11 @@ public interface IndexAbstraction {
             return dataStreamAlias;
         }
 
+        @Override
+        public List<String> getAliases() {
+            return null;
+        }
+
         private void validateAliasProperties() {
             // Validate hidden status
             final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = referenceIndexMetadatas.stream()
@@ -281,11 +299,15 @@ public interface IndexAbstraction {
         private final org.elasticsearch.cluster.metadata.DataStream dataStream;
         private final List<IndexMetadata> dataStreamIndices;
         private final IndexMetadata writeIndex;
+        private final List<String> referencedByDataStreamAliases;
 
-        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream, List<IndexMetadata> dataStreamIndices) {
+        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream,
+                          List<IndexMetadata> dataStreamIndices,
+                          List<String> aliases) {
             this.dataStream = dataStream;
             this.dataStreamIndices = copyOf(dataStreamIndices);
             this.writeIndex =  dataStreamIndices.get(dataStreamIndices.size() - 1);
+            this.referencedByDataStreamAliases = aliases;
         }
 
         @Override
@@ -326,6 +348,11 @@ public interface IndexAbstraction {
         @Override
         public boolean isDataStreamRelated() {
             return true;
+        }
+
+        @Override
+        public List<String> getAliases() {
+            return referencedByDataStreamAliases;
         }
 
         public org.elasticsearch.cluster.metadata.DataStream getDataStream() {

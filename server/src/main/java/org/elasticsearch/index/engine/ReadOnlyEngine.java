@@ -25,6 +25,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.ESCacheHelper;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.transport.Transports;
 
@@ -119,7 +121,7 @@ public class ReadOnlyEngine extends Engine {
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 this.lazilyLoadSoftDeletes = lazilyLoadSoftDeletes;
-                reader = wrapReader(open(indexCommit), readerWrapperFunction);
+                reader = wrapReader(open(indexCommit), readerWrapperFunction, null);
                 readerManager = new ElasticsearchReaderManager(reader, refreshListener);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
@@ -196,9 +198,10 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected final ElasticsearchDirectoryReader wrapReader(DirectoryReader reader,
-                                                    Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
+                                                            Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
+                                                            @Nullable ESCacheHelper esCacheHelper) throws IOException {
         reader = readerWrapperFunction.apply(reader);
-        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
+        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId(), esCacheHelper);
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
@@ -346,8 +349,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource,
-                                                 MapperService mapperService, long startingSeqNo) {
+    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource, long startingSeqNo) {
         return 0;
     }
 

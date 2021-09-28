@@ -15,7 +15,7 @@ import org.elasticsearch.gradle.internal.test.AntFixture
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -24,7 +24,7 @@ esplugin {
   hasClientJar = true
 }
 
-testClusters.all {
+testClusters.configureEach {
   // Modules who's integration is explicitly tested in integration tests
   module ':modules:parent-join'
   module ':modules:lang-painless'
@@ -151,7 +151,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         /* Use a closure on the string to delay evaluation until right before we
          * run the integration tests so that we can be sure that the file is
          * ready. */
-        nonInputProperties.systemProperty "es${version}.port", "${-> fixture.get().addressAndPort}"
+        nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
     }
   }
 }

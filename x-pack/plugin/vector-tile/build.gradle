@@ -16,7 +16,7 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
@@ -39,7 +39,7 @@ dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'

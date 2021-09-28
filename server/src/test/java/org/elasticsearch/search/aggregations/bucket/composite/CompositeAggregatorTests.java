@@ -732,7 +732,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testWithKeywordAndMissingBucket() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -812,7 +811,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testWithKeywordMissingAfter() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -874,7 +872,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testWithKeywordDesc() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -964,7 +961,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testMultiValuedWithKeywordDesc() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -1087,7 +1083,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testWithKeywordAndLongDesc() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -1148,7 +1143,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testWithKeywordLongAndMissingBucket() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -1291,7 +1285,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testMissingTermBucket() throws Exception {
         List<Map<String, List<Object>>> dataset = Arrays.asList(
             createDocument("const", 1, "keyword", "a"),
@@ -1320,7 +1313,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testMissingHistogramBucket() throws Exception {
         List<Map<String, List<Object>>> dataset = Arrays.asList(
             createDocument("const", 1, "long", 1),
@@ -1624,7 +1616,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77650")
     public void testMultiValuedWithKeywordAndLongDesc() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(

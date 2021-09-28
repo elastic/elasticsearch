@@ -76,7 +76,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
      * List of platforms for which the native processes are available
      */
     private static final List<String> mlPlatforms = Collections.unmodifiableList(
-            Arrays.asList("darwin-x86_64", "linux-aarch64", "linux-x86_64", "windows-x86_64"));
+            Arrays.asList("darwin-aarch64", "darwin-x86_64", "linux-aarch64", "linux-x86_64", "windows-x86_64"));
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;

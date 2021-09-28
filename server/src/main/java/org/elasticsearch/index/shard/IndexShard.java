@@ -2124,7 +2124,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns the estimated number of history operations whose seq# at least the provided seq# in this shard.
      */
     public int estimateNumberOfHistoryOperations(String reason, Engine.HistorySource source, long startingSeqNo) throws IOException {
-        return getEngine().estimateNumberOfHistoryOperations(reason, source, mapperService, startingSeqNo);
+        return getEngine().estimateNumberOfHistoryOperations(reason, source, startingSeqNo);
     }
 
     /**
@@ -3771,5 +3771,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     RetentionLeaseSyncer getRetentionLeaseSyncer() {
         return retentionLeaseSyncer;
+    }
+
+    @Override
+    public String toString() {
+        return "IndexShard(shardRouting=" + shardRouting + ")";
     }
 }

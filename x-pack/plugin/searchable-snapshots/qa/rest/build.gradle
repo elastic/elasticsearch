@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
@@ -18,7 +18,7 @@ tasks.withType(Test).configureEach {
   systemProperty 'tests.path.repo', repoDir
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.license.self_generated.type', 'trial'

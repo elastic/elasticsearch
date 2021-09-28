@@ -41,10 +41,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Netty4NioSocketChannel;
-import org.elasticsearch.transport.NettyAllocator;
-import org.elasticsearch.transport.NettyByteBufSizer;
-import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -114,7 +110,7 @@ public class Netty4Transport extends TcpTransport {
             sharedGroup = sharedGroupFactory.getTransportGroup();
             clientBootstrap = createClientBootstrap(sharedGroup);
             if (NetworkService.NETWORK_SERVER.get(settings)) {
-                for (ProfileSettings profileSettings : profileSettings) {
+                for (ProfileSettings profileSettings : profileSettingsSet) {
                     createServerBootstrap(profileSettings, sharedGroup);
                     bindServer(profileSettings);
                 }

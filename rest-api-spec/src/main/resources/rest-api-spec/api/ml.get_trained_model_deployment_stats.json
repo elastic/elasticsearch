@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-trained-model-deployment-stats.html",
       "description":"Get information about trained model deployments."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"],

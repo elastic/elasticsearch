@@ -17,11 +17,9 @@ the frozen phase, the action mounts a <<partially-mounted,partially mounted
 index>> to the frozen tier. In other phases, the action mounts a
 <<fully-mounted,fully mounted index>> to the corresponding data tier.
 
-IMPORTANT: If the `searchable_snapshot` action is used in the hot phase the
-subsequent phases cannot include the `shrink`, `forcemerge`, or `freeze`
-actions.
+If the `searchable_snapshot` action is used in the hot phase the subsequent
+phases cannot include the `shrink`, `forcemerge`, or `freeze` actions.
 
-[NOTE]
 This action cannot be performed on a data stream's write index. Attempts to do
 so will fail. To convert the index to a searchable snapshot, first
 <<manually-roll-over-a-data-stream,manually roll over>> the data stream. This
@@ -30,6 +28,12 @@ index, the action can then convert it to a searchable snapshot.
 Using a policy that makes use of the <<ilm-rollover, rollover>> action
 in the hot phase will avoid this situation and the need for a manual rollover for future
 managed indices.
+
+IMPORTANT: Mounting and relocating the shards of {search-snap} indices involves
+copying the shard contents from the snapshot repository. This may incur
+different costs from the copying between nodes that happens with regular
+indices. These costs are typically lower but, in some environments, may be
+higher. See <<searchable-snapshots-costs>> for more details.
 
 By default, this snapshot is deleted by the <<ilm-delete, delete action>> in the delete phase.
 To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.

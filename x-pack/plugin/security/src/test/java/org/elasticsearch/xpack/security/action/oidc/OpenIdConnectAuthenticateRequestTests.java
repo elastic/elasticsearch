@@ -16,6 +16,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class OpenIdConnectAuthenticateRequestTests extends ESTestCase {
 
@@ -40,7 +41,7 @@ public class OpenIdConnectAuthenticateRequestTests extends ESTestCase {
         final OpenIdConnectAuthenticateRequest request = new OpenIdConnectAuthenticateRequest();
         final ActionRequestValidationException validation = request.validate();
         assertNotNull(validation);
-        assertThat(validation.validationErrors().size(), equalTo(3));
+        assertThat(validation.validationErrors(), hasSize(3));
         assertThat(validation.validationErrors().get(0), containsString("state parameter is missing"));
         assertThat(validation.validationErrors().get(1), containsString("nonce parameter is missing"));
         assertThat(validation.validationErrors().get(2), containsString("redirect_uri parameter is missing"));
@@ -50,7 +51,7 @@ public class OpenIdConnectAuthenticateRequestTests extends ESTestCase {
         request2.setState(randomAlphaOfLengthBetween(8, 12));
         final ActionRequestValidationException validation2 = request2.validate();
         assertNotNull(validation2);
-        assertThat(validation2.validationErrors().size(), equalTo(1));
+        assertThat(validation2.validationErrors(), hasSize(1));
         assertThat(validation2.validationErrors().get(0), containsString("nonce parameter is missing"));
     }
 }

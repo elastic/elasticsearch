@@ -7,6 +7,11 @@ dependencies {
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
 }
 
+configurations.all {
+  resolutionStrategy {
+    forcedModules = ["com.google.guava:guava:${versions.jimfs_guava}"]
+  }
+}
 // add test resources from security, so certificate tool tests can use example certs
 tasks.named("processTestResources").configure {
   from(project(xpackModule('security')).sourceSets.test.resources.srcDirs)

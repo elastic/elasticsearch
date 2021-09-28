@@ -146,4 +146,53 @@ public class BertTokenizerTests extends ESTestCase {
         assertArrayEquals(new int[] {9, 10, 3, 7, 8, 4}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {0, 0, 1, 2, 3, 4}, tokenization.getTokenMap());
     }
+
+    public void testMultiSeqTokenization() {
+        List<String> vocab = List.of(
+            "Elastic",
+            "##search",
+            "is",
+            "fun",
+            "my",
+            "little",
+            "red",
+            "car",
+            "God",
+            "##zilla",
+            BertTokenizer.CLASS_TOKEN,
+            BertTokenizer.SEPARATOR_TOKEN
+        );
+        BertTokenizer tokenizer = BertTokenizer.builder(vocab, Tokenization.createDefault())
+            .setDoLowerCase(false)
+            .setWithSpecialTokens(true)
+            .build();
+        TokenizationResult.Tokenization tokenization = tokenizer.tokenize("Elasticsearch is fun", "Godzilla my little red car");
+        assertThat(
+            tokenization.getTokens(),
+            arrayContaining(
+                BertTokenizer.CLASS_TOKEN,
+                "Elastic",
+                "##search",
+                "is",
+                "fun",
+                BertTokenizer.SEPARATOR_TOKEN,
+                "God",
+                "##zilla",
+                "my",
+                "little",
+                "red",
+                "car",
+                BertTokenizer.SEPARATOR_TOKEN
+            )
+        );
+        assertArrayEquals(new int[] { 10, 0, 1, 2, 3, 11, 8, 9, 4, 5, 6, 7, 11 }, tokenization.getTokenIds());
+    }
+
+    public void testMultiSeqRequiresSpecialTokens() {
+        BertTokenizer tokenizer = BertTokenizer.builder(List.of("foo"), Tokenization.createDefault())
+            .setDoLowerCase(false)
+            .setWithSpecialTokens(false)
+            .build();
+        expectThrows(Exception.class, () -> tokenizer.tokenize("foo", "foo"));
+    }
 }

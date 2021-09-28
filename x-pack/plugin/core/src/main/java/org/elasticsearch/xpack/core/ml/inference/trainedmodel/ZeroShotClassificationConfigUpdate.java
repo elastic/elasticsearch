@@ -109,15 +109,15 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         }
 
         ZeroShotClassificationConfig zeroShotConfig = (ZeroShotClassificationConfig)originalConfig;
-        if (isNoop(zeroShotConfig)) {
-            return originalConfig;
-        }
-        if (labels == null && zeroShotConfig.getLabels() == null) {
+        if ((labels == null || labels.isEmpty()) && (zeroShotConfig.getLabels() == null || zeroShotConfig.getLabels().isEmpty())) {
             throw ExceptionsHelper.badRequestException(
                 "stored configuration has no [{}] defined, supplied inference_config update must supply [{}]",
                 LABELS.getPreferredName(),
                 LABELS.getPreferredName()
             );
+        }
+        if (isNoop(zeroShotConfig)) {
+            return originalConfig;
         }
         return new ZeroShotClassificationConfig(
             zeroShotConfig.getClassificationLabels(),

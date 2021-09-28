@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItemTestCase<ZeroShotClassificationConfigUpdate> {
@@ -64,7 +65,14 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
     }
 
     public void testApply() {
-        ZeroShotClassificationConfig originalConfig = ZeroShotClassificationConfigTests.createRandom();
+        ZeroShotClassificationConfig originalConfig = new ZeroShotClassificationConfig(
+            randomFrom(List.of("entailment", "neutral", "contradiction"), List.of("contradiction", "neutral", "entailment")),
+            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
+            randomBoolean() ? null : BertTokenizationTests.createRandom(),
+            randomAlphaOfLength(10),
+            randomBoolean(),
+            randomList(1, 5, () -> randomAlphaOfLength(10))
+        );
 
         assertThat(originalConfig, equalTo(new ZeroShotClassificationConfigUpdate.Builder().build().apply(originalConfig)));
 
@@ -97,6 +105,23 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
                     .setMultiLabel(true).build()
                     .apply(originalConfig)
             )
+        );
+    }
+
+    public void testApplyWithEmptyLabelsInConfigAndUpdate() {
+        ZeroShotClassificationConfig originalConfig = new ZeroShotClassificationConfig(
+            randomFrom(List.of("entailment", "neutral", "contradiction"), List.of("contradiction", "neutral", "entailment")),
+            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
+            randomBoolean() ? null : BertTokenizationTests.createRandom(),
+            randomAlphaOfLength(10),
+            randomBoolean(),
+            null
+        );
+
+        Exception ex = expectThrows(Exception.class, () -> new ZeroShotClassificationConfigUpdate.Builder().build().apply(originalConfig));
+        assertThat(
+            ex.getMessage(),
+            containsString("stored configuration has no [labels] defined, supplied inference_config update must supply [labels]")
         );
     }
 

@@ -100,18 +100,17 @@ public class DatabaseRegistryTests extends ESTestCase {
 
     @Before
     public void setup() throws IOException {
-        final Path geoIpDir = createTempDir();
         final Path geoIpConfigDir = createTempDir();
         Files.createDirectories(geoIpConfigDir);
-        copyDatabaseFiles(geoIpDir);
+        GeoIpCache cache = new GeoIpCache(1000);
+        LocalDatabases localDatabases = new LocalDatabases(geoIpConfigDir, cache);
+        copyDatabaseFiles(geoIpConfigDir, localDatabases);
 
         threadPool = new TestThreadPool(LocalDatabases.class.getSimpleName());
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
         resourceWatcherService = new ResourceWatcherService(settings, threadPool);
 
         client = mock(Client.class);
-        GeoIpCache cache = new GeoIpCache(1000);
-        LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, cache);
         geoIpTmpDir = createTempDir();
         databaseRegistry = new DatabaseRegistry(geoIpTmpDir, client, cache, localDatabases, Runnable::run);
         databaseRegistry.initialize("nodeId", resourceWatcherService, mock(IngestService.class));
@@ -139,9 +138,9 @@ public class DatabaseRegistryTests extends ESTestCase {
             .routingTable(createIndexRoutingTable())
             .build();
 
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb"), nullValue());
         databaseRegistry.checkDatabases(state);
-        DatabaseReaderLazyLoader database = databaseRegistry.getDatabase("GeoIP2-City.mmdb", false);
+        DatabaseReaderLazyLoader database = databaseRegistry.getDatabase("GeoIP2-City.mmdb");
         assertThat(database, nullValue());
         verify(client, times(0)).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
@@ -160,7 +159,7 @@ public class DatabaseRegistryTests extends ESTestCase {
             .routingTable(createIndexRoutingTable())
             .build();
         databaseRegistry.checkDatabases(state);
-        database = databaseRegistry.getDatabase("GeoIP2-City.mmdb", false);
+        database = databaseRegistry.getDatabase("GeoIP2-City.mmdb");
         assertThat(database, notNullValue());
         verify(client, times(10)).search(any());
         //30 days check passed but we mocked mmdb data so parsing will fail
@@ -184,7 +183,7 @@ public class DatabaseRegistryTests extends ESTestCase {
             .build();
 
         databaseRegistry.checkDatabases(state);
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
@@ -206,7 +205,7 @@ public class DatabaseRegistryTests extends ESTestCase {
             .build();
 
         databaseRegistry.checkDatabases(state);
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
@@ -227,7 +226,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         mockSearches("GeoIP2-City.mmdb", 0, 9);
 
         databaseRegistry.checkDatabases(state);
-        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
+        assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb"), nullValue());
         verify(client, never()).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());

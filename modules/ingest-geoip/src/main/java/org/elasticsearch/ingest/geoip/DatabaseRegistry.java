@@ -152,12 +152,12 @@ public final class DatabaseRegistry implements Closeable {
         ingestService.addIngestClusterStateListener(this::checkDatabases);
     }
 
-    public DatabaseReaderLazyLoader getDatabase(String name, boolean fallbackUsingDefaultDatabases) {
+    public DatabaseReaderLazyLoader getDatabase(String name) {
         // There is a need for reference counting in order to avoid using an instance
         // that gets closed while using it. (this can happen during a database update)
         while (true) {
             DatabaseReaderLazyLoader instance =
-                databases.getOrDefault(name, localDatabases.getDatabase(name, fallbackUsingDefaultDatabases));
+                databases.getOrDefault(name, localDatabases.getDatabase(name));
             if (instance == null || instance.preLookup()) {
                 return instance;
             }
@@ -167,7 +167,7 @@ public final class DatabaseRegistry implements Closeable {
     }
 
     List<DatabaseReaderLazyLoader> getAllDatabases() {
-        List<DatabaseReaderLazyLoader> all = new ArrayList<>(localDatabases.getAllDatabases());
+        List<DatabaseReaderLazyLoader> all = new ArrayList<>(localDatabases.getConfigDatabases().values());
         this.databases.forEach((key, value) -> all.add(value));
         return all;
     }

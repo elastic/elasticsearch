@@ -409,7 +409,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     public void testGetSnapshotsWithSnapshotInProgress() throws Exception {
         createRepository("test-repo", "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
 
-        createIndexWithContent("test-idx-1");
+        String indexName = "test-idx-1";
+        createIndexWithContent(indexName, indexSettingsNoReplicas(randomIntBetween(1, 10)).build());
         ensureGreen();
 
         ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot("test-repo", "test-snap");
@@ -426,7 +427,13 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
         List<SnapshotInfo> snapshotInfoList = response1.getSnapshots();
         assertEquals(1, snapshotInfoList.size());
-        assertEquals(SnapshotState.IN_PROGRESS, snapshotInfoList.get(0).state());
+        SnapshotInfo snapshotInfo = snapshotInfoList.get(0);
+        assertEquals(SnapshotState.IN_PROGRESS, snapshotInfo.state());
+
+        SnapshotStatus snapshotStatus = client().admin().cluster().prepareSnapshotStatus().execute().actionGet().getSnapshots().get(0);
+        assertThat(snapshotInfo.totalShards(), equalTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getTotalShards()));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getDoneShards()));
+        assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
 
         String notExistedSnapshotName = "snapshot_not_exist";
         GetSnapshotsResponse response2 = client().admin()

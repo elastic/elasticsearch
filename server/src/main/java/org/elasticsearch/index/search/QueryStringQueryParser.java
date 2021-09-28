@@ -17,8 +17,8 @@ import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.queryparser.classic.Token;
-import org.apache.lucene.queryparser.classic.XQueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
@@ -64,12 +64,12 @@ import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingFie
 import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingFields;
 
 /**
- * A {@link XQueryParser} that uses the {@link MapperService} in order to build smarter
+ * A {@link QueryParser} that uses the {@link MapperService} in order to build smarter
  * queries based on the mapping information.
- * This class uses {@link MultiMatchQueryParser} to build the text query around operators and {@link XQueryParser}
+ * This class uses {@link MultiMatchQueryParser} to build the text query around operators and {@link QueryParser}
  * to assemble the result logically.
  */
-public class QueryStringQueryParser extends XQueryParser {
+public class QueryStringQueryParser extends QueryParser {
     private static final String EXISTS_FIELD = "_exists_";
 
     private final SearchExecutionContext context;
@@ -433,12 +433,11 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     @Override
-    protected Query handleBareFuzzy(String field, Token fuzzySlop, String termImage) throws ParseException {
-        if (fuzzySlop.image.length() == 1) {
-            return getFuzzyQuery(field, termImage, fuzziness.asDistance(termImage));
+    protected float getFuzzyDistance(Token fuzzyToken, String termStr) {
+        if (fuzzyToken.image.length() == 1) {
+            return fuzziness.asDistance(termStr);
         }
-        float distance = Fuzziness.fromString(fuzzySlop.image.substring(1)).asDistance(termImage);
-        return getFuzzyQuery(field, termImage, distance);
+        return Fuzziness.fromString(fuzzyToken.image.substring(1)).asDistance(termStr);
     }
 
     @Override

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,9 +24,10 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.LongSupplier;
 
-public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
+public class ExecuteStepsUpdateTask extends AbstractILMClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(ExecuteStepsUpdateTask.class);
     private final String policy;
     private final Index index;
@@ -176,6 +177,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        super.clusterStateProcessed(source, oldState, newState);
         if (oldState.equals(newState) == false) {
             IndexMetadata indexMetadata = newState.metadata().index(index);
             if (indexMetadata != null) {
@@ -201,14 +203,28 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(String source, Exception e) {
-        throw new ElasticsearchException(
-                "policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].", e);
+        super.onFailure(source, e);
+        logger.warn(new ParameterizedMessage("policy [{}] for index [{}] failed on step [{}].", policy, index, startStep.getKey()), e);
     }
 
     private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) throws IOException {
         this.failure = cause;
-        logger.error("policy [{}] for index [{}] failed on cluster state step [{}]. Moving to ERROR step", policy, index.getName(),
+        logger.warn("policy [{}] for index [{}] failed on cluster state step [{}]. Moving to ERROR step", policy, index.getName(),
             currentStepKey);
         return IndexLifecycleTransition.moveClusterStateToErrorStep(index, state, cause, nowSupplier, policyStepsRegistry::getStep);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ExecuteStepsUpdateTask that = (ExecuteStepsUpdateTask) o;
+        return policy.equals(that.policy) && index.equals(that.index)
+            && Objects.equals(startStep, that.startStep);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(policy, index, startStep);
     }
 }

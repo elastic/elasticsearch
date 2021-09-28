@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -25,7 +24,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
+public class SetStepInfoUpdateTask extends AbstractILMClusterStateUpdateTask {
 
     private static final Logger logger = LogManager.getLogger(SetStepInfoUpdateTask.class);
 
@@ -79,8 +78,28 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(String source, Exception e) {
-        logger.warn(new ParameterizedMessage("policy [{}] for index [{}] failed trying to set step info for step [{}].",
-                policy, index.getName(), currentStepKey), e);
+        super.onFailure(source, e);
+        logger.warn(
+            new ParameterizedMessage(
+                "policy [{}] for index [{}] failed trying to set step info for step [{}].",
+                policy, index, currentStepKey
+            ),
+            e
+        );
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SetStepInfoUpdateTask that = (SetStepInfoUpdateTask) o;
+        return index.equals(that.index) && policy.equals(that.policy)
+            && currentStepKey.equals(that.currentStepKey) && Objects.equals(stepInfo, that.stepInfo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(index, policy, currentStepKey, stepInfo);
     }
 
     public static class ExceptionWrapper implements ToXContentObject {

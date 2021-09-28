@@ -12,7 +12,6 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 
-import java.time.ZonedDateTime;
 import java.util.Objects;
 
 /**

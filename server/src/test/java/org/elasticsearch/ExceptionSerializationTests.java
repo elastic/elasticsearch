@@ -822,6 +822,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(159, NodeHealthCheckFailureException.class);
         ids.put(160, NoSeedNodeLeftException.class);
         ids.put(161, VersionMismatchException.class);
+        ids.put(162, ElasticsearchAuthenticationProcessingError.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

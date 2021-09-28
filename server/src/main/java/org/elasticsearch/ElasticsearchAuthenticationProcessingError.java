@@ -8,7 +8,10 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  * Used to indicate that the authentication process encountered a server-side error (5xx) that prevented the credentials verification.
@@ -25,5 +28,9 @@ public class ElasticsearchAuthenticationProcessingError extends ElasticsearchSec
         super(msg, status, cause, args);
         assert status == RestStatus.INTERNAL_SERVER_ERROR;
         assert status == RestStatus.SERVICE_UNAVAILABLE;
+    }
+
+    public ElasticsearchAuthenticationProcessingError(StreamInput in) throws IOException {
+        super(in);
     }
 }

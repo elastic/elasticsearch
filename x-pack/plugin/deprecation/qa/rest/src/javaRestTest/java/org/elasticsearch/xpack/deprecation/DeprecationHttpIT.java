@@ -275,7 +275,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 }
 
                 logger.warn(documents);
-//                assertThat(documents, hasSize(3));
+                // assertThat(documents, hasSize(3));
 
                 assertThat(
                     documents,

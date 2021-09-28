@@ -11,9 +11,8 @@ package org.elasticsearch.plugins.cli;
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.plugins.PluginLogger;
 
 import java.io.IOException;
 import java.net.URL;
@@ -32,32 +31,32 @@ public class PluginSecurity {
     /**
      * prints/confirms policy exceptions with the user
      */
-    static void confirmPolicyExceptions(Terminal terminal, Set<String> permissions, boolean batch) throws UserException {
+    static void confirmPolicyExceptions(PluginLogger logger, Set<String> permissions, boolean batch) throws UserException {
         List<String> requested = new ArrayList<>(permissions);
         if (requested.isEmpty()) {
-            terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
+            logger.debug("plugin has a policy file with no additional permissions");
         } else {
 
             // sort permissions in a reasonable order
             Collections.sort(requested);
 
-            terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
-            terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            logger.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            logger.warn("@     WARNING: plugin requires additional permissions     @");
+            logger.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
             // print all permissions:
             for (String permission : requested) {
-                terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
+                logger.warn("* " + permission);
             }
-            terminal.errorPrintln(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
-            terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
-            prompt(terminal, batch);
+            logger.warn("See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
+            logger.warn("for descriptions of what these permissions allow and the associated risks.");
+            prompt(logger, batch);
         }
     }
 
-    private static void prompt(final Terminal terminal, final boolean batch) throws UserException {
+    private static void prompt(final PluginLogger logger, final boolean batch) throws UserException {
         if (batch == false) {
-            terminal.println(Verbosity.NORMAL, "");
-            String text = terminal.readText("Continue with installation? [y/N]");
+            logger.info("");
+            String text = logger.readText("Continue with installation? [y/N]");
             if (text.equalsIgnoreCase("y") == false) {
                 throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
             }

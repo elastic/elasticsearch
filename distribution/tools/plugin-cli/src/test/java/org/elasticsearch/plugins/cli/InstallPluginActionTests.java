@@ -138,13 +138,13 @@ public class InstallPluginActionTests extends ESTestCase {
         pluginDir = createPluginDir(temp);
         terminal = new MockTerminal();
         env = createEnv(temp);
-        skipJarHellAction = new InstallPluginAction(terminal, null, false) {
+        skipJarHellAction = new InstallPluginAction(new TerminalLogger(terminal), null, false) {
             @Override
             void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) {
                 // no jarhell check
             }
         };
-        defaultAction = new InstallPluginAction(terminal, env.v2(), false);
+        defaultAction = new InstallPluginAction(new TerminalLogger(terminal), env.v2(), false);
     }
 
     @Override
@@ -772,7 +772,7 @@ public class InstallPluginActionTests extends ESTestCase {
         throws IOException {
 
         final Environment environment = createEnv(temp).v2();
-        final InstallPluginAction flavorAction = new InstallPluginAction(terminal, environment, false) {
+        final InstallPluginAction flavorAction = new InstallPluginAction(new TerminalLogger(terminal), environment, false) {
             @Override
             Build.Flavor buildFlavor() {
                 return flavor;
@@ -856,7 +856,7 @@ public class InstallPluginActionTests extends ESTestCase {
     ) throws Exception {
         PluginDescriptor pluginZip = createPlugin(name, pluginDir);
         Path pluginZipPath = Path.of(URI.create(pluginZip.getUrl()));
-        InstallPluginAction action = new InstallPluginAction(terminal, env.v2(), false) {
+        InstallPluginAction action = new InstallPluginAction(new TerminalLogger(terminal), env.v2(), false) {
             @Override
             Path downloadZip(String urlString, Path tmpDir) throws IOException {
                 assertEquals(url, urlString);

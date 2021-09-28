@@ -105,7 +105,7 @@ public class RemovePluginActionTests extends ESTestCase {
         final List<PluginDescriptor> plugins = pluginIds == null
             ? null
             : pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
-        new RemovePluginAction(terminal, env, purge).execute(plugins);
+        new RemovePluginAction(new TerminalLogger(terminal), env, purge).execute(plugins);
         return terminal;
     }
 

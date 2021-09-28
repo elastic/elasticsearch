@@ -27,7 +27,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
@@ -38,6 +37,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.plugins.PluginLogger;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsService;
 
@@ -81,8 +81,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-
-import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin cli to install a plugin into elasticsearch.
@@ -178,12 +176,12 @@ class InstallPluginAction implements Closeable {
         PLUGIN_FILES_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rw-r--r--"));
     }
 
-    private final Terminal terminal;
+    private final PluginLogger logger;
     private Environment env;
     private boolean batch;
 
-    InstallPluginAction(Terminal terminal, Environment env, boolean batch) {
-        this.terminal = terminal;
+    InstallPluginAction(PluginLogger logger, Environment env, boolean batch) {
+        this.logger = logger;
         this.env = env;
         this.batch = batch;
     }
@@ -204,7 +202,7 @@ class InstallPluginAction implements Closeable {
         final Map<String, List<Path>> deleteOnFailures = new LinkedHashMap<>();
         for (final PluginDescriptor plugin : plugins) {
             final String pluginId = plugin.getId();
-            terminal.println("-> Installing " + pluginId);
+            logger.info("-> Installing " + pluginId);
             try {
                 if ("x-pack".equals(pluginId)) {
                     handleInstallXPack(buildFlavor());
@@ -217,14 +215,14 @@ class InstallPluginAction implements Closeable {
                 final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
                 final PluginInfo pluginInfo = installPlugin(extractedZip, deleteOnFailure);
-                terminal.println("-> Installed " + pluginInfo.getName());
+                logger.info("-> Installed " + pluginInfo.getName());
                 // swap the entry by plugin id for one with the installed plugin name, it gives a cleaner error message for URL installs
                 deleteOnFailures.remove(pluginId);
                 deleteOnFailures.put(pluginInfo.getName(), deleteOnFailure);
             } catch (final Exception installProblem) {
-                terminal.println("-> Failed installing " + pluginId);
+                logger.info("-> Failed installing " + pluginId);
                 for (final Map.Entry<String, List<Path>> deleteOnFailureEntry : deleteOnFailures.entrySet()) {
-                    terminal.println("-> Rolling back " + deleteOnFailureEntry.getKey());
+                    logger.info("-> Rolling back " + deleteOnFailureEntry.getKey());
                     boolean success = false;
                     try {
                         IOUtils.rm(deleteOnFailureEntry.getValue().toArray(new Path[0]));
@@ -235,16 +233,16 @@ class InstallPluginAction implements Closeable {
                             exceptionWhileRemovingFiles
                         );
                         installProblem.addSuppressed(exception);
-                        terminal.println("-> Failed rolling back " + deleteOnFailureEntry.getKey());
+                        logger.info("-> Failed rolling back " + deleteOnFailureEntry.getKey());
                     }
                     if (success) {
-                        terminal.println("-> Rolled back " + deleteOnFailureEntry.getKey());
+                        logger.info("-> Rolled back " + deleteOnFailureEntry.getKey());
                     }
                 }
                 throw installProblem;
             }
         }
-        terminal.println("-> Please restart Elasticsearch to activate any plugins installed");
+        logger.info("-> Please restart Elasticsearch to activate any plugins installed");
     }
 
     Build.Flavor buildFlavor() {
@@ -273,7 +271,7 @@ class InstallPluginAction implements Closeable {
 
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
             final String url = getElasticUrl(getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
-            terminal.println("-> Downloading " + pluginId + " from elastic");
+            logger.info("-> Downloading " + pluginId + " from elastic");
             return downloadAndValidate(url, tmpDir, true);
         }
 
@@ -283,7 +281,7 @@ class InstallPluginAction implements Closeable {
         String[] coordinates = pluginUrl.split(":");
         if (coordinates.length == 3 && pluginUrl.contains("/") == false && pluginUrl.startsWith("file:") == false) {
             String mavenUrl = getMavenUrl(coordinates, Platforms.PLATFORM_NAME);
-            terminal.println("-> Downloading " + pluginId + " from maven central");
+            logger.info("-> Downloading " + pluginId + " from maven central");
             return downloadAndValidate(mavenUrl, tmpDir, false);
         }
 
@@ -297,7 +295,7 @@ class InstallPluginAction implements Closeable {
             }
             throw new UserException(ExitCodes.USAGE, msg);
         }
-        terminal.println("-> Downloading " + URLDecoder.decode(pluginUrl, StandardCharsets.UTF_8));
+        logger.info("-> Downloading " + URLDecoder.decode(pluginUrl, StandardCharsets.UTF_8));
         return downloadZip(pluginUrl, tmpDir);
     }
 
@@ -384,7 +382,7 @@ class InstallPluginAction implements Closeable {
     // pkg private for tests to manipulate
     @SuppressForbidden(reason = "Make HEAD request using URLConnection.connect()")
     boolean urlExists(String urlString) throws IOException {
-        terminal.println(VERBOSE, "Checking if url exists: " + urlString);
+        logger.debug("Checking if url exists: " + urlString);
         URL url = new URL(urlString);
         assert "https".equals(url.getProtocol()) : "Only http urls can be checked";
         HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
@@ -414,7 +412,7 @@ class InstallPluginAction implements Closeable {
     // pkg private for tests
     @SuppressForbidden(reason = "We use getInputStream to download plugins")
     Path downloadZip(String urlString, Path tmpDir) throws IOException {
-        terminal.println(VERBOSE, "Retrieving zip from " + urlString);
+        logger.debug("Retrieving zip from " + urlString);
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
         URLConnection urlConnection = url.openConnection();
@@ -422,7 +420,7 @@ class InstallPluginAction implements Closeable {
         try (
             InputStream in = batch
                 ? urlConnection.getInputStream()
-                : new TerminalProgressInputStream(urlConnection.getInputStream(), urlConnection.getContentLength(), terminal)
+                : new TerminalProgressInputStream(urlConnection.getInputStream(), urlConnection.getContentLength(), logger)
         ) {
             // must overwrite since creating the temp file above actually created the file
             Files.copy(in, zip, StandardCopyOption.REPLACE_EXISTING);
@@ -445,13 +443,13 @@ class InstallPluginAction implements Closeable {
      */
     private class TerminalProgressInputStream extends ProgressInputStream {
 
-        private final Terminal terminal;
+        private final PluginLogger logger;
         private int width = 50;
         private final boolean enabled;
 
-        TerminalProgressInputStream(InputStream is, int expectedTotalSize, Terminal terminal) {
+        TerminalProgressInputStream(InputStream is, int expectedTotalSize, PluginLogger logger) {
             super(is, expectedTotalSize);
-            this.terminal = terminal;
+            this.logger = logger;
             this.enabled = expectedTotalSize > 0;
         }
 
@@ -469,7 +467,7 @@ class InstallPluginAction implements Closeable {
                 if (percent == 100) {
                     sb.append("\n");
                 }
-                terminal.print(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, sb.toString(), percent + "%"));
+                logger.info(String.format(Locale.ROOT, sb.toString(), percent + "%"));
             }
         }
     }
@@ -509,7 +507,7 @@ class InstallPluginAction implements Closeable {
         String digestAlgo = "SHA-512";
         if (checksumUrl == null && officialPlugin == false) {
             // fallback to sha1, until 7.0, but with warning
-            terminal.println(
+            logger.info(
                 "Warning: sha512 not found, falling back to sha1. This behavior is deprecated and will be removed in a "
                     + "future release. Please update the plugin to use a sha512 checksum."
             );
@@ -784,7 +782,7 @@ class InstallPluginAction implements Closeable {
 
         PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
 
-        terminal.println(VERBOSE, info.toString());
+        logger.debug(info.toString());
 
         // check for jar hell before any copying
         jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
@@ -834,11 +832,11 @@ class InstallPluginAction implements Closeable {
      */
     private PluginInfo installPlugin(Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginInfo info = loadPluginInfo(tmpRoot);
-        checkCanInstallationProceed(terminal, Build.CURRENT.flavor(), info);
+        checkCanInstallationProceed(logger, Build.CURRENT.flavor(), info);
         PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
         if (pluginPolicy != null) {
             Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
-            PluginSecurity.confirmPolicyExceptions(terminal, permissions, batch);
+            PluginSecurity.confirmPolicyExceptions(logger, permissions, batch);
         }
 
         final Path destination = env.pluginsFile().resolve(info.getName());
@@ -994,7 +992,7 @@ class InstallPluginAction implements Closeable {
         IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[pathsToDeleteOnShutdown.size()]));
     }
 
-    static void checkCanInstallationProceed(Terminal terminal, Build.Flavor flavor, PluginInfo info) throws Exception {
+    static void checkCanInstallationProceed(PluginLogger logger, Build.Flavor flavor, PluginInfo info) throws Exception {
         if (info.isLicensed() == false) {
             return;
         }
@@ -1010,7 +1008,7 @@ class InstallPluginAction implements Closeable {
             "",
             "This plugin is covered by the Elastic license, but this",
             "installation of Elasticsearch is: [" + flavor + "]."
-        ).forEach(terminal::errorPrintln);
+        ).forEach(logger::error);
 
         throw new UserException(ExitCodes.NOPERM, "Plugin license is incompatible with [" + flavor + "] installation");
     }

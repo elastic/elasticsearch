@@ -11,6 +11,7 @@ package org.elasticsearch.xpack.vectors.mapper;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -68,6 +69,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             });
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, false);
+        private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
+                "similarity", false, m -> toType(m).similarity, null, VectorSimilarity.class);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final Version indexVersionCreated;
@@ -75,11 +78,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public Builder(String name, Version indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
+
+            this.indexed.requiresParameters(similarity);
+            this.similarity.setSerializerCheck((id, ic, v) -> v != null);
+            this.similarity.requiresParameters(indexed);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(dims, indexed, meta);
+            return List.of(dims, indexed, similarity, meta);
         }
 
         @Override
@@ -90,9 +97,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     dims.getValue(), indexed.getValue(), meta.getValue()),
                 dims.getValue(),
                 indexed.getValue(),
+                similarity.getValue(),
                 indexVersionCreated,
                 multiFieldsBuilder.build(this, context),
                 copyTo.build());
+        }
+    }
+
+    enum VectorSimilarity {
+        l2_norm(VectorSimilarityFunction.EUCLIDEAN),
+        dot_product(VectorSimilarityFunction.DOT_PRODUCT);
+
+        public final VectorSimilarityFunction function;
+        VectorSimilarity(VectorSimilarityFunction function) {
+            this.function = function;
         }
     }
 
@@ -105,7 +123,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Version indexVersionCreated;
 
         public DenseVectorFieldType(String name, Version indexVersionCreated, int dims, boolean indexed, Map<String, String> meta) {
-            super(name, indexed, false, false, TextSearchInfo.NONE, meta);
+            super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
             this.dims = dims;
             this.indexed = indexed;
             this.indexVersionCreated = indexVersionCreated;
@@ -154,13 +172,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private final int dims;
     private final boolean indexed;
+    private final VectorSimilarity similarity;
     private final Version indexCreatedVersion;
 
-    private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims, boolean indexed,
+    private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims,
+                                   boolean indexed, VectorSimilarity similarity,
                                    Version indexCreatedVersion, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.dims = dims;
         this.indexed = indexed;
+        this.similarity = similarity;
         this.indexCreatedVersion = indexCreatedVersion;
     }
 
@@ -196,7 +217,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             vector[index++] = context.parser().floatValue(true);
         }
         checkDimensionMatches(index, context);
-        return new KnnVectorField(fieldType().name(), vector);
+        return new KnnVectorField(fieldType().name(), vector, similarity.function);
     }
 
     private Field parseBinaryDocValuesVector(DocumentParserContext context) throws IOException {

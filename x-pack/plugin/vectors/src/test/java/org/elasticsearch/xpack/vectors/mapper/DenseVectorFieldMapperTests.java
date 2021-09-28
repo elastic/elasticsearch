@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.vectors.mapper;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.IndexableField;
@@ -21,6 +23,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.vectors.Vectors;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.DenseVectorFieldType;
+import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.VectorSimilarity;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -48,7 +51,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "dense_vector").field("dims", 4);
         if (indexed) {
-            b.field("index", true);
+            b.field("index", true).field("similarity", "dot_product");
         }
     }
 
@@ -62,6 +65,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("dims",
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4)),
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", 5)));
+        checker.registerConflictCheck("similarity",
+            fieldMapping(b -> b.field("type", "dense_vector")
+                .field("dims", 4)
+                .field("index", true)
+                .field("similarity", "dot_product")),
+            fieldMapping(b -> b.field("type", "dense_vector")
+                .field("dims", 4)
+                .field("index", true)
+                .field("similarity", "l2_norm")));
+        checker.registerConflictCheck("index",
+            fieldMapping(b -> b.field("type", "dense_vector")
+                .field("dims", 4)
+                .field("index", true)
+                .field("similarity", "dot_product")),
+            fieldMapping(b -> b.field("type", "dense_vector")
+                .field("dims", 4)
+                .field("index", false)));
     }
 
     @Override
@@ -128,10 +148,12 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testIndexedVector() throws Exception {
+        VectorSimilarity similarity = RandomPicks.randomFrom(random(), VectorSimilarity.values());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
             .field("type", "dense_vector")
             .field("dims", 3)
-            .field("index", true)));
+            .field("index", true)
+            .field("similarity", similarity.name())));
 
         float[] vector = {-12.1f, 100.7f, -4};
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
@@ -140,12 +162,29 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertEquals(1, fields.length);
         assertThat(fields[0], instanceOf(KnnVectorField.class));
 
-        float[] parsedVector = ((KnnVectorField) fields[0]).vectorValue();
+        KnnVectorField vectorField = (KnnVectorField) fields[0];
         assertArrayEquals(
             "Parsed vector is not equal to original.",
             vector,
-            parsedVector,
+            vectorField.vectorValue(),
             0.001f);
+        assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
+    }
+
+    public void testInvalidParameters() {
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b
+                .field("type", "dense_vector")
+                .field("dims", 3)
+                .field("index", true))));
+        assertThat(e.getMessage(), containsString("Field [index] requires field [similarity] to be configured"));
+
+        e = expectThrows(MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b
+                .field("type", "dense_vector")
+                .field("dims", 3)
+                .field("similarity", "l2_norm"))));
+        assertThat(e.getMessage(), containsString("Field [similarity] requires field [index] to be configured"));
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
@@ -183,10 +222,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testDocumentsWithIncorrectDims() throws Exception {
         for (boolean index : Arrays.asList(false, true)) {
             int dims = 3;
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
-                .field("type", "dense_vector")
-                .field("dims", dims)
-                .field("index", index)));
+            XContentBuilder fieldMapping = fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", dims);
+                b.field("index", index);
+                if (index) {
+                    b.field("similarity", "dot_product");
+                }
+            });
+
+            DocumentMapper mapper = createDocumentMapper(fieldMapping);
 
             // test that error is thrown when a document has number of dims more than defined in the mapping
             float[] invalidVector = new float[dims + 1];

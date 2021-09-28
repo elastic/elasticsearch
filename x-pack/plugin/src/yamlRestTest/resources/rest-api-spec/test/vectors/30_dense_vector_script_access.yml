@@ -79,6 +79,7 @@
                 type: dense_vector
                 dims: 3
                 index: true
+                similarity: dot_product
 
   - do:
       bulk:

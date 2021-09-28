@@ -345,10 +345,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 assertThat(
                     documents,
                     hasItems(
-//                        allOf(
-//                            hasEntry(KEY_FIELD_NAME, "deprecated_route_POST_/_test_cluster/deprecated_settings"),
-//                            hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
-//                        ),
                         allOf(
                             hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
                             hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")

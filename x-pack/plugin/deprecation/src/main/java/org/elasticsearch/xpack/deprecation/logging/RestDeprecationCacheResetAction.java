@@ -34,6 +34,4 @@ public class RestDeprecationCacheResetAction extends BaseRestHandler {
         DeprecationCacheResetAction.Request resetRequest = new DeprecationCacheResetAction.Request();
         return channel -> client.execute(DeprecationCacheResetAction.INSTANCE, resetRequest, new RestToXContentListener<>(channel));
     }
-
 }
-

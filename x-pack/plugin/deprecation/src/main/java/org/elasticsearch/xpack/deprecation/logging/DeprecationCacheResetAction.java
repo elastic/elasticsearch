@@ -40,5 +40,4 @@ public class DeprecationCacheResetAction extends ActionType<ActionResponse.Empty
             return null;
         }
     }
-
 }

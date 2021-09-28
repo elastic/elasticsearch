@@ -65,16 +65,16 @@ public class TestRestrictedIndices {
                 new SystemIndexDescriptor(".fleet-actions~(-results*)", "fleet actions"),
                 new SystemIndexDescriptor(".fleet-agents*", "fleet agents"),
                 new SystemIndexDescriptor(".fleet-enrollment-api-keys*", "fleet enrollment"),
-                new SystemIndexDescriptor(".fleet-policies-[0-9]+", "fleet policies"),
+                new SystemIndexDescriptor(".fleet-policies-[0-9]+*", "fleet policies"),
                 new SystemIndexDescriptor(".fleet-policies-leader*", "fleet policies leader"),
                 new SystemIndexDescriptor(".fleet-servers*", "fleet servers"),
                 new SystemIndexDescriptor(".fleet-artifacts*", "fleet artifacts"))));
         featureMap.put("ingest-geoip-mock",
             new Feature("ingest-geoip-mock", "fake geoip for restricted indices tests", List.of(
-                new SystemIndexDescriptor(".geoip_databases", "geoip databases"))));
+                new SystemIndexDescriptor(".geoip_databases*", "geoip databases"))));
         featureMap.put("logstash-mock",
             new Feature("logstash-mock", "fake logstash for restricted indices tests", List.of(
-                new SystemIndexDescriptor(".logstash", "logstash"))));
+                new SystemIndexDescriptor(".logstash*", "logstash"))));
         featureMap.put("machine-learning-mock",
             new Feature("machine-learning-mock", "fake machine learning for restricted indices tests", List.of(
                 new SystemIndexDescriptor(".ml-meta*", "machine learning meta"),
@@ -82,7 +82,7 @@ public class TestRestrictedIndices {
                 new SystemIndexDescriptor(".ml-inference*", "machine learning inference"))));
         featureMap.put("searchable-snapshots-mock",
             new Feature("searchable-snapshots-mock", "fake searchable snapshots for restricted indices tests", List.of(
-                new SystemIndexDescriptor(".snapshot-blob-cache", "snapshot blob cache"))));
+                new SystemIndexDescriptor(".snapshot-blob-cache*", "snapshot blob cache"))));
         featureMap.put("transform-mock",
             new Feature("transform-mock", "fake transform for restricted indices tests", List.of(
                 new SystemIndexDescriptor(".transform-internal-*", "transform internal"))));
@@ -106,7 +106,7 @@ public class TestRestrictedIndices {
     private static SystemIndexDescriptor getMainSecurityDescriptor() {
         return getInitializedDescriptorBuilder()
             // This can't just be `.security-*` because that would overlap with the tokens index pattern
-            .setIndexPattern(".security-[0-9]+")
+            .setIndexPattern(".security-[0-9]+*")
             .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
             .setDescription("Contains Security configuration")
             .setAliasName(SECURITY_MAIN_ALIAS)
@@ -118,7 +118,7 @@ public class TestRestrictedIndices {
 
     private static SystemIndexDescriptor getSecurityTokensDescriptor() {
         return getInitializedDescriptorBuilder()
-            .setIndexPattern(".security-tokens-[0-9]+")
+            .setIndexPattern(".security-tokens-[0-9]+*")
             .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
             .setDescription("Contains auth token data")
             .setAliasName(SECURITY_TOKENS_ALIAS)
@@ -158,7 +158,7 @@ public class TestRestrictedIndices {
 
     private static SystemIndexDescriptor getApmAgentConfigDescriptor() {
         return SystemIndexDescriptor.builder()
-            .setIndexPattern(".apm-agent-configuration")
+            .setIndexPattern(".apm-agent-configuration*")
             .setDescription("system index for APM agent configuration")
             .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
             .setAllowedElasticProductOrigins(List.of("kibana"))
@@ -167,7 +167,7 @@ public class TestRestrictedIndices {
 
     private static SystemIndexDescriptor getApmCustomLinkDescriptor() {
         return SystemIndexDescriptor.builder()
-            .setIndexPattern(".apm-custom-link")
+            .setIndexPattern(".apm-custom-link*")
             .setDescription("system index for APM custom links")
             .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
             .setAllowedElasticProductOrigins(List.of("kibana"))

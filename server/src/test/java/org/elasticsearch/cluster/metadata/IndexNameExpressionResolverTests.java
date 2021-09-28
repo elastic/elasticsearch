@@ -1981,16 +1981,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new Feature(
                     "ml",
                     "ml indices",
-                    List.of(new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
+                    List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
                 ),
                 "watcher",
-                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches", "watches index"))),
+                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index"))),
                 "stack-component",
                 new Feature("stack-component",
                     "stack component",
                     List.of(
                         new SystemIndexDescriptor(
-                            ".external-sys-idx",
+                            ".external-sys-idx*",
                             "external",
                             Type.EXTERNAL_UNMANAGED,
                             List.of("stack-component", "other")
@@ -2481,10 +2481,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         SystemIndices systemIndices = new SystemIndices(
             Map.of("ml",
                 new Feature("ml", "ml indices",
-                    List.of(new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
+                    List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
                 ),
                 "watcher",
-                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches", "watches index")))
+                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index")))
             )
         );
         indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);

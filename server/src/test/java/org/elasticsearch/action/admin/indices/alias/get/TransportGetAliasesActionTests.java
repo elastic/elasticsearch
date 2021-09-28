@@ -176,7 +176,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         SystemIndices systemIndices = new SystemIndices(Collections.singletonMap(
             this.getTestName(),
             new SystemIndices.Feature(this.getTestName(), "test feature",
-                Collections.singletonList(new SystemIndexDescriptor(".y", "an index that doesn't exist")))));
+                Collections.singletonList(new SystemIndexDescriptor(".y*", "an index that doesn't exist")))));
 
         GetAliasesRequest request = new GetAliasesRequest(".y");
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder()
@@ -229,7 +229,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         String[] concreteIndices;
 
         SystemIndexDescriptor netNewDescriptor = SystemIndexDescriptor.builder()
-            .setIndexPattern(".b")
+            .setIndexPattern(".b*")
             .setAliasName(".y")
             .setPrimaryIndex(".b")
             .setDescription(this.getTestName())

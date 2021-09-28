@@ -1,6 +1,9 @@
 ---
 setup:
   - skip:
+      features:
+        - pre_existing_feature1
+        - pre_existing_feature2
       version: "all"
       reason: "my reason"
 ---

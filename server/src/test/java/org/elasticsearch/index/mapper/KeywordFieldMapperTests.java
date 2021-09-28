@@ -314,52 +314,52 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testDimensionAndIgnoreAbove() {
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true).field("ignore_above", 2048);
+            b.field("time_series_dimension", true).field("ignore_above", 2048);
         })));
         assertThat(e.getCause().getMessage(),
-            containsString("Field [ignore_above] cannot be set in conjunction with field [dimension]"));
+            containsString("Field [ignore_above] cannot be set in conjunction with field [time_series_dimension]"));
     }
 
     public void testDimensionAndNormalizer() {
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true).field("normalizer", "my_normalizer");
+            b.field("time_series_dimension", true).field("normalizer", "my_normalizer");
         })));
         assertThat(e.getCause().getMessage(),
-            containsString("Field [normalizer] cannot be set in conjunction with field [dimension]"));
+            containsString("Field [normalizer] cannot be set in conjunction with field [time_series_dimension]"));
     }
 
     public void testDimensionIndexedAndDocvalues() {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", false).field("doc_values", false);
+                b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
             })));
             assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", true).field("doc_values", false);
+                b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
             })));
             assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", false).field("doc_values", true);
+                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
             })));
             assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true"));
         }
     }
 
     public void testDimensionMultiValuedField() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true);
+            b.field("time_series_dimension", true);
         }));
 
         Exception e = expectThrows(MapperParsingException.class,
@@ -371,7 +371,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testDimensionExtraLongKeyword() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true);
+            b.field("time_series_dimension", true);
         }));
 
         Exception e = expectThrows(MapperParsingException.class,

@@ -130,7 +130,7 @@ def commonPackageConfig(String type, String architecture) {
         fileMode 0644
       }
       into('lib') {
-        with libFiles(false)
+        with libFiles
       }
       into('modules') {
         with modulesFiles('linux-' + ((architecture == 'x64') ? 'x86_64' : architecture))

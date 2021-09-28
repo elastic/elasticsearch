@@ -50,9 +50,7 @@ public class TextClassificationConfigTests extends InferenceConfigItemTestCase<T
     public static TextClassificationConfig createRandom() {
         return new TextClassificationConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
-            randomBoolean() ?
-                null :
-                randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom()),
+            randomBoolean() ? null : BertTokenizationTests.createRandom(),
             randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10)),
             randomBoolean() ? null : randomIntBetween(-1, 10)
         );

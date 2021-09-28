@@ -18,8 +18,10 @@ import java.util.function.Function;
 public final class TimeSeriesParams {
 
     public static final String TIME_SERIES_METRIC_PARAM = "time_series_metric";
+    public static final String TIME_SERIES_DIMENSION_PARAM = "time_series_dimension";
 
-    private TimeSeriesParams() {}
+    private TimeSeriesParams() {
+    }
 
     public enum MetricType {
         gauge,
@@ -40,6 +42,10 @@ public final class TimeSeriesParams {
             MetricType.class,
             acceptedValues
         ).acceptsNull();
+    }
+
+    public static FieldMapper.Parameter<Boolean> dimensionParam(Function<FieldMapper, Boolean> initializer) {
+        return FieldMapper.Parameter.boolParam(TIME_SERIES_DIMENSION_PARAM, false, initializer, false);
     }
 
 }

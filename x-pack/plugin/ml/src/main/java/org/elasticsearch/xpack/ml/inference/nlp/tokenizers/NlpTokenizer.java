@@ -22,7 +22,11 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.V
 
 public interface NlpTokenizer {
 
-    TokenizationResult tokenize(List<String> text);
+    TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokenization> tokenizations);
+
+    TokenizationResult.Tokenization tokenize(String seq);
+
+    TokenizationResult.Tokenization tokenize(String seq1, String seq2);
 
     NlpTask.RequestBuilder requestBuilder();
 

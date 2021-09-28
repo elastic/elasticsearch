@@ -3715,4 +3715,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     RetentionLeaseSyncer getRetentionLeaseSyncer() {
         return retentionLeaseSyncer;
     }
+
+    @Override
+    public String toString() {
+        return "IndexShard(shardRouting=" + shardRouting + ")";
+    }
 }

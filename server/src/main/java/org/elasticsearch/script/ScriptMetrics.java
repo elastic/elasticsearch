@@ -32,6 +32,8 @@ public class ScriptMetrics {
             context,
             compilationsMetric.count(),
             cacheEvictionsMetric.count(),
-            compilationLimitTriggered.count()
+            compilationLimitTriggered.count(),
+            new ScriptContextStats.TimeSeries(),
+            new ScriptContextStats.TimeSeries()
         );
     }}

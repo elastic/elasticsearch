@@ -23,6 +23,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ECSJsonLayout;
 import org.elasticsearch.common.logging.Loggers;
@@ -44,7 +45,7 @@ import java.util.stream.Collectors;
  * This component manages the construction and lifecycle of the {@link DeprecationIndexingAppender}.
  * It also starts and stops the appender
  */
-public class DeprecationIndexingComponent extends AbstractLifecycleComponent implements ClusterStateListener {
+public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(DeprecationIndexingComponent.class);
 
     public static final Setting<Boolean> WRITE_DEPRECATION_LOGS_TO_INDEX = Setting.boolSetting(
@@ -53,17 +54,19 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
     public static final Setting<Boolean> USE_X_OPAQUE_ID_IN_FILTERING = Setting.boolSetting(
         "cluster.deprecation_indexing.x_opaque_id_used.enabled",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
     private final DeprecationIndexingAppender appender;
     private final BulkProcessor processor;
     private final RateLimitingFilter filter;
 
-    public DeprecationIndexingComponent(Client client, Settings settings) {
+    public DeprecationIndexingComponent(Client client, Settings settings, ClusterService clusterService) {
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
         final Consumer<IndexRequest> consumer = this.processor::add;
 
@@ -77,6 +80,9 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
         this.filter = new RateLimitingFilter();
         this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, ecsLayout, consumer);
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, this::setUseXOpaqueId);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(WRITE_DEPRECATION_LOGS_TO_INDEX, this::enableDeprecationLogIndexing);
     }
 
     @Override
@@ -96,17 +102,12 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         this.processor.close();
     }
 
-    /**
-     * Listens for changes to the cluster state, in order to know whether to toggle indexing
-     * and to set the cluster UUID and node ID. These can't be set in the constructor because
-     * the initial cluster state won't be set yet.
-     *
-     * @param event the cluster state event to process
-     */
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        final ClusterState state = event.state();
-        final boolean newEnabled = WRITE_DEPRECATION_LOGS_TO_INDEX.get(state.getMetadata().settings());
+
+    private void setUseXOpaqueId(boolean useXOpaqueId) {
+        this.filter.setUseXOpaqueId(useXOpaqueId);
+    }
+
+    private void enableDeprecationLogIndexing(boolean newEnabled) {
         if (appender.isEnabled() != newEnabled) {
             // We've flipped from disabled to enabled. Make sure we start with a clean cache of
             // previously-seen keys, otherwise we won't index anything.
@@ -115,8 +116,6 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
             }
             appender.setEnabled(newEnabled);
         }
-        final boolean useXOpaqueId = USE_X_OPAQUE_ID_IN_FILTERING.get(state.getMetadata().settings());
-        this.filter.setUseXOpaqueId(useXOpaqueId);
     }
 
     /**

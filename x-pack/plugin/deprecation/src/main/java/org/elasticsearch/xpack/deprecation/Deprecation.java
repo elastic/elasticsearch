@@ -79,8 +79,7 @@ public class Deprecation extends Plugin implements ActionPlugin {
             new DeprecationIndexingTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
         templateRegistry.initialize();
 
-        final DeprecationIndexingComponent component = new DeprecationIndexingComponent(client, environment.settings());
-        clusterService.addListener(component);
+        final DeprecationIndexingComponent component = new DeprecationIndexingComponent(client, environment.settings(), clusterService);
 
         return List.of(component);
     }

@@ -132,11 +132,12 @@ public class RestCompatTestTransformTask extends DefaultTask {
         // For example: indices.get_mapping/20_missing_type/Non-existent type returns 404
         String[] testParts = testName.split("/");
         if(testParts.length < 3 ){
-            throw new IllegalArgumentException("To skip tests, all parts [folder/file/test name] must be defined. found [" + testName + "]");
+            throw new IllegalArgumentException("To skip tests, all 3 parts [folder/file/test name] must be defined. found [" + testName + "]");
         }
 
+        //some tests have a "/" in the name, so allow for 1 forward slash
         skippedTestByTestNameTransformations.computeIfAbsent(Pair.of(testParts[0], testParts[1] + ".yml"),
-            k -> new HashMap<>()).put(testParts[2] + (testParts.length == 4 ? testParts[3] : ""), reason);
+            k -> new HashMap<>()).put(testParts[2] + (testParts.length == 4 ? "/" + testParts[3] : ""), reason);
     }
 
     public void skipTestsByFilePattern(String filePattern, String reason) {

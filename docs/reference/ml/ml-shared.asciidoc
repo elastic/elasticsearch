@@ -1004,7 +1004,7 @@ text classification to occur without pre-determined labels. At inference time,
 it is possible to adjust the labels to classify. This makes this type of model
 and task exceptionally flexible.
 
-If consistently classifying the same labels, it may be better to use an optimized
+If consistently classifying the same labels, it may be better to use a fine turned
 text classification model.
 end::inference-config-zero-shot-classification[]
 
@@ -1013,15 +1013,15 @@ The classification labels used during the zero-shot classification. Classificati
 labels must not be empty or null and only set at model creation. They must be all three
 of ["entailment", "neutral", "contradiction"].
 
-NOTE: this is NOT the same as `labels` which are the values that zero-shot is attempting to
+NOTE: This is NOT the same as `labels` which are the values that zero-shot is attempting to
       classify.
 end::inference-config-zero-shot-classification-classification-labels[]
 
-tag::inference-config-zero-shot-classification-hypothsis-template[]
+tag::inference-config-zero-shot-classification-hypothesis-template[]
 This is the template used when tokenizing the sequences for classification.
 
 The labels replace the `{}` value in the text. The default value is:
-`This This example is {}.`
+`This example is {}.`
 end::inference-config-zero-shot-classification-hypothesis-template[]
 
 tag::inference-config-zero-shot-classification-labels[]

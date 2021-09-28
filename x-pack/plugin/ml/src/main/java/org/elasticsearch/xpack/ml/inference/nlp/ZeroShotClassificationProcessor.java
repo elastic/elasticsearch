@@ -72,7 +72,7 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
         if (this.labels == null || this.labels.length == 0) {
             throw ExceptionsHelper.badRequestException("zero_shot_classification requires non-empty [labels]");
         }
-        return new RequestBuilder(tokenizer,  labels, hypothesisTemplate);
+        return new RequestBuilder(tokenizer, labels, hypothesisTemplate);
     }
 
     @Override
@@ -176,7 +176,6 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
                             vals.length
                         );
                     }
-                    // assumes entailment is `0`, it COULD be `2`
                     entailmentScores[v++] = vals[entailmentPos];
                 }
                 normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(entailmentScores);

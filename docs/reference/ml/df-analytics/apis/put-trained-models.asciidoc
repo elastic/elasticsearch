@@ -377,7 +377,7 @@ A human-readable description of the {infer} trained model.
 `inference_config`::
 (Required, object)
 The default configuration for inference. This can be: `regression`,
-`classification`, `fill_mask`, `ner`, `text_classification`, or `text_embedding`.
+`classification`, `fill_mask`, `ner`, `text_classification`, `text_embedding` or `zero_shot_classification`.
 If `regression` or `classification`, it must match the `target_type` of the
 underlying `definition.trained_model`. If `fill_mask`, `ner`,
 `text_classification`, or `text_embedding`; the `model_type` must be `pytorch`.

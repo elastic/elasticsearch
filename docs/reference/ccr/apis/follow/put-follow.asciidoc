@@ -74,7 +74,7 @@ referenced leader index. When this API returns, the follower index exists, and
   (Required, string) The name of the index in the leader cluster to follow.
 
 `remote_cluster`::
-  (Required, string) The <<modules-remote-clusters,remote cluster>> containing
+  (Required, string) The <<remote-clusters,remote cluster>> containing
   the leader index.
 
 include::../follow-request-body.asciidoc[]

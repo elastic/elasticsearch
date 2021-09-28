@@ -166,11 +166,9 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
 })
 tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
-      // enable after backporting #77479
-      'indices.freeze/10_basic/Test index options',
+      // UNMUTE after #78184 is backported to 7.x
       'indices.freeze/10_basic/Basic',
-      'ml/datafeeds_crud/Test put and update datafeed with indices options in params',
-      'ml/jobs_crud/Test put job with datafeed with indices options in params',
+      'indices.freeze/10_basic/Test index options',
       // to support it, it would require to almost revert back the #48725 and complicate the code
       'vectors/10_dense_vector_basic/Deprecated function signature',
       // not going to be supported
@@ -212,7 +210,7 @@ tasks.named("yamlRestTestV7CompatTest").configure {
   dependsOn "copyExtraResources"
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.security.enabled', 'true'

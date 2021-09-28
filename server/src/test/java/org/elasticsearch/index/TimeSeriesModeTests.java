@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -19,7 +20,6 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,9 +62,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testValidateTimestamp() throws IOException {
-        long endTime = System.currentTimeMillis();
-        long startTime = endTime - TimeUnit.DAYS.toMillis(1);
-
+        long startTime = Math.min(randomMillisUpToYear9999(), DateUtils.MAX_MILLIS_BEFORE_9999 - 86400000);
+        long endTime = startTime + randomLongBetween(1000, 86400000);
         Settings s = Settings.builder()
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime)
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime)
@@ -100,7 +99,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
                         BytesReference.bytes(
                             XContentFactory.jsonBuilder()
                                 .startObject()
-                                .field("@timestamp", Math.max(startTime - randomLongBetween(1, 10), 0))
+                                .field("@timestamp", Math.max(startTime - randomLongBetween(10, 1000), 0))
                                 .endObject()
                         ),
                         XContentType.JSON
@@ -121,7 +120,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
                         BytesReference.bytes(
                             XContentFactory.jsonBuilder()
                                 .startObject()
-                                .field("@timestamp", endTime + randomLongBetween(0, 10))
+                                .field("@timestamp", endTime + randomLongBetween(10, 1000))
                                 .endObject()
                         ),
                         XContentType.JSON

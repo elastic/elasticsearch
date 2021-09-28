@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
@@ -27,7 +26,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
-import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -367,16 +365,18 @@ public final class IndexSettings {
 
     /**
      * in time series mode, the start time of the index, timestamp must larger than start_time
+     * format is epoch_millis
      */
-    public static final Setting<Instant> TIME_SERIES_START_TIME = Setting.dateSetting(
+    public static final Setting<Long> TIME_SERIES_START_TIME = Setting.longSetting(
         "index.time_series.start_time",
-        Instant.ofEpochMilli(0),
+        -1L,
+        -1L,
         new Setting.Validator<>() {
             @Override
-            public void validate(Instant value) {}
+            public void validate(Long value) {}
 
             @Override
-            public void validate(Instant value, Map<Setting<?>, Object> settings) {
+            public void validate(Long value, Map<Setting<?>, Object> settings) {
                 IndexMode mode = (IndexMode) settings.get(MODE);
                 if (mode != IndexMode.TIME_SERIES) {
                     throw new IllegalArgumentException("index.time_series.start_time need to be used for time_series mode");
@@ -389,35 +389,33 @@ public final class IndexSettings {
                 return settings.iterator();
             }
         },
-        Property.IndexScope
+        Property.IndexScope,
+        Property.Dynamic
     );
 
     /**
      * in time series mode, the end time of the index, timestamp must smaller than start_time
+     * format is epoch_millis
      */
-    public static final Setting<Instant> TIME_SERIES_END_TIME = Setting.dateSetting(
+    public static final Setting<Long> TIME_SERIES_END_TIME = Setting.longSetting(
         "index.time_series.end_time",
-        DateUtils.MAX_NANOSECOND_INSTANT,
+        -1L,
+        -1L,
         new Setting.Validator<>() {
             @Override
-            public void validate(Instant value) {}
+            public void validate(Long value) {}
 
             @Override
-            public void validate(Instant value, Map<Setting<?>, Object> settings) {
+            public void validate(Long value, Map<Setting<?>, Object> settings) {
                 IndexMode mode = (IndexMode) settings.get(MODE);
                 if (mode != IndexMode.TIME_SERIES) {
                     throw new IllegalArgumentException("index.time_series.end_time need to be used for time_series mode");
-                }
-
-                Instant startTime = (Instant) settings.get(TIME_SERIES_START_TIME);
-                if (startTime.toEpochMilli() > value.toEpochMilli()) {
-                    throw new IllegalArgumentException("index.time_series.end_time must be larger than index.time_series.start_time");
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = List.of(MODE, TIME_SERIES_START_TIME);
+                final List<Setting<?>> settings = List.of(MODE);
                 return settings.iterator();
             }
         },
@@ -435,7 +433,7 @@ public final class IndexSettings {
      * The {@link IndexMode "mode"} of the index.
      */
     private final IndexMode mode;
-    private final long timeSeriesStartTime;
+    private volatile long timeSeriesStartTime;
     private volatile long timeSeriesEndTime;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
@@ -579,8 +577,10 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        timeSeriesStartTime = mode == IndexMode.TIME_SERIES ? TIME_SERIES_START_TIME.get(settings).toEpochMilli() : -1L;
-        timeSeriesEndTime = mode == IndexMode.TIME_SERIES ? TIME_SERIES_END_TIME.get(settings).toEpochMilli() : -1L;
+        if (mode == IndexMode.TIME_SERIES) {
+            timeSeriesStartTime = TIME_SERIES_START_TIME.get(settings);
+            timeSeriesEndTime = TIME_SERIES_END_TIME.get(settings);
+        }
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -680,6 +680,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(TIME_SERIES_START_TIME, this::updateTimeSeriesStartTime);
         scopedSettings.addSettingsUpdateConsumer(TIME_SERIES_END_TIME, this::updateTimeSeriesEndTime);
     }
 
@@ -1164,18 +1165,32 @@ public final class IndexSettings {
         return timeSeriesStartTime;
     }
 
+    public void updateTimeSeriesStartTime(long startTime) {
+        if (timeSeriesStartTime < 0) {
+            throw new IllegalArgumentException("index.time_series.start_time not set before, can not update value");
+        }
+
+        if (this.timeSeriesStartTime < startTime) {
+            throw new IllegalArgumentException(
+                "index.time_series.start_time must be smaller than pre value [" + this.timeSeriesStartTime + "]"
+            );
+        }
+        this.timeSeriesStartTime = startTime;
+    }
+
     public long getTimeSeriesEndTime() {
         return timeSeriesEndTime;
     }
 
-    public void updateTimeSeriesEndTime(Instant endTime) {
-        long updateEndTime = endTime.toEpochMilli();
-        if (this.timeSeriesEndTime > updateEndTime) {
-            throw new IllegalArgumentException(
-                "index.time_series.end_time must be larger than current value [" + this.timeSeriesEndTime + "]"
-            );
+    public void updateTimeSeriesEndTime(long endTime) {
+        if (timeSeriesEndTime < 0) {
+            throw new IllegalArgumentException("index.time_series.end_time not set before, can not update value");
         }
 
-        this.timeSeriesEndTime = updateEndTime;
+        if (this.timeSeriesEndTime > endTime) {
+            throw new IllegalArgumentException("index.time_series.end_time must be larger than pre value [" + this.timeSeriesEndTime + "]");
+        }
+
+        this.timeSeriesEndTime = endTime;
     }
 }

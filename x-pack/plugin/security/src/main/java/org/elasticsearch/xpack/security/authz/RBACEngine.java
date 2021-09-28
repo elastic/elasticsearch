@@ -637,28 +637,28 @@ public class RBACEngine implements AuthorizationEngine {
         final Role role = ensureRBAC(authorizationInfo).getRole();
 
         final Set<String> effectiveIndices;
-        final String targetIndex = getSingleTargetIndex(request);
-        if (targetIndex != null) {
-            effectiveIndices = indices.stream().filter(name -> {
-                if (name.equals(targetIndex)) {
-                    return true;
-                }
-                final IndexAbstraction indexAbstraction = aliasAndIndexLookup.get(name);
-                if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
-                    return indexAbstraction.getIndices().stream().anyMatch(im -> im.getIndex().getName().equals(targetIndex));
-                }
-                return false;
-            }).collect(Collectors.toUnmodifiableSet());
+        final String targetIndexName = getSingleTargetIndexName(request);
+        if (targetIndexName != null) {
+            effectiveIndices = new HashSet<>();
+            effectiveIndices.add(targetIndexName);
+            final IndexAbstraction targetIndexAbstraction = aliasAndIndexLookup.get(targetIndexName);
+            assert targetIndexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX : "target index must be a concrete index";
+            targetIndexAbstraction.getAliases().stream().filter(indices::contains).forEach(effectiveIndices::add);
+            final IndexAbstraction.DataStream parentDataStream = targetIndexAbstraction.getParentDataStream();
+            if (parentDataStream != null) {
+                parentDataStream.getAliases().stream().filter(indices::contains).forEach(effectiveIndices::add);
+            }
         } else {
             effectiveIndices = indices;
         }
 
-        final IndicesAccessControl accessControl = role.authorize(action, effectiveIndices, aliasAndIndexLookup, fieldPermissionsCache);
+        final IndicesAccessControl accessControl =
+            role.authorize(action, Set.copyOf(effectiveIndices), aliasAndIndexLookup, fieldPermissionsCache);
         return new IndexAuthorizationResult(true, accessControl);
     }
 
     // An allowlist of requests that have only a single concrete target index regardless of the original indices
-    private String getSingleTargetIndex(TransportRequest request) {
+    private String getSingleTargetIndexName(TransportRequest request) {
         if (request instanceof ShardSearchRequest) {
             return ((ShardSearchRequest) request).shardId().getIndexName();
         } else if (request instanceof FieldCapabilitiesIndexRequest) {

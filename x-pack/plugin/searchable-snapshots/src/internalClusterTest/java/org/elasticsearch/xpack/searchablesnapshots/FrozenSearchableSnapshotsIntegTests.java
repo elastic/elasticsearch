@@ -42,6 +42,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesRequestCacheUtils;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -71,9 +72,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -462,7 +465,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertAcked(
             client().admin()
                 .indices()
-                .prepareCreate("index")
+                .prepareCreate("test-index")
                 .setMapping("f", "type=date")
                 .setSettings(
                     Settings.builder()
@@ -474,25 +477,25 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         );
         indexRandom(
             true,
-            client().prepareIndex("index").setSource("f", "2014-03-10T00:00:00.000Z"),
-            client().prepareIndex("index").setSource("f", "2014-05-13T00:00:00.000Z")
+            client().prepareIndex("test-index").setSource("f", "2014-03-10T00:00:00.000Z"),
+            client().prepareIndex("test-index").setSource("f", "2014-05-13T00:00:00.000Z")
         );
-        ensureSearchable("index");
+        ensureSearchable("test-index");
 
         createRepository("repo", "fs", Settings.builder().put("location", randomRepoPath()));
 
         createFullSnapshot("repo", "snap");
 
-        assertAcked(client().admin().indices().prepareDelete("index"));
+        assertAcked(client().admin().indices().prepareDelete("test-index"));
 
-        logger.info("--> restoring index [{}]", "index");
+        logger.info("--> restoring index [{}]", "test-index");
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
-            "index",
+            "test-index",
             "repo",
             "snap",
-            "index",
+            "test-index",
             indexSettingsBuilder.build(),
             Strings.EMPTY_ARRAY,
             true,
@@ -501,12 +504,12 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-        ensureSearchable("index");
+        ensureSearchable("test-index");
 
         // use a fixed client for the searches, as clients randomize timeouts, which leads to different cache entries
         Client client = client();
 
-        final SearchResponse r1 = client.prepareSearch("index")
+        final SearchResponse r1 = client.prepareSearch("test-index")
             .setSize(0)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .addAggregation(
@@ -515,13 +518,13 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             .get();
         assertSearchResponse(r1);
 
-        assertRequestCacheState(client(), "index", 0, 1);
+        assertRequestCacheState(client(), "test-index", 0, 1);
 
         // The cached is actually used
         assertThat(
             client().admin()
                 .indices()
-                .prepareStats("index")
+                .prepareStats("test-index")
                 .setRequestCache(true)
                 .get()
                 .getTotal()
@@ -531,7 +534,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         );
 
         for (int i = 0; i < 10; ++i) {
-            final SearchResponse r2 = client.prepareSearch("index")
+            final SearchResponse r2 = client.prepareSearch("test-index")
                 .setSize(0)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .addAggregation(
@@ -542,7 +545,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 )
                 .get();
             assertSearchResponse(r2);
-            assertRequestCacheState(client(), "index", i + 1, 1);
+            assertRequestCacheState(client(), "test-index", i + 1, 1);
             Histogram h1 = r1.getAggregations().get("histo");
             Histogram h2 = r2.getAggregations().get("histo");
             final List<? extends Histogram.Bucket> buckets1 = h1.getBuckets();
@@ -553,6 +556,18 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 final Histogram.Bucket b2 = buckets2.get(j);
                 assertEquals(b1.getKey(), b2.getKey());
                 assertEquals(b1.getDocCount(), b2.getDocCount());
+            }
+        }
+
+        // shut down shard and check that cache entries are actually removed
+        client().admin().indices().prepareClose("test-index").get();
+        ensureGreen("test-index");
+
+        for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
+            IndicesRequestCache indicesRequestCache = IndicesRequestCacheUtils.getRequestCache(indicesService);
+            IndicesRequestCacheUtils.cleanCache(indicesRequestCache);
+            for (String key : IndicesRequestCacheUtils.cachedKeys(indicesRequestCache)) {
+                assertThat(key, not(containsString("test-index")));
             }
         }
     }

@@ -342,6 +342,10 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         return cache.count();
     }
 
+    Iterable<Key> cachedKeys() {
+        return cache.keys();
+    }
+
     int numRegisteredCloseListeners() { // for testing
         return registeredClosedListeners.size();
     }

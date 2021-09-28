@@ -299,7 +299,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
         }
     }
 
-
     public void testDisableDeprecationLogIndexing() throws Exception {
         try {
             final Request getRequest = createTestRequest("GET");
@@ -361,7 +360,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
             client().performRequest(new Request("DELETE", "_data_stream/" + DATA_STREAM_NAME));
         }
     }
-
 
     private Request createTestRequest(String method) throws IOException {
         final Request getRequest = new Request(method, "/_test_cluster/deprecated_settings");

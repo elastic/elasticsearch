@@ -2734,6 +2734,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final ShardGeneration indexGeneration;
             final boolean writeShardGens = SnapshotsService.useShardGenerations(context.getRepositoryMetaVersion());
+            final boolean writeFileInfoWriterUUID = SnapshotsService.includeFileInfoWriterUUID(context.getRepositoryMetaVersion());
             // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
             List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
             newSnapshotsList.add(new SnapshotFiles(snapshotId.getName(), indexCommitPointFiles, context.stateIdentifier()));
@@ -2748,11 +2749,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // reference a generation that has not had all its files fully upload.
                 indexGeneration = ShardGeneration.newGeneration();
                 try {
+                    final Map<String, String> serializationParams = Collections.singletonMap(
+                        BlobStoreIndexShardSnapshot.FileInfo.SERIALIZE_WRITER_UUID,
+                        Boolean.toString(writeFileInfoWriterUUID)
+                    );
                     INDEX_SHARD_SNAPSHOTS_FORMAT.write(
                         updatedBlobStoreIndexShardSnapshots,
                         shardContainer,
                         indexGeneration.toBlobNamePart(),
-                        compress
+                        compress,
+                        serializationParams
                     );
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(
@@ -2786,7 +2792,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         + blobsToDelete;
                 afterWriteSnapBlob = () -> {
                     try {
-                        writeShardIndexBlobAtomic(shardContainer, newGen, updatedBlobStoreIndexShardSnapshots);
+                        final Map<String, String> serializationParams = Collections.singletonMap(
+                            BlobStoreIndexShardSnapshot.FileInfo.SERIALIZE_WRITER_UUID,
+                            Boolean.toString(writeFileInfoWriterUUID)
+                        );
+                        writeShardIndexBlobAtomic(shardContainer, newGen, updatedBlobStoreIndexShardSnapshots, serializationParams);
                     } catch (IOException e) {
                         throw new IndexShardSnapshotFailedException(
                             shardId,
@@ -2830,7 +2840,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
                 try {
                     final String snapshotUUID = snapshotId.getUUID();
-                    INDEX_SHARD_SNAPSHOT_FORMAT.write(blobStoreIndexShardSnapshot, shardContainer, snapshotUUID, compress);
+                    final Map<String, String> serializationParams = Collections.singletonMap(
+                        BlobStoreIndexShardSnapshot.FileInfo.SERIALIZE_WRITER_UUID,
+                        Boolean.toString(writeFileInfoWriterUUID)
+                    );
+                    INDEX_SHARD_SNAPSHOT_FORMAT.write(
+                        blobStoreIndexShardSnapshot,
+                        shardContainer,
+                        snapshotUUID,
+                        compress,
+                        serializationParams
+                    );
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
@@ -3232,7 +3252,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedSnapshots, shardContainer, writtenGeneration.toBlobNamePart(), compress);
                 } else {
                     writtenGeneration = new ShardGeneration(indexGeneration);
-                    writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots);
+                    writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots, Collections.emptyMap());
                 }
                 final Set<String> survivingSnapshotUUIDs = survivingSnapshots.stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
                 return new ShardSnapshotMetaDeleteResult(
@@ -3262,7 +3282,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void writeShardIndexBlobAtomic(
         BlobContainer shardContainer,
         long indexGeneration,
-        BlobStoreIndexShardSnapshots updatedSnapshots
+        BlobStoreIndexShardSnapshots updatedSnapshots,
+        Map<String, String> serializationParams
     ) throws IOException {
         assert indexGeneration >= 0 : "Shard generation must not be negative but saw [" + indexGeneration + "]";
         logger.trace(
@@ -3272,7 +3293,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         writeAtomic(
             shardContainer,
             blobName,
-            out -> INDEX_SHARD_SNAPSHOTS_FORMAT.serialize(updatedSnapshots, blobName, compress, out),
+            out -> INDEX_SHARD_SNAPSHOTS_FORMAT.serialize(updatedSnapshots, blobName, compress, serializationParams, out),
             true
         );
     }

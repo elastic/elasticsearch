@@ -38,6 +38,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.zip.CRC32;
 
 /**
@@ -271,11 +272,37 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param compress            whether to use compression
      */
     public void write(T obj, BlobContainer blobContainer, String name, boolean compress) throws IOException {
+        write(obj, blobContainer, name, compress, Collections.emptyMap());
+    }
+
+    /**
+     * Writes blob with resolving the blob name using {@link #blobName} method.
+     * <p>
+     * The blob will optionally by compressed.
+     *
+     * @param obj                            object to be serialized
+     * @param blobContainer                  blob container
+     * @param name                           blob name
+     * @param compress                       whether to use compression
+     * @param serializationParams            extra serialization parameters
+     */
+    public void write(T obj, BlobContainer blobContainer, String name, boolean compress, Map<String, String> serializationParams)
+        throws IOException {
         final String blobName = blobName(name);
-        blobContainer.writeBlob(blobName, false, false, out -> serialize(obj, blobName, compress, out));
+        blobContainer.writeBlob(blobName, false, false, out -> serialize(obj, blobName, compress, serializationParams, out));
     }
 
     public void serialize(final T obj, final String blobName, final boolean compress, OutputStream outputStream) throws IOException {
+        serialize(obj, blobName, compress, Collections.emptyMap(), outputStream);
+    }
+
+    public void serialize(
+        final T obj,
+        final String blobName,
+        final boolean compress,
+        final Map<String, String> extraParams,
+        OutputStream outputStream
+    ) throws IOException {
         try (
             OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
                 "ChecksumBlobStoreFormat.serialize(blob=\"" + blobName + "\")",
@@ -297,8 +324,12 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream) : indexOutputOutputStream
                 )
             ) {
+                ToXContent.Params params = extraParams.isEmpty()
+                    ? SNAPSHOT_ONLY_FORMAT_PARAMS
+                    : new ToXContent.DelegatingMapParams(extraParams, SNAPSHOT_ONLY_FORMAT_PARAMS);
+
                 builder.startObject();
-                obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
+                obj.toXContent(builder, params);
                 builder.endObject();
             }
             CodecUtil.writeFooter(indexOutput);

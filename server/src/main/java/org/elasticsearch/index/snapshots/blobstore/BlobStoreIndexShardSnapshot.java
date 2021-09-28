@@ -38,6 +38,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      * Information about snapshotted file
      */
     public static class FileInfo implements Writeable {
+        public static final String SERIALIZE_WRITER_UUID = "serialize_writer_uuid";
 
         private final String name;
         private final ByteSizeValue partSize;
@@ -248,7 +249,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          * @param file    file info
          * @param builder XContent builder
          */
-        public static void toXContent(FileInfo file, XContentBuilder builder) throws IOException {
+        public static void toXContent(FileInfo file, XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(NAME, file.name);
             builder.field(PHYSICAL_NAME, file.metadata.name());
@@ -268,7 +269,10 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             }
 
             final BytesRef writerUuid = file.metadata.writerUuid();
-            if (writerUuid.length > 0) {
+            // We serialize by default when SERIALIZE_WRITER_UUID is not present since in deletes/clones
+            // we read the serialized files from the blob store and we enforce the version invariants when
+            // the snapshot was done
+            if (writerUuid.length > 0 && params.paramAsBoolean(SERIALIZE_WRITER_UUID, true)) {
                 builder.field(WRITER_UUID, writerUuid.bytes, writerUuid.offset, writerUuid.length);
             }
 
@@ -516,7 +520,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         builder.field(INCREMENTAL_SIZE, incrementalSize);
         builder.startArray(FILES);
         for (FileInfo fileInfo : indexFiles) {
-            FileInfo.toXContent(fileInfo, builder);
+            FileInfo.toXContent(fileInfo, builder, params);
         }
         builder.endArray();
         return builder;

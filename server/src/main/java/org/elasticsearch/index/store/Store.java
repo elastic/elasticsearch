@@ -189,10 +189,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try {
             return commit == null ? Lucene.readSegmentInfos(directory) : Lucene.readSegmentInfos(commit);
         } catch (EOFException eof) {
-            //
-            //
-            //
-            //  this should be caught by lucene - EOF is almost certainly an index corruption
+            // TODO this should be caught by lucene - EOF is almost certainly an index corruption
             throw new CorruptIndexException("Read past EOF while reading segment infos", "commit(" + commit + ")", eof);
         } catch (IOException exception) {
             throw exception; // IOExceptions like too many open files are not necessarily a corruption - just bubble it up

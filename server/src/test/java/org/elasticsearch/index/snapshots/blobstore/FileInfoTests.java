@@ -12,6 +12,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -22,7 +23,9 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
+import static org.elasticsearch.index.store.StoreFileMetadata.UNAVAILABLE_WRITER_UUID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -51,7 +54,11 @@ public class FileInfoTests extends ESTestCase {
             ByteSizeValue size = new ByteSizeValue(Math.abs(randomLong()));
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
-            BlobStoreIndexShardSnapshot.FileInfo.toXContent(info, builder);
+            boolean serializeWriterUUID = randomBoolean();
+            ToXContent.Params params = new ToXContent.MapParams(
+                Collections.singletonMap(FileInfo.SERIALIZE_WRITER_UUID, Boolean.toString(serializeWriterUUID))
+            );
+            BlobStoreIndexShardSnapshot.FileInfo.toXContent(info, builder, params);
             byte[] xcontent = BytesReference.toBytes(BytesReference.bytes(shuffleXContent(builder)));
 
             final BlobStoreIndexShardSnapshot.FileInfo parsedInfo;
@@ -67,12 +74,17 @@ public class FileInfoTests extends ESTestCase {
             assertThat(parsedInfo.metadata().hash().length, equalTo(hash.length));
             assertThat(parsedInfo.metadata().hash(), equalTo(hash));
             assertThat(parsedInfo.metadata().writtenBy(), equalTo(Version.LATEST.toString()));
+            if (serializeWriterUUID) {
+                assertThat(parsedInfo.metadata().writerUuid(), equalTo(writerUuid));
+            } else {
+                assertThat(parsedInfo.metadata().writerUuid(), equalTo(UNAVAILABLE_WRITER_UUID));
+            }
             assertThat(parsedInfo.isSame(info.metadata()), is(true));
         }
     }
 
     private static BytesRef randomBytesRef(int maxSize) {
-        final BytesRef hash = new BytesRef(scaledRandomIntBetween(0, maxSize));
+        final BytesRef hash = new BytesRef(scaledRandomIntBetween(1, maxSize));
         hash.length = hash.bytes.length;
         for (int i = 0; i < hash.length; i++) {
             hash.bytes[i] = randomByte();

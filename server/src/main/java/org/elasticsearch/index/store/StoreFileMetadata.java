@@ -142,6 +142,9 @@ public class StoreFileMetadata implements Writeable {
             return false;
         }
 
+        // If we have the file contents, we directly compare the contents. This is useful to compare segment info
+        // files of source-only snapshots where the original segment info file shares the same id as the source-only
+        // segment info file but its contents are different.
         if (hashEqualsContents()) {
             return hash.equals(other.hash);
         }

@@ -44,7 +44,6 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTest
  */
 public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final String REST_COMPAT_CHECK_TASK_NAME = "checkRestCompat";
-    private static final String SOURCE_SET_NAME = "yamlRestCompatTest";
     private static final Path RELATIVE_API_PATH = Path.of("rest-api-spec/api");
     private static final Path RELATIVE_TEST_PATH = Path.of("rest-api-spec/test");
     private static final Path RELATIVE_REST_API_RESOURCES = Path.of("rest-api-spec/src/main/resources");
@@ -55,6 +54,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         final int compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
+        final String sourceSetName = "yamlRestTestV" + compatibleVersion;
         final Path compatRestResourcesDir = Path.of("restResources").resolve("v" + compatibleVersion);
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
         final Path compatTestsDir = compatRestResourcesDir.resolve("yamlTests");
@@ -69,9 +69,9 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        SourceSet yamlCompatTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
+        SourceSet yamlCompatTestSourceSet = sourceSets.create(sourceSetName);
         SourceSet yamlTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME);
-        GradleUtils.extendSourceSet(project, InternalYamlRestTestPlugin.SOURCE_SET_NAME, SOURCE_SET_NAME);
+        GradleUtils.extendSourceSet(project, InternalYamlRestTestPlugin.SOURCE_SET_NAME, sourceSetName);
 
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
@@ -138,7 +138,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.onlyIf(t -> isEnabled(project));
             });
 
-      
+
         // transform the copied tests task
         TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
             .register("yamlRestTestV"+ compatibleVersion + "CompatTransform", RestCompatTestTransformTask.class, task -> {
@@ -163,7 +163,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             .flatMap(CopyRestTestsTask::getOutputResourceDir);
 
         String testTaskName = "yamlRestTestV"+ compatibleVersion + "CompatTest";
-  
+
         // setup the test task
         Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTestTask(project, yamlCompatTestSourceSet, testTaskName);
         project.getTasks().withType(RestIntegTestTask.class).named(testTaskName).configure(testTask -> {

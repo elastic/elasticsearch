@@ -17,7 +17,7 @@ dependencies {
 
 // let the yamlRestTests see the classpath of test
 GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
-GradleUtils.extendSourceSet(project, "test", "yamlRestCompatTest")
+GradleUtils.extendSourceSet(project, "test", "yamlRestTestV7") //TODO: use version resolution
 
 restResources {
   restApi {

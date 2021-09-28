@@ -51,7 +51,7 @@ public class RemovePluginAction implements RemovePluginProvider {
      * @param env        the environment for the local node
      * @param purge      if true, plugin configuration files will be removed but otherwise preserved
      */
-    RemovePluginAction(PluginLogger logger, Environment env, boolean purge) {
+    public RemovePluginAction(PluginLogger logger, Environment env, boolean purge) {
         this.logger = logger;
         this.env = env;
         this.purge = purge;

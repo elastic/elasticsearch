@@ -8,19 +8,26 @@
 
 package org.elasticsearch.bootstrap.plugins;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.InstallPluginProvider;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginLogger;
 import org.elasticsearch.plugins.RemovePluginProvider;
 
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.Proxy;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 public class PluginsActionWrapper {
+    private final Logger logger = LogManager.getLogger(this.getClass());
+
     private final InstallPluginProvider pluginInstaller;
     private final RemovePluginProvider pluginRemover;
 
@@ -36,14 +43,14 @@ public class PluginsActionWrapper {
             "org.elasticsearch.plugins.cli.RemovePluginAction"
         );
 
-        this.pluginInstaller = installClass.getDeclaredConstructor(PluginLogger.class, Environment.class, Boolean.class)
+        this.pluginInstaller = installClass.getDeclaredConstructor(PluginLogger.class, Environment.class, boolean.class)
             .newInstance(Log4jPluginLogger.getLogger("org.elasticsearch.plugins.cli.InstallPluginAction"), env, true);
 
         if (proxy != null) {
             this.pluginInstaller.setProxy(proxy);
         }
 
-        this.pluginRemover = removeClass.getDeclaredConstructor(PluginLogger.class, Environment.class, Boolean.class)
+        this.pluginRemover = removeClass.getDeclaredConstructor(PluginLogger.class, Environment.class, boolean.class)
             .newInstance(Log4jPluginLogger.getLogger("org.elasticsearch.plugins.cli.RemovePluginAction"), env, true);
     }
 
@@ -71,12 +78,27 @@ public class PluginsActionWrapper {
         this.pluginInstaller.execute(plugins);
     }
 
-    private static ClassLoader buildClassLoader(Environment env) throws PluginSyncException {
+    private ClassLoader buildClassLoader(Environment env) throws PluginSyncException {
+        final Path pluginLibDir = env.libFile()
+            .resolve("tools")
+            .resolve("plugin-cli");
+
         try {
-            final URL pluginCli = env.libFile().resolve("tools").resolve("plugin-cli").resolve("*").toUri().toURL();
-            return URLClassLoader.newInstance(new URL[] { pluginCli }, PluginsManager.class.getClassLoader());
-        } catch (MalformedURLException e) {
-            throw new PluginSyncException("Failed to build URL for plugin-cli jars", e);
+            final URL[] urls = Files.list(pluginLibDir)
+                .filter(each -> each.getFileName().toString().endsWith(".jar"))
+                .map(each -> {
+                    try {
+                        return each.toUri().toURL();
+                    } catch (MalformedURLException e) {
+                        // Shouldn't happen, but have to handle the exception
+                        throw new RuntimeException("Failed to convert path [" + each + "] to URL", e);
+                    }
+                })
+                .toArray(URL[]::new);
+
+            return URLClassLoader.newInstance(urls, PluginsManager.class.getClassLoader());
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to list jars in [" + pluginLibDir + "]: " + e.getMessage(), e);
         }
     }
 

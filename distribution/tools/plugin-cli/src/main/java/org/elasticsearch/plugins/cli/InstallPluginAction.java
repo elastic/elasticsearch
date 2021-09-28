@@ -185,7 +185,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
     private boolean batch;
     private Proxy proxy = null;
 
-    InstallPluginAction(PluginLogger logger, Environment env, boolean batch) {
+    public InstallPluginAction(PluginLogger logger, Environment env, boolean batch) {
         this.logger = logger;
         this.env = env;
         this.batch = batch;

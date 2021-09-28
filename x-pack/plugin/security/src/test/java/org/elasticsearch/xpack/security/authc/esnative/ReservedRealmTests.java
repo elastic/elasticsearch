@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
@@ -41,7 +39,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -52,6 +49,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -68,15 +66,11 @@ public class ReservedRealmTests extends ESTestCase {
 
     private static final SecureString EMPTY_PASSWORD = new SecureString("".toCharArray());
     private NativeUsersStore usersStore;
-    private SecurityIndexManager securityIndex;
     private ThreadPool threadPool;
 
     @Before
     public void setupMocks() throws Exception {
         usersStore = mock(NativeUsersStore.class);
-        securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable()).thenReturn(true);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
         mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -96,6 +90,12 @@ public class ReservedRealmTests extends ESTestCase {
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
         final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME, UsernamesField.LOGSTASH_NAME,
             UsernamesField.BEATS_NAME);
+        SecureString password = new SecureString("password".toCharArray());
+        // Mocked users store is initiated with default hashing algorithm
+        final Hasher hasher = Hasher.resolve("bcrypt");
+        char[] hash = hasher.hash(password);
+        ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
+        mockGetAllReservedUserInfo(usersStore, Collections.singletonMap(principal, userInfo));
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
             new AnonymousUser(Settings.EMPTY), threadPool);
@@ -108,10 +108,6 @@ public class ReservedRealmTests extends ESTestCase {
 
     public void testAuthenticationDisabled() throws Throwable {
         Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
-        final boolean securityIndexExists = randomBoolean();
-        if (securityIndexExists) {
-            when(securityIndex.indexExists()).thenReturn(true);
-        }
         final ReservedRealm reservedRealm =
             new ReservedRealm(mock(Environment.class), settings, usersStore,
                 new AnonymousUser(settings), threadPool);
@@ -142,7 +138,6 @@ public class ReservedRealmTests extends ESTestCase {
         final SecureString newPassword = new SecureString("foobar".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
-        when(securityIndex.indexExists()).thenReturn(true);
         doAnswer(getAnswer(enabled, newPassword, hasher)).when(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
 
         // test empty password
@@ -160,7 +155,6 @@ public class ReservedRealmTests extends ESTestCase {
         assertEquals(expectedUser, authenticated);
         assertThat(expectedUser.enabled(), is(enabled));
 
-        verify(securityIndex, times(2)).indexExists();
         verify(usersStore, times(2)).getReservedUserInfo(eq(principal), anyActionListener());
         verifyNoMoreInteractions(usersStore);
 
@@ -190,7 +184,7 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.doLookupUser(principal, listener);
         final User user = listener.actionGet();
         assertEquals(expectedUser, user);
-        verify(securityIndex).indexExists();
+        verify(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
         reservedRealm.doLookupUser("foobar", assertListenerIsOnlyCalledOnce(future));
@@ -214,7 +208,6 @@ public class ReservedRealmTests extends ESTestCase {
         verifyZeroInteractions(usersStore);
     }
 
-
     public void testLookupDisabledAnonymous() throws Exception {
         Settings settings = Settings.builder()
             .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
@@ -237,7 +230,6 @@ public class ReservedRealmTests extends ESTestCase {
                 new AnonymousUser(Settings.EMPTY), threadPool);
         final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
-        when(securityIndex.indexExists()).thenReturn(true);
         final RuntimeException e = new RuntimeException("store threw");
         doAnswer((i) -> {
             ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
@@ -250,7 +242,6 @@ public class ReservedRealmTests extends ESTestCase {
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(securityException.getMessage(), containsString("failed to lookup"));
 
-        verify(securityIndex).indexExists();
         verify(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
 
         verifyNoMoreInteractions(usersStore);
@@ -304,7 +295,6 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testFailedAuthentication() throws Exception {
-        when(securityIndex.indexExists()).thenReturn(true);
         SecureString password = new SecureString("password".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
@@ -336,20 +326,18 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(result.getException(), is(nullValue()));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testBootstrapElasticPasswordWorksOnceSecurityIndexExists() throws Exception {
+    public void testBootstrapElasticPasswordWorksWhenElasticUserIsMissing() throws Exception {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityIndex.indexExists()).thenReturn(true);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
             new AnonymousUser(Settings.EMPTY), threadPool);
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
         doAnswer((i) -> {
-            @SuppressWarnings("rawtypes")
-            ActionListener callback = (ActionListener) i.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            ActionListener<ReservedUserInfo> callback = (ActionListener<ReservedUserInfo>) i.getArguments()[1];
             callback.onResponse(null);
             return null;
         }).when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
@@ -364,7 +352,6 @@ public class ReservedRealmTests extends ESTestCase {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityIndex.indexExists()).thenReturn(true);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
             new AnonymousUser(Settings.EMPTY), threadPool);
@@ -390,29 +377,11 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
     }
 
-    public void testBootstrapElasticPasswordWorksBeforeSecurityIndexExists() throws ExecutionException, InterruptedException {
-        MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        mockSecureSettings.setString("bootstrap.password", "foobar");
-        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityIndex.indexExists()).thenReturn(false);
-
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
-
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-                mockSecureSettings.getString("bootstrap.password")),
-            listener);
-        final AuthenticationResult result = listener.get();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-    }
-
-    public void testNonElasticUsersCannotUseBootstrapPasswordWhenSecurityIndexExists() throws Exception {
+    public void testNonElasticUsersCannotUseBootstrapPassword() throws Exception {
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();
         final String password = randomAlphaOfLengthBetween(8, 24);
         mockSecureSettings.setString("bootstrap.password", password);
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityIndex.indexExists()).thenReturn(true);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
             new AnonymousUser(Settings.EMPTY), threadPool);
@@ -425,25 +394,6 @@ public class ReservedRealmTests extends ESTestCase {
             callback.onResponse(null);
             return null;
         }).when(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
-        final AuthenticationResult result = listener.get();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
-    }
-
-    public void testNonElasticUsersCannotUseBootstrapPasswordWhenSecurityIndexDoesNotExists() throws Exception {
-        final MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        final String password = randomAlphaOfLengthBetween(8, 24);
-        mockSecureSettings.setString("bootstrap.password", password);
-        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        when(securityIndex.indexExists()).thenReturn(false);
-        NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, mock(NodeClient.class), securityIndex);
-
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, nativeUsersStore,
-            new AnonymousUser(Settings.EMPTY), threadPool);
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
-
-        final String principal = randomFrom(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
-            APMSystemUser.NAME, RemoteMonitoringUser.NAME);
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
         final AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
@@ -463,6 +413,11 @@ public class ReservedRealmTests extends ESTestCase {
             ((ActionListener<Map<String, ReservedUserInfo>>) i.getArguments()[0]).onResponse(collection);
             return null;
         }).when(usersStore).getAllReservedUserInfo(anyActionListener());
+
+        doAnswer((i) -> {
+            ((ActionListener<ReservedUserInfo>) i.getArguments()[1]).onResponse(null);
+            return null;
+        }).when(usersStore).getReservedUserInfo(anyString(), anyActionListener());
 
         for (Entry<String, ReservedUserInfo> entry : collection.entrySet()) {
             doAnswer((i) -> {

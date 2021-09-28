@@ -24,7 +24,7 @@ public class KibanaPluginTests extends ESTestCase {
                 .stream()
                 .map(SystemIndexDescriptor::getIndexPattern)
                 .collect(Collectors.toUnmodifiableList()),
-            contains(".kibana_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link")
+            contains(".kibana_*", ".reporting-*", ".apm-agent-configuration*", ".apm-custom-link*")
         );
     }
 }

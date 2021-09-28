@@ -3,7 +3,7 @@
 [[search-aggregations-bucket-count-ks-test-aggregation]]
 === Bucket count K-S test correlation aggregation
 ++++
-<titleabbrev>Bucket count K-S test aggregation</titleabbrev>
+<titleabbrev>Bucket count K-S test</titleabbrev>
 ++++
 
 experimental::[]

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
@@ -131,6 +132,7 @@ public class DeploymentManager {
 
                 assert modelConfig.getInferenceConfig() instanceof NlpConfig;
                 NlpConfig nlpConfig = (NlpConfig) modelConfig.getInferenceConfig();
+                task.init(nlpConfig);
 
                 SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());
                 executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
@@ -203,7 +205,9 @@ public class DeploymentManager {
     }
 
     public void infer(TrainedModelDeploymentTask task,
-                      Map<String, Object> doc, TimeValue timeout,
+                      InferenceConfig config,
+                      Map<String, Object> doc,
+                      TimeValue timeout,
                       ActionListener<InferenceResults> listener) {
         if (task.isStopped()) {
             listener.onFailure(
@@ -240,12 +244,20 @@ public class DeploymentManager {
                     List<String> text = Collections.singletonList(NlpTask.extractInput(processContext.modelInput.get(), doc));
                     NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
                     processor.validateInputs(text);
-                    NlpTask.Request request = processor.getRequestBuilder().buildRequest(text, requestId);
+                    assert config instanceof NlpConfig;
+                    NlpTask.Request request = processor.getRequestBuilder((NlpConfig) config).buildRequest(text, requestId);
                     logger.trace(() -> "Inference Request "+ request.processInput.utf8ToString());
                     PyTorchResultProcessor.PendingResult pendingResult = processContext.resultProcessor.registerRequest(requestId);
                     processContext.process.get().writeInferenceRequest(request.processInput);
-                    waitForResult(processContext, pendingResult, request.tokenization, requestId, timeout, processor.getResultProcessor(),
-                        listener);
+                    waitForResult(
+                        processContext,
+                        pendingResult,
+                        request.tokenization,
+                        requestId,
+                        timeout,
+                        processor.getResultProcessor((NlpConfig) config),
+                        listener
+                    );
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));

@@ -384,7 +384,7 @@ public class AuthorizationService {
                     )
             );
             authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier,
-                metadata.getIndicesLookup(), wrapPreservingContext(new AuthorizationResultListener<>(result ->
+                metadata, wrapPreservingContext(new AuthorizationResultListener<>(result ->
                     handleIndexActionAuthorizationResult(result, requestInfo, requestId, authzInfo, authzEngine, authorizedIndicesSupplier,
                         resolvedIndicesAsyncSupplier, metadata, listener),
                     listener::onFailure, requestInfo, requestId, authzInfo), threadContext));
@@ -434,7 +434,7 @@ public class AuthorizationService {
                             ril.onResponse(withAliases);
                         }, ril::onFailure));
                     },
-                    metadata.getIndicesLookup(),
+                    metadata,
                     wrapPreservingContext(new AuthorizationResultListener<>(
                         authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
                         listener::onFailure, aliasesRequestInfo, requestId, authzInfo), threadContext));
@@ -657,7 +657,7 @@ public class AuthorizationService {
                         new RequestInfo(requestInfo.getAuthentication(), requestInfo.getRequest(), bulkItemAction, bulkAuthzContext);
                     authzEngine.authorizeIndexAction(bulkItemInfo, authzInfo,
                         ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
-                        metadata.getIndicesLookup(), ActionListener.wrap(indexAuthorizationResult ->
+                        metadata, ActionListener.wrap(indexAuthorizationResult ->
                                 groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),
                             groupedActionListener::onFailure));
                 });

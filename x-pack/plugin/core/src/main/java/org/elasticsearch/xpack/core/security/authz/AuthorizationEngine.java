@@ -137,6 +137,12 @@ public interface AuthorizationEngine {
                               AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Map<String, IndexAbstraction> aliasOrIndexLookup,
                               ActionListener<IndexAuthorizationResult> listener);
 
+    default void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                      AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Metadata metadata,
+                                      ActionListener<IndexAuthorizationResult> listener) {
+        authorizeIndexAction(requestInfo, authorizationInfo, indicesAsyncSupplier, metadata.getIndicesLookup(), listener);
+    }
+
     /**
      * Asynchronously loads a set of alias and index names for which the user is authorized
      * to execute the requested action.

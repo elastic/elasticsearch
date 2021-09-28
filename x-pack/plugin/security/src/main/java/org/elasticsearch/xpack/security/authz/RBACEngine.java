@@ -37,6 +37,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
@@ -243,9 +244,20 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
+    public void authorizeIndexAction(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+        Map<String, IndexAbstraction> aliasOrIndexLookup,
+        ActionListener<IndexAuthorizationResult> listener) {
+        throw new UnsupportedOperationException("This method is no longer supported. " +
+            "Instead use authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Metadata, ActionListener) ");
+    }
+
+    @Override
     public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                      AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                     Map<String, IndexAbstraction> aliasOrIndexLookup,
+                                     Metadata metadata,
                                      ActionListener<IndexAuthorizationResult> listener) {
         final String action = requestInfo.getAction();
         final TransportRequest request = requestInfo.getRequest();
@@ -329,8 +341,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // check action name
                     listener.onResponse(authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES));
                 } else {
-                    listener.onResponse(buildIndicesAccessControl(
-                        action, authorizationInfo, Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup));
+                    buildIndicesAccessControlAsync(action, authorizationInfo, resolvedIndices, metadata, listener);
                 }
             }, listener::onFailure));
         } else {
@@ -346,8 +357,7 @@ public class RBACEngine implements AuthorizationEngine {
                         if (resolvedIndices.isNoIndicesPlaceholder()) {
                             listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                         } else {
-                            listener.onResponse(buildIndicesAccessControl(
-                                action, authorizationInfo, Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup));
+                            buildIndicesAccessControlAsync(action, authorizationInfo, resolvedIndices, metadata, listener);
                         }
                     }, listener::onFailure));
                 } else {
@@ -356,6 +366,48 @@ public class RBACEngine implements AuthorizationEngine {
             } catch (Exception e) {
                 listener.onFailure(e);
             }
+        }
+    }
+
+    private final Map<IndicesAccessControlCacheKey, ListenableFuture<IndicesAccessControl>> indicesAccessControlLookup =
+        new ConcurrentHashMap<>();
+
+    private void buildIndicesAccessControlAsync(
+        String action,
+        AuthorizationInfo authorizationInfo,
+        ResolvedIndices resolvedIndices,
+        Metadata metadata,
+        ActionListener<IndexAuthorizationResult> listener) {
+
+        final ActionListener<IndicesAccessControl> wrappingListener =
+            listener.map((IndicesAccessControl indicesAccessControl) -> new IndexAuthorizationResult(true, indicesAccessControl));
+
+        if (authorizationInfo instanceof RBACAuthorizationInfo) {
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+            final Tuple<IndicesPermission, IndicesPermission> indicesPermissionTuple = getRoleIndicesPermissions(role);
+            final Set<String> requestedIndices = Set.copyOf(resolvedIndices.getLocal());
+            final IndicesAccessControlCacheKey cacheKey = new IndicesAccessControlCacheKey(metadata.version(),
+                action, requestedIndices,
+                indicesPermissionTuple.v1(),
+                indicesPermissionTuple.v2());
+            final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
+            final ListenableFuture<IndicesAccessControl> listenableFuture = indicesAccessControlLookup.computeIfAbsent(cacheKey, k -> {
+                valueAlreadyInCache.set(false);
+                return new ListenableFuture<>();
+            });
+
+            if (valueAlreadyInCache.get()) {
+                listenableFuture.addListener(wrappingListener);
+            } else {
+                final IndicesAccessControl indicesAccessControl =
+                    buildIndicesAccessControl(action, authorizationInfo, requestedIndices, metadata.getIndicesLookup());
+                indicesAccessControlLookup.remove(cacheKey, listenableFuture);
+                wrappingListener.onResponse(indicesAccessControl);
+                listenableFuture.onResponse(indicesAccessControl);
+            }
+        } else {
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
         }
     }
 
@@ -433,13 +485,8 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                       Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
-        if (authorizationInfo instanceof RBACAuthorizationInfo) {
-            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, indicesLookup));
-        } else {
-            listener.onFailure(
-                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
-        }
+        throw new UnsupportedOperationException("This method is not longer supported. " +
+            "Instead use loadAuthorizedIndices(RequestInfo, AuthorizationInfo, Metadata, ActionListener)");
     }
 
     private final Map<AuthorizedIndicesCacheKey, ListenableFuture<Set<String>>> authorizedIndicesLookup = new ConcurrentHashMap<>();
@@ -450,18 +497,13 @@ public class RBACEngine implements AuthorizationEngine {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             final TransportRequest request = requestInfo.getRequest();
-            final IndicesPermission limitedByIndicesPermission;
-            if (role instanceof LimitedRole) {
-                limitedByIndicesPermission = ((LimitedRole) role).getLimitedBy().indices();
-            } else {
-                limitedByIndicesPermission = null;
-            }
+            final Tuple<IndicesPermission, IndicesPermission> indicesPermissionTuple = getRoleIndicesPermissions(role);
             final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
             final AuthorizedIndicesCacheKey cacheKey = new AuthorizedIndicesCacheKey(metadata.version(),
                 requestInfo.getAction(),
                 includeDataStreams,
-                role.indices(),
-                limitedByIndicesPermission);
+                indicesPermissionTuple.v1(),
+                indicesPermissionTuple.v2());
 
             final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
             final ListenableFuture<Set<String>> listenableFuture = authorizedIndicesLookup.computeIfAbsent(cacheKey, k -> {
@@ -472,21 +514,29 @@ public class RBACEngine implements AuthorizationEngine {
             if (valueAlreadyInCache.get()) {
                 listenableFuture.addListener(listener);
             } else {
-                loadAuthorizedIndices(requestInfo, authorizationInfo, metadata.getIndicesLookup(),
-                    ActionListener.wrap(authorizedIndices -> {
-                        authorizedIndicesLookup.remove(cacheKey, listenableFuture);
-                        listener.onResponse(authorizedIndices);
-                        listenableFuture.onResponse(authorizedIndices);
-                    }, e -> {
-                        authorizedIndicesLookup.remove(cacheKey, listenableFuture);
-                        listener.onFailure(e);
-                        listenableFuture.onFailure(e);
-                    }));
+                final Set<String> authorizedIndices = resolveAuthorizedIndicesFromRole(role, requestInfo, metadata.getIndicesLookup());
+                authorizedIndicesLookup.remove(cacheKey, listenableFuture);
+                listener.onResponse(authorizedIndices);
+                listenableFuture.onResponse(authorizedIndices);
             }
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
         }
+    }
+
+    private Tuple<IndicesPermission, IndicesPermission> getRoleIndicesPermissions(Role role) {
+        final IndicesPermission indicesPermission;
+        final IndicesPermission limitedByIndicesPermission;
+        if (role instanceof LimitedRole) {
+            final LimitedRole limitedRole = (LimitedRole) role;
+            indicesPermission = limitedRole.roleIndices();
+            limitedByIndicesPermission = limitedRole.getLimitedBy().indices();
+        } else {
+            indicesPermission = role.indices();
+            limitedByIndicesPermission = null;
+        }
+        return new Tuple<>(indicesPermission, limitedByIndicesPermission);
     }
 
     @Override
@@ -677,13 +727,13 @@ public class RBACEngine implements AuthorizationEngine {
         return Collections.unmodifiableSet(indicesAndAliases);
     }
 
-    private IndexAuthorizationResult buildIndicesAccessControl(String action,
-                                                               AuthorizationInfo authorizationInfo,
-                                                               Set<String> indices,
-                                                               Map<String, IndexAbstraction> aliasAndIndexLookup) {
+    private IndicesAccessControl buildIndicesAccessControl(String action,
+                                                           AuthorizationInfo authorizationInfo,
+                                                           Set<String> indices,
+                                                           Map<String, IndexAbstraction> aliasAndIndexLookup) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
         final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
-        return new IndexAuthorizationResult(true, accessControl);
+        return accessControl;
     }
 
     private static RBACAuthorizationInfo ensureRBAC(AuthorizationInfo authorizationInfo) {
@@ -821,6 +871,63 @@ public class RBACEngine implements AuthorizationEngine {
         @Override
         public int hashCode() {
             return Objects.hash(metadataVersion, action, includeDataStreams, indicesPermission, limitedByIndicesPermission);
+        }
+
+        @Override
+        public String toString() {
+            return "AuthorizedIndicesCacheKey{" + "metadataVersion=" + metadataVersion
+                + ", action='" + action + '\'' + ", includeDataStreams=" + includeDataStreams
+                + ", indicesPermission=" + indicesPermission
+                + ", limitedByIndicesPermission=" + limitedByIndicesPermission + '}';
+        }
+    }
+
+    private static class IndicesAccessControlCacheKey {
+        private final long metadataVersion;
+        private final String action;
+        private final Set<String> requestedIndices;
+        private final IndicesPermission indicesPermission;
+        private final IndicesPermission limitedByIndicesPermission;
+
+        private IndicesAccessControlCacheKey(
+            long metadataVersion,
+            String action,
+            Set<String> requestedIndices,
+            IndicesPermission indicesPermission,
+            IndicesPermission limitedByIndicesPermission) {
+            this.metadataVersion = metadataVersion;
+            this.action = action;
+            this.requestedIndices = requestedIndices;
+            this.indicesPermission = indicesPermission;
+            this.limitedByIndicesPermission = limitedByIndicesPermission;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            IndicesAccessControlCacheKey that = (IndicesAccessControlCacheKey) o;
+            return metadataVersion == that.metadataVersion
+                && action.equals(that.action)
+                && Objects.equals(requestedIndices, that.requestedIndices)
+                && Objects.equals(indicesPermission, that.indicesPermission)
+                && Objects.equals(limitedByIndicesPermission, that.limitedByIndicesPermission);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(metadataVersion, action, requestedIndices, indicesPermission, limitedByIndicesPermission);
+        }
+
+        @Override
+        public String toString() {
+            return "IndicesAccessControlCacheKey{" + "metadataVersion=" + metadataVersion
+                + ", action='" + action + '\''
+                + ", requestedIndices=" + requestedIndices
+                + ", indicesPermission=" + indicesPermission
+                + ", limitedByIndicesPermission=" + limitedByIndicesPermission + '}';
         }
     }
 }

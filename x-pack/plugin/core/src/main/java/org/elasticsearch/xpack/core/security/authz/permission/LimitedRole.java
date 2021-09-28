@@ -56,6 +56,10 @@ public final class LimitedRole extends Role {
         throw new UnsupportedOperationException("cannot retrieve run_as permission on limited role");
     }
 
+    public IndicesPermission roleIndices() {
+        return super.indices();
+    }
+
     public Role getLimitedBy() {
         return limitedBy;
     }

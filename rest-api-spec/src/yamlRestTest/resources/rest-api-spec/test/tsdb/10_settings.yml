@@ -140,20 +140,10 @@ set start_time and end_time:
         body:
           index:
             time_series:
-              start_time: 1632625781000
               end_time: 1632625793000
 
   - do:
-      catch: /index.time_series.start_time must be smaller than pre value \[1632625781000\]/
-      indices.put_settings:
-        index: test_index
-        body:
-          index:
-            time_series:
-              start_time: 1632625783000
-
-  - do:
-      catch: /index.time_series.end_time must be larger than pre value \[1632625793000\]/
+      catch: /index.time_series.end_time must be larger than current value \[1632625793000\]/
       indices.put_settings:
         index: test_index
         body:

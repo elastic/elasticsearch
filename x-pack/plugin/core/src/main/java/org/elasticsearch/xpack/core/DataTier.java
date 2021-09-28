@@ -48,8 +48,7 @@ public class DataTier {
     }
 
     // Represents an ordered list of data tiers from frozen to hot (or slow to fast)
-    private static final List<String> ORDERED_FROZEN_TO_HOT_TIERS =
-        List.of(DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
+    private static final List<String> ORDERED_FROZEN_TO_HOT_TIERS = List.of(DATA_FROZEN, DATA_COLD, DATA_WARM, DATA_HOT);
 
     /**
      * Returns true if the given tier name is a valid tier

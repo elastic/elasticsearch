@@ -115,7 +115,7 @@ However, 7.x indices that use these mapping parameters will continue to work.
 The `include_type_name` query parameter has been removed from the index
 creation, index template, and mapping APIs. Previously, you could set
 `include_type_name` to `true` to indicate that requests and responses should
-include a mapping type name. Mapping types have been removed in 8.0.
+include a mapping type name. Mapping types have been removed in 8.x.
 
 *Impact* +
 Discontinue use of the `include_type_name` query parameter. Requests that

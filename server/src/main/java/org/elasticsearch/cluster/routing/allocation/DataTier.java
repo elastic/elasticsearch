@@ -175,7 +175,7 @@ public class DataTier {
         }
     }
 
-    private static final class DataTierSettingValidator implements Setting.Validator<String> {
+    static final class DataTierSettingValidator implements Setting.Validator<String> {
 
         private static final Collection<Setting<?>> dependencies = List.of(
             IndexModule.INDEX_STORE_TYPE_SETTING,

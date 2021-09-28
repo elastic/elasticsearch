@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.DataTier.DataTierSettingValidator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -151,5 +152,23 @@ public class DataTierTests extends ESTestCase {
             nodesList.add(node);
         }
         return nodesList;
+    }
+
+    public void testDataTierSettingValidator() {
+        DataTierSettingValidator validator = new DataTierSettingValidator();
+
+        // good values
+        validator.validate(null);
+        validator.validate("");
+        validator.validate(" ");
+        validator.validate(DATA_WARM);
+        validator.validate(DATA_WARM + "," + DATA_HOT);
+        validator.validate(DATA_WARM + ","); // a little surprising
+
+        // bad values
+        expectThrows(IllegalArgumentException.class, () -> validator.validate(" " + DATA_WARM));
+        expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + " "));
+        expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + ", "));
+        expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + ", " + DATA_HOT));
     }
 }

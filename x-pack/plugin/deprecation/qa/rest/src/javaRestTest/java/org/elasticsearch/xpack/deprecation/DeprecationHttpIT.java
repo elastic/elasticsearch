@@ -234,8 +234,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     public void testDeprecationRouteThrottling() throws Exception {
         try {
-            configureWriteDeprecationLogsToIndex(true);
-
             final Request getRequest = createTestRequest("GET");
             assertOK(client().performRequest(getRequest));
 
@@ -319,7 +317,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
      */
     public void testDeprecationMessagesCanBeIndexed() throws Exception {
         try {
-            configureWriteDeprecationLogsToIndex(true);
 
             final Request request = new Request("GET", "/_test_cluster/deprecated_settings");
             final RequestOptions options = request.getOptions().toBuilder().addHeader("X-Opaque-Id", "some xid").build();
@@ -418,8 +415,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
      */
     public void testDeprecationWarnMessagesCanBeIndexed() throws Exception {
         try {
-            configureWriteDeprecationLogsToIndex(true);
-
             final Request request = new Request("GET", "/_test_cluster/deprecated_settings");
             final RequestOptions options = request.getOptions().toBuilder().addHeader("X-Opaque-Id", "some xid").build();
             request.setOptions(options);
@@ -517,8 +512,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
      */
     public void testCompatibleMessagesCanBeIndexed() throws Exception {
         try {
-            configureWriteDeprecationLogsToIndex(true);
-
             final Request compatibleRequest = new Request("GET", "/_test_cluster/deprecated_settings");
             final RequestOptions compatibleOptions = compatibleRequest.getOptions()
                 .toBuilder()

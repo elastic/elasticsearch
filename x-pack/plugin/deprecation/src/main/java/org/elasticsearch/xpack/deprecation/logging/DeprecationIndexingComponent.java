@@ -79,7 +79,10 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
         this.filter = new RateLimitingFilter();
         this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, ecsLayout, consumer);
 
+        setUseXOpaqueId(true); // default is true, enable on start.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, this::setUseXOpaqueId);
+
+        enableDeprecationLogIndexing(true); // default is true, enable on start.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(WRITE_DEPRECATION_LOGS_TO_INDEX, this::enableDeprecationLogIndexing);
     }
 

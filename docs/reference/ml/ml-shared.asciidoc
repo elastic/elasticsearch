@@ -912,6 +912,75 @@ Acceptable values are: `string`, `number`, `boolean`. When `boolean` is provided
 `1.0` is transformed to `true` and `0.0` to `false`.
 end::inference-config-classification-prediction-field-type[]
 
+tag::inference-config-nlp-tokenization[]
+Indicates the tokenization to perform and the desired settings.
+end::inference-config-nlp-tokenization[]
+
+tag::inference-config-nlp-tokenization-bert[]
+BERT-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-bert[]
+
+tag::inference-config-nlp-tokenization-bert-do-lower-case[]
+Should the tokenization lower case the text sequence when building 
+the tokens.
+end::inference-config-nlp-tokenization-bert-do-lower-case[]
+
+tag::inference-config-nlp-tokenization-bert-with-special-tokens[]
+Tokenize with special tokens. The tokens typically included in BERT-style tokenization are:
++
+--
+* `[CLS]`: The first token of the sequence being classified.
+* `[SEP]`: Indicates sequence separation. 
+--
+end::inference-config-nlp-tokenization-bert-with-special-tokens[]
+
+tag::inference-config-nlp-tokenization-bert-max-sequence-length[]
+The maximum number of tokens allowed to be output by the tokenizer.
+The default for BERT-style tokenization is `512`.
+end::inference-config-nlp-tokenization-bert-max-sequence-length[]
+
+tag::inference-config-nlp-vocabulary[]
+The configuration for retreiving the model's vocabulary. The vocabulary is then
+used at inference time. This information is usually provided automatically by
+storing vocabulary in a known, internally managed index.
+end::inference-config-nlp-vocabulary[]
+
+tag::inference-config-nlp-fill-mask[]
+Configuration for a fill_mask NLP task. The fill_mask task works with models
+optimized for a fill mask action. For example, for BERT models, the following
+text may be provided: "The capital of France is [MASK].". The response indicates
+the value most likely to replace `[MASK]`. In this instance, the
+most probable token is `paris`.
+end::inference-config-nlp-fill-mask[]
+
+tag::inference-config-ner[]
+Configures a named entity recognition (NER) task. NER is a special case of token
+classification. Each token in the sequence is classified according to the
+provided classification labels. Currently, the NER task requires the
+`classification_labels` Inside-Outside-Beginning formatted labels. Only
+person, organization, location, and miscellaneous are supported.
+end::inference-config-ner[]
+
+tag::inference-config-pass-through[]
+Configures a `pass_through` task. This task is useful for debugging as no
+post-processing is done to the inference output and the raw pooling layer
+results are returned to the caller.
+end::inference-config-pass-through[]
+
+tag::inference-config-text-classification[]
+A text classification task. Text classification classifies a provided text
+sequence into previously known target classes. A specific example of this is
+sentiment analysis, which returns the likely target classes indicating text
+sentiment, such as "sad", "happy", or "angry".
+end::inference-config-text-classification[]
+
+tag::inference-config-text-embedding[]
+Text embedding takes an input sequence and transforms it into a vector of
+numbers. These embeddings capture not simply tokens, but semantic meanings and
+context. These embeddings can then be used in a <<dense-vector,dense vector>>
+field for powerful insights.
+end::inference-config-text-embedding[]
+
 tag::inference-config-regression-num-top-feature-importance-values[]
 Specifies the maximum number of
 {ml-docs}/ml-feature-importance.html[{feat-imp}] values per document.

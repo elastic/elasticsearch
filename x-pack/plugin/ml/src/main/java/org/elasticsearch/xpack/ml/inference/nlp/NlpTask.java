@@ -56,6 +56,8 @@ public class NlpTask {
 
         Request buildRequest(List<String> inputs, String requestId) throws IOException;
 
+        Request buildRequest(TokenizationResult tokenizationResult, String requestId) throws IOException;
+
         static void writePaddedTokens(String fieldName,
                                       TokenizationResult tokenization,
                                       int padToken,
@@ -97,10 +99,6 @@ public class NlpTask {
         InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult);
     }
 
-    public interface ResultProcessorFactory {
-        ResultProcessor build(TokenizationResult tokenizationResult);
-    }
-
     public interface Processor {
         /**
          * Validate the task input string.
@@ -110,8 +108,8 @@ public class NlpTask {
          */
         void validateInputs(List<String> inputs);
 
-        RequestBuilder getRequestBuilder();
-        ResultProcessor getResultProcessor();
+        RequestBuilder getRequestBuilder(NlpConfig config);
+        ResultProcessor getResultProcessor(NlpConfig config);
     }
 
     public static String extractInput(TrainedModelInput input, Map<String, Object> doc) {

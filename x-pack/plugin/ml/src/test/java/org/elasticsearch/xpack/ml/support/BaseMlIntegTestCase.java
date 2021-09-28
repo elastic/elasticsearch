@@ -73,7 +73,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
@@ -296,38 +295,6 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             IndexRequest indexRequest = new IndexRequest(index);
             long timestamp = start + randomIntBetween(0, maxDelta);
-            assert timestamp >= start && timestamp < end;
-            indexRequest.source("time", timestamp, "@timestamp", timestamp).opType(DocWriteRequest.OpType.CREATE);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-        if (bulkResponse.hasFailures()) {
-            int failures = 0;
-            for (BulkItemResponse itemResponse : bulkResponse) {
-                if (itemResponse.isFailed()) {
-                    failures++;
-                    logger.error("Item response failure [{}]", itemResponse.getFailureMessage());
-                }
-            }
-            fail("Bulk response contained " + failures + " failures");
-        }
-        logger.info("Indexed [{}] documents", numDocs);
-    }
-
-    public static void indexDocs(Logger logger, String index, long numDocs, long start, long end, TimeValue interval) {
-        final long intervalMillis = interval.millis();
-        assert intervalMillis > TimeValue.timeValueSeconds(1).millis();
-        final long secondMillis = TimeValue.timeValueSeconds(1).millis();
-        end = Intervals.alignToFloor(end, intervalMillis);
-        start = Intervals.alignToCeil(start, intervalMillis);
-        int maxDelta = (int) (end - start - 1);
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (int i = 0; i < numDocs; i++) {
-            IndexRequest indexRequest = new IndexRequest(index);
-            long timestamp = Intervals.alignToFloor(start + randomIntBetween(0, maxDelta), interval.millis())
-                + randomLongBetween(secondMillis, intervalMillis - secondMillis);
             assert timestamp >= start && timestamp < end;
             indexRequest.source("time", timestamp, "@timestamp", timestamp).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);

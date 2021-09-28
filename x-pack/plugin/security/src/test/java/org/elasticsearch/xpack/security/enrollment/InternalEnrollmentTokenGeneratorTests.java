@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.net.InetAddress;
 import java.nio.file.Files;
@@ -56,6 +57,11 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
 
     private Environment environment;
     private Client client;
+
+    @BeforeClass
+    public static void muteInFips() {
+        assumeFalse("Enrollment is not supported in FIPS 140-2 as we are using PKCS#12 keystores", inFipsJvm());
+    }
 
     @Before
     public void setup() throws Exception {

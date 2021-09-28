@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -92,17 +93,18 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     }
 
     public void testCloseFreezeAndOpen() throws Exception {
-        createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
-        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("index").setId("3").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
+        String indexName = "index";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 2).build());
+        client().prepareIndex(indexName).setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(indexName).setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(indexName).setId("3").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
         expectThrows(
             ClusterBlockException.class,
-            () -> client().prepareIndex("index").setId("4").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get()
+            () -> client().prepareIndex(indexName).setId("4").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get()
         );
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
-        Index index = resolveIndex("index");
+        Index index = resolveIndex(indexName);
         IndexService indexService = indexServices.indexServiceSafe(index);
         IndexShard shard = indexService.getShard(0);
         Engine engine = IndexShardTestCase.getEngine(shard);
@@ -141,7 +143,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         } while (searchResponse.getHits().getHits().length > 0);
         client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
-        String pitId = openReaders(TimeValue.timeValueMinutes(1), "index");
+        String pitId = openReaders(TimeValue.timeValueMinutes(1), indexName);
         try {
             for (int from = 0; from < 3; from++) {
                 searchResponse = client().prepareSearch()
@@ -160,6 +162,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                     assertFalse(((FrozenEngine) engine).isReaderOpen());
                 }
             }
+            assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
         } finally {
             client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).get();
         }
@@ -177,11 +180,12 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject()
             .endObject();
-        createIndex("index", Settings.builder().put("index.number_of_shards", 2).build(), mapping);
+        String indexName = "index";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 2).build(), mapping);
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("index").setId("" + i).setSource("field", "foo bar baz").get();
+            client().prepareIndex(indexName).setId("" + i).setSource("field", "foo bar baz").get();
         }
-        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
         int numRequests = randomIntBetween(20, 50);
         int numRefreshes = 0;
         for (int i = 0; i < numRequests; i++) {
@@ -190,10 +194,10 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             // searcher and rewrite the request outside of the search-throttle thread pool
             switch (randomFrom(Arrays.asList(0, 1, 2))) {
                 case 0:
-                    client().prepareGet("index", "" + randomIntBetween(0, 9)).get();
+                    client().prepareGet(indexName, "" + randomIntBetween(0, 9)).get();
                     break;
                 case 1:
-                    client().prepareSearch("index")
+                    client().prepareSearch(indexName)
                         .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
                         .setSearchType(SearchType.QUERY_THEN_FETCH)
                         .get();
@@ -201,18 +205,19 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                     numRefreshes += 3;
                     break;
                 case 2:
-                    client().prepareTermVectors("index", "" + randomIntBetween(0, 9)).get();
+                    client().prepareTermVectors(indexName, "" + randomIntBetween(0, 9)).get();
                     break;
                 case 3:
-                    client().prepareExplain("index", "" + randomIntBetween(0, 9)).setQuery(new MatchAllQueryBuilder()).get();
+                    client().prepareExplain(indexName, "" + randomIntBetween(0, 9)).setQuery(new MatchAllQueryBuilder()).get();
                     break;
 
                 default:
                     assert false;
             }
         }
-        IndicesStatsResponse index = client().admin().indices().prepareStats("index").clear().setRefresh(true).get();
+        IndicesStatsResponse index = client().admin().indices().prepareStats(indexName).clear().setRefresh(true).get();
         assertEquals(numRefreshes, index.getTotal().refresh.getTotal());
+        assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
     }
 
     public void testFreezeAndUnfreeze() {
@@ -298,26 +303,28 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     }
 
     public void testFreezePattern() {
-        createIndex("test-idx", Settings.builder().put("index.number_of_shards", 1).build());
-        client().prepareIndex("test-idx").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        String indexName = "test-idx";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build());
+        client().prepareIndex(indexName).setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         createIndex("test-idx-1", Settings.builder().put("index.number_of_shards", 1).build());
         client().prepareIndex("test-idx-1").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test-idx")).actionGet());
-        assertIndexFrozen("test-idx");
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
+        assertIndexFrozen(indexName);
 
-        IndicesStatsResponse index = client().admin().indices().prepareStats("test-idx").clear().setRefresh(true).get();
+        IndicesStatsResponse index = client().admin().indices().prepareStats(indexName).clear().setRefresh(true).get();
         assertEquals(0, index.getTotal().refresh.getTotal());
-        assertHitCount(client().prepareSearch("test-idx").setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED).get(), 1);
-        index = client().admin().indices().prepareStats("test-idx").clear().setRefresh(true).get();
+        assertHitCount(client().prepareSearch(indexName).setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED).get(), 1);
+        index = client().admin().indices().prepareStats(indexName).clear().setRefresh(true).get();
         assertEquals(1, index.getTotal().refresh.getTotal());
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test*")).actionGet());
-        assertIndexFrozen("test-idx");
+        assertIndexFrozen(indexName);
         assertIndexFrozen("test-idx-1");
-        index = client().admin().indices().prepareStats("test-idx").clear().setRefresh(true).get();
+        index = client().admin().indices().prepareStats(indexName).clear().setRefresh(true).get();
         assertEquals(1, index.getTotal().refresh.getTotal());
         index = client().admin().indices().prepareStats("test-idx-1").clear().setRefresh(true).get();
         assertEquals(0, index.getTotal().refresh.getTotal());
+        assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
     }
 
     public void testCanMatch() throws IOException {

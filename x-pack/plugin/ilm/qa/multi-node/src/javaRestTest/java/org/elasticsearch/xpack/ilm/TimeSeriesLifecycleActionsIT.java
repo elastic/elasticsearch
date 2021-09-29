@@ -190,8 +190,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createSlmPolicy(slmPolicy, snapshotRepo);
+
         final String phaseName = "delete";
         createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy));
+        deleteSlmPolicy(slmPolicy); // delete the slm policy out from underneath ilm
         updatePolicy(client(), index, policy);
         waitForPhaseTime(phaseName);
         assertBusy(() -> {
@@ -199,9 +204,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
         }, slmPolicy);
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
-        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        createSlmPolicy(slmPolicy, snapshotRepo);
+        createSlmPolicy(slmPolicy, snapshotRepo); // put the slm policy back
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             //wait for step to notice that the slm policy is created and to get out of error
@@ -228,10 +231,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
-        final String phaseName = "delete";
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createSlmPolicy(slmPolicy, snapshotRepo);
+
+        final String phaseName = "delete";
         createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy));
         updatePolicy(client(), index, policy);
         waitForPhaseTime(phaseName);
@@ -249,12 +253,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
-        final String phaseName = "delete";
-        createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy));
-
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createSlmPolicy(slmPolicy, snapshotRepo);
+
+        final String phaseName = "delete";
+        createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy));
 
         Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
@@ -1005,6 +1009,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .endObject()));
 
         assertOK(client().performRequest(request));
+    }
+
+    private void deleteSlmPolicy(String smlPolicy) throws IOException {
+        assertOK(client().performRequest(new Request("DELETE", "/_slm/policy/" + smlPolicy)));
     }
 
     //adds debug information for waitForSnapshot tests

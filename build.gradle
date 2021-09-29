@@ -346,7 +346,6 @@ tasks.register("branchConsistency") {
 }
 
 tasks.named("wrapper").configure {
-  dependsOn gradle.includedBuild('example-plugins').task(':wrapper')
   distributionType = 'ALL'
   doLast {
     final DistributionLocator locator = new DistributionLocator()
@@ -387,13 +386,11 @@ gradle.projectsEvaluated {
 tasks.named("precommit") {
   dependsOn gradle.includedBuild('build-tools').task(':precommit')
   dependsOn gradle.includedBuild('build-tools-internal').task(':precommit')
-  dependsOn gradle.includedBuild('example-plugins').task(':precommit')
 }
 
 tasks.named("checkPart1").configure {
   dependsOn gradle.includedBuild('build-tools').task(':check')
   dependsOn gradle.includedBuild('build-tools-internal').task(':check')
-  dependsOn gradle.includedBuild('example-plugins').task(':check')
 }
 
 tasks.named("assemble").configure {

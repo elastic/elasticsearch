@@ -6,18 +6,20 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-.JodaCompatibleDateTime is removed from scripting.
+.The `JodaCompatibleDateTime` class has been removed.
 [%collapsible]
 ====
 *Details* +
 As a transition from Joda datetime to Java datetime, scripting used
-an intermediate class called `JodaCompatibleDateTime`. This class is
-now removed, and is replaced by `ZonedDateTime`.
+an intermediate class called `JodaCompatibleDateTime`. This class has
+been removed and is replaced by `ZonedDateTime`. Any use of casting
+to a `JodaCompatibleDateTime` in a script will result in a compilation
+error, and may not allow the upgraded node to start.
 
 *Impact* +
-Prior to upgrade, any scripts using `getDayOfWeek` must replace
-this with `getDayOfWeekEnum().value`. After upgrade, any scripts
-using `getDayOfWeekEnum` should replace this method with `getDayOfWeek`
-as it now returns the `DayOfWeek` enum instead of an `int` value.
+Before upgrading, replace `getDayOfWeek` with `getDayOfWeekEnum().value` in any
+scripts. Any use of `getDayOfWeek` expecting a return value of `int` will result
+in a compilation error or runtime error and may not allow the upgraded node to
+start.
 ====
 // end::notable-breaking-changes[]

@@ -212,6 +212,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               task.replaceKeyInDo("do_.some.key_to_replace_in_two", "do_.some.key_that_was_replaced_in_two", "two")
               task.replaceKeyInMatch("match_.some.key_to_replace", "match_.some.key_that_was_replaced")
               task.replaceKeyInLength("key.in_length_to_replace", "key.in_length_that_was_replaced")
+              task.replaceValueInLength("value_to_replace", 99, "one")
               task.replaceValueTextByKeyValue("keyvalue", "toreplace", "replacedkeyvalue")
               task.replaceValueTextByKeyValue("index", "test", "test2", "two")
             })
@@ -242,6 +243,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - is_true: "value_not_to_replace"
           - is_false: "value_not_to_replace"
           - length: { key.in_length_to_replace: 1 }
+          - length: { value_to_replace: 1 }
         ---
         "two":
           - do:
@@ -258,6 +260,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - is_false: "value_to_replace"
           - is_true: "value_not_to_replace"
           - is_false: "value_not_to_replace"
+          - length: { value_not_to_replace: 1 }
         ---
         "use cat with no header":
           - do:
@@ -322,6 +325,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
         - length: { key.in_length_that_was_replaced: 1 }
+        - length: { value_to_replace: 99 }
         - match:
             _source.added:
               name: "jake"
@@ -355,6 +359,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - is_false: "replaced_value"
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
+        - length: { value_not_to_replace: 1 }
         ---
         "use cat with no header":
           - do:

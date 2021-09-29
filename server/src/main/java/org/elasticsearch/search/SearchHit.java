@@ -729,7 +729,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             }
             builder.endObject();
         }
-        if (ignoredFieldValues.isEmpty() == false) {
+        if (ignoredFieldValues != null && ignoredFieldValues.isEmpty() == false) {
             builder.startObject(Fields.IGNORED_FIELD_VALUES);
             for (DocumentField field : ignoredFieldValues.values()) {
                 if (field.getValues().size() > 0) {

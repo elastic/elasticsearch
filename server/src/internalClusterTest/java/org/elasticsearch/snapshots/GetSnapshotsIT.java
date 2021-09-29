@@ -34,6 +34,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LARGE_SNAPSHOT_POOL_SETTINGS)
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
             .build();
     }
@@ -170,16 +171,6 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             inProgressSnapshots.add(startFullSnapshot(repoName, snapshotName));
         }
         awaitNumberOfSnapshotsInProgress(inProgressCount);
-
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
-
-        unblockAllDataNodes(repoName);
-        for (ActionFuture<CreateSnapshotResponse> inProgressSnapshot : inProgressSnapshots) {
-            assertSuccessful(inProgressSnapshot);
-        }
-
         awaitClusterState(
             state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
                 .entries()
@@ -190,6 +181,15 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                         || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
                 )
         );
+
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
+
+        unblockAllDataNodes(repoName);
+        for (ActionFuture<CreateSnapshotResponse> inProgressSnapshot : inProgressSnapshots) {
+            assertSuccessful(inProgressSnapshot);
+        }
 
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);

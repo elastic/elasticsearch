@@ -23,8 +23,6 @@ import java.util.List;
 
 public class FillMaskProcessor implements NlpTask.Processor {
 
-    private static final int NUM_RESULTS = 5;
-
     private final NlpTask.RequestBuilder requestBuilder;
 
     FillMaskProcessor(NlpTokenizer tokenizer, FillMaskConfig config) {
@@ -57,11 +55,14 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        return this::processResult;
+        if (config instanceof FillMaskConfig) {
+            return (tokenization, result) -> processResult(tokenization, result, ((FillMaskConfig)config).getNumTopClasses());
+        } else {
+            return (tokenization, result) -> processResult(tokenization, result, FillMaskConfig.DEFAULT_NUM_RESULTS);
+        }
     }
 
-    InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
-
+    InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult, int numResults) {
         if (tokenization.getTokenizations().isEmpty() ||
             tokenization.getTokenizations().get(0).getTokens().length == 0) {
             return new FillMaskResults(Collections.emptyList());
@@ -71,8 +72,8 @@ public class FillMaskProcessor implements NlpTask.Processor {
         // TODO - process all results in the batch
         double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0][maskTokenIndex]);
 
-        NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(NUM_RESULTS, normalizedScores);
-        List<FillMaskResults.Prediction> results = new ArrayList<>(NUM_RESULTS);
+        NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(numResults, normalizedScores);
+        List<FillMaskResults.Prediction> results = new ArrayList<>(numResults);
         for (NlpHelpers.ScoreAndIndex scoreAndIndex : scoreAndIndices) {
             String predictedToken = tokenization.getFromVocab(scoreAndIndex.index);
             String sequence = tokenization.getTokenizations().get(0).getInput().replace(BertTokenizer.MASK_TOKEN, predictedToken);

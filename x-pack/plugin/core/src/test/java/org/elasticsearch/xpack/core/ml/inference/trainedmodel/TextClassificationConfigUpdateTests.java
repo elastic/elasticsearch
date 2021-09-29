@@ -87,7 +87,6 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
             ));
     }
 
-
     @Override
     protected TextClassificationConfigUpdate doParseInstance(XContentParser parser) throws IOException {
         return TextClassificationConfigUpdate.fromXContentStrict(parser);

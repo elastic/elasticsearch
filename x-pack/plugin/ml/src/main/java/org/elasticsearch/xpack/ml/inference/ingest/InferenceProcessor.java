@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -368,6 +370,9 @@ public class InferenceProcessor extends AbstractProcessor {
             } else if (configMap.containsKey(TextClassificationConfig.NAME)) {
                 checkSupportedVersion(new TextClassificationConfig(null, null, null, null, null));
                 return TextClassificationConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(FillMaskConfig.NAME)) {
+                checkSupportedVersion(new FillMaskConfig(null, null, null, null));
+                return FillMaskConfigUpdate.fromMap(valueMap);
             }
             else {
                 throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",

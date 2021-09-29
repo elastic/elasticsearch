@@ -113,6 +113,61 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             : null;
     }
 
+    @Override
+    protected void masterOperation(Task ignoredTask, Request request, ClusterState state, ActionListener<Response> listener)
+        throws Exception {
+        TransformNodes.warnIfNoTransformNodes(state);
+
+        // do not allow in mixed clusters
+        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot upgrade transforms. All nodes must be the same version [{}]",
+                    RestStatus.CONFLICT,
+                    state.nodes().getMaxNodeVersion().toString()
+                )
+            );
+            return;
+        }
+
+        PageParams startPage = new PageParams(0, PageParams.DEFAULT_SIZE);
+        Map<UpdateResult.Status, Long> updatesByStatus = new HashMap<>();
+
+        recursiveExpandTransformIdsAndUpgrade(updatesByStatus, request.isDryRun(), startPage, ActionListener.wrap(r -> {
+
+            // todo: consider skip over option
+            final boolean success = true;
+
+            final long updated = updatesByStatus.containsKey(UpdateResult.Status.UPDATED)
+                ? updatesByStatus.get(UpdateResult.Status.UPDATED)
+                : 0;
+
+            final long skipped = updatesByStatus.containsKey(UpdateResult.Status.NONE) ? updatesByStatus.get(UpdateResult.Status.NONE) : 0;
+
+            final long needsUpdate = updatesByStatus.containsKey(UpdateResult.Status.NEEDS_UPDATE)
+                ? updatesByStatus.get(UpdateResult.Status.NEEDS_UPDATE)
+                : 0;
+
+            if (request.isDryRun() == false) {
+                transformConfigManager.deleteOldIndices(state, ActionListener.wrap(deletedIndices -> {
+                    logger.debug("Deleted [{}] old transform internal indices", deletedIndices);
+                    logger.info("Successfully upgraded all transforms, (updated: [{}], skipped [{}])", updated, skipped);
+
+                    listener.onResponse(new UpgradeTransformsAction.Response(success, updated, skipped, needsUpdate));
+                }, listener::onFailure));
+            } else {
+                // else: dry run
+                listener.onResponse(new UpgradeTransformsAction.Response(success, updated, skipped, needsUpdate));
+            }
+        }, listener::onFailure));
+
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(UpgradeTransformsAction.Request request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
     private void updateOneTransform(String id, boolean dryRun, ActionListener<UpdateResult> listener) {
         final ClusterState clusterState = clusterService.state();
 
@@ -182,6 +237,11 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         transformConfigManager.expandTransformIds(Metadata.ALL, page, true, ActionListener.wrap(hitsAndIds -> {
 
             List<String> ids = hitsAndIds.v2().v1();
+            if (ids.isEmpty()) {
+                listener.onResponse(updatesByStatus);
+                return;
+            }
+
             Deque<String> transformsToUpgrade = new ArrayDeque<>(ids);
 
             recursiveUpdate(transformsToUpgrade, updatesByStatus, dryRun, ActionListener.wrap(r -> {
@@ -196,60 +256,4 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             );
         }, listener::onFailure));
     }
-
-    @Override
-    protected void masterOperation(Task ignoredTask, Request request, ClusterState state, ActionListener<Response> listener)
-        throws Exception {
-        TransformNodes.warnIfNoTransformNodes(state);
-
-        // do not allow in mixed clusters
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Cannot upgrade transforms. All nodes must be the same version [{}]",
-                    RestStatus.CONFLICT,
-                    state.nodes().getMaxNodeVersion().toString()
-                )
-            );
-            return;
-        }
-
-        PageParams startPage = new PageParams(0, PageParams.DEFAULT_SIZE);
-        Map<UpdateResult.Status, Long> updatesByStatus = new HashMap<>();
-
-        recursiveExpandTransformIdsAndUpgrade(updatesByStatus, request.isDryRun(), startPage, ActionListener.wrap(r -> {
-
-            // todo: consider skip over option
-            final boolean success = true;
-
-            final long updated = updatesByStatus.containsKey(UpdateResult.Status.UPDATED)
-                ? updatesByStatus.get(UpdateResult.Status.UPDATED)
-                : 0;
-
-            final long skipped = updatesByStatus.containsKey(UpdateResult.Status.NONE) ? updatesByStatus.get(UpdateResult.Status.NONE) : 0;
-
-            final long needsUpdate = updatesByStatus.containsKey(UpdateResult.Status.NEEDS_UPDATE)
-                ? updatesByStatus.get(UpdateResult.Status.NEEDS_UPDATE)
-                : 0;
-
-            if (request.isDryRun() == false) {
-                transformConfigManager.deleteOldIndices(state, ActionListener.wrap(deletedIndices -> {
-                    logger.debug("Deleted [{}] old transform internal indices", deletedIndices);
-                    logger.info("Successfully upgraded all transforms, (updated: [{}], skipped [{}])", updated, skipped);
-
-                    listener.onResponse(new UpgradeTransformsAction.Response(success, updated, skipped, needsUpdate));
-                }, listener::onFailure));
-            } else {
-                // else: dry run
-                listener.onResponse(new UpgradeTransformsAction.Response(success, updated, skipped, needsUpdate));
-            }
-        }, listener::onFailure));
-
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(UpgradeTransformsAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
 }

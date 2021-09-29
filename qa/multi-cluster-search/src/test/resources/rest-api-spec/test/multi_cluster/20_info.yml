@@ -26,7 +26,7 @@
             cluster.remote.test_remote_cluster.node_connections: "2"
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {peristent.cluster\.remote\.test_remote_cluster\.mode: "sniff"}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.mode: "sniff"}
   - match: {persistent.cluster\.remote\.test_remote_cluster\.node_connections: "2"}
   - match: {persistent.cluster\.remote\.test_remote_cluster\.seeds: $remote_ip}
 

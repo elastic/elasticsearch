@@ -373,6 +373,20 @@ An array of `trained_model` objects. Supported trained models are `tree` and
 (Optional, string)
 A human-readable description of the {infer} trained model.
 
+`estimated_heap_memory_usage_bytes`:::
+(Optional, integer)
+The estimated heap usage in bytes to keep the trained model in memory.
+
+Can only be supplied if `defer_definition_decompression` is `true` or the
+model definition is not supplied.
+
+`estimated_operations`:::
+(Optional, integer)
+The estimated number of operations to use the trained model during inference.
+
+Can only be supplied if `defer_definition_decompression` is `true` or the
+model definition is not supplied.
+
 //Begin inference_config
 `inference_config`::
 (Required, object)

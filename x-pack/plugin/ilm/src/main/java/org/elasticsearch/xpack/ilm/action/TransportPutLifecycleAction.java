@@ -81,11 +81,10 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             .map(phase -> (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME))
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
-        if (searchableSnapshotActions.isEmpty() == false) {
-            if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
-                throw new IllegalArgumentException("policy [" + request.getPolicy().getName() + "] defines the [" +
-                    SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
-            }
+        // check license level for searchable snapshots
+        if (searchableSnapshotActions.isEmpty() == false && SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
+            throw new IllegalArgumentException("policy [" + request.getPolicy().getName() + "] defines the [" +
+                SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
         }
 
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),

@@ -45,6 +45,7 @@ public class HotThreads {
     private int threadElementsSnapshotCount = 10;
     private ReportType type = ReportType.CPU;
     private boolean ignoreIdleThreads = true;
+    private SunThreadInfo sunThreadInfo = new SunThreadInfo();
 
     private static final List<String[]> knownIdleStackFrames = Arrays.asList(
         new String[] {"java.util.concurrent.ThreadPoolExecutor", "getTask"},
@@ -117,6 +118,12 @@ public class HotThreads {
         return this;
     }
 
+    // Used for testing
+    public HotThreads sunThreadInfo(SunThreadInfo sunThreadInfo) {
+        this.sunThreadInfo = sunThreadInfo;
+        return this;
+    }
+
     public String detect() throws Exception {
         synchronized (mutex) {
             return innerDetect(ManagementFactory.getThreadMXBean(), Thread.currentThread().getId());
@@ -160,8 +167,7 @@ public class HotThreads {
             if (cpuTime == INVALID_TIMING) {
                 continue;
             }
-            //put to result when getThreadAllocatedBytes return -1
-            long allocatedBytes = SunThreadInfo.getThreadAllocatedBytes(threadIds[i]);
+            long allocatedBytes = type == ReportType.MEM ? sunThreadInfo.getThreadAllocatedBytes(threadIds[i]) : 0;
             result.put(threadIds[i], new ThreadTimeAccumulator(threadInfos[i], cpuTime, allocatedBytes));
         }
 
@@ -195,7 +201,7 @@ public class HotThreads {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
 
-        if (type == ReportType.MEM && SunThreadInfo.isThreadAllocatedMemorySupported() == false) {
+        if (type == ReportType.MEM && sunThreadInfo.isThreadAllocatedMemorySupported() == false) {
             throw new ElasticsearchException("thread allocated memory is not supported on this JDK");
         }
 

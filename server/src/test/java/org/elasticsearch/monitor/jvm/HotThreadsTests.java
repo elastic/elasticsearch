@@ -8,6 +8,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.InOrder;
@@ -22,7 +23,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.inOrder;
@@ -335,6 +336,32 @@ public class HotThreadsTests extends ESTestCase {
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
+
+        allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
+        cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
+        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+
+        SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
+        when(mockedSunThreadInfo.isThreadAllocatedMemorySupported()).thenReturn(true);
+        when(mockedSunThreadInfo.isThreadAllocatedMemoryEnabled()).thenReturn(true);
+        for (long threadId : threadIds) {
+            when(mockedSunThreadInfo.getThreadAllocatedBytes(threadId)).thenReturn(0L).thenReturn(threadId*100);
+        }
+
+        hotThreads = new HotThreads()
+            .busiestThreads(4)
+            .type(HotThreads.ReportType.MEM)
+            .interval(TimeValue.timeValueNanos(10))
+            .threadElementsSnapshotCount(1)
+            .ignoreIdleThreads(false)
+            .sunThreadInfo(mockedSunThreadInfo);
+
+        String memInnerResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
+        assertThat(memInnerResult, containsString("  unique snapshot"));
+        assertThat(memInnerResult, containsString("400b memory allocated by thread 'Thread 4'"));
+        assertThat(memInnerResult, containsString("300b memory allocated by thread 'Thread 3'"));
+        assertThat(memInnerResult, containsString("200b memory allocated by thread 'Thread 2'"));
+        assertThat(memInnerResult, containsString("100b memory allocated by thread 'Thread 1'"));
     }
 
     public void testEnsureInnerDetectSkipsCurrentThread() throws Exception {
@@ -611,9 +638,51 @@ public class HotThreadsTests extends ESTestCase {
         orderVerifier.verify(mockedMXBean).setThreadContentionMonitoringEnabled(false);
     }
 
-    public void testGetThreadAllocatedBytes() {
-        if (SunThreadInfo.isThreadAllocatedMemorySupported() && SunThreadInfo.isThreadAllocatedMemoryEnabled()) {
-            assertThat(SunThreadInfo.getThreadAllocatedBytes(Thread.currentThread().getId()), greaterThan(0L));
-        }
+    public void testGetThreadAllocatedBytesFailures() throws Exception {
+        ThreadMXBean mockedMXBean = mock(ThreadMXBean.class);
+        when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
+        when(mockedMXBean.isThreadContentionMonitoringSupported()).thenReturn(true);
+        SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
+        when(mockedSunThreadInfo.isThreadAllocatedMemorySupported()).thenReturn(false);
+
+        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long mockCurrentThreadId = 0L;
+        when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
+
+        List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
+        List<ThreadInfo> cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
+        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+
+        HotThreads hotThreads0 = new HotThreads()
+            .busiestThreads(4)
+            .type(HotThreads.ReportType.MEM)
+            .interval(TimeValue.timeValueNanos(10))
+            .threadElementsSnapshotCount(1)
+            .ignoreIdleThreads(false)
+            .sunThreadInfo(mockedSunThreadInfo);
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> hotThreads0.innerDetect(mockedMXBean, 0L));
+        assertThat(exception.getMessage(), equalTo("thread allocated memory is not supported on this JDK"));
+
+        // making sure CPU type was not affected when isThreadAllocatedMemorySupported() == false
+
+        HotThreads hotThreads1 = new HotThreads()
+            .busiestThreads(4)
+            .type(HotThreads.ReportType.CPU)
+            .interval(TimeValue.timeValueNanos(10))
+            .threadElementsSnapshotCount(1)
+            .ignoreIdleThreads(false)
+            .sunThreadInfo(mockedSunThreadInfo);
+
+        String innerResult = hotThreads1.innerDetect(mockedMXBean, mockCurrentThreadId);
+        assertThat(innerResult, containsString("Hot threads at "));
+        assertThat(innerResult, containsString("40.0% (4nanos out of 10nanos) cpu usage by thread 'Thread 4'"));
+        assertThat(innerResult, containsString("30.0% (3nanos out of 10nanos) cpu usage by thread 'Thread 3'"));
+        assertThat(innerResult, containsString("20.0% (2nanos out of 10nanos) cpu usage by thread 'Thread 2'"));
+        assertThat(innerResult, containsString("10.0% (1nanos out of 10nanos) cpu usage by thread 'Thread 1'"));
+        assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
+        assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
+        assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
     }
 }

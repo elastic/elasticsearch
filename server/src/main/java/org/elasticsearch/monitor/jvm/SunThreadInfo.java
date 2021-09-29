@@ -31,9 +31,8 @@ public class SunThreadInfo {
         isThreadAllocatedMemoryEnabled = getMethod("isThreadAllocatedMemoryEnabled");
     }
 
-    public static boolean isThreadAllocatedMemorySupported() {
+    public boolean isThreadAllocatedMemorySupported() {
         if (isThreadAllocatedMemorySupported == null) {
-            logger.warn("isThreadAllocatedMemorySupported is not available");
             return false;
         }
 
@@ -45,9 +44,8 @@ public class SunThreadInfo {
         }
     }
 
-    public static boolean isThreadAllocatedMemoryEnabled() {
+    public boolean isThreadAllocatedMemoryEnabled() {
         if (isThreadAllocatedMemoryEnabled == null) {
-            logger.warn("isThreadAllocatedMemoryEnabled is not available");
             return false;
         }
 
@@ -59,9 +57,8 @@ public class SunThreadInfo {
         }
     }
 
-    public static long getThreadAllocatedBytes(long id) {
+    public long getThreadAllocatedBytes(long id) {
         if (getThreadAllocatedBytes == null) {
-            logger.warn("getThreadAllocatedBytes is not available");
             return 0;
         }
 
@@ -75,11 +72,8 @@ public class SunThreadInfo {
 
         try {
             long bytes = (long) getThreadAllocatedBytes.invoke(threadMXBean, id);
-            if (bytes < 0) {
-                logger.debug("OS reported a negative thread allocated size [{}]", bytes);
-                return 0;
-            }
-            return bytes;
+            assert bytes >= 0 : "OS reported a negative thread allocated size [" + bytes + "], thread id [" + id + "].";
+            return Math.max(0, bytes);
         } catch (Exception e) {
             logger.warn("exception retrieving thread allocated memory", e);
             return 0;

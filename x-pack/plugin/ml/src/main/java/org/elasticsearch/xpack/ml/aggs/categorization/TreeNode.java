@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
@@ -111,7 +112,10 @@ abstract class TreeNode implements Accountable {
         public TextCategorization addLog(int[] logTokenIds, long docCount, CategorizationTokenTree treeNodeFactory) {
             return getAndUpdateLogGroup(logTokenIds, docCount).orElseGet(() -> {
                 // Need to update the tree if possible
-                return putNewLogGroup(treeNodeFactory.newGroup(docCount, logTokenIds));
+                TextCategorization group = putNewLogGroup(treeNodeFactory.newGroup(docCount, logTokenIds));
+                // Get the regular size bytes from the LogGroup and how much it costs to reference it
+                treeNodeFactory.incSize(group.ramBytesUsed() + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+                return group;
             });
         }
 
@@ -230,6 +234,10 @@ abstract class TreeNode implements Accountable {
                 return node;
             }).orElseGet(() -> {
                 TreeNode newNode = treeNodeFactory.newNode(docCount, childrenTokenPos + 1, logTokenIds);
+                // The size of the node + entry (since it is a map entry) + extra reference for priority queue
+                treeNodeFactory.incSize(
+                    newNode.ramBytesUsed() + RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+                );
                 return addChild(currentToken, newNode);
             });
             return child.addLog(logTokenIds, docCount, treeNodeFactory);

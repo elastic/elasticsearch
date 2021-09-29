@@ -10,12 +10,6 @@ A multi-bucket aggregation that groups semi-structured text into buckets. Each `
 using a custom analyzer. The resulting tokens are then categorized creating buckets of similarly formatted
 text values. This aggregation works best with machine generated text like system logs.
 
-WARNING: Re-analyzing _large_ result sets will require a lot of time and memory. This aggregation should be
-         used in conjunction with <<async-search, Async search>>. Additionally, you may consider
-         using the aggregation as a child of either the <<search-aggregations-bucket-sampler-aggregation,sampler>> or
-         <<search-aggregations-bucket-diversified-sampler-aggregation,diversified sampler>> aggregation.
-         This will typically improve speed and memory use.
-
 NOTE: If you have considerable memory allocated to your JVM but are receiving circuit breaker exceptions from this
       aggregation, you may be attempting to categorize text that is poorly formatted for categorization. Consider
       adding `categorization_filters` or running under <<search-aggregations-bucket-sampler-aggregation,sampler>> or
@@ -117,6 +111,13 @@ The minimum number of documents for a bucket to be returned from the shard befor
 merging.
 
 ==== Basic use
+
+
+WARNING: Re-analyzing _large_ result sets will require a lot of time and memory. This aggregation should be
+         used in conjunction with <<async-search, Async search>>. Additionally, you may consider
+         using the aggregation as a child of either the <<search-aggregations-bucket-sampler-aggregation,sampler>> or
+         <<search-aggregations-bucket-diversified-sampler-aggregation,diversified sampler>> aggregation.
+         This will typically improve speed and memory use.
 
 Example:
 

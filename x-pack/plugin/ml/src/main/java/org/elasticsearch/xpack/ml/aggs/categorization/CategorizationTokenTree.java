@@ -113,6 +113,7 @@ public class CategorizationTokenTree implements Accountable {
         TreeNode currentNode = this.root.get(logTokenIds.length);
         if (currentNode == null) { // we are missing an entire sub tree. New log length found
             currentNode = newNode(docCount, 0, logTokenIds);
+            incSize(currentNode.ramBytesUsed() + RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
             this.root.put(logTokenIds.length, currentNode);
         } else {
             currentNode.incCount(docCount);
@@ -121,19 +122,17 @@ public class CategorizationTokenTree implements Accountable {
     }
 
     TreeNode newNode(long docCount, int tokenPos, int[] logTokenIds) {
-        TreeNode node = tokenPos < maxMatchTokens - 1 && tokenPos < logTokenIds.length
+        return tokenPos < maxMatchTokens - 1 && tokenPos < logTokenIds.length
             ? new TreeNode.InnerTreeNode(docCount, tokenPos, maxUniqueTokens)
             : new TreeNode.LeafTreeNode(docCount, similarityThreshold);
-        // The size of the node + entry (since it is a map entry) + extra reference for priority queue
-        sizeInBytes += node.ramBytesUsed() + RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-        return node;
     }
 
     TextCategorization newGroup(long docCount, int[] logTokenIds) {
-        TextCategorization group = new TextCategorization(logTokenIds, docCount, idGenerator++);
-        // Get the regular size bytes from the LogGroup and how much it costs to reference it
-        sizeInBytes += group.ramBytesUsed() + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-        return group;
+        return new TextCategorization(logTokenIds, docCount, idGenerator++);
+    }
+
+    void incSize(long size) {
+        sizeInBytes += size;
     }
 
     @Override

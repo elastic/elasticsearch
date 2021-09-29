@@ -37,7 +37,7 @@ if (BuildParams.inFipsJvm){
 
 tasks.named("yamlRestTestV7CompatTest").configure {
     systemProperty 'tests.rest.blacklist', [
-            // remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0
+            // remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)
             'mustache/30_search_input/Test search input mustache integration (using request body and rest_total_hits_as_int)',
             'mustache/30_search_input/Test search input mustache integration (using request body)'
     ].join(',')

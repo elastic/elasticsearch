@@ -1040,9 +1040,15 @@ public class NumberFieldMapper extends FieldMapper {
             return type.name;
         }
 
-        public NumberType numberType() {
-            return type;
+        /**
+         * It may seem strange to convert a double to a double, and it is.  This function's goal is to reduce the precision
+         * on the double in the case that the backing number type would have parsed the value differently.  This is to address
+         * the problem where (e.g.) 0.04F &lt; 0.04D, which causes problems for range aggregations.
+         */
+        public double coerceToDouble(Double value) {
+          return type.parse(value, false).doubleValue();
         }
+
         public NumericType numericType() {
             return type.numericType();
         }

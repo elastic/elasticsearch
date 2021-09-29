@@ -157,9 +157,9 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
          This will downgrade the precision of the range bounds to match the field's precision.  Fixes float/double issues, but not
          long/double issues.  See https://github.com/elastic/elasticsearch/issues/77033
          */
-        ToDoubleFunction<Double> fixPrecision = config.getNumericType() == null
+        ToDoubleFunction<Double> fixPrecision = config.coerceToDoubleFunction() == null
             ? (value) -> value
-            : (value) -> config.getNumericType().parse(value, false).doubleValue();
+            : config.coerceToDoubleFunction();
 
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {

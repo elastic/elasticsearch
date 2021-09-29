@@ -22,6 +22,7 @@ import org.elasticsearch.search.DocValueFormat;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.function.Function;
+import java.util.function.ToDoubleFunction;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -325,12 +326,12 @@ public class ValuesSourceConfig {
     /**
      * If this is a numeric field backed values source type, return the type of the numeric field backing it.
      * Otherwise return null.
+     * @return
      */
-    public NumberFieldMapper.NumberType getNumericType() {
+    public ToDoubleFunction<Double> coerceToDoubleFunction() {
         if (fieldContext() != null && fieldType() instanceof NumberFieldMapper.NumberFieldType) {
-            return ((NumberFieldMapper.NumberFieldType)fieldType()).numberType();
+            return ((NumberFieldMapper.NumberFieldType) fieldType())::coerceToDouble;
         }
-
         return null;
     }
 

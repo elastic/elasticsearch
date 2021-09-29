@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.RateLimitingFilter;
@@ -36,18 +35,16 @@ public class TransportDeprecationCacheResetAction
     private final RateLimitingFilter rateLimitingFilterForIndexing;
 
     @Inject
-    protected TransportDeprecationCacheResetAction(String actionName,
-                                                   ThreadPool threadPool,
-                                                   ClusterService clusterService,
-                                                   TransportService transportService,
-                                                   ActionFilters actionFilters,
-                                                   Writeable.Reader<DeprecationCacheResetAction.Request> request,
-                                                   Writeable.Reader<DeprecationCacheResetAction.NodeRequest> nodeRequest,
-                                                   String nodeExecutor, String finalExecutor,
-                                                   Class<DeprecationCacheResetAction.NodeResponse> nodeResponseClass,
-                                                   RateLimitingFilter rateLimitingFilterForIndexing) {
-        super(actionName, threadPool, clusterService, transportService, actionFilters, request,
-            nodeRequest, nodeExecutor, finalExecutor, nodeResponseClass);
+    public TransportDeprecationCacheResetAction(ThreadPool threadPool,
+                                                ClusterService clusterService,
+                                                TransportService transportService,
+                                                ActionFilters actionFilters,
+                                                RateLimitingFilter rateLimitingFilterForIndexing) {
+        super(DeprecationCacheResetAction.NAME, threadPool, clusterService, transportService, actionFilters,
+            DeprecationCacheResetAction.Request::new,
+            DeprecationCacheResetAction.NodeRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            DeprecationCacheResetAction.NodeResponse.class);
         this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
     }
 

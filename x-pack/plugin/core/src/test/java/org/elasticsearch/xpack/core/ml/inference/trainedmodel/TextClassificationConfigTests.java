@@ -52,7 +52,8 @@ public class TextClassificationConfigTests extends InferenceConfigItemTestCase<T
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean() ? null : BertTokenizationTests.createRandom(),
             randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10)),
-            randomBoolean() ? null : randomIntBetween(-1, 10)
+            randomBoolean() ? null : randomIntBetween(-1, 10),
+            randomBoolean() ? null : randomAlphaOfLength(6)
         );
     }
 }

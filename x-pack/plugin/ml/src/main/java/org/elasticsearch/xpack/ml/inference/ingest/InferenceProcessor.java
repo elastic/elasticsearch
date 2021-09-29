@@ -37,6 +37,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -363,6 +365,9 @@ public class InferenceProcessor extends AbstractProcessor {
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
                 checkSupportedVersion(new ZeroShotClassificationConfig(List.of("unused"), null, null, null, null, null));
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextClassificationConfig.NAME)) {
+                checkSupportedVersion(new TextClassificationConfig(null, null, null, null, null));
+                return TextClassificationConfigUpdate.fromMap(valueMap);
             }
             else {
                 throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",

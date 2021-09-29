@@ -35,6 +35,14 @@ if (BuildParams.inFipsJvm){
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
+tasks.named("yamlRestTestV7CompatTest").configure {
+    systemProperty 'tests.rest.blacklist', [
+            // remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0
+            'mustache/30_search_input/Test search input mustache integration (using request body and rest_total_hits_as_int)',
+            'mustache/30_search_input/Test search input mustache integration (using request body)'
+    ].join(',')
+}
+
 tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.replaceKeyInDo("watcher.ack_watch", "xpack-watcher.ack_watch")
   task.replaceKeyInDo("watcher.activate_watch", "xpack-watcher.activate_watch")

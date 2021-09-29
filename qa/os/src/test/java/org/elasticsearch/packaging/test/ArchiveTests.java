@@ -9,7 +9,6 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -172,20 +171,22 @@ public class ArchiveTests extends PackagingTestCase {
         Path tempDir = createTempDir("custom-config");
         Path tempConf = tempDir.resolve("elasticsearch");
         FileUtils.copyDirectory(installation.config, tempConf);
-        Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempDir));
-        Platforms.onLinux(() -> sh.run("chmod -w " + tempDir));
+        sh.chown(tempDir);
+        Platforms.onLinux(() -> sh.run("chmod -w " + tempConf));
+        Platforms.onWindows(() -> sh.run("Set-ItemProperty -Path " + tempConf + " -Name IsReadOnly -Value $true"));
         sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         sh.getEnv().remove("ES_PATH_CONF");
-        IOUtils.rm(tempDir);
+        FileUtils.rm(tempDir);
         FileUtils.rm(installation.data);
     }
 
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
+        sh.chown(tempDir);
         Files.move(
             installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk15on-1.64.jar"),
             tempDir.resolve("bcprov-jdk15on-1.64.jar")
@@ -196,7 +197,7 @@ public class ArchiveTests extends PackagingTestCase {
             tempDir.resolve("bcprov-jdk15on-1.64.jar"),
             installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk15on-1.64.jar")
         );
-        IOUtils.rm(tempDir);
+        FileUtils.rm(tempDir);
     }
 
     public void test51AutoConfigurationWithPasswordProtectedKeystore() throws Exception {

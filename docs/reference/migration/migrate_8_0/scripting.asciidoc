@@ -6,7 +6,7 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-.JodaCompatibleDateTime is removed from scripting
+.JodaCompatibleDateTime is removed from scripting.
 [%collapsible]
 ====
 *Details* +

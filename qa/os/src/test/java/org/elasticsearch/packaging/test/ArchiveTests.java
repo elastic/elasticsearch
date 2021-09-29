@@ -179,6 +179,8 @@ public class ArchiveTests extends PackagingTestCase {
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         sh.getEnv().remove("ES_PATH_CONF");
+        Platforms.onLinux(() -> sh.run("chmod +w " + tempConf));
+        Platforms.onWindows(() -> sh.run("attrib -r " + tempConf + "/*.* /s"));
         FileUtils.rm(tempDir);
         FileUtils.rm(installation.data);
     }

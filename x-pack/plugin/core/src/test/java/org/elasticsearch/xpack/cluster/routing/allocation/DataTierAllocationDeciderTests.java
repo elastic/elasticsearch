@@ -312,7 +312,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_cold")
+                        .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_cold")
                         .build()))
                 .build())
             .build();
@@ -347,7 +347,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_cold")
+                        .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_cold")
                         .build()))
                 .build())
             .build();
@@ -395,7 +395,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE, "data_cold")
-                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_cold")
+                        .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_cold")
                         .build()))
                 .build())
             .build();
@@ -460,7 +460,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE, "data_warm")
-                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_cold")
+                        .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_cold")
                         .build()))
                 .build())
             .build();
@@ -525,7 +525,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, "data_cold")
-                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_cold")
+                        .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_cold")
                         .build()))
                 .build())
             .build();
@@ -782,14 +782,14 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testDefaultValueForPreference() {
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(Settings.EMPTY), equalTo(""));
+        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(Settings.EMPTY), equalTo(""));
 
         Settings.Builder builder = Settings.builder();
         builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
         builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
         Settings settings = builder.build();
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings), equalTo(DATA_FROZEN));
+        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(settings), equalTo(DATA_FROZEN));
     }
 
     public Setting<String> randomTierSetting() {
@@ -798,7 +798,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING,
             DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING,
             DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING,
-            DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING);
+            DataTierAllocationDecider.TIER_PREFERENCE_SETTING);
     }
 
     private ClusterState prepareState(ClusterState initialState) {

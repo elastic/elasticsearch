@@ -43,7 +43,7 @@ teardown:
   - match: { my_remote_cluster.initial_connect_timeout: "30s" }
 
 ---
-"Add transient remote cluster based on the preset cluster and check remote info":
+"Add persistent remote cluster based on the preset cluster and check remote info":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -54,10 +54,10 @@ teardown:
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {transient: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
+  - match: {persistent: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
 
   # we do another search here since this will enforce the connection to be established
   # otherwise the cluster might not have been connected yet.

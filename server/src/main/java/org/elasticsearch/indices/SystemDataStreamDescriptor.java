@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.AssociatedIndexDescriptor.buildAutomaton;
 
@@ -94,14 +95,8 @@ public class SystemDataStreamDescriptor {
      * @return List of names of backing indices
      */
     public List<String> getBackingIndexNames(Metadata metadata) {
-        ArrayList<String> matchingIndices = new ArrayList<>();
-        metadata.indices().keysIt().forEachRemaining(indexName -> {
-            if (this.characterRunAutomaton.run(indexName)) {
-                matchingIndices.add(indexName);
-            }
-        });
-
-        return Collections.unmodifiableList(matchingIndices);
+        return metadata.indices().keySet().stream().filter(this.characterRunAutomaton::run)
+            .collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
     }
 
     public String getDescription() {

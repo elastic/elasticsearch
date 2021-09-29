@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -85,6 +86,13 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         if (searchableSnapshotActions.isEmpty() == false && SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
             throw new IllegalArgumentException("policy [" + request.getPolicy().getName() + "] defines the [" +
                 SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
+        }
+        // make sure any referenced snapshot repositories exist
+        for (SearchableSnapshotAction action : searchableSnapshotActions) {
+            String repository = action.getSnapshotRepository();
+            if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repository) == null) {
+                throw new IllegalArgumentException("no such repository [" + repository + "]");
+            }
         }
 
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),

@@ -21,7 +21,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.license.License.OperationMode.BASIC;
 import static org.elasticsearch.license.License.OperationMode.ENTERPRISE;
 import static org.elasticsearch.license.License.OperationMode.GOLD;
-import static org.elasticsearch.license.License.OperationMode.MISSING;
 import static org.elasticsearch.license.License.OperationMode.PLATINUM;
 import static org.elasticsearch.license.License.OperationMode.STANDARD;
 import static org.elasticsearch.license.License.OperationMode.TRIAL;

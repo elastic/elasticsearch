@@ -4,6 +4,7 @@ apply plugin: 'elasticsearch.authenticated-testclusters'
 dependencies {
   javaRestTestImplementation project(path: xpackModule('core'))
   javaRestTestImplementation(testArtifact(project(xpackProject('plugin').path)))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(":client:rest-high-level")
 }
 

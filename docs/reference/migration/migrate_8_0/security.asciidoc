@@ -18,9 +18,9 @@ Previously, the file and native realms had the following implicit behaviors:
 * If the file and native realms were not configured, they were implicitly disabled
 if any other realm was configured.
 
-* If no other realm was available because realms were not configured or
-explicitly disabled, the file and native realms were enabled, even if explicitly
-disabled.
+* If no other realm was available because realms were either not configured,
+not perrmitted by license, or explicitly disabled, the file and native realms 
+were enabled, even if explicitly disabled.
 
 *Impact* +
 To explicilty disable the file or native realm, set the respective

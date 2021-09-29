@@ -191,7 +191,6 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             assertSuccessful(inProgressSnapshot);
         }
 
-
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);

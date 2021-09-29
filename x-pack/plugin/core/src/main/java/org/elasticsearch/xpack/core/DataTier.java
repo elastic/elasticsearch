@@ -138,8 +138,9 @@ public class DataTier {
                 logger.debug("index [{}] specifies custom index level routing filtering, skipping tier allocation", indexName);
                 return Settings.EMPTY;
             } else {
-                // Otherwise, put the setting in place by default, the "hot" tier if the index is part of a data stream,
-                // the "content" tier if it is not.
+                // Otherwise, put the setting in place by default, the "hot"
+                // tier if the index is part of a data stream, the "content"
+                // tier if it is not.
                 if (isDataStreamIndex) {
                     return Settings.builder().put(DataTierAllocationDecider.TIER_PREFERENCE, DATA_HOT).build();
                 } else {

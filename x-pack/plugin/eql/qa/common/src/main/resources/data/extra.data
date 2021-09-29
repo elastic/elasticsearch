@@ -34,5 +34,22 @@
   "event_type": "STAT",
   "transID": 1235,
   "sequence": 3
+ },
+ {
+  "@timestamp": "100",
+  "event_type": "OPTIONAL",
+  "default_null_value_field": null,
+  "sequence": 4
+ },
+ {
+  "@timestamp": "101",
+  "event_type": "OPTIONAL",
+  "sequence": 5
+ },
+ {
+  "@timestamp": "102",
+  "event_type": "OPTIONAL",
+  "default_null_value_field": null,
+  "sequence": 6
  }
 ]

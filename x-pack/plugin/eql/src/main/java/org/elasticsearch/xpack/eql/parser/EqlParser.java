@@ -21,12 +21,14 @@ import org.antlr.v4.runtime.dfa.DFA;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -38,7 +40,11 @@ public class EqlParser {
     private static final Logger log = LogManager.getLogger();
 
     private final boolean DEBUG = false;
+    private final Set<UnresolvedAttribute> optionals;
 
+    public EqlParser(Set<UnresolvedAttribute> optionals) {
+        this.optionals = optionals;
+    }
     /**
      * Parses an EQL statement into execution plan
      */
@@ -103,7 +109,7 @@ public class EqlParser {
                 log.info("Parse tree {} " + tree.toStringTree());
             }
 
-            return visitor.apply(new AstBuilder(params), tree);
+            return visitor.apply(new AstBuilder(params, optionals), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("EQL statement is too large, " +
                 "causing stack overflow when generating the parsing tree: [{}]", eql);

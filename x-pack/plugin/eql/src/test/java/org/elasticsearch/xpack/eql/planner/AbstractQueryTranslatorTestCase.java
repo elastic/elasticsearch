@@ -22,14 +22,16 @@ import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 
+import java.util.HashSet;
+
 import static org.elasticsearch.xpack.ql.type.TypesTests.loadMapping;
 
 public abstract class AbstractQueryTranslatorTestCase extends ESTestCase {
-    protected EqlParser parser = new EqlParser();
+    protected EqlParser parser = new EqlParser(new HashSet<>());
     protected PreAnalyzer preAnalyzer = new PreAnalyzer();
     protected PostAnalyzer postAnalyzer = new PostAnalyzer();
     protected EqlConfiguration configuration = EqlTestUtils.randomConfiguration();
-    protected Analyzer analyzer = new Analyzer(configuration, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+    protected Analyzer analyzer = new Analyzer(configuration, new EqlFunctionRegistry(), new Verifier(new Metrics()), new HashSet<>());
     protected Optimizer optimizer = new Optimizer();
     protected Planner planner = new Planner();
 

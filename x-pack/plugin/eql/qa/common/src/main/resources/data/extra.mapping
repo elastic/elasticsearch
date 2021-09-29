@@ -20,6 +20,13 @@
           "path": "sequence"
         }
       }
+    },
+    "no_docs_field": {
+      "type": "keyword"
+    },
+    "default_null_value_field": {
+      "type": "keyword",
+      "null_value": "NULL"
     }
   }
 }

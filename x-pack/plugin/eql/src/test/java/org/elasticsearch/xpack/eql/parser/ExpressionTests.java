@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 import static org.elasticsearch.xpack.eql.parser.AbstractBuilder.unquoteString;
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ExpressionTests extends ESTestCase {
 
-    private final EqlParser parser = new EqlParser();
+    private final EqlParser parser = new EqlParser(new HashSet<>());
 
     private static Source source(String text) {
         return new Source(0, 0, text);

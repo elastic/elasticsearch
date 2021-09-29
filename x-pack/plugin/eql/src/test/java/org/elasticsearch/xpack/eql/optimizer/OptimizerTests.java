@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -74,7 +75,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 public class OptimizerTests extends ESTestCase {
 
     private static final String INDEX_NAME = "test";
-    private EqlParser parser = new EqlParser();
+    private EqlParser parser = new EqlParser(new HashSet<>());
     private IndexResolution index = loadIndexResolution("mapping-default.json");
     private Optimizer optimizer = new Optimizer();
 
@@ -89,7 +90,7 @@ public class OptimizerTests extends ESTestCase {
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
         PostAnalyzer postAnalyzer = new PostAnalyzer();
-        Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()), new HashSet<>());
         return optimizer.optimize(postAnalyzer.postAnalyze(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql),
             resolution)), TEST_CFG));
     }

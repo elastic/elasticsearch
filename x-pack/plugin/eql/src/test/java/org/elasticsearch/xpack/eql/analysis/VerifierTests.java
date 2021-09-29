@@ -16,14 +16,17 @@ import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParsingException;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.stats.Metrics;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -36,7 +39,7 @@ public class VerifierTests extends ESTestCase {
 
     private static final String INDEX_NAME = "test";
 
-    private final EqlParser parser = new EqlParser();
+    private final EqlParser parser = new EqlParser(new HashSet<>());
 
     private final IndexResolution index = loadIndexResolution("mapping-default.json");
 
@@ -49,8 +52,12 @@ public class VerifierTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
+        Set<UnresolvedAttribute> optionals = new HashSet<>();
+        optionals.add(new UnresolvedAttribute(Source.EMPTY, "foo"));
+        optionals.add(new UnresolvedAttribute(Source.EMPTY, "bar"));
+        
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()), optionals);
         return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
     }
 
@@ -141,6 +148,20 @@ public class VerifierTests extends ESTestCase {
                 errorParsing("registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == \"EN-us"));
     }
 
+    // Test unsupported optional fields as join keys
+    public void testOptionalFieldsUnsupported() {
+        assertEquals("1:14: Cannot use unsupported optional field [?x] as a join key",
+                errorParsing("sequence by ?x, y, pid [any where true] by a [any where true] by b"));
+        assertEquals("1:17: Cannot use unsupported optional field [?y] as a join key",
+                errorParsing("sequence by x, ?y, ?pid [any where true] by a [any where true] by b"));
+        assertEquals("1:44: Cannot use unsupported optional field [?a] as a join key",
+                errorParsing("sequence by x, y, pid [any where true] by ?a [any where true] by b"));
+        assertEquals("1:72: Cannot use unsupported optional field [?b] as a join key",
+                errorParsing("sequence by x, y, pid [any where true] by a, c [any where true] by d, ?b"));
+        assertEquals("1:1: extraneous input '?' expecting {'any', 'join', 'sequence', STRING, IDENTIFIER}",
+            errorParsing("?x where true"));
+    }
+
     // Test valid/supported queries
     public void testQueryOk() {
         // Mismatched type, still ok
@@ -176,6 +197,12 @@ public class VerifierTests extends ESTestCase {
         accept("file where serial_event_id * 2 == 164");
         accept("file where serial_event_id / 2 == 41");
         accept("file where serial_event_id % 40 == 2");
+        
+        // optional fields
+        accept("file where ?foo == 123");
+        accept("file where ?foo == null");
+        accept("file where serial_event_id == 82 and (true == (?bar in (\"abc\", \"xyz\")))");
+        accept("file where concat(?foo, \"test\", ?bar) == \"onetest!\"");
     }
 
     // Test mapping that doesn\"t have property event.category defined
@@ -387,7 +414,7 @@ public class VerifierTests extends ESTestCase {
         EqlConfiguration eqlConfiguration = new EqlConfiguration(new String[] {"none"},
             org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, emptyMap(), null,
             TimeValue.timeValueSeconds(30), null, 123, "", new TaskId("test", 123), null, versionIncompatibleClusters);
-        Analyzer analyzer = new Analyzer(eqlConfiguration, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(eqlConfiguration, new EqlFunctionRegistry(), new Verifier(new Metrics()), new HashSet<>());
         IndexResolution resolution = IndexResolution.valid(new EsIndex("irrelevant", loadEqlMapping("mapping-default.json")));
         return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement("any where true"), resolution));
     }

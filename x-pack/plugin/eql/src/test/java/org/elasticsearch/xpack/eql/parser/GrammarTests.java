@@ -20,6 +20,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -30,7 +31,7 @@ import java.util.Objects;
 public class GrammarTests extends ESTestCase {
 
     public void testSupportedQueries() throws Exception {
-        EqlParser parser = new EqlParser();
+        EqlParser parser = new EqlParser(new HashSet<>());
         List<Tuple<String, Integer>> lines = readQueries("/queries-supported.eql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
@@ -39,7 +40,7 @@ public class GrammarTests extends ESTestCase {
     }
 
     public void testUnsupportedQueries() throws Exception {
-        EqlParser parser = new EqlParser();
+        EqlParser parser = new EqlParser(new HashSet<>());
         List<Tuple<String, Integer>> lines = readQueries("/queries-unsupported.eql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();

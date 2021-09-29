@@ -37,9 +37,9 @@ public class TomlFoldTests extends ESTestCase {
 
     protected static final String PARAM_FORMATTING = "%1$s.test -> %2$s";
 
-    private static final EqlParser PARSER = new EqlParser();
+    private static final EqlParser PARSER = new EqlParser(new HashSet<>());
     private static final EqlFunctionRegistry FUNCTION_REGISTRY = new EqlFunctionRegistry();
-    private static final Analyzer ANALYZER = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, new Verifier(new Metrics()));
+    private static final Analyzer ANALYZER = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, new Verifier(new Metrics()), new HashSet<>());
 
     private final int num;
     private final EqlFoldSpec spec;

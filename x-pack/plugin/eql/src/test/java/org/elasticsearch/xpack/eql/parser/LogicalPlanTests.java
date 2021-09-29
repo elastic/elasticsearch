@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 
 public class LogicalPlanTests extends ESTestCase {
 
-    private final EqlParser parser = new EqlParser();
+    private final EqlParser parser = new EqlParser(new HashSet<>());
 
     private Expression expr(String source) {
         return parser.createExpression(source);

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ExpressionContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.FunctionExpressionContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinKeysContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalBinaryContext;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -66,9 +68,11 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 public class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParserParams params;
+    private final Set<UnresolvedAttribute> optionals;
 
-    public ExpressionBuilder(ParserParams params) {
+    public ExpressionBuilder(ParserParams params, Set<UnresolvedAttribute> optionals) {
         this.params = params;
+        this.optionals = optionals;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -86,8 +90,18 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public List<Attribute> visitJoinKeys(JoinKeysContext ctx) {
+        if (ctx == null) {
+            return emptyList();
+        }
         try {
-            return ctx != null ? visitList(this, ctx.expression(), Attribute.class) : emptyList();
+            List<ExpressionContext> keys = ctx.expression();
+            for (ExpressionContext k : keys) {
+                if ("?".equals(k.getStart().getText())) {
+                    Source source = source(k);
+                    throw new ParsingException(source, "Cannot use unsupported optional field [{}] as a join key", source.text());
+                }
+            }
+            return visitList(this, keys, Attribute.class);
         } catch (ClassCastException ex) {
             Source source = source(ctx);
             throw new ParsingException(source, "Unsupported join key ", source.text());
@@ -219,7 +233,12 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public UnresolvedAttribute visitDereference(DereferenceContext ctx) {
-        return new UnresolvedAttribute(source(ctx), visitQualifiedName(ctx.qualifiedName()));
+        String name = visitQualifiedName(ctx.qualifiedName());
+        UnresolvedAttribute attr = new UnresolvedAttribute(source(ctx), name);
+        if ("?".equals(ctx.getStart().getText())) {
+            optionals.add(attr);
+        }
+        return attr;
     }
 
     @Override

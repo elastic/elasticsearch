@@ -27,3 +27,45 @@ query = '''
     [ STAT where transID == 1234 ]
 '''
 expected_event_ids  = [1,2,3]
+
+[[queries]]
+name = "optionalNoDocsFieldNullEquality"
+query = '''
+  OPTIONAL where ?no_docs_field == null
+'''
+expected_event_ids  = [4,5,6]
+
+[[queries]]
+name = "optionalNoDocsFieldNumericEquality"
+query = '''
+  OPTIONAL where ?no_docs_field == 123
+'''
+expected_event_ids  = []
+
+[[queries]]
+name = "optionalDefaultNullValueFieldEqualNull"
+query = '''
+  OPTIONAL where ?default_null_value_field == null
+'''
+expected_event_ids  = [5]
+
+[[queries]]
+name = "optionalDefaultNullValueFieldEqualDefaultValue"
+query = '''
+  OPTIONAL where ?default_null_value_field == "NULL"
+'''
+expected_event_ids  = [4,6]
+
+[[queries]]
+name = "optionalMissingFieldNullEquality"
+query = '''
+  OPTIONAL where ?inexistent_field == null
+'''
+expected_event_ids  = [4,5,6]
+
+[[queries]]
+name = "optionalMissingFieldImplicitBooleanEquality"
+query = '''
+  OPTIONAL where ?inexistent_field
+'''
+expected_event_ids  = []

@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
@@ -21,21 +22,24 @@ import org.elasticsearch.xpack.ql.session.Configuration;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstList;
-import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     private final Configuration configuration;
     private final FunctionRegistry functionRegistry;
     private final Verifier verifier;
+    private final Set<UnresolvedAttribute> optionals;
 
-    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, Verifier verifier) {
+    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, Verifier verifier, Set<UnresolvedAttribute> optionals) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.verifier = verifier;
+        this.optionals = optionals;
     }
 
     @Override
@@ -62,7 +66,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         return plan;
     }
 
-    private static class ResolveRefs extends AnalyzerRule<LogicalPlan> {
+    private class ResolveRefs extends AnalyzerRule<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
@@ -81,7 +85,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 for (LogicalPlan child : plan.children()) {
                     childrenOutput.addAll(child.output());
                 }
-                NamedExpression named = resolveAgainstList(u, childrenOutput);
+                Expression named = resolveAgainstList(u, childrenOutput);
+                // if it's not resolved (it doesn't exist in mappings) and it's an optional field, replace it with "null"
+                if (named == null && optionals.contains(u)) {
+                    named = Literal.NULL;
+                }
                 // if resolved, return it; otherwise keep it in place to be resolved later
                 if (named != null) {
                     if (log.isTraceEnabled()) {

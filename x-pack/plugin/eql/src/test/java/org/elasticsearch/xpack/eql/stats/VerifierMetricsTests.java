@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.eql.optimizer.OptimizerTests;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_UNTIL;
 
 public class VerifierMetricsTests extends ESTestCase {
 
-    private EqlParser parser = new EqlParser();
+    private EqlParser parser = new EqlParser(new HashSet<>());
     private PreAnalyzer preAnalyzer = new PreAnalyzer();
     private EqlFunctionRegistry eqlFunctionRegistry = new EqlFunctionRegistry();
     private IndexResolution index = OptimizerTests.loadIndexResolution("mapping-default.json");
@@ -166,7 +167,7 @@ public class VerifierMetricsTests extends ESTestCase {
     private Counters eql(String query) {
         Metrics metrics = new Metrics();
         Verifier verifier = new Verifier(metrics);
-        Analyzer analyzer = new Analyzer(EqlTestUtils.randomConfiguration(), eqlFunctionRegistry, verifier);
+        Analyzer analyzer = new Analyzer(EqlTestUtils.randomConfiguration(), eqlFunctionRegistry, verifier, new HashSet<>());
         analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(query), index));
         return metrics.stats();
     }

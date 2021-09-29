@@ -21,9 +21,13 @@ import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.planner.Planner;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
@@ -41,6 +45,8 @@ public class EqlSession {
     private final Planner planner;
     private final CircuitBreaker circuitBreaker;
 
+    private final Set<UnresolvedAttribute> optionals = new HashSet<>();
+
     public EqlSession(Client client, EqlConfiguration cfg, IndexResolver indexResolver, PreAnalyzer preAnalyzer, PostAnalyzer postAnalyzer,
                       FunctionRegistry functionRegistry, Verifier verifier, Optimizer optimizer, Planner planner,
                       CircuitBreaker circuitBreaker) {
@@ -50,7 +56,7 @@ public class EqlSession {
         this.indexResolver = indexResolver;
         this.preAnalyzer = preAnalyzer;
         this.postAnalyzer = postAnalyzer;
-        this.analyzer = new Analyzer(cfg, functionRegistry, verifier);
+        this.analyzer = new Analyzer(cfg, functionRegistry, verifier, optionals);
         this.optimizer = optimizer;
         this.planner = planner;
         this.circuitBreaker = circuitBreaker;
@@ -117,6 +123,6 @@ public class EqlSession {
     }
 
     private LogicalPlan doParse(String eql, ParserParams params) {
-        return new EqlParser().createStatement(eql, params);
+        return new EqlParser(optionals).createStatement(eql, params);
     }
 }

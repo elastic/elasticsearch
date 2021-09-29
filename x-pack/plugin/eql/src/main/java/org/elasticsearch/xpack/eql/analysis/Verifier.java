@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.xpack.eql.expression.OptionalUnresolvedAttribute;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -69,7 +71,8 @@ public class Verifier {
         this.metrics = metrics;
     }
 
-    Collection<Failure> verify(LogicalPlan plan, Function<String, Collection<String>> versionIncompatibleClusters) {
+    Collection<Failure> verify(LogicalPlan plan, Function<String, Collection<String>> versionIncompatibleClusters,
+        Set<Expression> keyOptionals) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -99,7 +102,7 @@ public class Verifier {
                         if (ae.childrenResolved() == false) {
                             return;
                         }
-                        if (ae instanceof Unresolvable) {
+                        if (ae instanceof Unresolvable && keyOptionals.contains(ae) == false) {
                             // handle Attributes differently to provide more context
                             if (ae instanceof UnresolvedAttribute) {
                                 UnresolvedAttribute ua = (UnresolvedAttribute) ae;
@@ -266,6 +269,9 @@ public class Verifier {
     }
 
     private static void doCheckKeyTypes(Join join, Set<Failure> localFailures, NamedExpression expectedKey, NamedExpression currentKey) {
+        if (expectedKey instanceof OptionalUnresolvedAttribute || currentKey instanceof OptionalUnresolvedAttribute) {
+            return;
+        }
         if (DataTypes.areCompatible(expectedKey.dataType(), currentKey.dataType()) == false) {
             localFailures.add(fail(currentKey, "{} key [{}] type [{}] is incompatible with key [{}] type [{}]",
                 join.nodeName(),

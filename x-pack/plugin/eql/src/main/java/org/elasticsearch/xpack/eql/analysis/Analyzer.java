@@ -7,30 +7,37 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.xpack.eql.expression.OptionalUnresolvedAttribute;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstList;
-import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     private final Configuration configuration;
     private final FunctionRegistry functionRegistry;
     private final Verifier verifier;
+    private Set<Expression> keyOptionals = emptySet(); // join keys optional fields
 
     public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, Verifier verifier) {
         this.configuration = configuration;
@@ -54,15 +61,19 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         return verify(execute(plan));
     }
 
+    public void keyOptionals(Set<Expression> keyOptionals) {
+        this.keyOptionals = keyOptionals;
+    }
+
     private LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan, configuration.versionIncompatibleClusters());
+        Collection<Failure> failures = verifier.verify(plan, configuration.versionIncompatibleClusters(), keyOptionals);
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
         return plan;
     }
 
-    private static class ResolveRefs extends AnalyzerRule<LogicalPlan> {
+    private class ResolveRefs extends AnalyzerRule<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
@@ -81,7 +92,28 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 for (LogicalPlan child : plan.children()) {
                     childrenOutput.addAll(child.output());
                 }
-                NamedExpression named = resolveAgainstList(u, childrenOutput);
+                Expression named = resolveAgainstList(u, childrenOutput);
+                if (named == null) {
+                    // if the attribute is not resolved (it doesn't exist in mappings) and it's an optional field, replace it with "null"
+                    // in queries only (the Filter plan denotes the unresolved attribute lives in a query vs in a join key)
+                    if (u instanceof OptionalUnresolvedAttribute) {
+                        if (plan instanceof Filter) {
+                            named = new Literal(u.source(), null, DataTypes.NULL);
+                        } else if (u.resolved() == false && keyOptionals.contains(u)) {
+                            if (log.isTraceEnabled()) {
+                                log.trace("Resolved optional field {}", u);
+                            }
+                            ((OptionalUnresolvedAttribute) u).markAsResolved();
+                        }
+                    }
+                } else {
+                    // if the attribute is resolved and it is an optional field, update the list of optionals with its resolved variant
+                    if (keyOptionals.contains(u)) {
+                        keyOptionals.remove(u);
+                        keyOptionals.add(named);
+                    }
+                }
+
                 // if resolved, return it; otherwise keep it in place to be resolved later
                 if (named != null) {
                     if (log.isTraceEnabled()) {

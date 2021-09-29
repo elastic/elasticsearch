@@ -25,14 +25,18 @@ import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -40,10 +44,16 @@ public class ExecutionManager {
 
     private final EqlSession session;
     private final EqlConfiguration cfg;
+    private final Set<String> optionalKeys;
 
     public ExecutionManager(EqlSession eqlSession) {
         this.session = eqlSession;
         this.cfg = eqlSession.configuration();
+        this.optionalKeys = new HashSet<>();
+
+        for (Expression e : session.keyOptionals()) {
+            optionalKeys.add(((NamedExpression) e).name());
+        }
     }
 
     public Executable assemble(List<List<Attribute>> listOfKeys,
@@ -86,6 +96,9 @@ public class ExecutionManager {
                         keyFields = emptyList();
                         break;
                     }
+                // optional field
+                } else if (extractor instanceof ComputingExtractor) {
+                    keyFields.add(((ComputingExtractor) extractor).hitName());
                 }
             }
 
@@ -94,7 +107,7 @@ public class ExecutionManager {
             if (query instanceof EsQueryExec) {
                 SearchSourceBuilder source = ((EsQueryExec) query).source(session, false);
                 QueryRequest original = () -> source;
-                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields);
+                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields, optionalKeys);
                 Criterion<BoxedQueryRequest> criterion =
                         new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, itbExtractor, i == 0 && descending);
                 criteria.add(criterion);

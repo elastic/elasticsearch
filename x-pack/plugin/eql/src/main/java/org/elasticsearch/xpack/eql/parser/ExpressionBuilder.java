@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.eql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.xpack.eql.expression.OptionalUnresolvedAttribute;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionResolution;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -66,9 +68,11 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 public class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParserParams params;
+    private final Set<Expression> keyOptionals;
 
-    public ExpressionBuilder(ParserParams params) {
+    public ExpressionBuilder(ParserParams params, Set<Expression> keyOptionals) {
         this.params = params;
+        this.keyOptionals = keyOptionals;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -86,8 +90,17 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public List<Attribute> visitJoinKeys(JoinKeysContext ctx) {
+        if (ctx == null) {
+            return emptyList();
+        }
         try {
-            return ctx != null ? visitList(this, ctx.expression(), Attribute.class) : emptyList();
+            List<Attribute> keys = visitList(this, ctx.expression(), Attribute.class);
+            for (Attribute key : keys) {
+                if (key instanceof OptionalUnresolvedAttribute) {
+                    keyOptionals.add(key);
+                }
+            }
+            return keys;
         } catch (ClassCastException ex) {
             Source source = source(ctx);
             throw new ParsingException(source, "Unsupported join key ", source.text());
@@ -219,7 +232,14 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public UnresolvedAttribute visitDereference(DereferenceContext ctx) {
-        return new UnresolvedAttribute(source(ctx), visitQualifiedName(ctx.qualifiedName()));
+        String name = visitQualifiedName(ctx.qualifiedName());
+        UnresolvedAttribute attr;
+        if (ctx.qualifiedName().OPTIONAL() != null) {
+            attr = new OptionalUnresolvedAttribute(source(ctx), name);
+        } else {
+            attr = new UnresolvedAttribute(source(ctx), name);
+        }
+        return attr;
     }
 
     @Override

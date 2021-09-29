@@ -48,16 +48,28 @@ public class BoxedQueryRequest implements QueryRequest {
 
     private final List<String> keys;
     private List<QueryBuilder> keyFilters;
+    private final Set<String> optionalKeyNames;
 
     private Ordinal from, to;
     private Ordinal after;
 
-    public BoxedQueryRequest(QueryRequest original, String timestamp, List<String> keyNames) {
+    public BoxedQueryRequest(QueryRequest original, String timestamp, List<String> keyNames, Set<String> optionalKeyNames) {
         searchSource = original.searchSource();
         // setup range queries and preserve their reference to simplify the update
         timestampRange = rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");
         keys = keyNames;
+        this.optionalKeyNames = optionalKeyNames;
         RuntimeUtils.addFilter(timestampRange, searchSource);
+        // do not join on null values
+        if (keyNames.isEmpty() == false) {
+            for (String keyName : keyNames) {
+                // add an "exists" query for each non-optional join key to filter out any non-existent values
+                // an optional field join key it is supposed to accept nulls, so we skip them
+                if (optionalKeyNames.contains(keyName) == false) {
+                    RuntimeUtils.addFilter(existsQuery(keyName), searchSource);
+                }
+            }
+        }
     }
 
     @Override
@@ -143,8 +155,8 @@ public class BoxedQueryRequest implements QueryRequest {
                 }
 
                 // if null values are present
-                // make an OR call - either terms or null/missing values
-                if (hasNullValue) {
+                // make an OR call - either terms or null/missing values only for optional keys
+                if (hasNullValue && optionalKeyNames.contains(key)) {
                     BoolQueryBuilder isMissing = boolQuery().mustNot(existsQuery(key));
                     if (query != null) {
                         query = boolQuery()
@@ -156,7 +168,9 @@ public class BoxedQueryRequest implements QueryRequest {
                         query = isMissing;
                     }
                 }
-                newFilters.add(query);
+                if (query != null) {
+                    newFilters.add(query);
+                }
             }
         }
 

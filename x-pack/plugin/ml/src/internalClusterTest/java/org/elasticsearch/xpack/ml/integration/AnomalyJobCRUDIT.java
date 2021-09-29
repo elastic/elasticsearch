@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,7 +29,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -38,6 +42,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -145,6 +151,41 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         assertThat(ex.getMessage(),
             containsString("Cannot create job [job-with-closed-results-index] as it requires closed index [.ml-state*]"));
         client().admin().indices().prepareDelete(".ml-state-000001").get();
+    }
+
+    public void testOpenJobWithOldSnapshot() {
+        String jobId = "open-job-with-old-model-snapshot";
+        Date timestamp = new Date();
+        createJob(jobId);
+        ModelSnapshot snapshot = new ModelSnapshot
+            .Builder(jobId)
+            .setMinVersion("6.0.0")
+            .setSnapshotId("snap_1")
+            .setQuantiles(new Quantiles(jobId, timestamp, "quantiles-1"))
+            .setSnapshotDocCount(1)
+            .setModelSizeStats(new ModelSizeStats.Builder(jobId).setTimestamp(timestamp).setLogTime(timestamp))
+            .build();
+        indexModelSnapshot(snapshot);
+        GetModelSnapshotsAction.Response getResponse =
+            client().execute(GetModelSnapshotsAction.INSTANCE, new GetModelSnapshotsAction.Request(jobId, "snap_1")).actionGet();
+        assertThat(getResponse.getResources().results(), hasSize(1));
+        client().execute(RevertModelSnapshotAction.INSTANCE, new RevertModelSnapshotAction.Request(jobId, "snap_1")).actionGet();
+
+        // should fail?
+        Exception ex = expectThrows(Exception.class,
+            () -> client()
+                .execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId))
+                .actionGet());
+        assertThat(ex.getMessage(),
+            containsString(
+                "[open-job-with-old-model-snapshot] job snapshot [snap_1] has min version before [7.0.0], " +
+                    "please revert to a newer model snapshot or reset the job"
+            )
+        );
+    }
+
+    private void indexModelSnapshot(ModelSnapshot snapshot) {
+        jobResultsPersister.persistModelSnapshot(snapshot, WriteRequest.RefreshPolicy.IMMEDIATE, () -> true);
     }
 
     private void testCreateWithExistingDocs(IndexRequest indexRequest, String jobId) {

@@ -6,9 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
@@ -23,7 +21,6 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.indexName;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.oldTemplateName;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
 import static org.elasticsearch.xpack.core.template.TemplateUtilsTests.assertTemplate;
 import static org.hamcrest.Matchers.containsString;
@@ -74,21 +71,6 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
 
         // ensure that the index is created with the proper ID
         assertThat(json, containsString("\".monitoring-" + id + "-" + OLD_TEMPLATE_VERSION + "*\""));
-        assertThat(json, containsString("\"version\":" + LAST_UPDATED_VERSION));
-    }
-
-    public void testPipelineName() {
-        assertThat(pipelineName("aBc123"), equalTo("xpack_monitoring_aBc123"));
-        assertThat(pipelineName(TEMPLATE_VERSION), equalTo("xpack_monitoring_" + TEMPLATE_VERSION));
-        assertThat(pipelineName(OLD_TEMPLATE_VERSION), equalTo("xpack_monitoring_" + OLD_TEMPLATE_VERSION));
-    }
-
-    public void testEmptyPipeline() throws IOException {
-        final String json = Strings.toString(MonitoringTemplateUtils.emptyPipeline(XContentType.JSON));
-
-        // ensure the description contains the API version
-        assertThat(json, containsString("Monitoring API version " + MonitoringTemplateUtils.TEMPLATE_VERSION));
-        assertThat(json, containsString("\"processors\":[]"));
         assertThat(json, containsString("\"version\":" + LAST_UPDATED_VERSION));
     }
 

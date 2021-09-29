@@ -15,11 +15,11 @@ ext {
 archivesBaseName = 'x-pack-ql'
 
 dependencies {
+  api "org.antlr:antlr4-runtime:${antlrVersion}"
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(':test:framework')
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(project(xpackModule('ql:test-fixtures'))) {
+  testApi(project(xpackModule('ql:test-fixtures'))) {
     exclude group: 'org.elasticsearch.plugin', module: 'ql'
   }
-  api "org.antlr:antlr4-runtime:${antlrVersion}"
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }

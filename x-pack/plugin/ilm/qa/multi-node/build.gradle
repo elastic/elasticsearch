@@ -5,6 +5,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 File repoDir = file("$buildDir/testclusters/repo")

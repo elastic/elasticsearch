@@ -12,9 +12,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter;
-import org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter;
-import org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttribute;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.test.ESTestCase;
 

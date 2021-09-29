@@ -26,7 +26,6 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -34,7 +33,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.DataTier.DATA_FROZEN;
 
@@ -55,11 +53,11 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     private static void validateTierSetting(String setting) {
         if (Strings.hasText(setting)) {
-            Set<String> invalidTiers = Arrays.stream(setting.split(","))
-                .filter(tier -> DataTier.validTierName(tier) == false)
-                .collect(Collectors.toSet());
-            if (invalidTiers.size() > 0) {
-                throw new IllegalArgumentException("invalid tier names: " + invalidTiers);
+            for (String s : setting.split(",")) {
+                if (DataTier.validTierName(s) == false) {
+                    throw new IllegalArgumentException(
+                            "invalid tier names found in [" + setting + "] allowed values are " + DataTier.ALL_DATA_TIERS);
+                }
             }
         }
     }
@@ -90,8 +88,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
                             "] tier preference may be used for partial searchable snapshots (got: [" + value + "])");
                     }
                 } else {
-                    String[] split = value.split(",");
-                    if (Arrays.stream(split).anyMatch(DATA_FROZEN::equals)) {
+                    if (value.contains(DATA_FROZEN)) {
                         throw new IllegalArgumentException("[" + DATA_FROZEN + "] tier can only be used for partial searchable snapshots");
                     }
                 }
@@ -180,8 +177,12 @@ public class DataTierAllocationDecider extends AllocationDecider {
      * {@code Optional<String>}.
      */
     public static Optional<String> preferredAvailableTier(String prioritizedTiers, DiscoveryNodes nodes) {
-        String[] tiers = parseTierList(prioritizedTiers);
-        return Arrays.stream(tiers).filter(tier -> tierNodesPresent(tier, nodes)).findFirst();
+        for (String tier : parseTierList(prioritizedTiers)) {
+            if (tierNodesPresent(tier, nodes)) {
+                return Optional.of(tier);
+            }
+        }
+        return Optional.empty();
     }
 
     public static String[] parseTierList(String tiers) {
@@ -189,7 +190,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
             // avoid parsing overhead in the null/empty string case
             return Strings.EMPTY_ARRAY;
         } else {
-            return Strings.tokenizeToStringArray(tiers, ",");
+            return tiers.split(",");
         }
     }
 
@@ -197,10 +198,11 @@ public class DataTierAllocationDecider extends AllocationDecider {
         assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier) :
             "tier " + singleTier + " is an invalid tier name";
         for (ObjectCursor<DiscoveryNode> node : nodes.getNodes().values()) {
-            if (node.value.getRoles().stream()
-                .map(DiscoveryNodeRole::roleName)
-                .anyMatch(s -> s.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || s.equals(singleTier))) {
-                return true;
+            for (DiscoveryNodeRole discoveryNodeRole : node.value.getRoles()) {
+                String s = discoveryNodeRole.roleName();
+                if (s.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || s.equals(singleTier)) {
+                    return true;
+                }
             }
         }
         return false;

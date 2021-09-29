@@ -23,7 +23,7 @@
               "description":"The ID of the trained model for this definition part"
             },
             "part":{
-              "type":"integer",
+              "type":"int",
               "description":"The part number"
             }
           }

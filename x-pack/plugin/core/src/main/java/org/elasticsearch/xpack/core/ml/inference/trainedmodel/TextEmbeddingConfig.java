@@ -101,6 +101,7 @@ public class TextEmbeddingConfig implements NlpConfig {
     public void writeTo(StreamOutput out) throws IOException {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
+        out.writeOptionalString(resultsField);
     }
 
     @Override

@@ -85,7 +85,7 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
                 originalConfig.getTokenization(),
                 originalConfig.getHypothesisTemplate(),
                 originalConfig.isMultiLabel(),
-                List.of("not", "foo"),
+                List.of("foo", "bar"),
                 null
             ),
             equalTo(

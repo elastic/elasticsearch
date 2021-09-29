@@ -122,7 +122,7 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
     boolean isNoop(TextClassificationConfig originalConfig) {
         return (this.numTopClasses == null || this.numTopClasses == originalConfig.getNumTopClasses()) &&
             (this.classificationLabels == null) &&
-            (this.resultsField == null);
+            (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField()));
     }
 
     @Override

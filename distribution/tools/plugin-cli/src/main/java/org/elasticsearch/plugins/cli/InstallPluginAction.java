@@ -37,8 +37,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.PluginLogger;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginLogger;
 import org.elasticsearch.plugins.PluginsService;
 
 import java.io.BufferedReader;

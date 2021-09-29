@@ -14,9 +14,11 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.PluginTestUtil;
+import org.elasticsearch.plugins.cli.RemovePluginAction.RemovePluginProblem;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
@@ -36,7 +38,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class RemovePluginActionTests extends ESTestCase {
@@ -52,7 +53,7 @@ public class RemovePluginActionTests extends ESTestCase {
         }
 
         @Override
-        protected Environment createEnv(Map<String, String> settings) throws UserException {
+        protected Environment createEnv(Map<String, String> settings) {
             return env;
         }
     }
@@ -99,13 +100,22 @@ public class RemovePluginActionTests extends ESTestCase {
         return removePlugin(List.of(pluginId), home, purge);
     }
 
+    static Tuple<RemovePluginProblem, String> checkRemovePlugins(List<String> pluginIds, Path home) throws Exception {
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
+        MockTerminal terminal = new MockTerminal();
+        final List<PluginDescriptor> plugins = pluginIds == null
+            ? null
+            : pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
+        return new RemovePluginAction(new TerminalLogger(terminal), env, false).checkRemovePlugins(plugins);
+    }
+
     static MockTerminal removePlugin(List<String> pluginIds, Path home, boolean purge) throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
         final List<PluginDescriptor> plugins = pluginIds == null
             ? null
             : pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
-        new RemovePluginAction(new TerminalLogger(terminal), env, purge).execute(plugins);
+        new RemovePluginAction(new TerminalLogger(terminal), env, purge).removePlugins(plugins);
         return terminal;
     }
 
@@ -120,9 +130,10 @@ public class RemovePluginActionTests extends ESTestCase {
     }
 
     public void testMissing() throws Exception {
-        UserException e = expectThrows(UserException.class, () -> removePlugin("dne", home, randomBoolean()));
-        assertTrue(e.getMessage(), e.getMessage().contains("plugin [dne] not found"));
-        assertRemoveCleaned(env);
+        Tuple<RemovePluginProblem, String> problem = checkRemovePlugins(List.of("dne"), home);
+
+        assertThat(problem.v1(), equalTo(RemovePluginProblem.NOT_FOUND));
+        assertThat(problem.v2(), equalTo("plugin [dne] not found; run 'elasticsearch-plugin list' to get list of installed plugins"));
     }
 
     public void testBasic() throws Exception {
@@ -181,11 +192,11 @@ public class RemovePluginActionTests extends ESTestCase {
     public void testBinNotDir() throws Exception {
         createPlugin("fake");
         Files.createFile(env.binFile().resolve("fake"));
-        UserException e = expectThrows(UserException.class, () -> removePlugin("fake", home, randomBoolean()));
-        assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
-        assertTrue(Files.exists(env.pluginsFile().resolve("fake"))); // did not remove
-        assertTrue(Files.exists(env.binFile().resolve("fake")));
-        assertRemoveCleaned(env);
+
+        Tuple<RemovePluginProblem, String> problem = checkRemovePlugins(List.of("fake"), home);
+
+        assertThat(problem.v1(), equalTo(RemovePluginProblem.BIN_FILE_NOT_DIRECTORY));
+        assertThat(problem.v2(), equalTo("bin dir for [fake] is not a directory"));
     }
 
     public void testConfigDirPreserved() throws Exception {
@@ -222,11 +233,6 @@ public class RemovePluginActionTests extends ESTestCase {
         assertRemoveCleaned(env);
     }
 
-    public void testPurgeNothingExists() throws Exception {
-        final UserException e = expectThrows(UserException.class, () -> removePlugin("fake", home, true));
-        assertThat(e, hasToString(containsString("plugin [fake] not found")));
-    }
-
     public void testPurgeOnlyMarkerFileExists() throws Exception {
         final Path configDir = env.configFile().resolve("fake");
         final Path removing = env.pluginsFile().resolve(".removing-fake");
@@ -244,17 +250,16 @@ public class RemovePluginActionTests extends ESTestCase {
     }
 
     public void testRemoveUninstalledPluginErrors() throws Exception {
-        UserException e = expectThrows(UserException.class, () -> removePlugin("fake", home, randomBoolean()));
-        assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertEquals("plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins", e.getMessage());
-
         MockTerminal terminal = new MockTerminal();
 
-        new MockRemovePluginCommand(env) {
+        final int exitCode = new MockRemovePluginCommand(env) {
             protected boolean addShutdownHook() {
                 return false;
             }
         }.main(new String[] { "-Epath.home=" + home, "fake" }, terminal);
+
+        assertThat(exitCode, equalTo(ExitCodes.CONFIG));
+
         try (
             BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()));
             BufferedReader errorReader = new BufferedReader(new StringReader(terminal.getErrorOutput()))

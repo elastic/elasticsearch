@@ -10,6 +10,7 @@ package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginLogger;
@@ -20,12 +21,10 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -34,13 +33,15 @@ import java.util.stream.Stream;
  */
 class RemovePluginAction {
 
-    // exit codes for remove
-    /** A plugin cannot be removed because it is extended by another plugin. */
-    static final int PLUGIN_STILL_USED = 11;
-
     private final PluginLogger logger;
     private final Environment env;
     private final boolean purge;
+
+    public enum RemovePluginProblem {
+        NOT_FOUND,
+        STILL_USED,
+        BIN_FILE_NOT_DIRECTORY
+    }
 
     /**
      * Creates a new action.
@@ -56,59 +57,46 @@ class RemovePluginAction {
     }
 
     /**
-     * Remove the plugin specified by {@code pluginName}.
-     *
-     * @param plugins    the IDs of the plugins to remove
-     * @throws IOException   if any I/O exception occurs while performing a file operation
-     * @throws UserException if plugins is null or empty
-     * @throws UserException if plugin directory does not exist
-     * @throws UserException if the plugin bin directory is not a directory
+     * Looks for problems that would prevent the specified plugins from being removed.
+     * @param plugins the plugins to check
+     * @return {@code null} if there are no problems, or a {@link Tuple} that indicates the type of problem,
+     * and a descriptive message.
+     * @throws IOException if a problem occurs loading the plugins that are currently installed.
      */
-    void execute(List<PluginDescriptor> plugins) throws IOException, UserException {
-        if (plugins == null || plugins.isEmpty()) {
-            throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");
-        }
-
-        ensurePluginsNotUsedByOtherPlugins(plugins);
+    public Tuple<RemovePluginProblem, String> checkRemovePlugins(List<PluginDescriptor> plugins) throws IOException {
+        final Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(this.env.pluginsFile());
 
         for (PluginDescriptor plugin : plugins) {
-            checkCanRemove(plugin);
+            final List<String> usedBy = checkUsedByOtherPlugins(bundles, plugin);
+
+            if (usedBy.isEmpty() == false) {
+                final StringBuilder message = new StringBuilder().append("cannot remove plugin [")
+                    .append(plugin.getId())
+                    .append(" because it is extended by other plugins:\n");
+                usedBy.forEach(each -> message.append("\t- ").append(each).append("\n"));
+                return Tuple.tuple(RemovePluginProblem.STILL_USED, message.toString());
+            }
         }
 
-        for (PluginDescriptor plugin : plugins) {
-            removePlugin(plugin);
-        }
+        return plugins.stream().map(this::canRemovePlugin).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
-    private void ensurePluginsNotUsedByOtherPlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
-        // First make sure nothing extends this plugin
-        final Map<String, List<String>> usedBy = new HashMap<>();
-        Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
+    private List<String> checkUsedByOtherPlugins(Set<PluginsService.Bundle> bundles, PluginDescriptor plugin) {
+        final List<String> usedBy = new ArrayList<>();
+
         for (PluginsService.Bundle bundle : bundles) {
             for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
-                for (PluginDescriptor plugin : plugins) {
-                    String pluginId = plugin.getId();
-                    if (extendedPlugin.equals(pluginId)) {
-                        usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(pluginId);
-                    }
+                String pluginId = plugin.getId();
+                if (extendedPlugin.equals(pluginId)) {
+                    usedBy.add(pluginId);
                 }
             }
         }
-        if (usedBy.isEmpty()) {
-            return;
-        }
 
-        final StringJoiner message = new StringJoiner("\n");
-        message.add("Cannot remove plugins because the following are extended by other plugins:");
-        usedBy.forEach((key, value) -> {
-            String s = "\t" + key + " used by " + value;
-            message.add(s);
-        });
-
-        throw new UserException(PLUGIN_STILL_USED, message.toString());
+        return usedBy;
     }
 
-    private void checkCanRemove(PluginDescriptor plugin) throws UserException {
+    private Tuple<RemovePluginProblem, String> canRemovePlugin(PluginDescriptor plugin) {
         String pluginId = plugin.getId();
         final Path pluginDir = env.pluginsFile().resolve(pluginId);
         final Path pluginConfigDir = env.configFile().resolve(pluginId);
@@ -121,19 +109,39 @@ class RemovePluginAction {
          */
         if ((Files.exists(pluginDir) == false && Files.exists(pluginConfigDir) == false && Files.exists(removing) == false)
             || (Files.exists(pluginDir) == false && Files.exists(pluginConfigDir) && this.purge == false)) {
-            final String message = String.format(
-                Locale.ROOT,
-                "plugin [%s] not found; run 'elasticsearch-plugin list' to get list of installed plugins",
-                pluginId
+            return Tuple.tuple(
+                RemovePluginProblem.NOT_FOUND,
+                "plugin [" + pluginId + "] not found; run 'elasticsearch-plugin list' to get list of installed plugins"
             );
-            throw new UserException(ExitCodes.CONFIG, message);
         }
 
         final Path pluginBinDir = env.binFile().resolve(pluginId);
         if (Files.exists(pluginBinDir)) {
             if (Files.isDirectory(pluginBinDir) == false) {
-                throw new UserException(ExitCodes.IO_ERROR, "bin dir for " + pluginId + " is not a directory");
+                return Tuple.tuple(RemovePluginProblem.BIN_FILE_NOT_DIRECTORY, "bin dir for [" + pluginId + "] is not a directory");
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * Remove the plugin specified by {@code pluginName}. You should call {@link #checkRemovePlugins(List)}
+     * first, to ensure that the removal can proceed.
+     *
+     * @param plugins    the IDs of the plugins to remove
+     * @throws IOException   if any I/O exception occurs while performing a file operation
+     * @throws UserException if plugins is null or empty
+     * @throws UserException if plugin directory does not exist
+     * @throws UserException if the plugin bin directory is not a directory
+     */
+    void removePlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
+        if (plugins == null || plugins.isEmpty()) {
+            throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");
+        }
+
+        for (PluginDescriptor plugin : plugins) {
+            removePlugin(plugin);
         }
     }
 

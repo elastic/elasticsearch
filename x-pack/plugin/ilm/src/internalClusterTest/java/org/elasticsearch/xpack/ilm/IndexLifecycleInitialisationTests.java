@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,8 +16,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ilm.BranchingStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
@@ -211,7 +212,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), mockPhase, 1L, actualModifiedDate);
             assertBusy(() -> {
                 IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse("test");
-                assertThat(indexResponse.getStep(), equalTo("observable_cluster_state_action"));
+                assertThat(indexResponse.getStep(), equalTo(ObservableClusterStateWaitStep.NAME));
                 assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
                 originalLifecycleDate.set(indexResponse.getLifecycleDate());
             });
@@ -467,7 +468,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     }
 
     public static class ObservableClusterStateWaitStep extends ClusterStateWaitStep implements NamedWriteable {
-        public static final String NAME = "observable_cluster_state_action";
+        public static final String NAME = BranchingStep.NAME;
 
         public ObservableClusterStateWaitStep(StepKey current, StepKey next) {
             super(current, next);

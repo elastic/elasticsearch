@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
 import org.elasticsearch.xpack.core.ilm.AsyncWaitStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
+import org.elasticsearch.xpack.core.ilm.ClusterStateSteps;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
@@ -331,6 +332,26 @@ class IndexLifecycleRunner {
     void runPolicyAfterStateChange(String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+
+        if (TerminalPolicyStep.KEY.equals(currentStepKey)) {
+            logger.debug("policy [{}] for index [{}] complete, skipping execution", policy, index);
+            return;
+        }
+
+        if (currentStepKey != null) {
+            String currentStepName = currentStepKey.getName();
+            if (ErrorStep.NAME.equals(currentStepName)) {
+                logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
+                return;
+            }
+
+            if (ClusterStateSteps.NAMES.contains(currentStepName) == false) {
+                logger.debug("step [{}] for index [{}] is not cluster state step, skipping execution", currentStepKey, index);
+                return;
+            }
+        }
+
         final Step currentStep;
         try {
             currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
@@ -341,26 +362,10 @@ class IndexLifecycleRunner {
         if (currentStep == null) {
             if (stepRegistry.policyExists(policy) == false) {
                 markPolicyDoesNotExist(policy, indexMetadata.getIndex(), lifecycleState);
-                return;
             } else {
-                Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
-                if (TerminalPolicyStep.KEY.equals(currentStepKey)) {
-                    // This index is a leftover from before we halted execution on the final phase
-                    // instead of going to the completed phase, so it's okay to ignore this index
-                    // for now
-                    return;
-                }
                 logger.error("current step [{}] for index [{}] with policy [{}] is not recognized",
                     currentStepKey, index, policy);
-                return;
             }
-        }
-
-        if (currentStep instanceof TerminalPolicyStep) {
-            logger.debug("policy [{}] for index [{}] complete, skipping execution", policy, index);
-            return;
-        } else if (currentStep instanceof ErrorStep) {
-            logger.debug("policy [{}] for index [{}] on an error step, skipping execution", policy, index);
             return;
         }
 

@@ -23,7 +23,8 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTO
  */
 public final class InitializePolicyContextStep extends ClusterStateActionStep {
     public static final String INITIALIZATION_PHASE = "new";
-    public static final StepKey KEY = new StepKey(INITIALIZATION_PHASE, "init", "init");
+    public static final String NAME = "init";
+    public static final StepKey KEY = new StepKey(INITIALIZATION_PHASE, NAME, NAME);
     private static final Logger logger = LogManager.getLogger(InitializePolicyContextStep.class);
 
     InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {

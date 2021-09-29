@@ -285,6 +285,11 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
         indicesToDelete.remove(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
 
+        if (indicesToDelete.isEmpty()) {
+            listener.onResponse(0L);
+            return;
+        }
+
         DeleteIndexRequest deleteRequest = new DeleteIndexRequest(indicesToDelete.toArray(new String[0]));
 
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteIndexAction.INSTANCE, deleteRequest, ActionListener.wrap(response -> {

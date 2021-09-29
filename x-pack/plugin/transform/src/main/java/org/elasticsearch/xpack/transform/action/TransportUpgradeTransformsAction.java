@@ -234,6 +234,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         PageParams page,
         ActionListener<Map<UpdateResult.Status, Long>> listener
     ) {
+
+        // TODO: this can loose transforms as we move them while iterating over the ids
         transformConfigManager.expandTransformIds(Metadata.ALL, page, true, ActionListener.wrap(hitsAndIds -> {
 
             List<String> ids = hitsAndIds.v2().v1();

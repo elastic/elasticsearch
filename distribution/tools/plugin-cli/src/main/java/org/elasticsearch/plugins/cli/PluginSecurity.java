@@ -31,7 +31,7 @@ public class PluginSecurity {
     /**
      * prints/confirms policy exceptions with the user
      */
-    static void confirmPolicyExceptions(PluginLogger logger, Set<String> permissions, boolean batch) throws UserException {
+    public static void confirmPolicyExceptions(PluginLogger logger, Set<String> permissions, boolean batch) throws UserException {
         List<String> requested = new ArrayList<>(permissions);
         if (requested.isEmpty()) {
             logger.debug("plugin has a policy file with no additional permissions");
@@ -102,7 +102,7 @@ public class PluginSecurity {
     /**
      * Extract a unique set of permissions from the plugin's policy file. Each permission is formatted for output to users.
      */
-    static Set<String> getPermissionDescriptions(PluginPolicyInfo pluginPolicyInfo, Path tmpDir) throws IOException {
+    public static Set<String> getPermissionDescriptions(PluginPolicyInfo pluginPolicyInfo, Path tmpDir) throws IOException {
         Set<Permission> allPermissions = new HashSet<>(PolicyUtil.getPolicyPermissions(null, pluginPolicyInfo.policy, tmpDir));
         for (URL jar : pluginPolicyInfo.jars) {
             Set<Permission> jarPermissions = PolicyUtil.getPolicyPermissions(jar, pluginPolicyInfo.policy, tmpDir);

@@ -15,6 +15,7 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginType;
+import org.elasticsearch.plugins.cli.action.InstallPluginAction;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.cli;
+package org.elasticsearch.plugins.cli.action;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
@@ -15,6 +15,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginLogger;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.cli.PluginDescriptor;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -31,12 +32,13 @@ import java.util.stream.Stream;
 /**
  * An action for the plugin CLI to remove plugins from Elasticsearch.
  */
-class RemovePluginAction {
+public class RemovePluginAction {
 
     private final PluginLogger logger;
     private final Environment env;
     private final boolean purge;
 
+    /** Categories the potential problems that {@link #checkRemovePlugins(List)} can find. Useful for generating an exit code. */
     public enum RemovePluginProblem {
         NOT_FOUND,
         STILL_USED,
@@ -50,7 +52,7 @@ class RemovePluginAction {
      * @param env        the environment for the local node
      * @param purge      if true, plugin configuration files will be removed but otherwise preserved
      */
-    RemovePluginAction(PluginLogger logger, Environment env, boolean purge) {
+    public RemovePluginAction(PluginLogger logger, Environment env, boolean purge) {
         this.logger = logger;
         this.env = env;
         this.purge = purge;
@@ -135,7 +137,7 @@ class RemovePluginAction {
      * @throws UserException if plugin directory does not exist
      * @throws UserException if the plugin bin directory is not a directory
      */
-    void removePlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
+    public void removePlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
         if (plugins == null || plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");
         }

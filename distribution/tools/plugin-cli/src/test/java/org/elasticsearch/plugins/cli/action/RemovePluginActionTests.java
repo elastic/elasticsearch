@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.cli;
+package org.elasticsearch.plugins.cli.action;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -18,7 +18,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.PluginTestUtil;
-import org.elasticsearch.plugins.cli.RemovePluginAction.RemovePluginProblem;
+import org.elasticsearch.plugins.cli.MockRemovePluginCommand;
+import org.elasticsearch.plugins.cli.PluginDescriptor;
+import org.elasticsearch.plugins.cli.TerminalLogger;
+import org.elasticsearch.plugins.cli.action.RemovePluginAction.RemovePluginProblem;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
@@ -30,7 +33,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -44,19 +46,6 @@ public class RemovePluginActionTests extends ESTestCase {
 
     private Path home;
     private Environment env;
-
-    static class MockRemovePluginCommand extends RemovePluginCommand {
-        final Environment env;
-
-        private MockRemovePluginCommand(final Environment env) {
-            this.env = env;
-        }
-
-        @Override
-        protected Environment createEnv(Map<String, String> settings) {
-            return env;
-        }
-    }
 
     @Override
     @Before

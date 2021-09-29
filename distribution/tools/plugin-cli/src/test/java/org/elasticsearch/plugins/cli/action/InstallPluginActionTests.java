@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.cli;
+package org.elasticsearch.plugins.cli.action;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
@@ -49,6 +49,9 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginTestUtil;
+import org.elasticsearch.plugins.cli.MockInstallPluginCommand;
+import org.elasticsearch.plugins.cli.PluginDescriptor;
+import org.elasticsearch.plugins.cli.TerminalLogger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
@@ -730,12 +733,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testOfficialPluginsHelpSortedAndMissingObviouslyWrongPlugins() throws Exception {
         MockTerminal terminal = new MockTerminal();
-        new InstallPluginCommand() {
-            @Override
-            protected boolean addShutdownHook() {
-                return false;
-            }
-        }.main(new String[] { "--help" }, terminal);
+        new MockInstallPluginCommand().main(new String[] { "--help" }, terminal);
         try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
             String line = reader.readLine();
 
@@ -1441,4 +1439,5 @@ public class InstallPluginActionTests extends ESTestCase {
         installPlugin(pluginZip);
         assertPlugin("fake-with-deps", pluginDir, env.v2());
     }
+
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.cli.action.InstallPluginAction;
 
 import java.util.Arrays;
 import java.util.List;
@@ -50,7 +51,7 @@ import java.util.stream.Collectors;
  * elasticsearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
  */
-class InstallPluginCommand extends EnvironmentAwareCommand {
+public class InstallPluginCommand extends EnvironmentAwareCommand {
 
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;

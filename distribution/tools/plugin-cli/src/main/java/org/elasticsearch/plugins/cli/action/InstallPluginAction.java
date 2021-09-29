@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.cli;
+package org.elasticsearch.plugins.cli.action;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
@@ -40,6 +40,9 @@ import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginLogger;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.cli.PluginDescriptor;
+import org.elasticsearch.plugins.cli.PluginSecurity;
+import org.elasticsearch.plugins.cli.ProgressInputStream;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -112,7 +115,7 @@ import java.util.zip.ZipInputStream;
  * elasticsearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
  */
-class InstallPluginAction implements Closeable {
+public class InstallPluginAction implements Closeable {
 
     private static final String PROPERTY_STAGING_ID = "es.plugins.staging";
 
@@ -140,7 +143,7 @@ class InstallPluginAction implements Closeable {
     }
 
     /** The official plugins that can be installed simply by name. */
-    static final Set<String> OFFICIAL_PLUGINS;
+    public static final Set<String> OFFICIAL_PLUGINS;
     static {
         try (var stream = InstallPluginAction.class.getResourceAsStream("/plugins.txt")) {
             OFFICIAL_PLUGINS = Streams.readAllLines(stream).stream().map(String::trim).collect(Sets.toUnmodifiableSortedSet());
@@ -180,14 +183,14 @@ class InstallPluginAction implements Closeable {
     private Environment env;
     private boolean batch;
 
-    InstallPluginAction(PluginLogger logger, Environment env, boolean batch) {
+    public InstallPluginAction(PluginLogger logger, Environment env, boolean batch) {
         this.logger = logger;
         this.env = env;
         this.batch = batch;
     }
 
     // pkg private for testing
-    void execute(List<PluginDescriptor> plugins) throws Exception {
+    public void execute(List<PluginDescriptor> plugins) throws Exception {
         if (plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");
         }
@@ -992,7 +995,7 @@ class InstallPluginAction implements Closeable {
         IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[pathsToDeleteOnShutdown.size()]));
     }
 
-    static void checkCanInstallationProceed(PluginLogger logger, Build.Flavor flavor, PluginInfo info) throws Exception {
+    public static void checkCanInstallationProceed(PluginLogger logger, Build.Flavor flavor, PluginInfo info) throws Exception {
         if (info.isLicensed() == false) {
             return;
         }

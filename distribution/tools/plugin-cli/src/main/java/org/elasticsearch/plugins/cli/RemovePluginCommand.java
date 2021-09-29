@@ -17,6 +17,8 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.cli.action.RemovePluginAction;
+import org.elasticsearch.plugins.cli.action.RemovePluginAction.RemovePluginProblem;
 
 import java.util.Arrays;
 import java.util.List;
@@ -46,7 +48,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
         final RemovePluginAction action = new RemovePluginAction(new TerminalLogger(terminal), env, options.has(purgeOption));
 
-        final Tuple<RemovePluginAction.RemovePluginProblem, String> problem = action.checkRemovePlugins(plugins);
+        final Tuple<RemovePluginProblem, String> problem = action.checkRemovePlugins(plugins);
         if (problem != null) {
             int exitCode;
             switch (problem.v1()) {

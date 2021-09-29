@@ -15,8 +15,8 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.Accountables;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,9 +24,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,9 +40,7 @@ public class Segment implements Writeable {
     public org.apache.lucene.util.Version version = null;
     public Boolean compound = null;
     public String mergeId;
-    public long memoryInBytes;
     public Sort segmentSort;
-    public Accountable ramTree = null;
     public Map<String, String> attributes;
 
     public Segment(StreamInput in) throws IOException {
@@ -58,10 +54,11 @@ public class Segment implements Writeable {
         version = Lucene.parseVersionLenient(in.readOptionalString(), null);
         compound = in.readOptionalBoolean();
         mergeId = in.readOptionalString();
-        memoryInBytes = in.readLong();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readLong(); // memoryInBytes
+        }
         if (in.readBoolean()) {
-            // verbose mode
-            ramTree = readRamTree(in);
+            readRamTree(in);
         }
         segmentSort = readSegmentSort(in);
         if (in.readBoolean()) {
@@ -123,13 +120,6 @@ public class Segment implements Writeable {
     }
 
     /**
-     * Estimation of the memory usage used by a segment.
-     */
-    public long getMemoryInBytes() {
-        return this.memoryInBytes;
-    }
-
-    /**
      * Return the sort order of this segment, or null if the segment has no sort.
      */
     public Sort getSegmentSort() {
@@ -171,13 +161,11 @@ public class Segment implements Writeable {
         out.writeOptionalString(version.toString());
         out.writeOptionalBoolean(compound);
         out.writeOptionalString(mergeId);
-        out.writeLong(memoryInBytes);
-
-        boolean verbose = ramTree != null;
-        out.writeBoolean(verbose);
-        if (verbose) {
-            writeRamTree(out, ramTree);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeLong(0); // memoryInBytes
         }
+
+        out.writeBoolean(false);
         writeSegmentSort(out, segmentSort);
         boolean hasAttributes = attributes != null;
         out.writeBoolean(hasAttributes);
@@ -277,18 +265,13 @@ public class Segment implements Writeable {
         }
     }
 
-    private Accountable readRamTree(StreamInput in) throws IOException {
-        final String name = in.readString();
-        final long bytes = in.readVLong();
+    private static void readRamTree(StreamInput in) throws IOException {
+        in.readString();
+        in.readVLong();
         int numChildren = in.readVInt();
-        if (numChildren == 0) {
-            return Accountables.namedAccountable(name, bytes);
+        for (int i = 0; i < numChildren; i++) {
+            readRamTree(in);
         }
-        List<Accountable> children = new ArrayList<>(numChildren);
-        while (numChildren-- > 0) {
-            children.add(readRamTree(in));
-        }
-        return Accountables.namedAccountable(name, children, bytes);
     }
 
     // the ram tree is written recursively since the depth is fairly low (5 or 6)
@@ -315,7 +298,6 @@ public class Segment implements Writeable {
                 ", version='" + version + '\'' +
                 ", compound=" + compound +
                 ", mergeId='" + mergeId + '\'' +
-                ", memoryInBytes=" + memoryInBytes +
                 (segmentSort != null ? ", sort=" + segmentSort : "") +
                 ", attributes=" + attributes +
                 '}';

@@ -17,7 +17,18 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.script.field.BooleanField;
+import org.elasticsearch.script.field.BytesRefField;
+import org.elasticsearch.script.field.DateMillisField;
+import org.elasticsearch.script.field.DateNanosField;
+import org.elasticsearch.script.field.DoubleField;
+import org.elasticsearch.script.field.Field;
+import org.elasticsearch.script.field.FieldValues;
+import org.elasticsearch.script.field.GeoPointField;
+import org.elasticsearch.script.field.InvalidConversion;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.script.field.LongField;
+import org.elasticsearch.script.field.StringField;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -25,6 +36,7 @@ import java.time.ZoneOffset;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.function.UnaryOperator;
 
 /**
@@ -35,7 +47,7 @@ import java.util.function.UnaryOperator;
  * return as a single {@link ScriptDocValues} instance can be reused to return
  * values form multiple documents.
  */
-public abstract class ScriptDocValues<T> extends AbstractList<T> {
+public abstract class ScriptDocValues<T> extends AbstractList<T> implements FieldValues<T> {
 
     /**
      * Set the current doc ID.
@@ -66,6 +78,31 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     @Override
     public final void sort(Comparator<? super T> c) {
         throw new UnsupportedOperationException("doc values are unmodifiable");
+    }
+
+    public abstract Field<T> toField(String fieldName);
+
+    public List<T> getValues() {
+        return this;
+    }
+
+    public T getNonPrimitiveValue() {
+        return get(0);
+    }
+
+    public long getLongValue() {
+        throw new InvalidConversion(this.getClass(), long.class);
+    }
+
+    public double getDoubleValue() {
+        throw new InvalidConversion(this.getClass(), double.class);
+    }
+
+    protected void throwIfEmpty() {
+        if (size() == 0) {
+            throw new IllegalStateException("A document doesn't have a value for a field! " +
+                "Use doc[<field>].size()==0 to check if a document is missing a field!");
+        }
     }
 
     public static final class Longs extends ScriptDocValues<Long> {
@@ -107,16 +144,30 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public Long get(int index) {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
+            throwIfEmpty();
             return values[index];
         }
 
         @Override
         public int size() {
             return count;
+        }
+
+        @Override
+        public long getLongValue() {
+            throwIfEmpty();
+            return values[0];
+        }
+
+        @Override
+        public double getDoubleValue() {
+            throwIfEmpty();
+            return values[0];
+        }
+
+        @Override
+        public Field<Long> toField(String fieldName) {
+            return new LongField(fieldName, this);
         }
     }
 
@@ -192,6 +243,28 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 }
             }
         }
+
+        @Override
+        public long getLongValue() {
+            throwIfEmpty();
+            if (isNanos) {
+                return DateNanosField.toLong(dates[0]);
+            }
+            return DateMillisField.toLong(dates[0]);
+        }
+
+        @Override
+        public double getDoubleValue() {
+            return getLongValue();
+        }
+
+        @Override
+        public Field<JodaCompatibleZonedDateTime> toField(String fieldName) {
+            if (isNanos) {
+                return new DateNanosField(fieldName, this);
+            }
+            return new DateMillisField(fieldName, this);
+        }
     }
 
     public static final class Doubles extends ScriptDocValues<Double> {
@@ -246,6 +319,22 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public int size() {
             return count;
         }
+
+        @Override
+        public long getLongValue() {
+            return (long) getDoubleValue();
+        }
+
+        @Override
+        public double getDoubleValue() {
+            throwIfEmpty();
+            return values[0];
+        }
+
+        @Override
+        public Field<Double> toField(String fieldName) {
+            return new DoubleField(fieldName, this);
+        }
     }
 
     public abstract static class Geometry<T> extends ScriptDocValues<T> {
@@ -255,6 +344,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public abstract GeoBoundingBox getBoundingBox();
         /** Returns the centroid of this geometry  */
         public abstract GeoPoint getCentroid();
+        /** Returns the width of the bounding box diagonal in the spherical Mercator projection (meters)  */
+        public abstract double getMercatorWidth();
+        /** Returns the height of the bounding box diagonal in the spherical Mercator projection (meters) */
+        public abstract double getMercatorHeight();
     }
 
     public static final class GeoPoints extends Geometry<GeoPoint> {
@@ -419,8 +512,23 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
+        public double getMercatorWidth() {
+            return 0;
+        }
+
+        @Override
+        public double getMercatorHeight() {
+            return 0;
+        }
+
+        @Override
         public GeoBoundingBox getBoundingBox() {
           return size() == 0 ? null : boundingBox;
+        }
+
+        @Override
+        public Field<GeoPoint> toField(String fieldName) {
+            return new GeoPointField(fieldName, this);
         }
     }
 
@@ -482,6 +590,22 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return array;
         }
 
+        @Override
+        public long getLongValue() {
+            throwIfEmpty();
+            return BooleanField.toLong(values[0]);
+        }
+
+        @Override
+        public double getDoubleValue() {
+            throwIfEmpty();
+            return BooleanField.toDouble(values[0]);
+        }
+
+        @Override
+        public Field<Boolean> toField(String fieldName) {
+            return new BooleanField(fieldName, this);
+        }
     }
 
     abstract static class BinaryScriptDocValues<T> extends ScriptDocValues<T> {
@@ -554,6 +678,21 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public final String getValue() {
             return get(0);
         }
+
+        @Override
+        public long getLongValue() {
+            return Long.parseLong(get(0));
+        }
+
+        @Override
+        public double getDoubleValue() {
+            return Double.parseDouble(get(0));
+        }
+
+        @Override
+        public Field<String> toField(String fieldName) {
+            return new StringField(fieldName, this);
+        }
     }
 
     public static final class BytesRefs extends BinaryScriptDocValues<BytesRef> {
@@ -580,5 +719,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             return get(0);
         }
 
+        @Override
+        public Field<BytesRef> toField(String fieldName) {
+            return new BytesRefField(fieldName, this);
+        }
     }
 }

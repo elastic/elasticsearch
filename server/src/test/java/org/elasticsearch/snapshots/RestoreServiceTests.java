@@ -159,7 +159,7 @@ public class RestoreServiceTests extends ESTestCase {
                     );
                     doAnswer(invocationOnMock -> {
                         assertTrue(pendingRefreshes.remove(repositoryName));
-                        // noinspection unchecked
+                        @SuppressWarnings("unchecked")
                         ActionListener<RepositoryData> repositoryDataListener = (ActionListener<RepositoryData>) invocationOnMock
                             .getArguments()[0];
                         if (randomBoolean()) {

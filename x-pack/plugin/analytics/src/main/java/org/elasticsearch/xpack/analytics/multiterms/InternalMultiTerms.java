@@ -373,7 +373,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
-    protected long getDocCountError() {
+    protected Long getDocCountError() {
         return docCountError;
     }
 

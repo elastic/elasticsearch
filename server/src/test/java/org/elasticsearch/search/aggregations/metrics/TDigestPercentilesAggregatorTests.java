@@ -41,16 +41,12 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new PercentilesAggregationBuilder("tdist_percentiles")
-            .field(fieldName)
-            .percentilesConfig(new PercentilesConfig.TDigest());
+        return new PercentilesAggregationBuilder("tdist_percentiles").field(fieldName).percentilesConfig(new PercentilesConfig.TDigest());
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.DATE,
-            CoreValuesSourceType.BOOLEAN);
+        return List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN);
     }
 
     public void testNoDocs() throws IOException {
@@ -150,18 +146,22 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
     public void testTdigestThenHdrSettings() throws Exception {
         int sigDigits = randomIntBetween(1, 5);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            percentiles("percentiles")
-                .compression(100.0)
+            percentiles("percentiles").compression(100.0)
                 .method(PercentilesMethod.TDIGEST)
                 .numberOfSignificantValueDigits(sigDigits) // <-- this should trigger an exception
                 .field("value");
         });
-        assertThat(e.getMessage(), equalTo("Cannot set [numberOfSignificantValueDigits] because the " +
-            "method has already been configured for TDigest"));
+        assertThat(
+            e.getMessage(),
+            equalTo("Cannot set [numberOfSignificantValueDigits] because the " + "method has already been configured for TDigest")
+        );
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalTDigestPercentiles> verify) throws IOException {
+    private void testCase(
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalTDigestPercentiles> verify
+    ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 buildIndex.accept(indexWriter);
@@ -179,8 +179,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                     builder = new PercentilesAggregationBuilder("test").field("number").percentilesConfig(hdr);
                 }
 
-                MappedFieldType fieldType
-                    = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
                 TDigestPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);

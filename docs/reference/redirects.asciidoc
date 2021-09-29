@@ -3,6 +3,68 @@
 
 The following pages have moved or been deleted.
 
+// [START] Remote clusters
+
+[role="exclude",id="ccs-clients-integrations"]
+== {ccs-cap}, clients, and integrations
+
+Refer to <<security-clients-integrations,Securing clients and integrations>>.
+
+[role="exclude",id="cross-cluster-configuring"]
+=== {ccs-cap} and security
+
+Refer to <<remote-clusters-security,configure remote clusters with security>>.
+
+[role="exclude",id="cross-cluster-kibana"]
+==== {ccs-cap} and {kib}
+
+Refer to <<clusters-privileges-ccs-kibana,Configure privileges for {ccs} and {kib}>>.
+
+[role="exclude",id="ccr-getting-started"]
+=== Configure {ccr}
+
+Refer to <<ccr-getting-started-tutorial,Set up {ccr}>>.
+
+[role="exclude",id="ccr-getting-started-remote-cluster"]
+==== Connect a remote cluster
+
+Refer to <<remote-clusters-connect,Connecting remote clusters>>.
+
+[role="exclude",id="modules-remote-clusters"]
+=== Remote clusters
+
+Refer to <<remote-clusters,Remote clusters>>.
+
+[role="exclude",id="configuring-remote-clusters"]
+==== Configuring remote clusters
+
+Refer to <<remote-clusters-connect,Connect remote clusters>>.
+
+[role="exclude",id="remote-cluster-settings"]
+==== Remote cluster settings
+
+Refer to <<remote-clusters-settings,Remote clusters settings>>.
+
+// [END] Remote clusters
+
+[role="exclude",id="restore-cluster-data"]
+=== Restore a cluster's data
+
+See <<restore-entire-cluster>>.
+
+[role="exclude",id="alias"]
+=== Aliases
+
+For field aliases, refer to the <<field-alias,alias field type>>.
+
+For index and data stream aliases, refer to <<aliases>>.
+
+[role="exclude",id="modules-scripting-other-layers"]
+
+=== Other security layers
+
+Refer to <<modules-scripting-security>>.
+
 [role="exclude",id="grok-basics"]
 === Grok basics
 
@@ -220,19 +282,19 @@ See <<commands>>.
 === Calendar resources
 
 See <<ml-get-calendar>> and
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="ml-filter-resource"]
 === Filter resources
 
 See <<ml-get-filter>> and
-{ml-docs}/ml-rules.html[Machine learning custom rules].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Machine learning custom rules].
 
 [role="exclude",id="ml-event-resource"]
 === Scheduled event resources
 
 See <<ml-get-calendar-event>> and
-{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="index-apis"]
 === Index APIs
@@ -411,7 +473,7 @@ See <<getting-started-index>>.
 See <<indices-delete-index>>.
 
 [role="exclude", id="getting-started-modify-data"]
-== Modifying your data
+=== Modifying your data
 See <<docs-update>>.
 
 [role="exclude", id="indexing-replacing-documents"]
@@ -755,7 +817,7 @@ See <<snapshots-repository-plugins>>.
 [role="exclude",id="_changing_index_settings_during_restore"]
 ==== Change index settings during restore
 
-See <<change-index-settings-during-restore>>.
+See <<restore-snapshot-api-index-settings>>.
 
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot
@@ -826,7 +888,7 @@ See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
 [role="exclude",id="indices-component-templates"]
 === Component template APIs
 
-coming::[7.x]
+See <<index-templates-apis,index template APIs>>.
 
 [role="exclude",id="modules-indices"]
 === Indices module
@@ -1086,7 +1148,7 @@ For other information, see:
 * <<modules-threadpool>>
 * <<modules-node>>
 * <<modules-plugins>>
-* <<modules-remote-clusters>>
+* <<remote-clusters>>
 
 [role="exclude",id="modules-http"]
 === HTTP
@@ -1623,3 +1685,19 @@ See <<api-cron-expressions>>.
 === URL-based access control
 
 See <<api-url-access-control>>.
+
+[role="exclude",id="indices-field-usage-stats"]
+=== Field usage stats API
+
+See <<field-usage-stats>>.
+
+[role="exclude",id="security-api-enroll-kibana"]
+=== Enroll {kib} API
+
+See <<security-api-kibana-enrollment>>.
+
+[role="exclude",id="sql-rest-fields"]
+=== Supported REST parameters for SQL search API
+
+See the <<sql-search-api-request-body,request body parameters>> for the
+<<sql-search-api,SQL search API>>.

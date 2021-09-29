@@ -1,5 +1,12 @@
+pluginManagement {
+  repositories {
+    mavenCentral()
+    gradlePluginPortal()
+  }
+}
+
 plugins {
-  id "com.gradle.enterprise" version "3.6.2"
+  id "com.gradle.enterprise" version "3.6.4"
 }
 
 includeBuild "build-conventions"
@@ -13,6 +20,7 @@ List projects = [
   'docs',
   'client:rest',
   'client:rest-high-level',
+  'client:rest-high-level:qa:ssl-enabled',
   'client:sniffer',
   'client:transport',
   'client:test',
@@ -21,15 +29,15 @@ List projects = [
   'benchmarks',
   'distribution:archives:integ-test-zip',
   'distribution:archives:windows-zip',
-  'distribution:archives:no-jdk-windows-zip',
   'distribution:archives:darwin-tar',
   'distribution:archives:darwin-aarch64-tar',
-  'distribution:archives:no-jdk-darwin-tar',
-  'distribution:archives:no-jdk-darwin-aarch64-tar',
   'distribution:archives:linux-aarch64-tar',
   'distribution:archives:linux-tar',
-  'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
+  'distribution:docker:cloud-docker-export',
+  'distribution:docker:cloud-docker-aarch64-export',
+  'distribution:docker:cloud-ess-docker-export',
+  'distribution:docker:cloud-ess-docker-aarch64-export',
   'distribution:docker:docker-aarch64-export',
   'distribution:docker:docker-export',
   'distribution:docker:ironbank-docker-aarch64-export',
@@ -38,10 +46,8 @@ List projects = [
   'distribution:docker:ubi-docker-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
-  'distribution:packages:no-jdk-deb',
   'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
-  'distribution:packages:no-jdk-rpm',
   'distribution:bwc:bugfix',
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
@@ -56,7 +62,8 @@ List projects = [
   'test:framework',
   'test:fixtures:azure-fixture',
   'test:fixtures:gcs-fixture',
-  'test:fixtures:hdfs-fixture',
+  'test:fixtures:hdfs2-fixture',
+  'test:fixtures:hdfs3-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
@@ -77,6 +84,7 @@ void addSubProjects(String path, File dir) {
   if (dir.isDirectory() == false) return;
   if (dir.name == 'buildSrc') return;
   if (new File(dir, 'build.gradle').exists() == false) return;
+  if (new File(dir, 'settings.gradle').exists()) return;
   if (findProject(dir) != null) return;
 
   final String projectName = "${path}:${dir.name}"
@@ -88,16 +96,6 @@ void addSubProjects(String path, File dir) {
     addSubProjects(projectName, subdir)
   }
 }
-
-
-// include example plugins first, so adding plugin dirs below won't muck with :example-plugins
-File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
-for (File example : examplePluginsDir.listFiles()) {
-  if (example.isDirectory() == false) continue;
-  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
-  addSubProjects(':example-plugins', example)
-}
-project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
 
 addSubProjects('', new File(rootProject.projectDir, 'libs'))
 addSubProjects('', new File(rootProject.projectDir, 'modules'))

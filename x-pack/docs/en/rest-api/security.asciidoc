@@ -69,6 +69,7 @@ without requiring basic authentication:
 * <<security-api-invalidate-api-key,Invalidate API key>>
 * <<security-api-clear-api-key-cache,Clear API key cache>>
 * <<security-api-grant-api-key,Grant API key>>
+* <<security-api-query-api-key,Query API key>>
 
 [discrete]
 [[security-user-apis]]
@@ -140,7 +141,6 @@ include::security/clear-privileges-cache.asciidoc[]
 include::security/clear-api-key-cache.asciidoc[]
 include::security/clear-service-token-caches.asciidoc[]
 include::security/create-api-keys.asciidoc[]
-include::security/enroll-kibana.asciidoc[]
 include::security/put-app-privileges.asciidoc[]
 include::security/create-role-mappings.asciidoc[]
 include::security/create-roles.asciidoc[]
@@ -154,6 +154,7 @@ include::security/delete-service-token.asciidoc[]
 include::security/delete-users.asciidoc[]
 include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
+include::security/enroll-kibana.asciidoc[]
 include::security/enroll-node.asciidoc[]
 include::security/get-api-keys.asciidoc[]
 include::security/get-app-privileges.asciidoc[]
@@ -172,6 +173,7 @@ include::security/invalidate-tokens.asciidoc[]
 include::security/oidc-prepare-authentication-api.asciidoc[]
 include::security/oidc-authenticate-api.asciidoc[]
 include::security/oidc-logout-api.asciidoc[]
+include::security/query-api-key.asciidoc[]
 include::security/saml-prepare-authentication-api.asciidoc[]
 include::security/saml-authenticate-api.asciidoc[]
 include::security/saml-logout-api.asciidoc[]

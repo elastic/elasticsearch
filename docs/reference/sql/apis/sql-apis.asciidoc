@@ -1,0 +1,26 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-apis]]
+== SQL APIs
+
+{es}'s SQL APIs let you run SQL queries on {es} indices and data streams.
+For an overview of {es}'s SQL features and related tutorials, see <<xpack-sql>>.
+
+* <<sql-search-api>>
+* <<clear-sql-cursor-api>>
+* <<get-async-sql-search-api>>
+* <<get-async-sql-search-status-api>>
+* <<delete-async-sql-search-api>>
+* <<sql-translate-api>>
+
+include::clear-sql-cursor-api.asciidoc[]
+
+include::delete-async-sql-search-api.asciidoc[]
+
+include::get-async-sql-search-api.asciidoc[]
+
+include::get-async-sql-search-status-api.asciidoc[]
+
+include::sql-search-api.asciidoc[]
+
+include::sql-translate-api.asciidoc[]

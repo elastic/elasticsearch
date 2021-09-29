@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
@@ -45,6 +46,26 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
             emitFromSource();
         }
     };
+
+    public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
+        return (leafFieldName, params, searchLookup) -> {
+            CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
+                return new GeoPointFieldScript(leafFieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void setDocument(int docId) {
+                        compositeFieldScript.setDocument(docId);
+                    }
+
+                    @Override
+                    public void execute() {
+                        emitFromCompositeScript(compositeFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -79,7 +100,7 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
 
     @Override
     protected List<Object> extractFromSource(String path) {
-        Object value = XContentMapValues.extractValue(path, leafSearchLookup.source().source());
+        Object value = XContentMapValues.extractValue(path, sourceLookup.source());
         if (value instanceof List<?>) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) value;

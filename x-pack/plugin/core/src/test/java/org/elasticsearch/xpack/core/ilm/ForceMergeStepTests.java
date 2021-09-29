@@ -69,7 +69,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
             instance.getClient(), instance.getMaxNumSegments());
     }
 
-    public void testPerformActionComplete() {
+    public void testPerformActionComplete() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Step.StepKey stepKey = randomStepKey();
@@ -87,7 +87,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         }).when(indicesClient).forceMerge(any(), any());
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, null, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
     }
 
     public void testPerformActionThrowsException() {
@@ -111,7 +111,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         }).when(indicesClient).forceMerge(any(), any());
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
             f -> step.performAction(indexMetadata, null, null, f))));
     }
 
@@ -147,7 +147,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, 1);
         step.performAction(indexMetadata, state, null, new ActionListener<>() {
             @Override
-            public void onResponse(Boolean aBoolean) {
+            public void onResponse(Void aBoolean) {
                 throw new AssertionError("unexpected method call [onResponse]. expecting [onFailure]");
             }
 

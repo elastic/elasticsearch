@@ -63,8 +63,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
     @Override
     public DirectoryReader apply(final DirectoryReader reader) {
-        if (licenseState.isSecurityEnabled() == false ||
-            licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+        if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
             return reader;
         }
 

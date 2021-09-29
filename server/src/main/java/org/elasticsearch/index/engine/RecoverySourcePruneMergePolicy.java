@@ -22,7 +22,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -31,6 +31,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
+import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -95,7 +96,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                             // we can't return null here lucenes DocIdMerger expects an instance
                             intersection = DocIdSetIterator.empty();
                         } else {
-                            intersection = ConjunctionDISI.intersectIterators(Arrays.asList(numeric,
+                            intersection = ConjunctionUtils.intersectIterators(Arrays.asList(numeric,
                                 new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length())));
                         }
                         return new FilterNumericDocValues(numeric) {
@@ -178,11 +179,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             public void close() throws IOException {
                 in.close();
             }
-
-            @Override
-            public long ramBytesUsed() {
-                return in.ramBytesUsed();
-            }
         }
 
         private abstract static class FilterStoredFieldsReader extends StoredFieldsReader {
@@ -191,11 +187,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
             FilterStoredFieldsReader(StoredFieldsReader fieldsReader) {
                 this.in = fieldsReader;
-            }
-
-            @Override
-            public long ramBytesUsed() {
-                return in.ramBytesUsed();
             }
 
             @Override
@@ -255,49 +246,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                 return new RecoverySourcePruningStoredFieldsReader(in.clone(), recoverySourceToKeep, recoverySourceField);
             }
 
-        }
-
-        private static class FilterStoredFieldVisitor extends StoredFieldVisitor {
-            private final StoredFieldVisitor visitor;
-
-            FilterStoredFieldVisitor(StoredFieldVisitor visitor) {
-                this.visitor = visitor;
-            }
-
-            @Override
-            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-                visitor.binaryField(fieldInfo, value);
-            }
-
-            @Override
-            public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
-                visitor.stringField(fieldInfo, value);
-            }
-
-            @Override
-            public void intField(FieldInfo fieldInfo, int value) throws IOException {
-                visitor.intField(fieldInfo, value);
-            }
-
-            @Override
-            public void longField(FieldInfo fieldInfo, long value) throws IOException {
-                visitor.longField(fieldInfo, value);
-            }
-
-            @Override
-            public void floatField(FieldInfo fieldInfo, float value) throws IOException {
-                visitor.floatField(fieldInfo, value);
-            }
-
-            @Override
-            public void doubleField(FieldInfo fieldInfo, double value) throws IOException {
-                visitor.doubleField(fieldInfo, value);
-            }
-
-            @Override
-            public Status needsField(FieldInfo fieldInfo) throws IOException {
-                return visitor.needsField(fieldInfo);
-            }
         }
     }
 }

@@ -13,6 +13,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -78,13 +80,13 @@ public final class Settings implements ToXContentFragment {
     private final SecureSettings secureSettings;
 
     /** The first level of setting names. This is constructed lazily in {@link #names()}. */
-    private final SetOnce<Set<String>> firstLevelNames = new SetOnce<>();
+    private Set<String> firstLevelNames;
 
     /**
      * Setting names found in this Settings for both string and secure settings.
      * This is constructed lazily in {@link #keySet()}.
      */
-    private final SetOnce<Set<String>> keys = new SetOnce<>();
+    private Set<String> keys;
 
     private Settings(Map<String, Object> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
@@ -158,7 +160,10 @@ public final class Settings implements ToXContentFragment {
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             if (isArray) {
                 try {
-                    int index = Integer.parseInt(entry.getKey());
+                    final String key = entry.getKey();
+                    // check whether string may be an integer first (mostly its not) to avoid the slowness of parseInt throwing in a hot
+                    // loop
+                    int index = Numbers.isPositiveNumeric(key) ? Integer.parseInt(key) : -1;
                     if (index >= 0) {
                         maxIndex = Math.max(maxIndex, index);
                     } else {
@@ -386,7 +391,9 @@ public final class Settings implements ToXContentFragment {
         final Object valueFromPrefix = settings.get(key);
         if (valueFromPrefix != null) {
             if (valueFromPrefix instanceof List) {
-                return Collections.unmodifiableList((List<String>) valueFromPrefix);
+                @SuppressWarnings("unchecked")
+                final List<String> valuesAsList = (List<String>) valueFromPrefix;
+                return Collections.unmodifiableList(valuesAsList);
             } else if (commaDelimited) {
                 String[] strings = Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
@@ -470,24 +477,24 @@ public final class Settings implements ToXContentFragment {
      * @return  The direct keys of this settings
      */
     public Set<String> names() {
-        synchronized (firstLevelNames) {
-            if (firstLevelNames.get() == null) {
-                Stream<String> stream = settings.keySet().stream();
-                if (secureSettings != null) {
-                    stream = Stream.concat(stream, secureSettings.getSettingNames().stream());
-                }
-                Set<String> names = stream.map(k -> {
-                    int i = k.indexOf('.');
-                    if (i < 0) {
-                        return k;
-                    } else {
-                        return k.substring(0, i);
-                    }
-                }).collect(Collectors.toSet());
-                firstLevelNames.set(Collections.unmodifiableSet(names));
-            }
+        final Set<String> names = firstLevelNames;
+        if (names != null) {
+            return names;
         }
-        return firstLevelNames.get();
+        Stream<String> stream = settings.keySet().stream();
+        if (secureSettings != null) {
+            stream = Stream.concat(stream, secureSettings.getSettingNames().stream());
+        }
+        final Set<String> newFirstLevelNames = stream.map(k -> {
+            int i = k.indexOf('.');
+            if (i < 0) {
+                return k;
+            } else {
+                return k.substring(0, i);
+            }
+        }).collect(Collectors.toUnmodifiableSet());
+        firstLevelNames = newFirstLevelNames;
+        return newFirstLevelNames;
     }
 
     /**
@@ -524,7 +531,9 @@ public final class Settings implements ToXContentFragment {
             if (value == null) {
                 builder.putNull(key);
             } else if (value instanceof List) {
-                builder.putList(key, (List<String>) value);
+                @SuppressWarnings("unchecked")
+                List<String> stringList = (List<String>) value;
+                builder.putList(key, stringList);
             } else {
                 builder.put(key, value.toString());
             }
@@ -674,21 +683,21 @@ public final class Settings implements ToXContentFragment {
 
     /** Returns the fully qualified setting names contained in this settings object. */
     public Set<String> keySet() {
-        if (keys.get() == null) {
-            synchronized (keys) {
-                // Check that the keys are still null now that we have acquired the lock
-                if (keys.get() == null) {
-                    if (secureSettings == null) {
-                        keys.set(settings.keySet());
-                    } else {
-                        Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
-                        // uniquify, since for legacy reasons the same setting name may exist in both
-                        keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
-                    }
-                }
-            }
+        final Set<String> keySet = keys;
+        if (keySet != null) {
+            return keySet;
         }
-        return keys.get();
+        final Set<String> newKeySet;
+        if (secureSettings == null) {
+            newKeySet = settings.keySet();
+        } else {
+            // uniquify, since for legacy reasons the same setting name may exist in both
+            final Set<String> merged = new HashSet<>(settings.keySet());
+            merged.addAll(secureSettings.getSettingNames());
+            newKeySet = Collections.unmodifiableSet(merged);
+        }
+        keys = newKeySet;
+        return newKeySet;
     }
 
     /**
@@ -832,7 +841,9 @@ public final class Settings implements ToXContentFragment {
             }
             final Object value = source.settings.get(sourceKey);
             if (value instanceof List) {
-                return putList(key, (List)value);
+                @SuppressWarnings("unchecked")
+                final List<String> stringList = (List<String>) value;
+                return putList(key, stringList);
             } else if (value == null) {
                 return putNull(key);
             } else {
@@ -1124,6 +1135,7 @@ public final class Settings implements ToXContentFragment {
                     continue;
                 }
                 if (entry.getValue() instanceof List) {
+                    @SuppressWarnings("unchecked")
                     final ListIterator<String> li = ((List<String>) entry.getValue()).listIterator();
                     while (li.hasNext()) {
                         final String settingValueRaw = li.next();

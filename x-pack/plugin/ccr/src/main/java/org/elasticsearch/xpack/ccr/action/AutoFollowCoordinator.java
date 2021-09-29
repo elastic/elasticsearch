@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -27,16 +28,17 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -45,7 +47,6 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -521,7 +522,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             }
                             groupedListener.onResponse(new Tuple<>(indexToFollow, failure));
                         });
-                    } else if (SearchableSnapshotsConstants.isSearchableSnapshotStore(leaderIndexSettings)) {
+                    } else if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexSettings)) {
                         String message = String.format(Locale.ROOT,
                             "index to follow [%s] is a searchable snapshot index and cannot be used for cross-cluster replication purpose",
                             indexToFollow.getName()

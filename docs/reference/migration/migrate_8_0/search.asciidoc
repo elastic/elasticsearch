@@ -1,11 +1,61 @@
 [discrete]
 [[breaking_80_search_changes]]
-==== Search Changes
+==== Search changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[[_type-search-matches-no-docs]]
+.Searches on the `_type` field are no longer supported.
+[%collapsible]
+====
+*Details* +
+In 8.x, the `_type` metadata field has been removed. {es} now handles a search
+on the `_type` field as a search on a non-existent field. A search on a
+non-existent field matches no documents, regardless of the query string.
+
+In 7.x, a search for `_doc` in the `_type` field would match the same documents
+as a `match_all` query.
+
+*Impact* +
+Remove queries on the `_type` field from your search requests and search
+templates. Searches that include these queries may return no results.
+====
+
+[[msearch-empty-line-support]]
+.The multi search API now parses an empty first line as action metadata in text files.
+[%collapsible]
+====
+*Details* +
+The multi search API now parses an empty first line as empty action metadata
+when you provide a text file as the request body, such as when using curl's
+`--data-binary` flag.
+
+The API no longer supports text files that contain:
+
+* An empty first line followed by a line containing only `{}`.
+* An empty first line followed by another empty line.
+
+*Impact* +
+Don't provide an unsupported text file to the multi search API. Requests that
+include an unsupported file will return an error.
+====
+
+[[remove-unmapped-type-string]]
+.The `unmapped_type: string` sort option has been removed.
+[%collapsible]
+====
+*Details* +
+Search requests no longer support the `unmapped_type: string` sort option.
+Instead, use `unmapped_type: keyword` to handle an unmapped field as if it had
+the `keyword` field type but ignore its values for sorting.
+
+*Impact* +
+Discontinue use of `unmapped_type: string`. Search requests that include the
+`unmapped_type: string` sort option will return shard failures.
+====
+
 [[id-field-data]]
 .Aggregating and sorting on `_id` is disallowed by default.
 [%collapsible]
@@ -20,7 +70,22 @@ Aggregating and sorting on `_id` should be avoided. As an alternative, the
 `_id` field's contents can be duplicated into another field with docvalues
 enabled (note that this does not apply to auto-generated IDs).
 ====
-//end::notable-breaking-changes[]
+
+[[max_clause_count_change]]
+.The `indices.query.bool.max_clause_count` setting now limits all query clauses.
+[%collapsible]
+====
+*Details* +
+Previously, the `indices.query.bool.max_clause_count` would apply to the number
+of clauses of a single `bool` query. It now applies to the total number of
+clauses of the rewritten query. In order to reduce chances of breaks, its
+default value has been bumped from 1024 to 4096.
+
+*Impact* +
+Queries with many clauses should be avoided whenever possible. If you had bumped
+this setting already in order to accomodate for some heavy queries, you might
+need to bump it further so that these heavy queries keep working.
+====
 
 .Search-related REST API endpoints containing mapping types have been removed.
 [%collapsible]
@@ -186,3 +251,15 @@ been removed in 8.0.0. This parameter is a no-op and has no effect on the query.
 Discontinue use of the `type` parameter. `geo_bounding_box` queries that include
 this parameter will return an error.
 ====
+
+.The `type` query has been removed.
+[%collapsible]
+====
+*Details* +
+The `type` query has been removed. Mapping types have been removed in 8.0.
+
+*Impact* +
+Discontinue use of the `type` query. Requests that include the `type` query
+will return an error.
+====
+//end::notable-breaking-changes[]

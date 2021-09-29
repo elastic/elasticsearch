@@ -13,7 +13,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -21,6 +20,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
@@ -470,7 +470,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
             try (Directory dir = newDirectory()) {
                 int numDocs = randomIntBetween(10, 30);
-                final Comparable[] values = new Comparable[numDocs];
+                @SuppressWarnings("rawtypes")
+                final Comparable<?>[] values = new Comparable[numDocs];
                 try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                     for (int i = 0; i < numDocs; i++) {
                         Document doc = new Document();

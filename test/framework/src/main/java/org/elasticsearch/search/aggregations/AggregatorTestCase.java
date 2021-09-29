@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -24,6 +23,7 @@ import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
@@ -68,7 +68,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -77,11 +76,13 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MockFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -164,7 +165,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         ObjectMapper.CONTENT_TYPE, // Cannot aggregate objects
         GeoShapeFieldMapper.CONTENT_TYPE, // Cannot aggregate geoshapes (yet)
 
-        ObjectMapper.NESTED_CONTENT_TYPE, // TODO support for nested
+        NestedObjectMapper.CONTENT_TYPE, // TODO support for nested
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
         FieldAliasMapper.CONTENT_TYPE // TODO support alias
     );
@@ -429,11 +430,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
-     * <p>
+     *
      * @param splitLeavesIntoSeparateAggregators If true this creates a new {@link Aggregator}
      *          for each leaf as though it were a separate index. If false this aggregates
      *          all leaves together, like we do in production.
      */
+    @SuppressWarnings("unchecked")
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSettings indexSettings,
                                                                                       IndexSearcher searcher,
                                                                                       Query query,
@@ -833,7 +835,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
 
             Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext());
-            FieldMapper mapper = (FieldMapper) builder.build(new ContentPath());
+            FieldMapper mapper = (FieldMapper) builder.build(MapperBuilderContext.ROOT);
 
             MappedFieldType fieldType = mapper.fieldType();
 

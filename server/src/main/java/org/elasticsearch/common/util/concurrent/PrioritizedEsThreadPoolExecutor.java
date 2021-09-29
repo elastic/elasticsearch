@@ -98,7 +98,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                     pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing));
                 }
             } else if (runnable instanceof PrioritizedFutureTask) {
-                PrioritizedFutureTask t = (PrioritizedFutureTask) runnable;
+                PrioritizedFutureTask<?> t = (PrioritizedFutureTask<?>) runnable;
                 Object task = t.task;
                 if (t.task instanceof Runnable) {
                     task = super.unwrap((Runnable) t.task);
@@ -179,7 +179,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         if ((callable instanceof PrioritizedCallable) == false) {
             callable = PrioritizedCallable.wrap(callable, Priority.NORMAL);
         }
-        return new PrioritizedFutureTask<>((PrioritizedCallable)callable, insertionOrder.incrementAndGet());
+        return new PrioritizedFutureTask<T>((PrioritizedCallable<T>)callable, insertionOrder.incrementAndGet());
     }
 
     public static class Pending {
@@ -270,7 +270,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     }
 
-    private static final class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask> {
+    private static final class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask<T>> {
 
         final Object task;
         final Priority priority;
@@ -291,7 +291,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         }
 
         @Override
-        public int compareTo(PrioritizedFutureTask pft) {
+        public int compareTo(PrioritizedFutureTask<T> pft) {
             int res = priority.compareTo(pft.priority);
             if (res != 0) {
                 return res;

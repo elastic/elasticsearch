@@ -21,10 +21,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
-import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -94,12 +93,16 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params,
-                                                                  Collection<DiscoveryNode> candidateNodes,
-                                                                  ClusterState clusterState) {
+    public PersistentTasksCustomMetadata.Assignment getAssignment(
+        TransformTaskParams params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState
+    ) {
         if (TransformMetadata.getTransformMetadata(clusterState).isResetMode()) {
-            return new PersistentTasksCustomMetadata.Assignment(null,
-                "Transform task will not be assigned as a feature reset is in progress.");
+            return new PersistentTasksCustomMetadata.Assignment(
+                null,
+                "Transform task will not be assigned as a feature reset is in progress."
+            );
         }
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
@@ -113,7 +116,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
-            clusterState, candidateNodes,
+            clusterState,
+            candidateNodes,
             node -> nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), null)
         );
 
@@ -164,10 +168,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         //
         // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
         // later if they want.
-        final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setAuditor(auditor)
-            .setClient(buildTask.getParentTaskClient())
-            .setTransformsCheckpointService(transformServices.getCheckpointService())
-            .setTransformsConfigManager(transformServices.getConfigManager());
+        final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setClient(buildTask.getParentTaskClient())
+            .setTransformServices(transformServices);
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
 
@@ -182,7 +184,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <7> load next checkpoint
+        // <6> load next checkpoint
         ActionListener<TransformCheckpoint> getTransformNextCheckpointListener = ActionListener.wrap(nextCheckpoint -> {
 
             if (nextCheckpoint.isEmpty()) {
@@ -205,7 +207,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             markAsFailed(buildTask, msg);
         });
 
-        // <6> load last checkpoint
+        // <5> load last checkpoint
         ActionListener<TransformCheckpoint> getTransformLastCheckpointListener = ActionListener.wrap(lastCheckpoint -> {
             indexerBuilder.setLastCheckpoint(lastCheckpoint);
 
@@ -218,7 +220,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             markAsFailed(buildTask, msg);
         });
 
-        // <5> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
+        // <4> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
         ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> transformStatsActionListener = ActionListener.wrap(
@@ -266,32 +268,20 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <4> set fieldmappings for the indexer, get the previous stats (if they exist)
-        ActionListener<Map<String, String>> getFieldMappingsListener = ActionListener.wrap(fieldMappings -> {
-            indexerBuilder.setFieldMappings(fieldMappings);
-            transformServices.getConfigManager().getTransformStoredDoc(transformId, transformStatsActionListener);
-        }, error -> {
-            String msg = TransformMessages.getMessage(
-                TransformMessages.UNABLE_TO_GATHER_FIELD_MAPPINGS,
-                indexerBuilder.getTransformConfig().getDestination().getIndex()
-            );
-            logger.error(msg, error);
-            markAsFailed(buildTask, msg);
-        });
-
-        // <3> Validate the transform, assigning it to the indexer, and get the field mappings
+        // <3> Validate the transform, assigning it to the indexer, and get the previous stats (if they exist)
         ActionListener<TransformConfig> getTransformConfigListener = ActionListener.wrap(config -> {
             ValidationException validationException = config.validate(null);
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
-                SchemaUtil.getDestinationFieldMappings(buildTask.getParentTaskClient(), config.getDestination().getIndex(),
-                        getFieldMappingsListener);
+                transformServices.getConfigManager().getTransformStoredDoc(transformId, transformStatsActionListener);
             } else {
                 auditor.error(transformId, validationException.getMessage());
                 markAsFailed(
                     buildTask,
                     TransformMessages.getMessage(
-                        TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId, validationException.getMessage()
+                        TransformMessages.TRANSFORM_CONFIGURATION_INVALID,
+                        transformId,
+                        validationException.getMessage()
                     )
                 );
             }
@@ -313,8 +303,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         );
 
         // <1> Check the index templates are installed
-        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(clusterService, buildTask.getParentTaskClient(),
-                templateCheckListener);
+        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(
+            clusterService,
+            buildTask.getParentTaskClient(),
+            templateCheckListener
+        );
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {

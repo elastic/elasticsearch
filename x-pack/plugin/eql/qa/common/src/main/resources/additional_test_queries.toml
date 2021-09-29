@@ -238,10 +238,10 @@ expected_event_ids = [
                       60, 66, 71]
 
 [[queries]]
-name = "sequenceWithMoreThan10Results-Repeat"
+name = "sequenceWithMoreThan10Results-Runs"
 query = '''
 sequence by unique_pid
-  [any where true] repeat=2
+  [any where true] [runs=2]
   [any where serial_event_id < 72]
 '''
 expected_event_ids = [
@@ -286,20 +286,6 @@ expected_event_ids  = [65, 86]
 name = "seqMultipleArgsWildcardPatternQuestionMark"
 query = '''
 file where file_name : ("winini?.exe", "lsass.e?e") and opcode == 2
-'''
-expected_event_ids  = [65, 86]
-
-[[queries]]
-name = "wildcardFunctionWildcardPattern"
-query = '''
-file where wildcard(file_name, "winini*.exe", "lsass.*") and opcode == 2
-'''
-expected_event_ids  = [65, 86]
-
-[[queries]]
-name = "wildcardFunctionQuestionMarkPattern"
-query = '''
-file where wildcard(file_name, "winini?.exe", "lsass.e?e") and opcode == 2
 '''
 expected_event_ids  = [65, 86]
 

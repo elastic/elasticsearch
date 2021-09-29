@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
@@ -19,13 +19,10 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   extraConfigFile 'ingest-user-agent/test-regexes.yml', file('src/test/test-regexes.yml')
 }
 
-tasks.named("yamlRestCompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-    'ingest-useragent/30_custom_regex/Test user agent processor with custom regex file',
-    'ingest-useragent/20_useragent_processor/Test user agent processor with parameters'
-  ].join(',')
+tasks.named("yamlRestTestV7CompatTransform").configure {task ->
+  task.addAllowedWarningRegex("setting \\[ecs\\] is deprecated as ECS format is the default and only option")
 }

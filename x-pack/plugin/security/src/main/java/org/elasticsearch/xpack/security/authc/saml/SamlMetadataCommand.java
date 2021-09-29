@@ -16,7 +16,6 @@ import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -30,6 +29,7 @@ import java.util.stream.Collectors;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,20 +38,20 @@ import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.security.authc.saml.SamlSpMetadataBuilder.ContactInfo;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.io.MarshallingException;
@@ -299,13 +299,7 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
         } else {
             Path cert = resolvePath(signingCertPathSpec.value(options));
             Path key = resolvePath(signingKeyPathSpec.value(options));
-            final String resolvedSigningCertPath = cert.toAbsolutePath().toString();
-            Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedSigningCertPath), env);
-            if (certificates.length != 1) {
-                throw new IllegalArgumentException("expected a single certificate in file [" + resolvedSigningCertPath + "] but found [" +
-                        certificates.length + "]");
-            }
-            signingCertificate = (X509Certificate) certificates[0];
+            signingCertificate = CertParsingUtils.readX509Certificate(cert);
             signingKey = readSigningKey(key, password, terminal);
         }
         return new BasicX509Credential(signingCertificate, signingKey);
@@ -329,8 +323,7 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
         return password == null ? null : password.toCharArray();
     }
 
-    private static PrivateKey readSigningKey(Path path, char[] password, Terminal terminal)
-            throws Exception {
+    private static PrivateKey readSigningKey(Path path, char[] password, Terminal terminal) throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
             return PemUtils.readPrivateKey(path, () -> {

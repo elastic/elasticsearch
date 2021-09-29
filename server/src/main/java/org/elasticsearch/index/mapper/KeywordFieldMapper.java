@@ -124,12 +124,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
-            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
-                .setValidator(v -> {
-                    if (v && ignoreAbove.getValue() < ignoreAbove.getDefaultValue()) {
-                        throw new IllegalArgumentException("Field [ignore_above] cannot be set in conjunction with field [dimension]");
-                    }
-                });
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
+                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + hasDocValues.name
+                            + "] are true"
+                    );
+                }
+            }).precludesParameters(normalizer, ignoreAbove);
         }
 
         public Builder(String name) {
@@ -179,7 +186,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 script, onScriptError, meta, dimension);
         }
 
-        private KeywordFieldType buildFieldType(ContentPath contentPath, FieldType fieldType) {
+        private KeywordFieldType buildFieldType(MapperBuilderContext context, FieldType fieldType) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer quoteAnalyzer = Lucene.KEYWORD_ANALYZER;
@@ -198,17 +205,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
-            return new KeywordFieldType(buildFullName(contentPath), fieldType, normalizer, searchAnalyzer, quoteAnalyzer, this);
+            return new KeywordFieldType(context.buildFullName(name), fieldType, normalizer, searchAnalyzer, quoteAnalyzer, this);
         }
 
         @Override
-        public KeywordFieldMapper build(ContentPath contentPath) {
+        public KeywordFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
-            return new KeywordFieldMapper(name, fieldtype, buildFieldType(contentPath, fieldtype),
-                    multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+            return new KeywordFieldMapper(name, fieldtype, buildFieldType(context, fieldtype),
+                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -431,6 +438,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
+    /** The maximum keyword length allowed for a dimension field */
+    private static final int DIMENSION_MAX_BYTES = 1024;
+
     private final boolean indexed;
     private final boolean hasDocValues;
     private final String nullValue;
@@ -448,8 +458,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
 
-    protected KeywordFieldMapper(String simpleName, FieldType fieldType, KeywordFieldType mappedFieldType,
-                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    private KeywordFieldMapper(String simpleName, FieldType fieldType, KeywordFieldType mappedFieldType,
+                               MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, mappedFieldType.normalizer, multiFields, copyTo,
             builder.script.get() != null, builder.onScriptError.getValue());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
@@ -509,9 +519,24 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
+        if (dimension && binaryValue.length > DIMENSION_MAX_BYTES) {
+            throw new IllegalArgumentException(
+                "Dimension field [" + fieldType().name() + "] cannot be more than [" + DIMENSION_MAX_BYTES + "] bytes long."
+            );
+        }
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            context.doc().add(field);
+            if (dimension) {
+                // Check that a dimension field is single-valued and not an array
+                if (context.doc().getByKey(fieldType().name()) != null) {
+                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+                }
+                // Add dimension field with key so that we ensure it is single-valued.
+                // Dimension fields are always indexed.
+                context.doc().addWithKey(fieldType().name(), field);
+            } else {
+                context.doc().add(field);
+            }
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());

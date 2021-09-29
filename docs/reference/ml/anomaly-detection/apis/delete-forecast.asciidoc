@@ -34,7 +34,7 @@ one or more forecasts before they expire.
 NOTE: When you delete a job, its associated forecasts are deleted.
 
 For more information, see
-{ml-docs}/ml-ad-overview.html#ml-forecasting[Forecasting the future].
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-forecast[Forecasting the future].
 
 [[ml-delete-forecast-path-parms]]
 == {api-path-parms-title}

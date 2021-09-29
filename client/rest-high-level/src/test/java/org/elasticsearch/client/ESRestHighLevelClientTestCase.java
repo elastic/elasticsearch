@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.cluster.RemoteInfoResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -63,9 +64,17 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
+    public static final String IGNORE_THROTTLED_DEPRECATION_WARNING = "[ignore_throttled] parameter is deprecated because frozen " +
+        "indices have been deprecated. Consider cold or frozen tiers in place of frozen indices.";
+
+    protected static final RequestOptions IGNORE_THROTTLED_WARNING = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(
+            warnings -> List.of(IGNORE_THROTTLED_DEPRECATION_WARNING).equals(warnings) == false
+        ).build();
     protected static final String CONFLICT_PIPELINE_ID = "conflict_pipeline";
 
     private static RestHighLevelClient restHighLevelClient;
+    private static RestHighLevelClient adminRestHighLevelClient;
     private static boolean async = Booleans.parseBoolean(System.getProperty("tests.rest.async", "false"));
 
     @Before
@@ -74,16 +83,33 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         if (restHighLevelClient == null) {
             restHighLevelClient = new HighLevelClient(client());
         }
+        if (adminRestHighLevelClient == null) {
+            adminRestHighLevelClient = new HighLevelClient(adminClient());
+        }
     }
 
     @AfterClass
     public static void cleanupClient() throws IOException {
         IOUtils.close(restHighLevelClient);
+        IOUtils.close(adminRestHighLevelClient);
         restHighLevelClient = null;
+        adminRestHighLevelClient = null;
     }
 
     protected static RestHighLevelClient highLevelClient() {
         return restHighLevelClient;
+    }
+
+    @Override
+    protected Settings restAdminSettings() {
+        String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
+    }
+
+    protected static RestHighLevelClient adminHighLevelClient() {
+        return adminRestHighLevelClient;
     }
 
     /**

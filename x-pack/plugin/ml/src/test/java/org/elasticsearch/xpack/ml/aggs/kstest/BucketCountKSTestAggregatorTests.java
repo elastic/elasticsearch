@@ -32,8 +32,8 @@ public class BucketCountKSTestAggregatorTests extends ESTestCase {
         new double[] { 40, 60, 20, 30, 30, 10, 10, 10, 10, 10 }
     );
     private static final MlAggsHelper.DoubleBucketValues LOWER_TAILED_VALUES_SPARSE = new MlAggsHelper.DoubleBucketValues(
-        new long[] { 4, 6, 2, 3, 3, 2, 1, 1, 1, 1 },
-        new double[] { 4, 6, 2, 3, 3, 2, 1, 1, 1, 1 }
+        new long[] { 4, 8, 2, 3, 3, 2, 1, 1, 1, 0 },
+        new double[] { 4, 8, 2, 3, 3, 2, 1, 1, 1, 0 }
     );
 
     private static final MlAggsHelper.DoubleBucketValues UPPER_TAILED_VALUES = new MlAggsHelper.DoubleBucketValues(

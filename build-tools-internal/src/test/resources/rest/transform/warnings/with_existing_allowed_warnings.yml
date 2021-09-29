@@ -17,3 +17,15 @@ setup:
         id: "something"
   - match: { acknowledged: true }
 
+---
+"Test with existing allowed warnings not to change":
+  - do:
+      allowed_warnings:
+        - "a"
+        - "b"
+      allowed_warnings_regex:
+        - "c"
+        - "d"
+      something:
+        id: "something_else"
+  - match: { acknowledged: true }

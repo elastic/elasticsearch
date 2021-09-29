@@ -99,6 +99,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
+            @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 listener.onResponse((Response)new CreateIndexResponse(false, false, null));

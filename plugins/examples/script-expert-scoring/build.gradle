@@ -5,16 +5,13 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   name 'script-expert-scoring'
   description 'An example script engine to use low level Lucene internals for expert scoring'
   classname 'org.elasticsearch.example.expertscript.ExpertScriptPlugin'
-  licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
+  licenseFile rootProject.file('SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
-
-tasks.named("test").configure { enabled = false }
-

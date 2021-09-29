@@ -13,21 +13,20 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
-import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -48,13 +47,15 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        SSLClientAuth sslClientAuth = randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL;
+        SslClientAuthenticationMode clientAuth = randomBoolean()
+            ? SslClientAuthenticationMode.REQUIRED
+            : SslClientAuthenticationMode.OPTIONAL;
 
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings());
         addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
         builder.put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
+            .put("xpack.security.http.ssl.client_authentication", clientAuth)
             .put("xpack.security.authc.realms.file.file.order", "0")
             .put("xpack.security.authc.realms.pki.pki1.order", "2")
             .putList("xpack.security.authc.realms.pki.pki1.certificate_authorities",
@@ -116,11 +117,10 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     private SSLContext getRestSSLContext(String keyPath, String password, String certPath, List<String> trustedCertPaths) throws Exception {
         SSLContext context = SSLContext.getInstance("TLS");
-        TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readCertificates(trustedCertPaths.stream().map(p -> getDataPath
-            (p)).collect(Collectors.toList())));
-        KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
-            (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), password::toCharArray), password.toCharArray());
-        context.init(new KeyManager[]{km}, new TrustManager[]{tm}, new SecureRandom());
+        final List<Path> resolvedPaths = trustedCertPaths.stream().map(p -> getDataPath(p)).collect(Collectors.toList());
+        TrustManager tm = CertParsingUtils.getTrustManagerFromPEM(resolvedPaths);
+        KeyManager km = CertParsingUtils.getKeyManagerFromPEM(getDataPath(certPath), getDataPath(keyPath), password.toCharArray());
+        context.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
         return context;
     }
 

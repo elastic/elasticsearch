@@ -67,7 +67,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
         if (request.getRestApiVersion() == RestApiVersion.V_7) {
             if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-                deprecationLogger.compatibleApiWarning("get_field_mapping_with_types", INCLUDE_TYPE_DEPRECATION_MESSAGE);
+                deprecationLogger.compatibleCritical("get_field_mapping_with_types", INCLUDE_TYPE_DEPRECATION_MESSAGE);
             }
             boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
             final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
@@ -77,7 +77,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
             if (request.hasParam("local")) {
                 request.param("local");
-                deprecationLogger.compatibleApiWarning(
+                deprecationLogger.compatibleCritical(
                     "get_field_mapping_local",
                     "Use [local] in get field mapping requests is deprecated. " + "The parameter will be removed in the next major version"
                 );

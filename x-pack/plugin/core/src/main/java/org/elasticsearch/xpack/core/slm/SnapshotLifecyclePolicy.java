@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
@@ -42,8 +43,6 @@ import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validate
  */
 public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecyclePolicy>
     implements Writeable, Diffable<SnapshotLifecyclePolicy>, ToXContentObject {
-
-    public static final String POLICY_ID_METADATA_FIELD = "policy";
 
     private final String id;
     private final String name;
@@ -194,9 +193,9 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
             } else {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> metadata = (Map<String, Object>) configuration.get(METADATA_FIELD_NAME);
-                if (metadata.containsKey(POLICY_ID_METADATA_FIELD)) {
-                    err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": field name [" + POLICY_ID_METADATA_FIELD +
-                        "] is reserved and will be added automatically");
+                if (metadata.containsKey(SnapshotsService.POLICY_ID_METADATA_FIELD)) {
+                    err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": field name ["
+                        + SnapshotsService.POLICY_ID_METADATA_FIELD + "] is reserved and will be added automatically");
                 } else {
                     Map<String, Object> metadataWithPolicyField = addPolicyNameToMetadata(metadata);
                     int serializedSizeOriginal = CreateSnapshotRequest.metadataSize(metadata);
@@ -227,7 +226,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         } else {
             newMetadata = new HashMap<>(metadata);
         }
-        newMetadata.put(POLICY_ID_METADATA_FIELD, this.id);
+        newMetadata.put(SnapshotsService.POLICY_ID_METADATA_FIELD, this.id);
         return newMetadata;
     }
 

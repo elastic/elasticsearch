@@ -180,7 +180,7 @@ public class LogicalPlanTests extends ESTestCase {
     }
 
     public void testRepeatedQuery() throws Exception {
-        LogicalPlan plan = parser.createStatement("sequence " + " [any where true] repeat=2" + " [any where true]");
+        LogicalPlan plan = parser.createStatement("sequence " + " [any where true] [runs=2]" + " [any where true]");
         plan = defaultPipes(plan);
         assertEquals(Sequence.class, plan.getClass());
         Sequence seq = (Sequence) plan;

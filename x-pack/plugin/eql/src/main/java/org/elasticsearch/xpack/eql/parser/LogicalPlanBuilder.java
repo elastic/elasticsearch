@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.eql.parser;
 
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
@@ -56,11 +57,13 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.text;
 import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    static final String FILTER_PIPE = "filter", HEAD_PIPE = "head", TAIL_PIPE = "tail";
+    static final String FILTER_PIPE = "filter", HEAD_PIPE = "head", TAIL_PIPE = "tail", RUNS = "runs";
 
     static final Set<String> SUPPORTED_PIPES = Sets.newHashSet("count", FILTER_PIPE, HEAD_PIPE, "sort", TAIL_PIPE, "unique",
             "unique_count");
@@ -251,22 +254,30 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                             found);
                 }
             }
-            // check repeat
-            int repeat = 1;
+            // check runs
+            Token key = sequenceTermCtx.key;
+            if (key != null) {
+                String k = key.getText();
+                if (RUNS.equals(k) == false) {
+                    throw new ParsingException(source(key), "Unrecognized option [{}], expecting [{}]", k, RUNS);
+                }
+            }
+
+            int runs = 1;
             NumberContext numberCtx = sequenceTermCtx.number();
             if (numberCtx instanceof IntegerLiteralContext) {
                 Number number = (Number) visitIntegerLiteral((IntegerLiteralContext) numberCtx).fold();
                 long value = number.longValue();
                 if (value < 1) {
-                    throw new ParsingException(source(numberCtx), "A positive repeat value is required; found [{}]", value);
+                    throw new ParsingException(source(numberCtx), "A positive runs value is required; found [{}]", value);
                 }
                 if (value > 100) {
                     throw new ParsingException(source(numberCtx), "A query cannot be repeated more than 100 times; found [{}]", value);
                 }
-                repeat = (int) value;
+                runs = (int) value;
             }
 
-            int numberOfQueries = queries.size() + repeat;
+            int numberOfQueries = queries.size() + runs;
             if (numberOfQueries > 256) {
                 throw new ParsingException(
                     source(sequenceTermCtx),
@@ -275,7 +286,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 );
             }
 
-            for (int i = 0; i < repeat; i++) {
+            for (int i = 0; i < runs; i++) {
                 queries.add(sequenceTerm);
             }
         }

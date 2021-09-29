@@ -7,26 +7,33 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedModelDeploymentAction.Response> {
 
@@ -39,57 +46,62 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         super(NAME, InferTrainedModelDeploymentAction.Response::new);
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
+    public static class Request extends BaseTasksRequest<Request> {
 
         public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
-        public static final ParseField INPUT = new ParseField("input");
+        public static final ParseField DOCS = new ParseField("docs");
         public static final ParseField TIMEOUT = new ParseField("timeout");
+        public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
-        static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+        static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
-            PARSER.declareString(Request::setDeploymentId, DEPLOYMENT_ID);
-            PARSER.declareString((request, inputs) -> request.input = inputs, INPUT);
-            PARSER.declareString((r, value) -> r.setTimeout(TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName())),
-                TIMEOUT);
+            PARSER.declareString(Request.Builder::setDeploymentId, DEPLOYMENT_ID);
+            PARSER.declareObjectArray(Request.Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
+            PARSER.declareString(Request.Builder::setTimeout, TIMEOUT);
+            PARSER.declareNamedObject(
+                Request.Builder::setUpdate,
+                ((p, c, name) -> p.namedObject(InferenceConfigUpdate.class, name, c)),
+                INFERENCE_CONFIG
+            );
         }
 
         public static Request parseRequest(String deploymentId, XContentParser parser) {
-            Request r = PARSER.apply(parser, null);
+            Request.Builder builder = PARSER.apply(parser, null);
             if (deploymentId != null) {
-                r.deploymentId = deploymentId;
+                builder.setDeploymentId(deploymentId);
             }
-            return r;
+            return builder.build();
         }
 
-        private String deploymentId;
-        private String input;
+        private final String deploymentId;
+        private final List<Map<String, Object>> docs;
+        private final InferenceConfigUpdate update;
 
-        private Request() {
-        }
-
-        Request(String deploymentId, String input) {
-            this.deploymentId = Objects.requireNonNull(deploymentId);
-            this.input = Objects.requireNonNull(input);
+        public Request(String deploymentId, InferenceConfigUpdate update, List<Map<String, Object>> docs) {
+            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
+            this.docs = ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS);
+            this.update = update;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
-            input = in.readString();
+            docs = Collections.unmodifiableList(in.readList(StreamInput::readMap));
+            update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
         }
 
         public String getDeploymentId() {
             return deploymentId;
         }
 
-        private void setDeploymentId(String deploymentId) {
-            this.deploymentId = deploymentId;
+        public List<Map<String, Object>> getDocs() {
+            return docs;
         }
 
-        public String getInput() {
-            return input;
+        public InferenceConfigUpdate getUpdate() {
+            return Optional.ofNullable(update).orElse(new EmptyConfigUpdate());
         }
 
         @Override
@@ -102,20 +114,31 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(deploymentId);
-            out.writeString(input);
+        public ActionRequestValidationException validate() {
+            ActionRequestValidationException validationException = super.validate();
+            if (docs == null) {
+                validationException = addValidationError("[" + DOCS.getPreferredName() + "] must not be null",
+                    validationException);
+            } else {
+                if (docs.isEmpty()) {
+                    validationException = addValidationError("at least one document is required",
+                        validationException);
+                }
+                if (docs.size() > 1) {
+                    // TODO support multiple docs
+                    validationException = addValidationError("multiple documents are not supported",
+                        validationException);
+                }
+            }
+            return validationException;
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
-            builder.field(DEPLOYMENT_ID.getPreferredName(), deploymentId);
-            builder.field(INPUT.getPreferredName(), input);
-            builder.field(TIMEOUT.getPreferredName(), getTimeout().getStringRep());
-            builder.endObject();
-            return builder;
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(deploymentId);
+            out.writeCollection(docs, StreamOutput::writeMap);
+            out.writeOptionalNamedWriteable(update);
         }
 
         @Override
@@ -129,18 +152,56 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (o == null || getClass() != o.getClass()) return false;
             InferTrainedModelDeploymentAction.Request that = (InferTrainedModelDeploymentAction.Request) o;
             return Objects.equals(deploymentId, that.deploymentId)
-                && Objects.equals(input, that.input)
+                && Objects.equals(docs, that.docs)
+                && Objects.equals(update, that.update)
                 && Objects.equals(getTimeout(), that.getTimeout());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, input, getTimeout());
+            return Objects.hash(deploymentId, update, docs, getTimeout());
         }
 
-        @Override
-        public String toString() {
-            return Strings.toString(this);
+        public static class Builder {
+
+            private String deploymentId;
+            private List<Map<String, Object>> docs;
+            private TimeValue timeout;
+            private InferenceConfigUpdate update;
+
+            private Builder() {}
+
+            public Builder setDeploymentId(String deploymentId) {
+                this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
+                return this;
+            }
+
+            public Builder setDocs(List<Map<String, Object>> docs) {
+                this.docs = ExceptionsHelper.requireNonNull(docs, DOCS);
+                return this;
+            }
+
+            public Builder setTimeout(TimeValue timeout) {
+                this.timeout = timeout;
+                return this;
+            }
+
+            public Builder setUpdate(InferenceConfigUpdate update) {
+                this.update = update;
+                return this;
+            }
+
+            private Builder setTimeout(String timeout) {
+                return setTimeout(TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()));
+            }
+
+            public Request build() {
+                Request request = new Request(deploymentId, update, docs);
+                if (timeout != null) {
+                    request.setTimeout(timeout);
+                }
+                return request;
+            }
         }
     }
 
@@ -170,6 +231,10 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeNamedWriteable(results);
+        }
+
+        public InferenceResults getResults() {
+            return results;
         }
     }
 }

@@ -557,11 +557,11 @@ sequence
 expected_event_ids = [1, 2, 3]
 
 [[queries]]
-name = "sequenceOneManyMany-Repeat"
+name = "sequenceOneManyMany-Runs"
 query = '''
 sequence
   [process where serial_event_id == 1]
-  [process where true] repeat=2
+  [process where true] [runs=2]
 '''
 expected_event_ids = [1, 2, 3]
 
@@ -578,11 +578,11 @@ expected_event_ids = [1, 2, 3,
                       3, 4, 5]
 
 [[queries]]
-name = "sequenceConditionManyMany-Repeat"
+name = "sequenceConditionManyMany-Runs"
 query = '''
 sequence
   [process where serial_event_id <= 3]
-  [process where true] repeat=2
+  [process where true] [runs=2]
 '''
 expected_event_ids = [1, 2, 3,
                       2, 3, 4,
@@ -610,10 +610,10 @@ sequence
 expected_event_ids = [1, 2, 3]
 
 [[queries]]
-name = "sequenceManyManyCondition-Repeat"
+name = "sequenceManyManyCondition-Runs"
 query = '''
 sequence
-  [process where true] repeat=2
+  [process where true] [runs=2]
   [process where serial_event_id <= 3]
 '''
 expected_event_ids = [1, 2, 3]
@@ -633,11 +633,11 @@ expected_event_ids = [1, 2, 3, 4,
                       4, 5, 6, 7]
 
 [[queries]]
-name = "sequenceThreeManyCondition1-Repeat"
+name = "sequenceThreeManyCondition1-Runs"
 query = '''
 sequence
   [process where serial_event_id <= 4]
-  [process where true] repeat=3
+  [process where true] [runs=3]
 '''
 expected_event_ids = [1, 2, 3, 4,
                       2, 3, 4, 5,
@@ -658,12 +658,12 @@ expected_event_ids = [1, 2, 3, 4,
                       3, 4, 5, 6]
 
 [[queries]]
-name = "sequenceThreeManyCondition2-Repeat"
+name = "sequenceThreeManyCondition2-Runs"
 query = '''
 sequence
   [process where true]
   [process where serial_event_id <= 4]
-  [process where true] repeat=2
+  [process where true] [runs=2]
 '''
 expected_event_ids = [1, 2, 3, 4,
                       2, 3, 4, 5,
@@ -682,10 +682,10 @@ expected_event_ids = [1, 2, 3, 4,
                       2, 3, 4, 5]
 
 [[queries]]
-name = "sequenceThreeManyCondition3-Repeat"
+name = "sequenceThreeManyCondition3-Runs"
 query = '''
 sequence
-  [process where true] repeat=2
+  [process where true] [runs=2]
   [process where serial_event_id <= 4]
   [process where true]
 '''
@@ -704,10 +704,10 @@ sequence
 expected_event_ids = [1, 2, 3, 4]
 
 [[queries]]
-name = "sequenceThreeManyCondition4-Repeat"
+name = "sequenceThreeManyCondition4-Runs"
 query = '''
 sequence
-  [process where true] repeat=3
+  [process where true] [runs=3]
   [process where serial_event_id <= 4]
 '''
 expected_event_ids = [1, 2, 3, 4]
@@ -750,11 +750,11 @@ until
 expected_event_ids = []
 
 [[queries]]
-name = "fourSequencesByPidWithUntil1-Repeat"
+name = "fourSequencesByPidWithUntil1-Runs"
 query = '''
 sequence
   [process where opcode == 1] by unique_pid
-  [file where opcode == 0]    by unique_pid  repeat=3
+  [file where opcode == 0]    by unique_pid  [runs=3]
 until
   [file where opcode == 2]    by unique_pid
 '''
@@ -775,11 +775,11 @@ until
 expected_event_ids = [54, 55, 61, 67]
 
 [[queries]]
-name = "fourSequencesByPidWithUntil2-Repeat"
+name = "fourSequencesByPidWithUntil2-Runs"
 query = '''
 sequence
   [process where opcode == 1] by unique_pid
-  [file where opcode == 0]    by unique_pid  repeat=3
+  [file where opcode == 0]    by unique_pid  [runs=3]
 until
   [file where opcode == 200]  by unique_pid
 '''
@@ -809,11 +809,11 @@ sequence
 expected_event_ids = [54, 55, 61, 67]
 
 [[queries]]
-name = "fourSequencesByPid-Repeat"
+name = "fourSequencesByPid-Runs"
 query = '''
 sequence
   [process where opcode == 1] by unique_pid
-  [file where opcode == 0]    by unique_pid  repeat=3
+  [file where opcode == 0]    by unique_pid  [runs=3]
 '''
 expected_event_ids = [54, 55, 61, 67]
 
@@ -830,11 +830,11 @@ sequence
 expected_event_ids = [54, 55, 61, 67]
 
 [[queries]]
-name = "fourSequencesByPidAndProcessPath1-Repeat"
+name = "fourSequencesByPidAndProcessPath1-Runs"
 query = '''
 sequence
   [process where opcode == 1] by unique_pid,  process_path
-  [file where opcode == 0]    by unique_pid,  process_path  repeat=3
+  [file where opcode == 0]    by unique_pid,  process_path [runs=3]
 '''
 expected_event_ids = [54, 55, 61, 67]
 
@@ -852,23 +852,23 @@ until
 expected_event_ids = [54, 55, 61, 67]
 
 [[queries]]
-name = "fourSequencesByPidAndProcessPathWithUntil-Repeat"
+name = "fourSequencesByPidAndProcessPathWithUntil-Runs"
 query = '''
 sequence
   [process where opcode == 1] by unique_pid,  process_path
-  [file where opcode == 0]    by unique_pid,  process_path  repeat=3
+  [file where opcode == 0]    by unique_pid,  process_path [runs=3]
 until
   [file where opcode == 200]  by unique_pid,  process_path
 '''
 expected_event_ids = [54, 55, 61, 67]
 
 [[queries]]
-name = "fourSequencesByPidAndProcessPathWithUntil-RepeatExtra"
+name = "fourSequencesByPidAndProcessPathWithUntil-RunsExtra"
 query = '''
 sequence
   [process where opcode == 1] by unique_pid,  process_path
-  [file where opcode == 0]    by unique_pid,  process_path  repeat=2
-  [file where opcode == 0]    by unique_pid,  process_path  repeat=1
+  [file where opcode == 0]    by unique_pid,  process_path [runs=2]
+  [file where opcode == 0]    by unique_pid,  process_path [runs=1]
 until
   [file where opcode == 200]  by unique_pid,  process_path
 '''
@@ -999,8 +999,9 @@ expected_event_ids  = [67, 68, 69, 70,
 
 [[queries]]
 name = "sequencesOnDifferentEventTypes7"
+# query matches with a timespan of over 5000ms for millis and over 50ms for nano test
 query = '''
-sequence with maxspan=500ms
+sequence with maxspan=50ms
   [file where event_subtype_full : "file_create_event"] by file_path
   [process where opcode == 1] by process_path
   [process where opcode == 2] by process_path
@@ -1022,10 +1023,10 @@ expected_event_ids = [1, 2,
                       3, 4]
 
 [[queries]]
-name = "doubleSameSequence-Repeat"
+name = "doubleSameSequence-Runs"
 query = '''
 sequence
-  [process where serial_event_id < 5] repeat=2
+  [process where serial_event_id < 5] [runs=2]
 '''
 expected_event_ids = [1, 2,
                       2, 3,
@@ -1052,10 +1053,10 @@ sequence
 expected_event_ids = [55, 61]
 
 [[queries]]
-name = "doubleSameSequenceWithBy-Repeat"
+name = "doubleSameSequenceWithBy-Runs"
 query = '''
 sequence
-  [file where opcode==0] by unique_pid  repeat=2
+  [file where opcode==0] by unique_pid  [runs=2]
 | head 1
 '''
 expected_event_ids = [55, 61]
@@ -1083,10 +1084,10 @@ until [process where opcode==5000] by unique_ppid
 expected_event_ids = [55, 61]
 
 [[queries]]
-name = "doubleSameSequenceWithByUntilAndHead1-Repeat"
+name = "doubleSameSequenceWithByUntilAndHead1-Runs"
 query = '''
 sequence
-  [file where opcode==0 and file_name:"*.exe"] by unique_pid repeat=2
+  [file where opcode==0 and file_name:"*.exe"] by unique_pid [runs=2]
 until [process where opcode==5000] by unique_ppid
 | head 1
 '''
@@ -1104,10 +1105,10 @@ until [process where opcode==1] by unique_ppid
 expected_event_ids = []
 
 [[queries]]
-name = "doubleSameSequenceWithByUntilAndHead2-Repeat"
+name = "doubleSameSequenceWithByUntilAndHead2-Runs"
 query = '''
 sequence
-  [file where opcode==0 and file_name:"*.exe"] by unique_pid repeat=2
+  [file where opcode==0 and file_name:"*.exe"] by unique_pid [runs=2]
 until [process where opcode==1] by unique_ppid
 | head 1
 '''

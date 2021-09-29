@@ -52,10 +52,10 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -75,6 +75,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -136,13 +137,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardLock shardLock;
     private final OnClose onClose;
 
-    private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
-        @Override
-        protected void closeInternal() {
-            // close us once we are done
-            Store.this.closeInternal();
-        }
-    };
+    private final AbstractRefCounted refCounter = AbstractRefCounted.of(this::closeInternal); // close us once we are done
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
         this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY);
@@ -281,6 +276,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void renameTempFilesSafe(Map<String, String> tempFileMap) throws IOException {
         // this works just like a lucene commit - we rename all temp files and once we successfully
         // renamed all the segments we rename the commit to ensure we don't leave half baked commits behind.
+        @SuppressWarnings({"rawtypes", "unchecked"})
         final Map.Entry<String, String>[] entries = tempFileMap.entrySet().toArray(new Map.Entry[0]);
         ArrayUtil.timSort(entries, (o1, o2) -> {
             String left = o1.getValue();
@@ -390,6 +386,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     @Override
     public final boolean decRef() {
         return refCounter.decRef();
+    }
+
+    @Override
+    public final boolean hasReferences() {
+        return refCounter.hasReferences();
     }
 
     @Override
@@ -623,7 +624,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // FNF should not happen since we hold a write lock?
                 } catch (IOException ex) {
                     if (existingFile.startsWith(IndexFileNames.SEGMENTS)
-                            || existingFile.equals(IndexFileNames.OLD_SEGMENTS_GEN)
                             || existingFile.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
                         // TODO do we need to also fail this if we can't delete the pending commit file?
                         // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit
@@ -968,9 +968,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final List<StoreFileMetadata> perCommitStoreFiles = new ArrayList<>();
 
             for (StoreFileMetadata meta : this) {
-                if (IndexFileNames.OLD_SEGMENTS_GEN.equals(meta.name())) { // legacy
-                    continue; // we don't need that file at all
-                }
                 final String segmentId = IndexFileNames.parseSegmentName(meta.name());
                 final String extension = IndexFileNames.getExtension(meta.name());
                 if (IndexFileNames.SEGMENTS.equals(segmentId) ||
@@ -1006,9 +1003,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
             RecoveryDiff recoveryDiff = new RecoveryDiff(Collections.unmodifiableList(identical),
                 Collections.unmodifiableList(different), Collections.unmodifiableList(missing));
-            assert recoveryDiff.size() == this.metadata.size() - (metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN) ? 1 : 0)
+            assert recoveryDiff.size() == this.metadata.size()
                     : "some files are missing recoveryDiff size: [" + recoveryDiff.size() + "] metadata size: [" +
-                      this.metadata.size() + "] contains  segments.gen: [" + metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN) + "]";
+                      this.metadata.size() + "]";
             return recoveryDiff;
         }
 
@@ -1115,7 +1112,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * Returns true if the file is auto-generated by the store and shouldn't be deleted during cleanup.
-     * This includes write lock and checksum files
+     * This includes write lock files
      */
     public static boolean isAutogenerated(String name) {
         return IndexWriter.WRITE_LOCK_NAME.equals(name);
@@ -1148,7 +1145,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             String footerDigest = null;
             if (metadata.checksum().equals(actualChecksum) && writtenBytes == metadata.length()) {
                 ByteArrayIndexInput indexInput = new ByteArrayIndexInput("checksum", this.footerChecksum);
-                footerDigest = digestToString(indexInput.readLong());
+                footerDigest = digestToString(CodecUtil.readBELong(indexInput));
                 if (metadata.checksum().equals(footerDigest)) {
                     return;
                 }
@@ -1287,9 +1284,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // skipping the verified portion
                     input.seek(verifiedPosition);
                     // and checking unverified
-                    skipBytes(pos - verifiedPosition);
+                    super.seek(pos);
                 } else {
-                    skipBytes(pos - getFilePointer());
+                    super.seek(pos);
                 }
             }
         }
@@ -1320,7 +1317,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         public long getStoredChecksum() {
-            return new ByteArrayDataInput(checksum).readLong();
+            try {
+                return CodecUtil.readBELong(new ByteArrayDataInput(checksum));
+            }
+            catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         public long verify() throws CorruptIndexException {

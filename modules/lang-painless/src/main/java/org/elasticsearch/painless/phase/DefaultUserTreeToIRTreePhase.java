@@ -185,6 +185,7 @@ import org.elasticsearch.painless.symbol.Decorations.StandardPainlessInstanceBin
 import org.elasticsearch.painless.symbol.Decorations.StandardPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ThisPainlessMethod;
 import org.elasticsearch.painless.symbol.Decorations.TypeParameters;
 import org.elasticsearch.painless.symbol.Decorations.UnaryType;
 import org.elasticsearch.painless.symbol.Decorations.UpcastPainlessCast;
@@ -239,6 +240,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDShiftType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDSize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDStoreType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDSymbol;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDThisMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDTypeParameters;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDUnaryType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDValue;
@@ -1221,6 +1223,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         if (scriptScope.hasDecoration(callLocalNode, StandardLocalFunction.class)) {
             LocalFunction localFunction = scriptScope.getDecoration(callLocalNode, StandardLocalFunction.class).getLocalFunction();
             irInvokeCallMemberNode.attachDecoration(new IRDFunction(localFunction));
+        } else if (scriptScope.hasDecoration(callLocalNode, ThisPainlessMethod.class)) {
+            PainlessMethod thisMethod =
+                    scriptScope.getDecoration(callLocalNode, ThisPainlessMethod.class).getThisPainlessMethod();
+            irInvokeCallMemberNode.attachDecoration(new IRDThisMethod(thisMethod));
         } else if (scriptScope.hasDecoration(callLocalNode, StandardPainlessMethod.class)) {
             PainlessMethod importedMethod =
                     scriptScope.getDecoration(callLocalNode, StandardPainlessMethod.class).getStandardPainlessMethod();

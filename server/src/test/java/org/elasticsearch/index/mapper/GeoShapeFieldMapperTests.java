@@ -7,14 +7,12 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -158,15 +156,6 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(ignoreMalformed, equalTo(false));
     }
 
-    private void assertFieldWarnings(String... fieldNames) {
-        String[] warnings = new String[fieldNames.length];
-        for (int i = 0; i < fieldNames.length; ++i) {
-            warnings[i] = "Parameter [" + fieldNames[i] + "] "
-                + "is deprecated and will be removed in a future version";
-        }
-        assertWarnings(warnings);
-    }
-
     public void testGeoShapeMapperMerge() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "geo_shape").field("orientation", "ccw")));
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("field");
@@ -180,24 +169,6 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
         geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
-    }
-
-    public void testGeoShapeLegacyMerge() throws Exception {
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
-        MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", "geo_shape")));
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> merge(m, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive"))));
-
-        assertThat(e.getMessage(),
-            containsString("mapper [field] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
-        assertFieldWarnings("strategy");
-
-        MapperService lm = createMapperService(version, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive")));
-        e = expectThrows(IllegalArgumentException.class,
-            () -> merge(lm, fieldMapping(b -> b.field("type", "geo_shape"))));
-        assertThat(e.getMessage(),
-            containsString("mapper [field] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
-        assertFieldWarnings("strategy");
     }
 
     public void testSerializeDefaults() throws Exception {

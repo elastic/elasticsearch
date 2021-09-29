@@ -32,7 +32,10 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
@@ -41,7 +44,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldNamesProvidingStoredFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -56,7 +59,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -136,14 +138,14 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         private static final FieldInfo FAKE_SOURCE_FIELD
             = new FieldInfo(SourceFieldMapper.NAME, 1, false, false, false, IndexOptions.NONE,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
+            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, 0, VectorSimilarityFunction.EUCLIDEAN, false);
         private static final FieldInfo FAKE_ROUTING_FIELD
             = new FieldInfo(RoutingFieldMapper.NAME, 2, false, false, false, IndexOptions.NONE,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
+            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, 0, VectorSimilarityFunction.EUCLIDEAN, false);
         private static final FieldInfo FAKE_ID_FIELD
             = new FieldInfo(IdFieldMapper.NAME, 3, false, false, false, IndexOptions.DOCS,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
-        private static Set<String> TRANSLOG_FIELD_NAMES =
+            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, 0, VectorSimilarityFunction.EUCLIDEAN, false);
+        private static final Set<String> TRANSLOG_FIELD_NAMES =
             Sets.newHashSet(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
 
 
@@ -274,6 +276,16 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public VectorValues getVectorValues(String field) throws IOException {
+            return getDelegate().getVectorValues(field);
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
+            return getDelegate().searchNearestVectors(field, target, k, acceptDocs);
+        }
+
+        @Override
         public FieldInfos getFieldInfos() {
             return getDelegate().getFieldInfos();
         }
@@ -319,9 +331,9 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 throw new IllegalArgumentException("no such doc ID " + docID);
             }
             if (delegate.get() == null) {
-                if (visitor instanceof FieldsVisitor) {
+                if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
                     // override this for ShardGetService
-                    if (TRANSLOG_FIELD_NAMES.containsAll(((FieldsVisitor) visitor).getFieldNames())) {
+                    if (TRANSLOG_FIELD_NAMES.containsAll(((FieldNamesProvidingStoredFieldsVisitor) visitor).getFieldNames())) {
                         readStoredFieldsDirectly(visitor);
                         return;
                     }
@@ -348,7 +360,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 }
             }
             if (operation.routing() != null && visitor.needsField(FAKE_ROUTING_FIELD) == StoredFieldVisitor.Status.YES) {
-                visitor.stringField(FAKE_ROUTING_FIELD, operation.routing().getBytes(StandardCharsets.UTF_8));
+                visitor.stringField(FAKE_ROUTING_FIELD, operation.routing());
             }
             if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
                 final byte[] id = new byte[uid.length];

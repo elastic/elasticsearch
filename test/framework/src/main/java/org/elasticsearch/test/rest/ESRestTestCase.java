@@ -33,15 +33,10 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.core.CharArrays;
-import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -52,6 +47,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -64,7 +64,6 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import javax.net.ssl.SSLContext;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -97,6 +96,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
@@ -170,6 +170,10 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     private static RestClient adminClient;
     private static Boolean hasXPack;
+    private static Boolean hasIlm;
+    private static Boolean hasRollups;
+    private static Boolean hasCcr;
+    private static Boolean hasShutdown;
     private static TreeSet<Version> nodeVersions;
 
     @Before
@@ -178,6 +182,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert adminClient == null;
             assert clusterHosts == null;
             assert hasXPack == null;
+            assert hasIlm == null;
+            assert hasRollups == null;
+            assert hasCcr == null;
+            assert hasShutdown == null;
             assert nodeVersions == null;
             String cluster = getTestRestCluster();
             String[] stringUrls = cluster.split(",");
@@ -197,6 +205,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
             hasXPack = false;
+            hasIlm = false;
+            hasRollups = false;
+            hasCcr = false;
+            hasShutdown = false;
             nodeVersions = new TreeSet<>();
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
@@ -205,8 +217,21 @@ public abstract class ESRestTestCase extends ESTestCase {
                 nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
                 for (Object module: (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                    if (moduleInfo.get("name").toString().startsWith("x-pack-")) {
+                    final String moduleName = moduleInfo.get("name").toString();
+                    if (moduleName.startsWith("x-pack")) {
                         hasXPack = true;
+                    }
+                    if (moduleName.equals("x-pack-ilm")) {
+                        hasIlm = true;
+                    }
+                    if (moduleName.equals("x-pack-rollup")) {
+                        hasRollups = true;
+                    }
+                    if (moduleName.equals("x-pack-ccr")) {
+                        hasCcr = true;
+                    }
+                    if (moduleName.equals("x-pack-shutdown")) {
+                        hasShutdown = true;
                     }
                 }
             }
@@ -215,6 +240,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert adminClient != null;
         assert clusterHosts != null;
         assert hasXPack != null;
+        assert hasIlm != null;
+        assert hasRollups != null;
+        assert hasCcr != null;
+        assert hasShutdown != null;
         assert nodeVersions != null;
     }
 
@@ -354,6 +383,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             client = null;
             adminClient = null;
             hasXPack = null;
+            hasRollups = null;
+            hasCcr = null;
+            hasShutdown = null;
+            hasIlm = null;
             nodeVersions = null;
         }
     }
@@ -559,7 +592,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
         // for a bulk to finish against a non-existing index (and then fail tests)
-        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
+        if (hasRollups && false == preserveRollupJobsUponCompletion()) {
             wipeRollupJobs();
             waitForPendingRollupTasks();
         }
@@ -711,11 +744,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             wipeClusterSettings();
         }
 
-        if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
+        if (hasIlm && false == preserveILMPoliciesUponCompletion()) {
             deleteAllILMPolicies(preserveILMPolicyIds());
         }
 
-        if (hasXPack && false == preserveAutoFollowPatternsUponCompletion()) {
+        if (hasCcr && false == preserveAutoFollowPatternsUponCompletion()) {
             deleteAllAutoFollowPatterns();
         }
 
@@ -728,22 +761,20 @@ public abstract class ESRestTestCase extends ESTestCase {
      * If any nodes are registered for shutdown, removes their metadata.
      */
     @SuppressWarnings("unchecked")
-    private static void deleteAllNodeShutdownMetadata() throws IOException {
-        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
-        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
-        if (statusResponse.containsKey("_nodes") && statusResponse.containsKey("cluster_name")) {
-            // If the response contains these two keys, the feature flag isn't enabled on this cluster, so skip out now.
-            // We can't check the system property directly because it only gets set for the cluster under test's JVM, not for the test
-            // runner's JVM.
+    protected void deleteAllNodeShutdownMetadata() throws IOException {
+        if (hasShutdown == false || minimumNodeVersion().before(Version.V_7_15_0)) {
+            // Node shutdown APIs are only present in xpack
             return;
         }
-            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-            List<String> nodeIds = nodesArray.stream()
-                .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
-                .collect(Collectors.toUnmodifiableList());
-            for (String nodeId : nodeIds) {
-                Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
-                assertOK(adminClient().performRequest(deleteRequest));
+        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
+        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
+        List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+        List<String> nodeIds = nodesArray.stream()
+            .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
+            .collect(Collectors.toUnmodifiableList());
+        for (String nodeId : nodeIds) {
+            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
+            assertOK(adminClient().performRequest(deleteRequest));
         }
     }
 
@@ -1010,6 +1041,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private static void deleteAllAutoFollowPatterns() throws IOException {
         final List<Map<?, ?>> patterns;
 
@@ -1650,48 +1682,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         return minVersion;
     }
 
-    protected void syncedFlush(String indexName) throws Exception {
-        final List<String> deprecationMessages = List.of(
-            "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.");
-        final List<String> fixedDeprecationMessages = List.of(
-            "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.");
-        final List<String> transitionMessages = List.of(
-            "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
-        final WarningsHandler warningsHandler;
-        if (minimumNodeVersion().onOrAfter(Version.V_8_0_0)) {
-            warningsHandler = warnings -> warnings.equals(transitionMessages) == false;
-        } else if (minimumNodeVersion().onOrAfter(Version.V_7_6_0)) {
-            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false &&
-                warnings.equals(fixedDeprecationMessages) == false;
-        } else if (nodeVersions.stream().anyMatch(n -> n.onOrAfter(Version.V_8_0_0))) {
-            warningsHandler = warnings -> warnings.isEmpty() == false && warnings.equals(transitionMessages) == false;
-        } else {
-            warningsHandler = warnings -> warnings.isEmpty() == false;
-        }
-        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-        assertBusy(() -> {
-            try {
-                final Request request = new Request("POST", indexName + "/_flush/synced");
-                request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warningsHandler));
-                Response resp = client().performRequest(request);
-                if (nodeVersions.stream().allMatch(v -> v.before(Version.V_8_0_0))) {
-                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                    assertThat(result.get("failed"), equalTo(0));
-                }
-            } catch (ResponseException ex) {
-                if (ex.getResponse().getStatusLine().getStatusCode() == RestStatus.CONFLICT.getStatus()
-                    && ex.getResponse().getWarnings().equals(transitionMessages)) {
-                    logger.info("a normal flush was performed instead");
-                } else {
-                    throw new AssertionError(ex); // cause assert busy to retry
-                }
-            }
-        });
-        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
-        ensureGlobalCheckpointSynced(indexName);
-    }
-
     @SuppressWarnings("unchecked")
     private void ensureGlobalCheckpointSynced(String index) throws Exception {
         assertBusy(() -> {
@@ -1745,9 +1735,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index \\[(.+)\\] matches multiple legacy " +
         "templates \\[(.+)\\], composable templates will only match a single template$");
 
-    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index template \\[(.+)\\] has index patterns " +
-        "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this template \\[(.+)\\] will " +
-        "take precedence during new index creation$");
+    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile(
+        "^index template \\[(.+)\\] has index patterns "
+            + "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this "
+            + "template \\[(.+)\\] will take precedence during new index creation$"
+    );
 
     protected static void useIgnoreMultipleMatchingTemplatesWarningsHandler(Request request) throws IOException {
         RequestOptions.Builder options = request.getOptions().toBuilder();

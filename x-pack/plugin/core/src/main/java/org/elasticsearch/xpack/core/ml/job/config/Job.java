@@ -188,8 +188,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long dailyModelSnapshotRetentionAfterDays, Long resultsRetentionDays,
-                Map<String, Object> customSettings, String modelSnapshotId, Version modelSnapshotMinVersion, String resultsIndexName,
-                boolean deleting, boolean allowLazyOpen, Blocked blocked, DatafeedConfig datafeedConfig) {
+                Map<String, Object> customSettings, String modelSnapshotId,
+                Version modelSnapshotMinVersion, String resultsIndexName, boolean deleting, boolean allowLazyOpen, Blocked blocked,
+                DatafeedConfig datafeedConfig) {
         this.jobId = jobId;
         this.jobType = jobType;
         this.jobVersion = jobVersion;
@@ -255,11 +256,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         deleting = in.readBoolean();
         allowLazyOpen = in.readBoolean();
         blocked = new Blocked(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
-        } else {
-            this.datafeedConfig = null;
-        }
+        this.datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
     }
 
     /**
@@ -541,9 +538,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeBoolean(deleting);
         out.writeBoolean(allowLazyOpen);
         blocked.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(datafeedConfig);
-        }
+        out.writeOptionalWriteable(datafeedConfig);
     }
 
     @Override
@@ -673,8 +668,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return Objects.hash(jobId, jobType, jobVersion, groups, description, createTime, finishedTime,
             analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
             backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-            customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen, blocked,
-            datafeedConfig);
+            customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting,
+            allowLazyOpen, blocked, datafeedConfig);
     }
 
     // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
@@ -789,9 +784,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             deleting = in.readBoolean();
             allowLazyOpen = in.readBoolean();
             blocked = new Blocked(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                datafeedConfig = in.readOptionalWriteable(DatafeedConfig.Builder::new);
-            }
+            datafeedConfig = in.readOptionalWriteable(DatafeedConfig.Builder::new);
         }
 
         public Builder setId(String id) {
@@ -936,6 +929,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
+        public DatafeedConfig.Builder getDatafeedConfig() {
+            return datafeedConfig;
+        }
+
         /**
          * This is used for parsing. If the datafeed_config exists AND its indices options are `null`, we set them to these options
          *
@@ -1015,9 +1012,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeBoolean(deleting);
             out.writeBoolean(allowLazyOpen);
             blocked.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalWriteable(datafeedConfig);
-            }
+            out.writeOptionalWriteable(datafeedConfig);
         }
 
         public boolean equals(Object o) {
@@ -1056,8 +1051,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return Objects.hash(id, jobType, jobVersion, groups, description, analysisConfig, analysisLimits, dataDescription,
                     createTime, finishedTime, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-                    customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen, blocked,
-                datafeedConfig);
+                    customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting,
+                    allowLazyOpen, blocked, datafeedConfig);
         }
 
         /**
@@ -1227,8 +1222,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     id, jobType, jobVersion, groups, description, createTime, finishedTime,
                     analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-                    customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen, blocked,
-                Optional.ofNullable(datafeedConfig).map(DatafeedConfig.Builder::build).orElse(null));
+                    customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting,
+                    allowLazyOpen, blocked, Optional.ofNullable(datafeedConfig).map(DatafeedConfig.Builder::build).orElse(null));
         }
 
         private void checkValidBackgroundPersistInterval() {

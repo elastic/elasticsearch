@@ -37,6 +37,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -933,6 +934,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 
@@ -992,6 +994,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 public void handleException(TransportException exp) {
                     latch.countDown();
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 
@@ -1580,6 +1583,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
+                    assertThat(exp.getStackTrace().length, equalTo(0));
                 }
             });
 
@@ -2343,7 +2347,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 transportResponseHandler);
             receivedLatch.await();
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
-                TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
+                TransportStats transportStats = serviceC.transport.getStats(); // request has been send
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
@@ -2708,14 +2712,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
+    public void testFailToSendTransportException() throws InterruptedException {
+        TransportException exception = doFailToSend(new TransportException("fail to send"));
+        assertThat(exception.getMessage(), equalTo("fail to send"));
+        assertThat(exception.getCause(), nullValue());
+    }
+
+    public void testFailToSendIllegalStateException() throws InterruptedException {
+        TransportException exception = doFailToSend(new IllegalStateException("fail to send"));
+        assertThat(exception, instanceOf(SendRequestTransportException.class));
+        assertThat(exception.getMessage(), containsString("fail-to-send-action"));
+        assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(exception.getCause().getMessage(), equalTo("fail to send"));
+    }
+
     // test that the response handler is invoked on a failure to send
-    public void testFailToSend() throws InterruptedException {
-        final RuntimeException failToSendException;
-        if (randomBoolean()) {
-            failToSendException = new IllegalStateException("fail to send");
-        } else {
-            failToSendException = new TransportException("fail to send");
-        }
+    private TransportException doFailToSend(RuntimeException failToSendException) throws InterruptedException {
         final TransportInterceptor interceptor = new TransportInterceptor() {
             @Override
             public AsyncSender interceptSender(final AsyncSender sender) {
@@ -2743,7 +2755,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY),
                 new ActionListener<>() {
                     @Override
-                    public void onResponse(final Void v) {
+                    public void onResponse(final Releasable ignored) {
                         latch.countDown();
                     }
 
@@ -2751,7 +2763,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     public void onFailure(final Exception e) {
                         fail(e.getMessage());
                     }
-            });
+                });
             latch.await();
             final AtomicReference<TransportException> te = new AtomicReference<>();
             final Transport.Connection connection = serviceC.getConnection(nodeA);
@@ -2772,17 +2784,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
             assertThat(te.get(), not(nullValue()));
-
-            if (failToSendException instanceof IllegalStateException) {
-                assertThat(te.get().getMessage(), equalTo("failure to send"));
-                assertThat(te.get().getCause(), instanceOf(IllegalStateException.class));
-                assertThat(te.get().getCause().getMessage(), equalTo("fail to send"));
-            } else {
-                assertThat(te.get().getMessage(), equalTo("fail to send"));
-                assertThat(te.get().getCause(), nullValue());
-            }
+            return te.get();
         }
-
     }
 
     private void closeConnectionChannel(Transport.Connection connection) {

@@ -56,7 +56,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (by=joinKeys)? (REPEAT ASGN repeat=number)?
+   : subquery (by=joinKeys)? (LB key=IDENTIFIER ASGN value=number RB)?
    ;
 
 subquery
@@ -174,7 +174,6 @@ OF: 'of';
 OR: 'or';
 REGEX: 'regex';
 REGEX_INSENSITIVE: 'regex~';
-REPEAT: 'repeat';
 SEQUENCE: 'sequence';
 TRUE: 'true';
 UNTIL: 'until';

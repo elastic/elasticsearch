@@ -35,8 +35,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure(
-  { task ->
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     task.skipTest("analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter", "Cleanup versioned deprecations in analysis #41560")
-  }
-)
+}
+

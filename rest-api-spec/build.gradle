@@ -43,7 +43,7 @@ testClusters.configureEach {
 tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
 
-tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 
   task.skipTestsByFilePattern("**/cat*/*.yml", "Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API")
   task.skipTestsByFilePattern("**/indices.upgrade/*.yml", "upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex")
@@ -216,7 +216,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   // sync_id is no longer available in SegmentInfos.userData // "indices.flush/10_basic/Index synced flush rest test"
   task.replaceIsTrue("indices.testing.shards.0.0.commit.user_data.sync_id", "indices.testing.shards.0.0.commit.user_data")
 
-})
+}
 
 tasks.register('enforceYamlTestConvention').configure {
   doLast {

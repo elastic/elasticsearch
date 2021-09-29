@@ -35,7 +35,7 @@ if (BuildParams.inFipsJvm){
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.replaceKeyInDo("watcher.ack_watch", "xpack-watcher.ack_watch")
   task.replaceKeyInDo("watcher.activate_watch", "xpack-watcher.activate_watch")
   task.replaceKeyInDo("watcher.deactivate_watch", "xpack-watcher.deactivate_watch")
@@ -51,5 +51,4 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.replaceValueTextByKeyValue("path", "/my_index/my_type/{{ctx.watch_id}}", "/my_index/_doc/{{ctx.watch_id}}",
     "Test webhook action with mustache integration")
-
-})
+}

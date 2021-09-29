@@ -59,9 +59,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 
                 DocumentField ignored = hit.field(IgnoredFieldMapper.NAME);
                 if (ignored != null) {
-                    for (Object ignoredField : ignored.getValues()) {                        
+                    for (Object ignoredField : ignored.getValues()) {
                         String ignoredFieldName = ignoredField.toString();
-                        boolean wasRequested = fetchFieldsContext.fields().stream().anyMatch(f -> Regex.simpleMatch(f.field, ignoredFieldName));
+                        boolean wasRequested = fetchFieldsContext.fields()
+                            .stream()
+                            .anyMatch(f -> Regex.simpleMatch(f.field, ignoredFieldName));
                         if (wasRequested == false) {
                             // We don't care that this field was ignored at index time - the user didn't request to see it.
                             continue;
@@ -87,7 +89,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                         HashSet<Object> ignoredSourceValues = new HashSet<Object>(sourceValues);
                         ignoredSourceValues.removeAll(docValues);
                         if (ignoredSourceValues.isEmpty() == false) {
-                            hit.setIgnoredFieldValues(ignoredFieldName, new DocumentField(ignoredFieldName, List.of(ignoredSourceValues)));                            
+                            hit.setIgnoredFieldValues(ignoredFieldName, new DocumentField(ignoredFieldName, List.of(ignoredSourceValues)));
                         }
                     }
                 }

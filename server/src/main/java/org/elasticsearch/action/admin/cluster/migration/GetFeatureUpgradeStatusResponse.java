@@ -88,6 +88,14 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         return Objects.hash(featureUpgradeStatuses, upgradeStatus);
     }
 
+    @Override
+    public String toString() {
+        return "GetFeatureUpgradeStatusResponse{" +
+            "featureUpgradeStatuses=" + featureUpgradeStatuses +
+            ", upgradeStatus='" + upgradeStatus + '\'' +
+            '}';
+    }
+
     /**
      * A class for a particular feature, showing whether it needs to be upgraded and the earliest
      * Elasticsearch version used to create one of this feature's system indices.
@@ -177,6 +185,16 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         public int hashCode() {
             return Objects.hash(featureName, minimumIndexVersion, upgradeStatus, indexVersions);
         }
+
+        @Override
+        public String toString() {
+            return "FeatureUpgradeStatus{" +
+                "featureName='" + featureName + '\'' +
+                ", minimumIndexVersion='" + minimumIndexVersion + '\'' +
+                ", upgradeStatus='" + upgradeStatus + '\'' +
+                ", indexVersions=" + indexVersions +
+                '}';
+        }
     }
 
     /**
@@ -238,6 +256,14 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         @Override
         public int hashCode() {
             return Objects.hash(indexName, version);
+        }
+
+        @Override
+        public String toString() {
+            return "IndexVersion{" +
+                "indexName='" + indexName + '\'' +
+                ", version='" + version + '\'' +
+                '}';
         }
     }
 }

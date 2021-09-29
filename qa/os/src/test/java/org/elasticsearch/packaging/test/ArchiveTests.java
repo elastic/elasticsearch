@@ -173,7 +173,7 @@ public class ArchiveTests extends PackagingTestCase {
         FileUtils.copyDirectory(installation.config, tempConf);
         sh.chown(tempDir);
         Platforms.onLinux(() -> sh.run("chmod -w " + tempConf));
-        Platforms.onWindows(() -> sh.run("Set-ItemProperty -Path " + tempConf + " -Name IsReadOnly -Value $true"));
+        Platforms.onWindows(() -> sh.run("attrib +r " + tempConf + "/*.* /s"));
         sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);

@@ -85,7 +85,11 @@ public class Range extends ScalarFunction {
 
     @Override
     public boolean foldable() {
-        return lower.foldable() && upper.foldable() && value.foldable();
+        if (lower.foldable() && upper.foldable()) {
+            return areBoundariesInvalid() || value.foldable();
+        }
+
+        return false;
     }
 
     @Override
@@ -107,6 +111,11 @@ public class Range extends ScalarFunction {
      * If they do, the value does not have to be evaluate.
      */
     private boolean areBoundariesInvalid() {
+        // Ignore date/time fields as the expression might be date math expression that need to be evaluated by ES.
+        // See https://github.com/elastic/elasticsearch/issues/77179
+        if(DataTypes.isDateTime(lower.dataType()) || DataTypes.isDateTime(upper.dataType()) || DataTypes.isDateTime(value.dataType())) {
+            return false;
+        }
         Integer compare = BinaryComparison.compare(lower.fold(), upper.fold());
         // upper < lower OR upper == lower and the range doesn't contain any equals
         return compare != null && (compare > 0 || (compare == 0 && (includeLower == false || includeUpper == false)));

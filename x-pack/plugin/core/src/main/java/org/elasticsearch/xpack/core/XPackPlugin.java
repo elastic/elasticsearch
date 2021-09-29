@@ -384,7 +384,7 @@ public class XPackPlugin extends XPackClientPlugin
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING);
+        settings.add(DataTierAllocationDecider.TIER_PREFERENCE_SETTING);
         return settings;
     }
 

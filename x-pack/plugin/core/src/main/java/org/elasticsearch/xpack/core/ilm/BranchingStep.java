@@ -27,10 +27,10 @@ public class BranchingStep extends ClusterStateActionStep {
 
     private static final Logger logger = LogManager.getLogger(BranchingStep.class);
 
-    private StepKey nextStepKeyOnFalse;
-    private StepKey nextStepKeyOnTrue;
-    private BiPredicate<Index, ClusterState> predicate;
-    private SetOnce<Boolean> predicateValue;
+    private final StepKey nextStepKeyOnFalse;
+    private final StepKey nextStepKeyOnTrue;
+    private final BiPredicate<Index, ClusterState> predicate;
+    private final SetOnce<Boolean> predicateValue;
 
     /**
      * {@link BranchingStep} is a step whose next step is based on

@@ -104,4 +104,14 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
     public String getKeyToFind() {
         return testName;
     }
+
+    @Input
+    public String getSkipReason() {
+        return skipReason;
+    }
+
+    @Input
+    public String getTestName() {
+        return testName;
+    }
 }

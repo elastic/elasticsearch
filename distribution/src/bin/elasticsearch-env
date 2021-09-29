@@ -126,10 +126,10 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
     return 1
   }
 
-  es_opt=""
   # Elasticsearch settings need to either:
   # a. have at least two dot separated lower case words, e.g. `cluster.name`, or
   while IFS='=' read -r envvar_key envvar_value; do
+    es_opt=""
     if [[ -n "$envvar_value" ]]; then
       es_opt="-E${envvar_key}=${envvar_value}"
     fi
@@ -141,6 +141,7 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
   # b. be upper cased with underscore separators and prefixed with `ES_SETTING_`, e.g. `ES_SETTING_CLUSTER_NAME`.
   #    Underscores in setting names are escaped by writing them as a double-underscore e.g. "__"
   while IFS='=' read -r envvar_key envvar_value; do
+    es_opt=""
     if [[ -n "$envvar_value" ]]; then
       # The long-hand sed `y` command works in any sed variant.
       envvar_key="$(echo "$envvar_key" | sed -e 's/^ES_SETTING_//; s/_/./g ; s/\.\./_/g; y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' )"

@@ -74,7 +74,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 The size of the loaded model in bytes.
 
 `state`:::
-(String)
+(string)
 The overall state of the deployment. The values may be:
 +
 --
@@ -100,7 +100,7 @@ The desired number of nodes for model allocation.
 
 `state`:::
 (string)
-The detailed allocation state related to the nodes
+The detailed allocation state related to the nodes.
 +
 --
 * `starting`: Allocations are being attempted but no node currently has the model allocated.
@@ -130,7 +130,7 @@ The epoch time stamp of the last inference call for the model on this node.
 
 `node`:::
 (object)
-Information pertaining to the node
+Information pertaining to the node.
 +
 .Properties of node
 [%collapsible%open]
@@ -168,8 +168,8 @@ The current routing state and reason for the current routing state for this allo
 --
 
 `reason`:::
-(String)
-The reason for the current state. Usually only populated when the `routing_state` is `failed`
+(string)
+The reason for the current state. Usually only populated when the `routing_state` is `failed`.
 
 =====
 ====

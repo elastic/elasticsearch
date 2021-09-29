@@ -22,7 +22,7 @@ testClusters.configureEach {
 tasks.named("integTest").configure{ enabled = false}
 
 // A bug (https://github.com/elastic/elasticsearch/issues/68439) limits us to perform tests with versions from 7.10.3 onwards
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.onOrAfter('7.10.0') }) {
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.onOrAfter('7.10.3') }) {
   if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
     // Not really a mixed cluster
     continue;

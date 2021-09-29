@@ -38,7 +38,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 import static org.elasticsearch.xpack.ql.TestUtils.readResource;
-import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.SWITCH_TO_FIELDS_API_VERSION;
 
 public class SqlSearchIT extends ESRestTestCase {
 
@@ -56,9 +55,7 @@ public class SqlSearchIT extends ESRestTestCase {
     private static List<TestNode> newNodes;
     private static List<TestNode> bwcNodes;
     private static Version bwcVersion;
-    private static Version newVersion;
     private static boolean isBwcNodeBeforeFieldsApiInQL;
-    private static boolean isBwcNodeBeforeFieldsApiInES;
     private static boolean halfFloatMightReturnFullFloatPrecision;
 
     @Before
@@ -69,9 +66,7 @@ public class SqlSearchIT extends ESRestTestCase {
         newNodes = new ArrayList<>(nodes.getNewNodes());
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
         bwcVersion = nodes.getBWCNodes().get(0).getVersion();
-        newVersion = nodes.getNewNodes().get(0).getVersion();
         isBwcNodeBeforeFieldsApiInQL = bwcVersion.before(FIELDS_API_QL_INTRODUCTION);
-        isBwcNodeBeforeFieldsApiInES = bwcVersion.before(SWITCH_TO_FIELDS_API_VERSION);
         halfFloatMightReturnFullFloatPrecision = bwcVersion.before(Version.V_7_13_0);
 
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
@@ -161,14 +156,14 @@ public class SqlSearchIT extends ESRestTestCase {
                  * that version we don't fetch the half float because we
                  * can't make any assertions about it.
                  */
-                if (isBwcNodeBeforeFieldsApiInQL && isBwcNodeBeforeFieldsApiInES || false == halfFloatMightReturnFullFloatPrecision) {
+                if (isBwcNodeBeforeFieldsApiInQL || false == halfFloatMightReturnFullFloatPrecision) {
                     columns.add(columnInfo("half_float_field", "half_float"));
                 }
             },
             (builder, fieldValues) -> {
                 Float randomFloat = randomFloat();
                 builder.append(",");
-                if (isBwcNodeBeforeFieldsApiInQL && isBwcNodeBeforeFieldsApiInES) {
+                if (isBwcNodeBeforeFieldsApiInQL) {
                     builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
                     fieldValues.put("geo_point_field", "POINT (-122.08384302444756 37.38648299127817)");
                     builder.append("\"float_field\":" + randomFloat + ",");
@@ -290,18 +285,31 @@ public class SqlSearchIT extends ESRestTestCase {
         ) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");
-            String intervalYearMonth = "INTERVAL '150' YEAR AS interval_year, ";
-            String intervalDayTime = "INTERVAL '163' MINUTE AS interval_minute, ";
 
             // get all fields names from the expected response built earlier, skipping the intervals as they execute locally
             // and not taken from the index itself
             String fieldsList = columns.stream().map(m -> (String) m.get("name")).filter(str -> str.startsWith("interval") == false)
                 .collect(Collectors.toList()).stream().collect(Collectors.joining(", "));
-            String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
+            String query = "SELECT INTERVAL '150' YEAR AS interval_year, INTERVAL '163' MINUTE AS interval_minute, "
+                + fieldsList + " FROM " + index + " ORDER BY id";
             Request request = new Request("POST", "_sql");
-            request.setJsonEntity("{\"query\":\"" + query + "\"}");
-            assertBusy(() -> { assertResponse(expectedResponse, runSql(client, request)); });
+            request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query, bwcVersion));
+            assertBusy(() -> {
+                Map<String, Object> actualResponse = dropDisplaySizes(runSql(client, request));
+                assertResponse(expectedResponse, actualResponse);
+            });
         }
+    }
+
+    private Map<String, Object> dropDisplaySizes(Map<String, Object> response) {
+        // if JDBC mode is used, display_size will also be part of the response, remove it because it's not part of the expected response
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> columns = (List<Map<String, Object>>) response.get("columns");
+        List<Map<String, Object>> columnsWithoutDisplaySizes = columns.stream()
+            .peek(column -> column.remove("display_size"))
+            .collect(Collectors.toList());
+        response.put("columns", columnsWithoutDisplaySizes);
+        return response;
     }
 
     private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {

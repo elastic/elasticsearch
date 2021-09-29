@@ -95,6 +95,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction.getApplicationNames;
@@ -635,21 +636,60 @@ public class RBACEngine implements AuthorizationEngine {
                                                                Map<String, IndexAbstraction> aliasAndIndexLookup) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
 
-        final Set<String> effectiveIndices;
-        final String targetIndexName = getSingleTargetIndexName(request);
-        if (targetIndexName != null) {
-            effectiveIndices = new HashSet<>();
-            if (indices.contains(targetIndexName)) {
-                effectiveIndices.add(targetIndexName);
+        Set<String> effectiveIndices = null;
+        if (indices.size() > 1) {
+            // When there are multiple requested indices, attempt to cut down the number of indices for building indicesAccessControl
+            // This is possible only if the request actually targets a single concrete index.
+            final String targetIndexName = getSingleTargetIndexName(request);
+            if (targetIndexName != null) {
+                final IndexAbstraction targetIndexAbstraction = aliasAndIndexLookup.get(targetIndexName);
+                assert targetIndexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX : "must be a concrete index";
+                // There are two methods to filter for the list of names that must have indicesAccessControl
+                //   1. begin with the single target index and check whether itself and all its aliases are part of the requested names
+                //   2. Loop through the requested names and pick those that are the target index name or any of its aliases
+                // Method 1 is generally better in terms of performance since it begins with a known size of 1.
+                // But it can be worse if there are a large number of aliases pointing to the index.
+                // Method 2 is safer in terms of performance because the loop is not more expensive than do nothing,
+                // i.e. computing indicesAccessControl for all requested names.
+                // The code uses a simple heuristic to choose between the two: if the total number of aliases is less
+                // than the number of requested names, it uses Method 1. Otherwise, it uses Method 2.
+                int totalAliases = 0;
+                totalAliases += targetIndexAbstraction.getIndices().get(0).getAliases().size();
+                final IndexAbstraction.DataStream parentDataStream = targetIndexAbstraction.getParentDataStream();
+                if (parentDataStream != null) {
+                    totalAliases += parentDataStream.getAliases().size();
+                }
+                if (totalAliases < indices.size()) {
+                    // Method 1
+                    effectiveIndices = new HashSet<>();
+                    if (indices.contains(targetIndexName)) {
+                        effectiveIndices.add(targetIndexName);
+                    }
+                    targetIndexAbstraction.getAliases().stream().filter(indices::contains).forEach(effectiveIndices::add);
+                    if (parentDataStream != null) {
+                        if (indices.contains(parentDataStream.getName())) {
+                            effectiveIndices.add(parentDataStream.getName());
+                        }
+                        parentDataStream.getAliases().stream().filter(indices::contains).forEach(effectiveIndices::add);
+                    }
+                    effectiveIndices = Set.copyOf(effectiveIndices);
+                } else {
+                    // Method 2
+                    effectiveIndices = indices.stream().filter(name -> {
+                        if (name.equals(targetIndexName)) {
+                            return true;
+                        }
+                        final IndexAbstraction indexAbstraction = aliasAndIndexLookup.get(name);
+                        if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
+                            return indexAbstraction.getIndices().stream().anyMatch(im -> im.getIndex().getName().equals(targetIndexName));
+                        }
+                        return false;
+                    }).collect(Collectors.toUnmodifiableSet());
+                }
             }
-            final IndexAbstraction targetIndexAbstraction = aliasAndIndexLookup.get(targetIndexName);
-            assert targetIndexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX : "target index must be a concrete index";
-            targetIndexAbstraction.getAliases().stream().filter(indices::contains).forEach(effectiveIndices::add);
-            final IndexAbstraction.DataStream parentDataStream = targetIndexAbstraction.getParentDataStream();
-            if (parentDataStream != null) {
-                parentDataStream.getAliases().stream().filter(indices::contains).forEach(effectiveIndices::add);
-            }
-        } else {
+        }
+        // Fallback to the requested indices if optimisation is not possible or necessary
+        if (effectiveIndices == null) {
             effectiveIndices = indices;
         }
 

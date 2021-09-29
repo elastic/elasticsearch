@@ -1571,7 +1571,6 @@ SELECT CAST (CAST (birth_date AS VARCHAR) AS TIMESTAMP) a FROM test_emp WHERE YE
 1965-01-03T00:00:00Z
 ;
 
-
 greaterThanFilterWithNow
 select hire_date from test_emp where hire_date > 'now-100y' limit 5;
     hire_date

@@ -32,7 +32,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
     setting 'xpack.license.self_generated.type', 'trial'
     nodes."${baseName}-0".setting 'node.roles', '["master"]'
     // data_* roles were introduced in 7.10.0, so use 'data' for older versions
-    if (bwcVersion.before('7.10.0')) {
+    if (Version.fromString(bwcVersionString).before('7.10.0')) {
       nodes."${baseName}-1".setting 'node.roles', '["data"]'
     } else {
       nodes."${baseName}-1".setting 'node.roles', '["data_content", "data_hot"]'

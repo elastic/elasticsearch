@@ -59,7 +59,10 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         if (source.containsKey(TRANSIENT)) {
             Map<String, ?> transientSettings = (Map<String, ?>) source.get(TRANSIENT);
             if (transientSettings.isEmpty() == false) {
-                deprecationLogger.warn(DeprecationCategory.SETTINGS, "transient_settings", TRANSIENT_SETTINGS_DEPRECATION_MESSAGE);
+                boolean allResetRequest = transientSettings.values().stream().allMatch(s -> s == null);
+                if (allResetRequest == false) {
+                    deprecationLogger.warn(DeprecationCategory.SETTINGS, "transient_settings", TRANSIENT_SETTINGS_DEPRECATION_MESSAGE);
+                }
             }
             clusterUpdateSettingsRequest.transientSettings(transientSettings);
         }

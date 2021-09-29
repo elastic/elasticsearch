@@ -390,13 +390,12 @@ public class VectorTileRestIT extends ESRestTestCase {
         }
     }
 
-    public void testCentroidGridTypeNameCollision() {
+    public void testInvalidAggName() {
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
-        mvtRequest.setJsonEntity("{\"size\" : 0, \"grid_type\": \"centroid\" }");
         mvtRequest.setJsonEntity(
-            "{\"size\" : 0, \"grid_type\": \"centroid\",\n"
+            "{\"size\" : 0,"
                 + "  \"aggs\": {\n"
-                + "    \"[centroid]\": {\n"
+                + "    \"_mvt_name\": {\n"
                 + "      \"min\": {\n"
                 + "         \"field\": \"value1\"\n"
                 + "        }\n"
@@ -405,7 +404,7 @@ public class VectorTileRestIT extends ESRestTestCase {
                 + "}"
         );
         ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
-        assertThat(ex.getMessage(), Matchers.containsString("Invalid aggregation name [[centroid]]"));
+        assertThat(ex.getMessage(), Matchers.containsString("Invalid aggregation name [_mvt_name]"));
     }
 
     public void testCentroidGridTypeOnPolygon() throws Exception {

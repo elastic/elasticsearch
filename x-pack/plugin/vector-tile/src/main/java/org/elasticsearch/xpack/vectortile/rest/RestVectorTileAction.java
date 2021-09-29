@@ -76,8 +76,10 @@ public class RestVectorTileAction extends BaseRestHandler {
 
     // mime type as defined by the mapbox vector tile specification
     private static final String MIME_TYPE = "application/vnd.mapbox-vector-tile";
-
-    private static final String CENTROID_AGG_NAME = "[centroid]";
+    // prefox for internal aggregations. User aggregations cannot start with this prefix
+    private static final String INTERNAL_AGG_PREFIX = "_mvt_";
+    // internal centroid aggregation name
+    private static final String CENTROID_AGG_NAME = INTERNAL_AGG_PREFIX + "centroid";
 
     public RestVectorTileAction() {}
 
@@ -213,9 +215,18 @@ public class RestVectorTileAction extends BaseRestHandler {
             }
             final AggregatorFactories.Builder otherAggBuilder = request.getAggBuilder();
             if (otherAggBuilder != null) {
-                tileAggBuilder.subAggregations(request.getAggBuilder());
                 final Collection<AggregationBuilder> aggregations = otherAggBuilder.getAggregatorFactories();
                 for (AggregationBuilder aggregation : aggregations) {
+                    if (aggregation.getName().startsWith(INTERNAL_AGG_PREFIX)) {
+                        throw new IllegalArgumentException(
+                            "Invalid aggregation name ["
+                                + aggregation.getName()
+                                + "]. Aggregation names cannot start with prefix '"
+                                + INTERNAL_AGG_PREFIX
+                                + "'"
+                        );
+                    }
+                    tileAggBuilder.subAggregation(aggregation);
                     // we add the metric (.value) to the path in order to support aggregation names with '.'
                     final String bucketPath = GRID_FIELD + ">" + aggregation.getName() + ".value";
                     searchRequestBuilder.addAggregation(new StatsBucketPipelineAggregationBuilder(aggregation.getName(), bucketPath));
@@ -300,7 +311,7 @@ public class RestVectorTileAction extends BaseRestHandler {
             // Add count as key value pair
             VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, COUNT_TAG, bucket.getDocCount());
             for (Aggregation aggregation : bucket.getAggregations()) {
-                if (aggregation.getName().equals(CENTROID_AGG_NAME) == false) {
+                if (aggregation.getName().startsWith(INTERNAL_AGG_PREFIX) == false) {
                     VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, aggregation);
                 }
             }

@@ -80,6 +80,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private final Phaser stopPhaser;
     private volatile AtomicInteger phase = new AtomicInteger(0);
     private volatile boolean isMaster;
+    private volatile boolean stopped;
     private volatile Instant lastUpdateTime;
     private volatile Duration reassignmentRecheckInterval;
 
@@ -110,11 +111,6 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     @Override
     public void onMaster() {
         isMaster = true;
-        try {
-            asyncRefresh();
-        } catch (Exception ex) {
-            logger.warn("unexpected failure while attempting asynchronous refresh on new master assignment", ex);
-        }
         logger.trace("ML memory tracker on master");
     }
 
@@ -166,6 +162,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * After returning, no new searches can be started.
      */
     public void stop() {
+        stopped = true;
         logger.trace("ML memory tracker stop called");
         // We never terminate the phaser
         assert stopPhaser.isTerminated() == false;
@@ -288,7 +285,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             try {
                 ActionListener<Void> listener = ActionListener.wrap(
                     aVoid -> logger.trace("Job memory requirement refresh request completed successfully"),
-                    e -> logger.warn("Failed to refresh job memory requirements", e)
+                    e -> logIfNecessary(() -> logger.warn("Failed to refresh job memory requirements", e))
                 );
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
                     () -> refresh(clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE), listener));
@@ -383,7 +380,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                     listener.onFailure(e);
                 }
-                logger.warn("ML memory tracker last update failed and listeners called", e);
+                logIfNecessary(() -> logger.warn("ML memory tracker last update failed and listeners called", e));
                 // It's critical that we empty out the current listener list on
                 // error otherwise subsequent retries to refresh will be ignored
                 fullRefreshCompletionListeners.clear();
@@ -493,12 +490,28 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     }
                 },
                 e -> {
-                    logger.error("[" + jobId + "] failed to calculate anomaly detector job established model memory requirement", e);
+                    logIfNecessary(
+                        () -> logger.error(
+                            () -> new ParameterizedMessage(
+                                "[{}]  failed to calculate anomaly detector job established model memory requirement",
+                                jobId
+                            ),
+                            e
+                        )
+                    );
                     setAnomalyDetectorJobMemoryToLimit(jobId, phaserListener);
                 }
             );
         } catch (Exception e) {
-            logger.error("[" + jobId + "] failed to calculate anomaly detector job established model memory requirement", e);
+            logIfNecessary(
+                () -> logger.error(
+                    () -> new ParameterizedMessage(
+                        "[{}]  failed to calculate anomaly detector job established model memory requirement",
+                        jobId
+                    ),
+                    e
+                )
+            );
             setAnomalyDetectorJobMemoryToLimit(jobId, phaserListener);
         }
     }
@@ -524,10 +537,22 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 // during the memory refresh.
                 logger.trace("[{}] anomaly detector job deleted during ML memory update", jobId);
             } else {
-                logger.error("[" + jobId + "] failed to get anomaly detector job during ML memory update", e);
+                logIfNecessary(
+                    () -> logger.error(
+                        () -> new ParameterizedMessage("[{}] failed to get anomaly detector job during ML memory update", jobId),
+                        e
+                    )
+                );
+
             }
             memoryRequirementByAnomalyDetectorJob.remove(jobId);
             listener.onResponse(null);
         }));
+    }
+
+    private void logIfNecessary(Runnable log) {
+        if (isMaster && (stopped == false)) {
+            log.run();
+        }
     }
 }

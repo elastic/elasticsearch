@@ -16,6 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -189,6 +190,9 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         });
     }
 
+    /**
+     * Test that obsolete blob cache entries are deleted from the system index by the periodic maintenance task.
+     */
     public void testPeriodicMaintenance() throws Exception {
         ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60L));
 
@@ -206,6 +210,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             equalTo(Stream.concat(mountedIndices.values().stream(), otherMountedIndices.values().stream()).mapToLong(Tuple::v2).sum())
         );
 
+        // creates a backup of the system index cache to be restored later
         createRepository("backup", FsRepository.TYPE);
         createSnapshot("backup", "backup", List.of(SNAPSHOT_BLOB_CACHE_INDEX));
 
@@ -233,6 +238,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                 )
         );
         try {
+            // restores the .snapshot-blob-cache index with - now obsolete - documents
             final RestoreSnapshotResponse restoreResponse = client().admin()
                 .cluster()
                 .prepareRestoreSnapshot("backup", "backup")
@@ -251,7 +257,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             assertBusy(() -> {
                 refreshSystemIndex(true);
                 assertThat(numberOfEntriesInCache(), equalTo(expectNumberOfRemainingCacheEntries));
-            }, 3000L, TimeUnit.SECONDS);
+            }, 30L, TimeUnit.SECONDS);
 
         } finally {
             assertAcked(
@@ -313,43 +319,47 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             final String indexName = "index-" + i;
             createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
 
-            final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-            for (int n = 1000; n > 0; n--) {
-                indexRequestBuilders.add(
-                    client().prepareIndex(indexName)
-                        .setSource(
-                            XContentFactory.smileBuilder()
-                                .startObject()
-                                .field("text_a", randomRealisticUnicodeOfCodepointLength(10))
-                                .field("text_b", randomRealisticUnicodeOfCodepointLength(10))
-                                .endObject()
-                        )
-                );
-            }
-            indexRandom(true, indexRequestBuilders);
+            while (true) {
+                final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+                for (int n = 500; n > 0; n--) {
+                    final XContentBuilder builder = XContentFactory.jsonBuilder();
+                    builder.startObject();
+                    for (int j = 0; j < 10; j++) {
+                        builder.field("text_" + j, randomRealisticUnicodeOfCodepointLength(10));
+                        builder.field("int_" + j, randomInt());
+                    }
+                    builder.endObject();
+                    indexRequestBuilders.add(client().prepareIndex(indexName).setSource(builder));
+                }
+                indexRandom(true, indexRequestBuilders);
 
-            createSnapshot(repositoryName, "snapshot-" + i, List.of(indexName));
+                final String snapshot = "snapshot-" + i;
+                createSnapshot(repositoryName, snapshot, List.of(indexName));
+
+                final String mountedIndex = "mounted-" + indexName + "-in-" + repositoryName;
+                mountSnapshot(repositoryName, snapshot, indexName, mountedIndex, Settings.EMPTY, randomFrom(Storage.values()));
+
+                ensureGreen(mountedIndex);
+                assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+                assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
+                waitForBlobCacheFillsToComplete();
+
+                refreshSystemIndex(false);
+                final long numberOfEntriesInCache = numberOfEntriesInCache();
+                if (numberOfEntriesInCache > previousNumberOfCachedEntries) {
+                    final long nbEntries = numberOfEntriesInCache - previousNumberOfCachedEntries;
+                    logger.info("--> mounted index [{}] has [{}] entries in cache", mountedIndex, nbEntries);
+                    mountedIndices.put(mountedIndex, Tuple.tuple(getIndexSettings(mountedIndex), nbEntries));
+                    previousNumberOfCachedEntries = numberOfEntriesInCache;
+                    break;
+
+                } else {
+                    logger.info("--> mounted index [{}] did not generate any entry in cache", mountedIndex);
+                    assertAcked(client().admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot).get());
+                    assertAcked(client().admin().indices().prepareDelete(mountedIndex));
+                }
+            }
             assertAcked(client().admin().indices().prepareDelete(indexName));
-
-            final String mountedIndex = "mounted-index-" + i + "-in-" + repositoryName;
-            mountSnapshot(repositoryName, "snapshot-" + i, "index-" + i, mountedIndex, Settings.EMPTY, randomFrom(Storage.values()));
-
-            ensureGreen(mountedIndex);
-            assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
-            assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
-            waitForBlobCacheFillsToComplete();
-
-            refreshSystemIndex(false);
-            final long numberOfEntriesInCache = numberOfEntriesInCache();
-            if (numberOfEntriesInCache > previousNumberOfCachedEntries) {
-                final long nbEntries = numberOfEntriesInCache - previousNumberOfCachedEntries;
-                logger.info("--> mounted index [{}] has [{}] entries in cache", mountedIndex, nbEntries);
-                mountedIndices.put(mountedIndex, Tuple.tuple(getIndexSettings(mountedIndex), nbEntries));
-            } else {
-                logger.info("--> mounted index [{}] did not generate any entry in cache, skipping", mountedIndex);
-                assertAcked(client().admin().indices().prepareDelete(mountedIndex));
-            }
-            previousNumberOfCachedEntries = numberOfEntriesInCache;
             i += 1;
         }
         return Collections.unmodifiableMap(mountedIndices);

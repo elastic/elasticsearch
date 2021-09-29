@@ -74,10 +74,11 @@ subprojects {
     testRuntimeOnly "com.h2database:h2:${h2Version}"
 
     // H2GIS testing dependencies
-    testRuntimeOnly("org.orbisgis:h2gis:${h2gisVersion}") {
-      exclude group: "org.locationtech.jts"
-      exclude group: "com.fasterxml.jackson.core"
-    }
+    testRuntimeOnly("org.orbisgis:h2gis:${h2gisVersion}")
+    testRuntimeOnly("org.orbisgis:h2gis-api:${h2gisVersion}")
+    testRuntimeOnly("org.orbisgis:h2gis-utilities:${h2gisVersion}")
+    testRuntimeOnly("org.orbisgis:cts:1.5.2")
+
 
     testRuntimeOnly project(path: xpackModule('sql:jdbc'))
     testRuntimeOnly xpackProject('plugin:sql:sql-client')
@@ -100,6 +101,8 @@ subprojects {
     // spatial dependency
     testRuntimeOnly project(path: xpackModule('spatial'))
     testRuntimeOnly project(path: ':modules:legacy-geo')
+
+    testRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
   }
 
   if (project.name != 'security') {

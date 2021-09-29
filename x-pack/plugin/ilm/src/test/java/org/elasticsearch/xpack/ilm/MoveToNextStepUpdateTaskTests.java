@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -139,11 +138,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, nextStepKey, () -> now,
             new AlwaysExistingStepRegistry(), state -> {});
         Exception expectedException = new RuntimeException();
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
-        assertEquals("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step [" + currentStepKey
-                + "] to step [" + nextStepKey + "].", exception.getMessage());
-        assertSame(expectedException, exception.getCause());
+        task.onFailure(randomAlphaOfLength(10), expectedException);
     }
 
     /**

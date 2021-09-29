@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
@@ -124,12 +125,12 @@ public class NerProcessor implements NlpTask.Processor {
     }
 
     @Override
-    public NlpTask.RequestBuilder getRequestBuilder() {
+    public NlpTask.RequestBuilder getRequestBuilder(NlpConfig config) {
         return requestBuilder;
     }
 
     @Override
-    public NlpTask.ResultProcessor getResultProcessor() {
+    public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
         return new NerResultProcessor(iobMap);
     }
 
@@ -143,7 +144,7 @@ public class NerProcessor implements NlpTask.Processor {
         @Override
         public InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
             if (tokenization.getTokenizations().isEmpty() ||
-                tokenization.getTokenizations().get(0).getTokens().isEmpty()) {
+                tokenization.getTokenizations().get(0).getTokens().length == 0) {
                 return new NerResults(Collections.emptyList());
             }
             // TODO - process all results in the batch
@@ -171,7 +172,7 @@ public class NerProcessor implements NlpTask.Processor {
                                            IobTag[] iobMap) {
             List<TaggedToken> taggedTokens = new ArrayList<>();
             int startTokenIndex = 0;
-            while (startTokenIndex < tokenization.getTokens().size()) {
+            while (startTokenIndex < tokenization.getTokens().length) {
                 int inputMapping = tokenization.getTokenMap()[startTokenIndex];
                 if (inputMapping < 0) {
                     // This token does not map to a token in the input (special tokens)
@@ -179,14 +180,14 @@ public class NerProcessor implements NlpTask.Processor {
                     continue;
                 }
                 int endTokenIndex = startTokenIndex;
-                StringBuilder word = new StringBuilder(tokenization.getTokens().get(startTokenIndex));
-                while (endTokenIndex < tokenization.getTokens().size() - 1
+                StringBuilder word = new StringBuilder(tokenization.getTokens()[startTokenIndex]);
+                while (endTokenIndex < tokenization.getTokens().length - 1
                     && tokenization.getTokenMap()[endTokenIndex + 1] == inputMapping) {
                     endTokenIndex++;
                     // TODO Here we try to get rid of the continuation hashes at the beginning of sub-tokens.
                     // It is probably more correct to implement detokenization on the tokenizer
                     // that does reverse lookup based on token IDs.
-                    String endTokenWord = tokenization.getTokens().get(endTokenIndex).substring(2);
+                    String endTokenWord = tokenization.getTokens()[endTokenIndex].substring(2);
                     word.append(endTokenWord);
                 }
                 double[] avgScores = Arrays.copyOf(scores[startTokenIndex], iobMap.length);

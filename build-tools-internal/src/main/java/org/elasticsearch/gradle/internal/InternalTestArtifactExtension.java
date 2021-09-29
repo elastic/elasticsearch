@@ -39,8 +39,6 @@ public class InternalTestArtifactExtension {
             featureSpec.disablePublication();
         });
 
-        Configuration testApiElements = project.getConfigurations().getByName(sourceSet.getApiElementsConfigurationName());
-        testApiElements.extendsFrom(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()));
         DependencyHandler dependencies = project.getDependencies();
         project.getPlugins().withType(JavaPlugin.class, javaPlugin -> {
             Dependency projectDependency = dependencies.create(project);

@@ -58,7 +58,7 @@ public class FillMaskConfig implements NlpConfig {
                 TOKENIZATION
         );
         parser.declareInt(Builder::setNumTopClasses, NUM_TOP_CLASSES);
-        parser.declareString(FillMaskConfig.Builder::setResultsField, RESULTS_FIELD);
+        parser.declareString(Builder::setResultsField, RESULTS_FIELD);
         return parser;
     }
 
@@ -81,7 +81,7 @@ public class FillMaskConfig implements NlpConfig {
     public FillMaskConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
-        numTopClasses = in.readVInt();
+        numTopClasses = in.readInt();
         resultsField = in.readOptionalString();
     }
 
@@ -107,7 +107,7 @@ public class FillMaskConfig implements NlpConfig {
     public void writeTo(StreamOutput out) throws IOException {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
-        out.writeVInt(numTopClasses);
+        out.writeInt(numTopClasses);
         out.writeOptionalString(resultsField);
     }
 

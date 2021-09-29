@@ -63,13 +63,13 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
     }
 
     public FillMaskConfigUpdate(StreamInput in) throws IOException {
-        this.numTopClasses = in.readOptionalVInt();
+        this.numTopClasses = in.readOptionalInt();
         this.resultsField = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalVInt(numTopClasses);
+        out.writeOptionalInt(numTopClasses);
         out.writeOptionalString(resultsField);
     }
 
@@ -122,7 +122,7 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
 
     boolean isNoop(FillMaskConfig originalConfig) {
         return (this.numTopClasses == null || this.numTopClasses == originalConfig.getNumTopClasses()) &&
-            (this.resultsField == null);
+            (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField()));
     }
 
     @Override

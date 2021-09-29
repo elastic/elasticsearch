@@ -18,8 +18,6 @@ and to trigger an automated system upgrade that might potentially involve downti
 [[feature-upgrade-api-request]]
 ==== {api-request-title}
 
-`GET /_migration/deprecations` +
-
 `GET /<target>/_migration/deprecations`
 
 [[feature-upgrade-api-prereqs]]

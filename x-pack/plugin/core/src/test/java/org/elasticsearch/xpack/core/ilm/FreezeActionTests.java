@@ -55,4 +55,10 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
         assertEquals(expectedThirdStepKey, thirdStep.getKey());
         assertEquals(nextStepKey, thirdStep.getNextStepKey());
     }
+
+    @Override
+    protected void assertEqualInstances(FreezeAction expectedInstance, FreezeAction newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
+    }
 }

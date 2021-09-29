@@ -86,4 +86,10 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         assertThat(eighthStep.getKey(), equalTo(expectedEighthStepKey));
         assertThat(eighthStep.getNextStepKey(), equalTo(nextStepKey));
     }
+
+    @Override
+    protected void assertEqualInstances(UnfollowAction expectedInstance, UnfollowAction newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
+    }
 }

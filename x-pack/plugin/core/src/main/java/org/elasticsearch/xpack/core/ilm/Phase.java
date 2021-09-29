@@ -27,8 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Represents set of {@link LifecycleAction}s which should be executed at a
@@ -40,10 +38,16 @@ public class Phase implements ToXContentObject, Writeable {
     public static final ParseField MIN_AGE = new ParseField("min_age");
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked"})
     private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", false,
-            (a, name) -> new Phase(name, (TimeValue) a[0], ((List<LifecycleAction>) a[1]).stream()
-                    .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()))));
+            (a, name) -> {
+                final List<LifecycleAction> lifecycleActions = (List<LifecycleAction>) a[1];
+                final Map<String, LifecycleAction> actions = new TreeMap<>();
+                for (LifecycleAction lifecycleAction : lifecycleActions) {
+                    actions.put(lifecycleAction.getWriteableName(), lifecycleAction);
+                }
+                return new Phase(name, (TimeValue) a[0], actions);
+            });
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
             (ContextParser<String, Object>) (p, c) -> {
@@ -61,9 +65,12 @@ public class Phase implements ToXContentObject, Writeable {
                 return TimeValue.parseTimeValue(timeValueString, MIN_AGE.getPreferredName());
             }, MIN_AGE, ValueType.VALUE);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
-                (p, c, n) -> p.namedObject(LifecycleAction.class, n, null), v -> {
+                (p, c, n) -> p.namedObject(LifecycleAction.class, n, null),
+                v -> {
                     throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported");
-                }, ACTIONS_FIELD);
+                },
+                ACTIONS_FIELD
+        );
     }
 
     public static Phase parse(XContentParser parser, String name) {

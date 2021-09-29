@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
 
     @Override
@@ -63,5 +65,11 @@ public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
             assertEquals(expectedSecondStepKey, firstStep.getNextStepKey());
             assertEquals(nextStepKey, secondStep.getNextStepKey());
         }
+    }
+
+    @Override
+    protected void assertEqualInstances(DeleteAction expectedInstance, DeleteAction newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 }

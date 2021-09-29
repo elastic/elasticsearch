@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
 
@@ -147,5 +148,11 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
 
             assertEquals(nextStepKey, firstStep.getNextStepKey());
         }
+    }
+
+    @Override
+    protected void assertEqualInstances(MigrateAction expectedInstance, MigrateAction newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 }

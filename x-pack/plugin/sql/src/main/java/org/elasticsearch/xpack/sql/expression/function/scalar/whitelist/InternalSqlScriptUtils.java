@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
@@ -217,12 +216,12 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     public static Number tan(Number value) {
         return MathOperation.TAN.apply(value);
     }
-    
-    
+
+
 
     //
     // Date/Time functions
-    //    
+    //
     @Deprecated
     public static Integer dateTimeChrono(Object dateTime, String tzId, String chronoName) {
         String extractorName = null;
@@ -238,7 +237,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         }
         return dateTimeExtract(dateTime, tzId, extractorName);
     }
-    
+
     public static Integer dateTimeExtract(Object dateTime, String tzId, String extractorName) {
         if (dateTime == null || tzId == null || extractorName == null) {
             return null;
@@ -334,9 +333,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     private static Object asDateTime(Object dateTime, boolean lenient) {
         if (dateTime == null) {
             return null;
-        }
-        if (dateTime instanceof JodaCompatibleZonedDateTime) {
-            return ((JodaCompatibleZonedDateTime) dateTime).getZonedDateTime();
         }
         if (dateTime instanceof ZonedDateTime) {
             return dateTime;

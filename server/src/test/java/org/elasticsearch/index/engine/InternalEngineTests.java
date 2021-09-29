@@ -275,14 +275,14 @@ public class InternalEngineTests extends EngineTestCase {
     public void testVerboseSegments() throws Exception {
         try (Store store = createStore();
              Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
-            List<Segment> segments = engine.segments(true);
+            List<Segment> segments = engine.segments();
             assertThat(segments.isEmpty(), equalTo(true));
 
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
             engine.index(indexForDoc(doc));
             engine.refresh("test");
 
-            segments = engine.segments(true);
+            segments = engine.segments();
             assertThat(segments.size(), equalTo(1));
 
             ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
@@ -292,7 +292,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(indexForDoc(doc3));
             engine.refresh("test");
 
-            segments = engine.segments(true);
+            segments = engine.segments();
             assertThat(segments.size(), equalTo(3));
         }
     }
@@ -304,11 +304,11 @@ public class InternalEngineTests extends EngineTestCase {
             Engine.Index index = indexForDoc(doc);
             engine.index(index);
             engine.flush();
-            assertThat(engine.segments(false).size(), equalTo(1));
+            assertThat(engine.segments().size(), equalTo(1));
             index = indexForDoc(testParsedDocument("2", null, testDocument(), B_1, null));
             engine.index(index);
             engine.flush();
-            List<Segment> segments = engine.segments(false);
+            List<Segment> segments = engine.segments();
             assertThat(segments.size(), equalTo(2));
             for (Segment segment : segments) {
                 assertThat(segment.getMergeId(), nullValue());
@@ -316,7 +316,7 @@ public class InternalEngineTests extends EngineTestCase {
             index = indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null));
             engine.index(index);
             engine.flush();
-            segments = engine.segments(false);
+            segments = engine.segments();
             assertThat(segments.size(), equalTo(3));
             for (Segment segment : segments) {
                 assertThat(segment.getMergeId(), nullValue());
@@ -332,7 +332,7 @@ public class InternalEngineTests extends EngineTestCase {
             // ensure that we have released the older segments with a refresh so they can be removed
             assertFalse(engine.refreshNeeded());
 
-            for (Segment segment : engine.segments(false)) {
+            for (Segment segment : engine.segments()) {
                 assertThat(segment.getMergeId(), nullValue());
             }
             // we could have multiple underlying merges, so the generation may increase more than once
@@ -341,7 +341,7 @@ public class InternalEngineTests extends EngineTestCase {
             final boolean flush = randomBoolean();
             final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
             engine.forceMerge(flush, 1, false, UUIDs.randomBase64UUID());
-            for (Segment segment : engine.segments(false)) {
+            for (Segment segment : engine.segments()) {
                 assertThat(segment.getMergeId(), nullValue());
             }
 
@@ -359,14 +359,14 @@ public class InternalEngineTests extends EngineTestCase {
                      createEngine(defaultSettings, store, createTempDir(),
                          NoMergePolicy.INSTANCE, null, null, null,
                          indexSort, null)) {
-            List<Segment> segments = engine.segments(true);
+            List<Segment> segments = engine.segments();
             assertThat(segments.isEmpty(), equalTo(true));
 
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
             engine.index(indexForDoc(doc));
             engine.refresh("test");
 
-            segments = engine.segments(false);
+            segments = engine.segments();
             assertThat(segments.size(), equalTo(1));
             assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
 
@@ -377,7 +377,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(indexForDoc(doc3));
             engine.refresh("test");
 
-            segments = engine.segments(true);
+            segments = engine.segments();
             assertThat(segments.size(), equalTo(3));
             assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
             assertThat(segments.get(1).getSegmentSort(), equalTo(indexSort));
@@ -423,7 +423,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null,
                  null, globalCheckpoint::get))) {
-            assertThat(engine.segments(false), empty());
+            assertThat(engine.segments(), empty());
             int numDocsFirstSegment = randomIntBetween(5, 50);
             Set<String> liveDocsFirstSegment = new HashSet<>();
             for (int i = 0; i < numDocsFirstSegment; i++) {
@@ -433,7 +433,7 @@ public class InternalEngineTests extends EngineTestCase {
                 liveDocsFirstSegment.add(id);
             }
             engine.refresh("test");
-            List<Segment> segments = engine.segments(randomBoolean());
+            List<Segment> segments = engine.segments();
             assertThat(segments, hasSize(1));
             assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
@@ -463,7 +463,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.flush();
             }
             engine.refresh("test");
-            segments = engine.segments(randomBoolean());
+            segments = engine.segments();
             assertThat(segments, hasSize(2));
             assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(updates + deletes));

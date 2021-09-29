@@ -14,17 +14,15 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.util.Accountable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
@@ -271,17 +269,6 @@ public class Segment implements Writeable {
         int numChildren = in.readVInt();
         for (int i = 0; i < numChildren; i++) {
             readRamTree(in);
-        }
-    }
-
-    // the ram tree is written recursively since the depth is fairly low (5 or 6)
-    private void writeRamTree(StreamOutput out, Accountable tree) throws IOException {
-        out.writeString(tree.toString());
-        out.writeVLong(tree.ramBytesUsed());
-        Collection<Accountable> children = tree.getChildResources();
-        out.writeVInt(children.size());
-        for (Accountable child : children) {
-            writeRamTree(out, child);
         }
     }
 

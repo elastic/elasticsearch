@@ -3469,7 +3469,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexDoc(shard, "_doc", Integer.toString(i));
             shard.refresh("test"); // produce segments
         }
-        List<Segment> segments = shard.segments(false);
+        List<Segment> segments = shard.segments();
         Set<String> names = new HashSet<>();
         for (Segment segment : segments) {
             assertFalse(segment.committed);
@@ -3480,7 +3480,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.flush(new FlushRequest());
         shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));
         shard.refresh("test");
-        segments = shard.segments(false);
+        segments = shard.segments();
         for (Segment segment : segments) {
             if (names.contains(segment.getName())) {
                 assertTrue(segment.committed);
@@ -3496,7 +3496,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertFalse(shard.isActive());
 
         assertBusy(() -> { // flush happens in the background using the flush threadpool
-            List<Segment> segmentsAfterFlush = shard.segments(false);
+            List<Segment> segmentsAfterFlush = shard.segments();
             assertEquals(1, segmentsAfterFlush.size());
             for (Segment segment : segmentsAfterFlush) {
                 assertTrue(segment.committed);

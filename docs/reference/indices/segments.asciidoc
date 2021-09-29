@@ -50,14 +50,6 @@ Defaults to `open`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-`verbose`::
-experimental:[]
-(Optional, Boolean)
-If `true`, the response includes detailed information
-about Lucene's memory usage.
-Defaults to `false`.
-
-
 [[index-segments-api-response-body]]
 ==== {api-response-body-title}
 
@@ -80,10 +72,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 `size_in_bytes`::
 (Integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
-
-`memory_in_bytes`::
-(Integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=memory]
 
 `committed`::
 (Boolean)
@@ -182,47 +170,3 @@ The API returns the following response:
 // TESTRESPONSE[s/"attributes": \{[^}]*\}/"attributes": $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/7\.0\.0/$body.$_path/]
-
-
-===== Verbose mode
-
-To add additional information that can be used for debugging,
-use the `verbose` flag.
-
-experimental::[]
-
-[source,console]
---------------------------------------------------
-GET /test/_segments?verbose=true
---------------------------------------------------
-// TEST[continued]
-
-The API returns the following response:
-
-[source,console-response]
---------------------------------------------------
-{
-  ...
-    "_0": {
-      ...
-      "ram_tree": [
-        {
-          "description": "postings [PerFieldPostings(format=1)]",
-          "size_in_bytes": 2696,
-          "children": [
-            {
-              "description": "format 'Lucene50_0' ...",
-              "size_in_bytes": 2608,
-              "children" :[ ... ]
-            },
-            ...
-          ]
-        },
-        ...
-      ]
-
-    }
-  ...
-}
---------------------------------------------------
-// TESTRESPONSE[skip:Response is too verbose to be fully shown in documentation, so we just show the relevant bit and don't test the response.]

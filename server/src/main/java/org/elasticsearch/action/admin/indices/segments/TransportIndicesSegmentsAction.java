@@ -89,7 +89,7 @@ public class TransportIndicesSegmentsAction
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.index());
             IndexShard indexShard = indexService.getShard(shardRouting.id());
-            return new ShardSegments(indexShard.routingEntry(), indexShard.segments(request.verbose()));
+            return new ShardSegments(indexShard.routingEntry(), indexShard.segments());
         });
     }
 }

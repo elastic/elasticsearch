@@ -396,7 +396,7 @@ filters = [
 ]
 query = '''
 sequence by source_address, hostname with maxspan=5s
-  [security where hostname != "newyork" and event_id == 4625] repeat=4
+  [security where hostname != "newyork" and event_id == 4625] [runs=4]
 '''
 time = 2.8286166191101074
 type = "sequence"
@@ -433,7 +433,7 @@ filters = [
 ]
 query = '''
 sequence by source_address, hostname with maxspan=10s
-  [security where hostname != "newyork" and event_id == 4625] repeat=3
+  [security where hostname != "newyork" and event_id == 4625] [runs=3]
 '''
 time = 2.765869617462158
 type = "sequence"

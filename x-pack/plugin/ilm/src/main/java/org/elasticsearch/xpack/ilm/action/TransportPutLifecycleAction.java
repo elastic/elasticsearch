@@ -34,8 +34,10 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 import java.time.Instant;
 import java.util.List;
@@ -92,6 +94,19 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             String repository = action.getSnapshotRepository();
             if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repository) == null) {
                 throw new IllegalArgumentException("no such repository [" + repository + "]");
+            }
+        }
+
+        List<WaitForSnapshotAction> waitForSnapshotActions = request.getPolicy().getPhases().values().stream()
+            .map(phase -> (WaitForSnapshotAction) phase.getActions().get(WaitForSnapshotAction.NAME))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        // make sure any referenced snapshot lifecycle policies exist
+        for (WaitForSnapshotAction action : waitForSnapshotActions) {
+            String policy = action.getPolicy();
+            if (state.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY)
+                .getSnapshotConfigurations().get(policy) == null) {
+                throw new IllegalArgumentException("no such snapshot lifecycle policy [" + policy + "]");
             }
         }
 

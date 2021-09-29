@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -35,6 +34,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -107,13 +107,13 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
      */
     public static final Setting<TimeValue> SNAPSHOT_SNAPSHOT_CLEANUP_KEEP_ALIVE_SETTING = Setting.timeSetting(
         "searchable_snapshots.blob_cache.periodic_cleanup.pit_keep_alive",
-        TimeValue.timeValueMinutes(5L),
-        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueMinutes(10L),
+        TimeValue.timeValueSeconds(30L),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     /**
-     * The number of documents that are searched for and bulk-deleted during the periodic cleanup.
+     * The number of documents that are searched for and bulk-deleted at once during the periodic cleanup.
      */
     public static final Setting<Integer> SNAPSHOT_SNAPSHOT_CLEANUP_BATCH_SIZE_SETTING = Setting.intSetting(
         "searchable_snapshots.blob_cache.periodic_cleanup.batch_size",
@@ -147,7 +147,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         this.periodicTaskInterval = SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.get(settings);
         this.periodicTaskKeepAlive = SNAPSHOT_SNAPSHOT_CLEANUP_KEEP_ALIVE_SETTING.get(settings);
         this.periodicTaskBatchSize = SNAPSHOT_SNAPSHOT_CLEANUP_BATCH_SIZE_SETTING.get(settings);
-        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING, this::setPeriodicTaskInterval);
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_SNAPSHOT_CLEANUP_KEEP_ALIVE_SETTING, this::setPeriodicTaskKeepAlive);
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_SNAPSHOT_CLEANUP_BATCH_SIZE_SETTING, this::setPeriodicTaskBatchSize);
@@ -354,6 +354,17 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         }
     }
 
+    /**
+     * A maintenance task that periodically cleans up unused cache entries from the blob store cache index.
+     *
+     * This task first opens a point-in-time context on the blob store cache system index and uses it to search all documents. For each
+     * document found the task verifies if it belongs to an existing searchable snapshot index. If the doc does not belong to any
+     * index then it is deleted as part of a bulk request. Once the bulk is executed the next batch of documents is searched for. Once
+     * all documents from the PIT have been verified the task closes the PIT and completes itself.
+     *
+     * The task executes every step (PIT opening, searches, bulk deletes, PIT closing) using the generic thread pool.
+     * The same task instance is used for all the steps and makes sure that a closed instance is not executed again.
+     */
     private class PeriodicMaintenanceTask implements Runnable, Releasable {
 
         private final TimeValue keepAlive;
@@ -361,7 +372,6 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         private final AtomicReference<Exception> error = new AtomicReference<>();
         private final AtomicBoolean closed = new AtomicBoolean();
-        private final AtomicLong processed = new AtomicLong();
         private final AtomicLong deletes = new AtomicLong();
         private final AtomicLong total = new AtomicLong();
 
@@ -442,75 +452,62 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     final ClusterState state = clusterService.state();
                     final BulkRequest bulkRequest = new BulkRequest();
 
-                    final RepositoriesMetadata repositories = state.metadata()
-                        .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-
+                    final Set<Tuple<String, String>> knownSnapshots = new HashSet<>();
                     final Set<Tuple<String, String>> missingSnapshots = new HashSet<>();
-                    final Set<String> missingRepositories = new HashSet<>();
+                    final Set<String> knownRepositories = state.metadata()
+                        .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                        .repositories()
+                        .stream()
+                        .map(RepositoryMetadata::name)
+                        .collect(Collectors.toSet());
 
                     Object[] lastSortValues = null;
                     for (SearchHit searchHit : searchHits) {
                         assert searchHit.getId() != null;
                         assert searchHit.hasSource();
+
+                        // See {@link BlobStoreCacheService#generateId}
+                        // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
+                        final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
+                        assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
+
                         boolean delete = false;
-                        try {
-                            // See {@link BlobStoreCacheService#generateId}
-                            // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
-                            final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
-                            assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
+                        lastSortValues = searchHit.getSortValues();
 
-                            final String repositoryName = parts[0];
-                            if (missingRepositories.contains(repositoryName) || repositories.repository(repositoryName) == null) {
-                                logger.trace(
-                                    "deleting blob store cache entry [id:{}, repository:{}, reason: repository does not exist]",
-                                    searchHit.getId(),
-                                    repositoryName
-                                );
-                                missingRepositories.add(repositoryName);
-                                delete = true;
-                                continue;
-                            }
-
+                        final String repositoryName = parts[0];
+                        if (knownRepositories.contains(repositoryName) == false) {
+                            logger.trace(
+                                "deleting blob store cache entry [id:{}, repository:{}, reason: repository does not exist]",
+                                searchHit.getId(),
+                                repositoryName
+                            );
+                            delete = true;
+                        } else {
                             final Tuple<String, String> snapshot = Tuple.tuple(parts[1], parts[2]);
-                            if (missingSnapshots.contains(snapshot)
-                                || hasSearchableSnapshotWith(state, snapshot.v1(), snapshot.v2()) == false) {
+                            boolean isMissing = missingSnapshots.contains(snapshot);
+                            boolean isKnown = knownSnapshots.contains(snapshot);
+                            if (isMissing
+                                || (isKnown == false && hasSearchableSnapshotWith(state, snapshot.v1(), snapshot.v2()) == false)) {
                                 logger.trace(
                                     "deleting blob store cache entry [id:{}, snapshotId:{}, indexId:{}, reason: unused]",
                                     searchHit.getId(),
                                     snapshot.v1(),
                                     snapshot.v2()
                                 );
-                                missingSnapshots.add(snapshot);
+                                if (isMissing == false) {
+                                    missingSnapshots.add(snapshot);
+                                }
                                 delete = true;
-                                continue;
+                            } else if (isKnown == false) {
+                                knownSnapshots.add(snapshot);
                             }
-
-                            final CachedBlob cachedBlob = CachedBlob.fromSource(Objects.requireNonNull(searchHit.getSourceAsMap()));
-                            if (Version.CURRENT.isCompatible(cachedBlob.version()) == false) {
-                                logger.trace(
-                                    "deleting blob store cache entry [id:{}, version:{}, reason: incompatible version]",
-                                    searchHit.getId(),
-                                    cachedBlob.version()
-                                );
-                                delete = true;
-                                continue;
-                            }
-                        } catch (Exception e) {
-                            logger.warn(
-                                () -> new ParameterizedMessage("failed to parse blob store cache entry [id:{}]", searchHit.getId()),
-                                e
-                            );
-                            delete = true;
-                        } finally {
-                            if (delete) {
-                                final DeleteRequest deleteRequest = new DeleteRequest().index(searchHit.getIndex());
-                                deleteRequest.id(searchHit.getId());
-                                deleteRequest.setIfSeqNo(searchHit.getSeqNo());
-                                deleteRequest.setIfPrimaryTerm(searchHit.getPrimaryTerm());
-                                bulkRequest.add(deleteRequest);
-                            }
-                            maintenanceTask.processed.incrementAndGet();
-                            lastSortValues = searchHit.getSortValues();
+                        }
+                        if (delete) {
+                            final DeleteRequest deleteRequest = new DeleteRequest().index(searchHit.getIndex());
+                            deleteRequest.id(searchHit.getId());
+                            deleteRequest.setIfSeqNo(searchHit.getSeqNo());
+                            deleteRequest.setIfPrimaryTerm(searchHit.getPrimaryTerm());
+                            bulkRequest.add(deleteRequest);
                         }
                     }
 
@@ -578,10 +575,9 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 } else {
                     logger.info(
                         () -> new ParameterizedMessage(
-                            "periodic maintenance task completed ({} deleted documents out of a total of {}, {})",
+                            "periodic maintenance task completed ({} deleted documents out of a total of {})",
                             deletes.get(),
-                            total.get(),
-                            processed.get()
+                            total.get()
                         )
                     );
                 }

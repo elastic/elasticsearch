@@ -220,13 +220,17 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         refreshSystemIndex(false);
         assertThat(numberOfEntriesInCache(), equalTo(0L));
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder()
-                    .put(
-                        BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey(),
-                        TimeValue.timeValueSeconds(1L))
-            )
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder()
+                        .put(
+                            BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey(),
+                            TimeValue.timeValueSeconds(1L)
+                        )
+                )
         );
         try {
             final RestoreSnapshotResponse restoreResponse = client().admin()
@@ -250,11 +254,13 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             }, 3000L, TimeUnit.SECONDS);
 
         } finally {
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(
-                    Settings.builder()
-                        .putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey())
-                )
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder().putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey())
+                    )
             );
         }
     }

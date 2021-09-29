@@ -82,7 +82,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         String wrongTest = "wrong_version.yml"
         String additionalTest = "additional_test.yml"
         setupRestResources([wrongApi], [wrongTest]) //setups up resources for current version, which should not be used for this test
-        String sourceSetName = "yamlRestTestV" + compatibleVersion
+        String sourceSetName = "yamlRestTestV" + compatibleVersion + "Compat"
         addRestTestsToProject([additionalTest], sourceSetName)
         //intentionally adding to yamlRestTest source set since the .classes are copied from there
         file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"

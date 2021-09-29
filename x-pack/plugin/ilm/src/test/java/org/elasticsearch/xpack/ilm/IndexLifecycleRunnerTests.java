@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
 import org.elasticsearch.xpack.core.ilm.AsyncWaitStep;
+import org.elasticsearch.xpack.core.ilm.BranchingStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -284,7 +285,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     public void testRunStateChangePolicyWithNextStep() throws Exception {
         String policyName = "foo";
-        StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
+        StepKey stepKey = new StepKey("phase", "action", BranchingStep.NAME);
         StepKey nextStepKey = new StepKey("phase", "action", "next_cluster_state_action_step");
         MockClusterStateActionStep step = new MockClusterStateActionStep(stepKey, nextStepKey);
         MockClusterStateActionStep nextStep = new MockClusterStateActionStep(nextStepKey, null);
@@ -303,7 +304,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         LifecycleExecutionState les = LifecycleExecutionState.builder()
             .setPhase("phase")
             .setAction("action")
-            .setStep("cluster_state_action_step")
+            .setStep(BranchingStep.NAME)
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(Settings.builder()
@@ -373,7 +374,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     public void doTestRunPolicyWithFailureToReadPolicy(boolean asyncAction, boolean periodicAction) throws Exception {
         String policyName = "foo";
-        StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
+        StepKey stepKey = new StepKey("phase", "action", BranchingStep.NAME);
         StepKey nextStepKey = new StepKey("phase", "action", "next_cluster_state_action_step");
         MockClusterStateActionStep step = new MockClusterStateActionStep(stepKey, nextStepKey);
         MockClusterStateActionStep nextStep = new MockClusterStateActionStep(nextStepKey, null);
@@ -387,7 +388,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         LifecycleExecutionState les = LifecycleExecutionState.builder()
             .setPhase("phase")
             .setAction("action")
-            .setStep("cluster_state_action_step")
+            .setStep(BranchingStep.NAME)
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(Settings.builder()
@@ -429,7 +430,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .fromIndexMetadata(clusterService.state().metadata().index(indexMetadata.getIndex()));
         assertThat(newExecutionState.getPhase(), equalTo("phase"));
         assertThat(newExecutionState.getAction(), equalTo("action"));
-        assertThat(newExecutionState.getStep(), equalTo("cluster_state_action_step"));
+        assertThat(newExecutionState.getStep(), equalTo(BranchingStep.NAME));
         assertThat(step.getExecuteCount(), equalTo(0L));
         assertThat(nextStep.getExecuteCount(), equalTo(0L));
         assertThat(newExecutionState.getStepInfo(),
@@ -480,7 +481,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     public void testRunStateChangePolicyWithAsyncActionNextStep() throws Exception {
         String policyName = "foo";
-        StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
+        StepKey stepKey = new StepKey("phase", "action", BranchingStep.NAME);
         StepKey nextStepKey = new StepKey("phase", "action", "async_action_step");
         MockClusterStateActionStep step = new MockClusterStateActionStep(stepKey, nextStepKey);
         MockAsyncActionStep nextStep = new MockAsyncActionStep(nextStepKey, null);
@@ -499,7 +500,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         LifecycleExecutionState les = LifecycleExecutionState.builder()
             .setPhase("phase")
             .setAction("action")
-            .setStep("cluster_state_action_step")
+            .setStep(BranchingStep.NAME)
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(Settings.builder()

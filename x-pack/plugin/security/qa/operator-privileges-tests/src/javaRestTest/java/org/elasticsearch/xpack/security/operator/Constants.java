@@ -25,6 +25,7 @@ public class Constants {
         "cluster:admin/data_frame/start",
         "cluster:admin/data_frame/stop",
         "cluster:admin/data_frame/update",
+        "cluster:admin/deprecation/cache/reset",
         "cluster:admin/ilm/_move/post",
         "cluster:admin/ilm/delete",
         "cluster:admin/ilm/get",

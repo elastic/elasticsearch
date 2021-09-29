@@ -7,19 +7,24 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdateTests;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class InferTrainedModelDeploymentRequestsTests extends AbstractSerializingTestCase<InferTrainedModelDeploymentAction.Request> {
-    @Override
-    protected InferTrainedModelDeploymentAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return InferTrainedModelDeploymentAction.Request.parseRequest(null, parser);
+public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerializingTestCase<InferTrainedModelDeploymentAction.Request> {
+
+
+    private static InferenceConfigUpdate randomInferenceConfigUpdate() {
+        return randomFrom(ZeroShotClassificationConfigUpdateTests.createRandom(), EmptyConfigUpdateTests.testInstance());
     }
 
     @Override
@@ -32,12 +37,22 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractSerializin
         List<Map<String, Object>> docs = randomList(5, () -> randomMap(1, 3,
             () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7))));
 
-        InferTrainedModelDeploymentAction.Request request =
-            new InferTrainedModelDeploymentAction.Request(randomAlphaOfLength(4), docs);
+        InferTrainedModelDeploymentAction.Request request = new InferTrainedModelDeploymentAction.Request(
+            randomAlphaOfLength(4),
+            randomBoolean() ? null : randomInferenceConfigUpdate(),
+            docs
+        );
         if (randomBoolean()) {
             request.setTimeout(randomTimeValue());
         }
         return request;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        return new NamedWriteableRegistry(entries);
     }
 
     public void testTimeoutNotNull() {

@@ -846,6 +846,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (matchedQueries != null) {
             searchHit.matchedQueries(matchedQueries.toArray(new String[0]));
         }
+        searchHit.ignoredFieldValues = emptyMap();
+
         return searchHit;
     }
 

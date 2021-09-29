@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.deprecation.logging;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -14,8 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.RateLimitingFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,7 +30,7 @@ public class TransportDeprecationCacheResetAction
     DeprecationCacheResetAction.NodeRequest,
     DeprecationCacheResetAction.NodeResponse> {
 
-    private static final DeprecationLogger logger = DeprecationLogger.getLogger(TransportDeprecationCacheResetAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDeprecationCacheResetAction.class);
 
     private final RateLimitingFilter rateLimitingFilterForIndexing;
 
@@ -68,7 +68,7 @@ public class TransportDeprecationCacheResetAction
     @Override
     protected DeprecationCacheResetAction.NodeResponse nodeOperation(DeprecationCacheResetAction.NodeRequest request, Task task) {
         rateLimitingFilterForIndexing.reset();
-        logger.warn(DeprecationCategory.CACHE_RESET, "cache_reset", "Deprecation cache was reset");
+        logger.debug( "Deprecation cache was reset");
         return new DeprecationCacheResetAction.NodeResponse(transportService.getLocalNode());
     }
 }

@@ -21,7 +21,6 @@ public enum DeprecationCategory {
     ANALYSIS,
     API,
     COMPATIBLE_API,
-    CACHE_RESET,
     INDICES,
     MAPPINGS,
     OTHER,

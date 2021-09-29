@@ -674,7 +674,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 }
 
                 logger.warn(documents);
-                assertThat(documents, hasSize(5));
+                assertThat(documents, hasSize(4));
 
                 assertThat(
                     documents,
@@ -686,12 +686,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         allOf(
                             hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
                             hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
-                        ),
-                        allOf(
-                            hasEntry("elasticsearch.event.category", "cache_reset"),
-                            hasEntry(KEY_FIELD_NAME, "cache_reset"),
-                            hasEntry("log.level", "WARN"),
-                            hasEntry("message", "Deprecation cache was reset")
                         ),
                         allOf(
                             hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),

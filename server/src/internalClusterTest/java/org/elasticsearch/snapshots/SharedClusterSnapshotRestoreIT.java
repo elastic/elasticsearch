@@ -1207,10 +1207,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(getResponse.getSnapshots().size(), equalTo(1));
         SnapshotInfo snapshotInfo = getResponse.getSnapshots().get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.IN_PROGRESS));
-        snapshotStatus = client.admin().cluster().prepareSnapshotStatus().execute().actionGet().getSnapshots().get(0);
-        assertThat(snapshotInfo.totalShards(), equalTo(snapshotStatus.getIndices().get("test-idx").getShardsStats().getTotalShards()));
-        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotStatus.getIndices().get("test-idx").getShardsStats().getDoneShards()));
-        assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
 
         logger.info("--> unblocking blocked node");
         unblockNode("test-repo", blockedNode);

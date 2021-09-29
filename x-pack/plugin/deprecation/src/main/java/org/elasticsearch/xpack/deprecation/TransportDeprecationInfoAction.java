@@ -38,8 +38,8 @@ import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETT
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<DeprecationInfoAction.Request,
-        DeprecationInfoAction.Response> {
-    private static final List<DeprecationChecker> PLUGIN_CHECKERS = List.of(new MlDeprecationChecker());
+    DeprecationInfoAction.Response> {
+    private static final List<DeprecationChecker> PLUGIN_CHECKERS = List.of(new MlDeprecationChecker(), new TransformDeprecationChecker());
     private static final Logger logger = LogManager.getLogger(TransportDeprecationInfoAction.class);
 
     private final NodeClient client;

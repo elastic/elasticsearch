@@ -45,7 +45,6 @@ public class HotThreads {
     private int threadElementsSnapshotCount = 10;
     private ReportType type = ReportType.CPU;
     private boolean ignoreIdleThreads = true;
-    private SunThreadInfo sunThreadInfo = new SunThreadInfo();
 
     private static final List<String[]> knownIdleStackFrames = Arrays.asList(
         new String[] {"java.util.concurrent.ThreadPoolExecutor", "getTask"},
@@ -118,15 +117,9 @@ public class HotThreads {
         return this;
     }
 
-    // Used for testing
-    public HotThreads sunThreadInfo(SunThreadInfo sunThreadInfo) {
-        this.sunThreadInfo = sunThreadInfo;
-        return this;
-    }
-
     public String detect() throws Exception {
         synchronized (mutex) {
-            return innerDetect(ManagementFactory.getThreadMXBean(), Thread.currentThread().getId());
+            return innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId());
         }
     }
 
@@ -154,7 +147,7 @@ public class HotThreads {
         return false;
     }
 
-    Map<Long, ThreadTimeAccumulator> getAllValidThreadInfos(ThreadMXBean threadBean, long currentThreadId) {
+    Map<Long, ThreadTimeAccumulator> getAllValidThreadInfos(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId) {
         long[] threadIds = threadBean.getAllThreadIds();
         ThreadInfo[] threadInfos = threadBean.getThreadInfo(threadIds);
         Map<Long, ThreadTimeAccumulator> result = new HashMap<>(threadIds.length);
@@ -196,7 +189,7 @@ public class HotThreads {
         }
     }
 
-    String innerDetect(ThreadMXBean threadBean, long currentThreadId) throws Exception {
+    String innerDetect(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId) throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
@@ -221,9 +214,9 @@ public class HotThreads {
 
         try {
             // Capture before and after thread state with timings
-            Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, currentThreadId);
+            Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
             Thread.sleep(interval.millis());
-            Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, currentThreadId);
+            Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
 
             latestThreadInfos.forEach((threadId, accumulator) -> accumulator.subtractPrevious(previousThreadInfos.get(threadId)));
 

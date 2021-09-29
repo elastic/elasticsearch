@@ -23,6 +23,7 @@ public class SunThreadInfo {
     private static final Method isThreadAllocatedMemoryEnabled;
 
     private static final Logger logger = LogManager.getLogger(SunThreadInfo.class);
+    public static final SunThreadInfo INSTANCE = new SunThreadInfo();
 
     static {
         threadMXBean = ManagementFactory.getThreadMXBean();

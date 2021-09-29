@@ -240,6 +240,10 @@ public class HotThreadsTests extends ESTestCase {
         ThreadMXBean mockedMXBean = mock(ThreadMXBean.class);
         when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
 
+        SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
+        when(mockedSunThreadInfo.isThreadAllocatedMemorySupported()).thenReturn(true);
+        when(mockedSunThreadInfo.isThreadAllocatedMemoryEnabled()).thenReturn(true);
+
         long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
         long mockCurrentThreadId = 0L;
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
@@ -255,7 +259,7 @@ public class HotThreadsTests extends ESTestCase {
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
 
-        String innerResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
+        String innerResult = hotThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
 
         assertThat(innerResult, containsString("Hot threads at "));
         assertThat(innerResult, containsString("interval=10nanos, busiestThreads=4, ignoreIdleThreads=false:"));
@@ -269,7 +273,7 @@ public class HotThreadsTests extends ESTestCase {
         assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
 
         // Let's ask again without progressing the CPU thread counters, e.g. resetting the mocks
-        innerResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
+        innerResult = hotThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
 
         assertThat(innerResult, containsString("0.0% (0s out of 10nanos) cpu usage by thread 'Thread 4'"));
         assertThat(innerResult, containsString("0.0% (0s out of 10nanos) cpu usage by thread 'Thread 3'"));
@@ -287,7 +291,7 @@ public class HotThreadsTests extends ESTestCase {
         List<ThreadInfo> waitOrderedInfos = List.of(allInfos.get(3), allInfos.get(1), allInfos.get(0), allInfos.get(2));
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(waitOrderedInfos.toArray(new ThreadInfo[0]));
 
-        String waitInnerResult = hotWaitingThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
+        String waitInnerResult = hotWaitingThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
 
         assertThat(waitInnerResult, containsString("40.0% (4nanos out of 10nanos) wait usage by thread 'Thread 4'"));
         assertThat(waitInnerResult, containsString("20.0% (2nanos out of 10nanos) wait usage by thread 'Thread 2'"));
@@ -305,7 +309,7 @@ public class HotThreadsTests extends ESTestCase {
         List<ThreadInfo> blockOrderedInfos = List.of(allInfos.get(2), allInfos.get(0), allInfos.get(1), allInfos.get(3));
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(blockOrderedInfos.toArray(new ThreadInfo[0]));
 
-        String blockInnerResult = hotBlockedThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
+        String blockInnerResult = hotBlockedThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
 
         assertThat(blockInnerResult, containsString("30.0% (3nanos out of 10nanos) block usage by thread 'Thread 3'"));
         assertThat(blockInnerResult, containsString("10.0% (1nanos out of 10nanos) block usage by thread 'Thread 1'"));
@@ -325,7 +329,7 @@ public class HotThreadsTests extends ESTestCase {
             .threadElementsSnapshotCount(1)
             .ignoreIdleThreads(false);
 
-        String singleResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
+        String singleResult = hotThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
 
         assertThat(singleResult, containsString("  unique snapshot"));
         assertEquals(5, singleResult.split(" unique snapshot").length);
@@ -341,9 +345,6 @@ public class HotThreadsTests extends ESTestCase {
         cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
-        SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
-        when(mockedSunThreadInfo.isThreadAllocatedMemorySupported()).thenReturn(true);
-        when(mockedSunThreadInfo.isThreadAllocatedMemoryEnabled()).thenReturn(true);
         for (long threadId : threadIds) {
             when(mockedSunThreadInfo.getThreadAllocatedBytes(threadId)).thenReturn(0L).thenReturn(threadId*100);
         }
@@ -353,10 +354,9 @@ public class HotThreadsTests extends ESTestCase {
             .type(HotThreads.ReportType.MEM)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(1)
-            .ignoreIdleThreads(false)
-            .sunThreadInfo(mockedSunThreadInfo);
+            .ignoreIdleThreads(false);
 
-        String memInnerResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
+        String memInnerResult = hotThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
         assertThat(memInnerResult, containsString("  unique snapshot"));
         assertThat(memInnerResult, containsString("400b memory allocated by thread 'Thread 4'"));
         assertThat(memInnerResult, containsString("300b memory allocated by thread 'Thread 3'"));
@@ -383,7 +383,7 @@ public class HotThreadsTests extends ESTestCase {
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
 
-        String innerResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
+        String innerResult = hotThreads.innerDetect(mockedMXBean, mock(SunThreadInfo.class), mockCurrentThreadId);
 
         assertEquals(1, innerResult.lines().count());
     }
@@ -410,6 +410,7 @@ public class HotThreadsTests extends ESTestCase {
     public void testGetAllValidThreadInfos() {
         ThreadMXBean mockedMXBean = mock(ThreadMXBean.class);
         when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
+        SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
 
         long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
         long mockCurrentThreadId = 0L;
@@ -425,7 +426,8 @@ public class HotThreadsTests extends ESTestCase {
         // Test the case when all threads exist before and after sleep
         List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
 
-        Map<Long, HotThreads.ThreadTimeAccumulator> validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockCurrentThreadId);
+        Map<Long, HotThreads.ThreadTimeAccumulator> validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockedSunThreadInfo,
+            mockCurrentThreadId);
         assertEquals(allInfos.size(), validInfos.size());
 
         for (long threadId : threadIds) {
@@ -438,7 +440,8 @@ public class HotThreadsTests extends ESTestCase {
 
         // Fake sleep, e.g don't sleep call the mock again
 
-        Map<Long, HotThreads.ThreadTimeAccumulator> afterValidInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockCurrentThreadId);
+        Map<Long, HotThreads.ThreadTimeAccumulator> afterValidInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockedSunThreadInfo,
+            mockCurrentThreadId);
         assertEquals(allInfos.size(), afterValidInfos.size());
         for (long threadId : threadIds) {
             HotThreads.ThreadTimeAccumulator accumulator = afterValidInfos.get(threadId);
@@ -453,7 +456,7 @@ public class HotThreadsTests extends ESTestCase {
         // Test when a thread has terminated during sleep, we don't report that thread
         allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
 
-        validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockCurrentThreadId);
+        validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
         assertEquals(allInfos.size(), validInfos.size());
 
         ThreadInfo removedInfo = allInfos.remove(0);
@@ -464,7 +467,7 @@ public class HotThreadsTests extends ESTestCase {
 
         // Fake sleep
 
-        afterValidInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockCurrentThreadId);
+        afterValidInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
         assertEquals(reducedThreadIds.length, afterValidInfos.size());
 
         for (long threadId : reducedThreadIds) {
@@ -485,7 +488,7 @@ public class HotThreadsTests extends ESTestCase {
 
         // Fake sleep
 
-        afterValidInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockCurrentThreadId);
+        afterValidInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
         assertEquals(threadIds.length, afterValidInfos.size());
 
         HotThreads.ThreadTimeAccumulator firstAccumulator = afterValidInfos.get(removedInfo.getThreadId());
@@ -494,19 +497,19 @@ public class HotThreadsTests extends ESTestCase {
         assertEquals(1, firstAccumulator.getBlockedTime());
 
         // Test skipping of current thread
-        validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, threadIds[threadIds.length - 1]);
+        validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockedSunThreadInfo, threadIds[threadIds.length - 1]);
         assertEquals(threadIds.length - 1, validInfos.size());
         assertFalse(validInfos.containsKey(threadIds[threadIds.length - 1]));
 
         // Test skipping threads with CPU time of -1
         when(mockedMXBean.getThreadCpuTime(threadIds[0])).thenReturn(-1L);
-        validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockCurrentThreadId);
+        validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
         assertEquals(threadIds.length - 1, validInfos.size());
         assertFalse(validInfos.containsKey(threadIds[0]));
 
         // Test skipping null thread infos
         when(mockedMXBean.getThreadInfo(eq(threadIds[0]), anyInt())).thenReturn(null);
-        validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockCurrentThreadId);
+        validInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
         assertEquals(threadIds.length - 1, validInfos.size());
         assertFalse(validInfos.containsKey(threadIds[0]));
     }
@@ -597,7 +600,7 @@ public class HotThreadsTests extends ESTestCase {
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
 
-        String innerResult = hotThreads.innerDetect(mockedMXBean, mockCurrentThreadId);
+        String innerResult = hotThreads.innerDetect(mockedMXBean, mock(SunThreadInfo.class), mockCurrentThreadId);
 
         assertThat(innerResult, containsString("Hot threads at "));
         assertThat(innerResult, containsString("interval=10nanos, busiestThreads=4, ignoreIdleThreads=false:"));
@@ -630,7 +633,7 @@ public class HotThreadsTests extends ESTestCase {
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
 
-        expectThrows(RuntimeException.class, () -> hotThreads.innerDetect(mockedMXBean, 0L));
+        expectThrows(RuntimeException.class, () -> hotThreads.innerDetect(mockedMXBean, mock(SunThreadInfo.class), 0L));
 
         // Ensure we called the monitoring enabled with true and then with false even with exception thrown
         InOrder orderVerifier = inOrder(mockedMXBean);
@@ -642,6 +645,7 @@ public class HotThreadsTests extends ESTestCase {
         ThreadMXBean mockedMXBean = mock(ThreadMXBean.class);
         when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
         when(mockedMXBean.isThreadContentionMonitoringSupported()).thenReturn(true);
+
         SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
         when(mockedSunThreadInfo.isThreadAllocatedMemorySupported()).thenReturn(false);
 
@@ -658,11 +662,10 @@ public class HotThreadsTests extends ESTestCase {
             .type(HotThreads.ReportType.MEM)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(1)
-            .ignoreIdleThreads(false)
-            .sunThreadInfo(mockedSunThreadInfo);
+            .ignoreIdleThreads(false);
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> hotThreads0.innerDetect(mockedMXBean, 0L));
+            () -> hotThreads0.innerDetect(mockedMXBean, mockedSunThreadInfo, 0L));
         assertThat(exception.getMessage(), equalTo("thread allocated memory is not supported on this JDK"));
 
         // making sure CPU type was not affected when isThreadAllocatedMemorySupported() == false
@@ -672,10 +675,9 @@ public class HotThreadsTests extends ESTestCase {
             .type(HotThreads.ReportType.CPU)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(1)
-            .ignoreIdleThreads(false)
-            .sunThreadInfo(mockedSunThreadInfo);
+            .ignoreIdleThreads(false);
 
-        String innerResult = hotThreads1.innerDetect(mockedMXBean, mockCurrentThreadId);
+        String innerResult = hotThreads1.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId);
         assertThat(innerResult, containsString("Hot threads at "));
         assertThat(innerResult, containsString("40.0% (4nanos out of 10nanos) cpu usage by thread 'Thread 4'"));
         assertThat(innerResult, containsString("30.0% (3nanos out of 10nanos) cpu usage by thread 'Thread 3'"));

@@ -1206,9 +1206,9 @@
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             xpack.ml.max_model_memory_limit: "9g"
-  - match: {transient.xpack.ml.max_model_memory_limit: "9g"}
+  - match: {persistent.xpack.ml.max_model_memory_limit: "9g"}
 
   - do:
       ml.put_job:
@@ -1248,9 +1248,9 @@
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             xpack.ml.max_model_memory_limit: null
-  - match: {transient: {}}
+  - match: {persistent: {}}
 
   - do:
       ml.put_job:
@@ -1426,9 +1426,9 @@
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.persistent_tasks.allocation.enable: "none"
-  - match: {transient.cluster.persistent_tasks.allocation.enable: "none"}
+  - match: {persistent.cluster.persistent_tasks.allocation.enable: "none"}
 
   - do:
       ml.put_job:
@@ -1456,9 +1456,9 @@
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.persistent_tasks.allocation.enable: "all"
-  - match: {transient.cluster.persistent_tasks.allocation.enable: "all"}
+  - match: {persistent.cluster.persistent_tasks.allocation.enable: "all"}
 
   - do:
       ml.open_job:

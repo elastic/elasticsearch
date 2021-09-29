@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 public abstract class IndexLifecycleClusterStateUpdateTask extends ClusterStateUpdateTask {
 
     private final ListenableFuture<Void> listener = new ListenableFuture<>();
+    protected volatile boolean changeMade;
 
     @Override
     public final void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {

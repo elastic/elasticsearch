@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -511,6 +513,24 @@ class IndexLifecycleRunner {
 
     private final Set<IndexLifecycleClusterStateUpdateTask> executingTasks = Collections.synchronizedSet(new HashSet<>());
 
+    private final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> executor = (currentState, tasks) -> {
+        ClusterTasksResult.Builder<IndexLifecycleClusterStateUpdateTask> builder = ClusterTasksResult.builder();
+        ClusterState state = currentState;
+        for (IndexLifecycleClusterStateUpdateTask task : tasks) {
+            try {
+                ClusterState newState = task.execute(state);
+                if (newState != state) {
+                    task.changeMade = true;
+                }
+                state = newState;
+                builder.success(task);
+            } catch (Exception e) {
+                builder.failure(task, e);
+            }
+        }
+        return builder.build(state);
+    };
+
     /**
      * Tracks already executing {@link IndexLifecycleClusterStateUpdateTask} tasks in {@link #executingTasks} to prevent queueing up
      * duplicate cluster state updates.
@@ -526,7 +546,7 @@ class IndexLifecycleRunner {
                 final boolean removed = executingTasks.remove(task);
                 assert removed : "tried to unregister unknown task [" + task + "]";
             }));
-            clusterService.submitStateUpdateTask(source, task);
+            clusterService.submitStateUpdateTask(source, task, task, executor, task);
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }

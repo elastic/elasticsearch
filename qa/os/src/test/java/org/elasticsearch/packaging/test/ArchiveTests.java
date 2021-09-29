@@ -188,7 +188,6 @@ public class ArchiveTests extends PackagingTestCase {
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
-        sh.chown(tempDir);
         Files.move(
             installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk15on-1.64.jar"),
             tempDir.resolve("bcprov-jdk15on-1.64.jar")

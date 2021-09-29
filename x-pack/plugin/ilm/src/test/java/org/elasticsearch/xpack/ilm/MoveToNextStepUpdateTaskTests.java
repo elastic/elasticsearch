@@ -80,6 +80,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.getPhaseTime(), equalTo(now));
         assertThat(lifecycleState.getActionTime(), equalTo(now));
         assertThat(lifecycleState.getStepTime(), equalTo(now));
+        task.changeMade = true;
         task.clusterStateProcessed("source", clusterState, newState);
         assertTrue(changed.get());
     }
@@ -124,6 +125,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.getPhaseTime(), equalTo(now));
         assertThat(lifecycleState.getActionTime(), equalTo(now));
         assertThat(lifecycleState.getStepTime(), equalTo(now));
+        task.changeMade = true;
         task.clusterStateProcessed("source", clusterState, newState);
         assertTrue(changed.get());
     }

@@ -22,12 +22,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -164,7 +164,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any());
+        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any(), any(), any(), any());
     }
 
     public void testRunPolicyErrorStep() {
@@ -629,8 +629,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(
             Mockito.eq("ilm-execute-cluster-state-steps [{\"phase\":\"phase\",\"action\":\"action\"," +
                 "\"name\":\"cluster_state_action_step\"} => null]"),
-                Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step))
-        );
+            Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step)),
+            Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step)),
+            Mockito.any(),
+            Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -649,8 +651,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(
             Mockito.eq("ilm-execute-cluster-state-steps [{\"phase\":\"phase\",\"action\":\"action\"," +
                 "\"name\":\"cluster_state_action_step\"} => null]"),
-                Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step))
-        );
+            Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step)),
+            Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step)),
+            Mockito.any(),
+            Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -701,6 +705,23 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(
             Mockito.eq("ilm-set-step-info {policy [cluster_state_action_policy], index [my_index], currentStep [null]}"),
+            Mockito.argThat(new SetStepInfoUpdateTaskMatcher(indexMetadata.getIndex(), policyName, null,
+                (builder, params) -> {
+                    builder.startObject();
+                    builder.field("reason", "policy [does_not_exist] does not exist");
+                    builder.field("type", "illegal_argument_exception");
+                    builder.endObject();
+                    return builder;
+                })),
+            Mockito.argThat(new SetStepInfoUpdateTaskMatcher(indexMetadata.getIndex(), policyName, null,
+                (builder, params) -> {
+                    builder.startObject();
+                    builder.field("reason", "policy [does_not_exist] does not exist");
+                    builder.field("type", "illegal_argument_exception");
+                    builder.endObject();
+                    return builder;
+                })),
+            any(),
             Mockito.argThat(new SetStepInfoUpdateTaskMatcher(indexMetadata.getIndex(), policyName, null,
                 (builder, params) -> {
                     builder.startObject();

@@ -120,7 +120,18 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null);
             TransformConfig config = configAndVersion.v1();
 
-            // keep headers, todo: rewrite old data_frame roles?
+            /*
+             * keep headers from the original document
+             *
+             * TODO: Handle deprecated data_frame_transform roles
+             *
+             * The headers store user roles and in case the transform has been created in 7.2-7.4
+             * contain the old data_frame_transform_* roles
+             *
+             * For 9.x we need to take action as data_frame_transform_* will be removed
+             *
+             * Hint: {@link AuthenticationContextSerializer} for decoding the header
+             */
             update.setHeaders(config.getHeaders());
 
             TransformUpdater.updateTransform(
@@ -207,33 +218,30 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         Map<UpdateResult.Status, Long> updatesByStatus = new HashMap<>();
 
         recursiveExpandTransformIdsAndUpgrade(updatesByStatus, request.isDryRun(), startPage, ActionListener.wrap(r -> {
+
+            // todo: consider skip over option
+            final boolean success = true;
+
+            final long updated = updatesByStatus.containsKey(UpdateResult.Status.UPDATED)
+                ? updatesByStatus.get(UpdateResult.Status.UPDATED)
+                : 0;
+
+            final long skipped = updatesByStatus.containsKey(UpdateResult.Status.NONE) ? updatesByStatus.get(UpdateResult.Status.NONE) : 0;
+
+            final long needsUpdate = updatesByStatus.containsKey(UpdateResult.Status.NEEDS_UPDATE)
+                ? updatesByStatus.get(UpdateResult.Status.NEEDS_UPDATE)
+                : 0;
+
             if (request.isDryRun() == false) {
                 transformConfigManager.deleteOldIndices(state, ActionListener.wrap(deletedIndices -> {
                     logger.debug("Deleted [{}] old transform internal indices", deletedIndices);
-
-                    long updated = updatesByStatus.containsKey(UpdateResult.Status.UPDATED)
-                        ? updatesByStatus.get(UpdateResult.Status.UPDATED)
-                        : 0;
-
-                    long skipped = updatesByStatus.containsKey(UpdateResult.Status.NONE)
-                        ? updatesByStatus.get(UpdateResult.Status.NONE)
-                        : 0;
-
                     logger.info("Successfully upgraded all transforms, (updated: [{}], skipped [{}])", updated, skipped);
 
-                    listener.onResponse(
-                        new UpgradeTransformsAction.Response(
-                            true,
-                            updatesByStatus.get(UpdateResult.Status.UPDATED),
-                            updatesByStatus.get(UpdateResult.Status.NONE),
-                            null
-                        )
-                    );
+                    listener.onResponse(new UpgradeTransformsAction.Response(success, updated, skipped, needsUpdate));
                 }, listener::onFailure));
             } else {
-                listener.onResponse(
-                    new UpgradeTransformsAction.Response(true, null, null, updatesByStatus.get(UpdateResult.Status.NEEDS_UPDATE))
-                );
+                // else: dry run
+                listener.onResponse(new UpgradeTransformsAction.Response(success, updated, skipped, needsUpdate));
             }
         }, listener::onFailure));
 

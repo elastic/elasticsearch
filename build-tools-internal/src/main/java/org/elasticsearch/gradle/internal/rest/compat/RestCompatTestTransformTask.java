@@ -90,7 +90,9 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private final PatternFilterable testPatternSet;
     private final Factory<PatternSet> patternSetFactory;
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
+    // PatternFilterable -> reason why skipped.
     private final Map<PatternFilterable, String> skippedTestByFilePatternTransformations = new HashMap<>();
+    // PatternFilterable -> list of full test names and reasons. Needed for 1 pattern may include many tests and reasons
     private final Map<PatternFilterable, List<Pair<String, String>>> skippedTestByTestNameTransformations = new HashMap<>();
 
     @Inject

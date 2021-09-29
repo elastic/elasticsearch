@@ -12,10 +12,7 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -27,12 +24,15 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -84,6 +84,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private BytesReference source;
 
+    // TODO - just use List<Object> instead of DocumentField here?
+    private Map<String, DocumentField> ignoredFieldValues;
     private Map<String, DocumentField> documentFields;
     private final Map<String, DocumentField> metaFields;
 
@@ -127,6 +129,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         this.nestedIdentity = nestedIdentity;
         this.documentFields = documentFields == null ? emptyMap() : documentFields;
+        this.ignoredFieldValues = emptyMap();
         this.metaFields = metaFields == null ? emptyMap() : metaFields;
     }
 
@@ -196,6 +199,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         } else {
             innerHits = null;
         }
+        
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            ignoredFieldValues = in.readMap(StreamInput::readString, DocumentField::new);
+        }
+        
     }
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
@@ -285,6 +293,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 entry.getValue().writeTo(out);
             }
         }
+        
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeMap(ignoredFieldValues, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+        }
+        
     }
 
     public int docId() {
@@ -448,7 +461,23 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (documentFields.size() == 0) this.documentFields = new HashMap<>();
         this.documentFields.put(fieldName, field);
     }
+    
+    /*
+    * Adds a new DocumentField to the ignoredFieldValues map
+    * */
+    public void setIgnoredFieldValues(String fieldName, DocumentField field) {
+        if (fieldName == null || field == null) return;
+        if (ignoredFieldValues.size() == 0) this.ignoredFieldValues = new HashMap<>();
+        this.ignoredFieldValues.put(fieldName, field);
+    }    
 
+    /**
+     * The field with ignored values matching the given field name.
+     */
+    public DocumentField ignoredFieldValue(String fieldName) {
+        return ignoredFieldValues.get(fieldName);
+    }    
+    
     /**
      * @return a map of metadata fields for this hit
      */
@@ -582,6 +611,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         static final String _PRIMARY_TERM = "_primary_term";
         static final String _SCORE = "_score";
         static final String FIELDS = "fields";
+        static final String IGNORED_FIELD_VALUES = "ignored_field_values";
         static final String HIGHLIGHT = "highlight";
         static final String SORT = "sort";
         static final String MATCHED_QUERIES = "matched_queries";
@@ -699,6 +729,15 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             }
             builder.endObject();
         }
+        if (ignoredFieldValues.isEmpty() == false) {
+            builder.startObject(Fields.IGNORED_FIELD_VALUES);
+            for (DocumentField field : ignoredFieldValues.values()) {
+                if (field.getValues().size() > 0) {
+                    field.toXContent(builder, params);
+                }
+            }
+            builder.endObject();
+        }        
         return builder;
     }
 
@@ -924,6 +963,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 && Objects.equals(primaryTerm, other.primaryTerm)
                 && Objects.equals(source, other.source)
                 && Objects.equals(documentFields, other.documentFields)
+                && Objects.equals(ignoredFieldValues, other.ignoredFieldValues)
                 && Objects.equals(metaFields, other.metaFields)
                 && Objects.equals(getHighlightFields(), other.getHighlightFields())
                 && Arrays.equals(matchedQueries, other.matchedQueries)
@@ -936,8 +976,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, nestedIdentity, version, seqNo, primaryTerm, source, documentFields, metaFields, getHighlightFields(),
-            Arrays.hashCode(matchedQueries), explanation, shard, innerHits, index, clusterAlias);
+        return Objects.hash(id, nestedIdentity, version, seqNo, primaryTerm, source, documentFields, ignoredFieldValues, metaFields, 
+            getHighlightFields(), Arrays.hashCode(matchedQueries), explanation, shard, innerHits, index, clusterAlias);
     }
 
     /**

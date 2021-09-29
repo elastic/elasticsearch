@@ -76,7 +76,8 @@ setup:
 
   - length:   { hits.hits: 1  }
   - length:   { hits.hits.0._ignored: 2}
-
+  - length:   { hits.hits.0.ignored_field_values.my_date: 1}
+  - length:   { hits.hits.0.ignored_field_values.my_ip: 1}
 ---
 "_ignored is still returned with explicit list of stored fields":
 

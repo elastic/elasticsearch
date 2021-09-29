@@ -45,6 +45,9 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
     }
 
     public void test10Install() throws Exception {
+        // security config tool would run as administrator and change the owner of the config file, which is elasticsearch
+        // We can re-enable this when #77231 is merged, but the rest of the tests in class are also currently muted on windows
+        assumeTrue("Don't run on windows", distribution.platform != Distribution.Platform.WINDOWS);
         installation = installArchive(sh, distribution());
         // Enable security for these tests only where it is necessary, until we can enable it for all
         // TODO: Remove this when https://github.com/elastic/elasticsearch/pull/77231 is merged

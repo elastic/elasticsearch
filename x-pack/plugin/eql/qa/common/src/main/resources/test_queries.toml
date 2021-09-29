@@ -554,7 +554,16 @@ sequence
   [process where true]
   [process where true]
 '''
-expected_event_ids  = [1, 2, 3]
+expected_event_ids = [1, 2, 3]
+
+[[queries]]
+name = "sequenceOneManyMany-Runs"
+query = '''
+sequence
+  [process where serial_event_id == 1]
+  [process where true] [runs=2]
+'''
+expected_event_ids = [1, 2, 3]
 
 [[queries]]
 name = "sequenceConditionManyMany"
@@ -567,6 +576,18 @@ sequence
 expected_event_ids = [1, 2, 3,
                       2, 3, 4,
                       3, 4, 5]
+
+[[queries]]
+name = "sequenceConditionManyMany-Runs"
+query = '''
+sequence
+  [process where serial_event_id <= 3]
+  [process where true] [runs=2]
+'''
+expected_event_ids = [1, 2, 3,
+                      2, 3, 4,
+                      3, 4, 5]
+
 [[queries]]
 name = "sequenceManyConditionMany"
 query = '''
@@ -577,6 +598,7 @@ sequence
 '''
 expected_event_ids = [1, 2, 3,
                       2, 3, 4]
+
 [[queries]]
 name = "sequenceManyManyCondition"
 query = '''
@@ -585,7 +607,16 @@ sequence
   [process where true]
   [process where serial_event_id <= 3]
 '''
-expected_event_ids  = [1, 2, 3]
+expected_event_ids = [1, 2, 3]
+
+[[queries]]
+name = "sequenceManyManyCondition-Runs"
+query = '''
+sequence
+  [process where true] [runs=2]
+  [process where serial_event_id <= 3]
+'''
+expected_event_ids = [1, 2, 3]
 
 [[queries]]
 name = "sequenceThreeManyCondition1"
@@ -596,10 +627,22 @@ sequence
   [process where true]
   [process where true]
 '''
-expected_event_ids  = [1, 2, 3, 4,
-                       2, 3, 4, 5,
-                       3, 4, 5, 6,
-                       4, 5, 6, 7]
+expected_event_ids = [1, 2, 3, 4,
+                      2, 3, 4, 5,
+                      3, 4, 5, 6,
+                      4, 5, 6, 7]
+
+[[queries]]
+name = "sequenceThreeManyCondition1-Runs"
+query = '''
+sequence
+  [process where serial_event_id <= 4]
+  [process where true] [runs=3]
+'''
+expected_event_ids = [1, 2, 3, 4,
+                      2, 3, 4, 5,
+                      3, 4, 5, 6,
+                      4, 5, 6, 7]
 
 [[queries]]
 name = "sequenceThreeManyCondition2"
@@ -610,9 +653,21 @@ sequence
   [process where true]
   [process where true]
 '''
-expected_event_ids  = [1, 2, 3, 4,
-                       2, 3, 4, 5,
-                       3, 4, 5, 6]
+expected_event_ids = [1, 2, 3, 4,
+                      2, 3, 4, 5,
+                      3, 4, 5, 6]
+
+[[queries]]
+name = "sequenceThreeManyCondition2-Runs"
+query = '''
+sequence
+  [process where true]
+  [process where serial_event_id <= 4]
+  [process where true] [runs=2]
+'''
+expected_event_ids = [1, 2, 3, 4,
+                      2, 3, 4, 5,
+                      3, 4, 5, 6]
 
 [[queries]]
 name = "sequenceThreeManyCondition3"
@@ -623,8 +678,19 @@ sequence
   [process where serial_event_id <= 4]
   [process where true]
 '''
-expected_event_ids  = [1, 2, 3, 4,
-                       2, 3, 4, 5]
+expected_event_ids = [1, 2, 3, 4,
+                      2, 3, 4, 5]
+
+[[queries]]
+name = "sequenceThreeManyCondition3-Runs"
+query = '''
+sequence
+  [process where true] [runs=2]
+  [process where serial_event_id <= 4]
+  [process where true]
+'''
+expected_event_ids = [1, 2, 3, 4,
+                      2, 3, 4, 5]
 
 [[queries]]
 name = "sequenceThreeManyCondition4"
@@ -635,7 +701,16 @@ sequence
   [process where true]
   [process where serial_event_id <= 4]
 '''
-expected_event_ids  = [1, 2, 3, 4]
+expected_event_ids = [1, 2, 3, 4]
+
+[[queries]]
+name = "sequenceThreeManyCondition4-Runs"
+query = '''
+sequence
+  [process where true] [runs=3]
+  [process where serial_event_id <= 4]
+'''
+expected_event_ids = [1, 2, 3, 4]
 
 [[queries]]
 name = "twoSequencesWithKeys"
@@ -644,10 +719,10 @@ sequence
   [process where true]        by unique_pid
   [process where opcode == 1] by unique_ppid
 '''
-expected_event_ids  = [48, 53,
-                       53, 54,
-                       54, 56,
-                       97, 98]
+expected_event_ids = [48, 53,
+                      53, 54,
+                      54, 56,
+                      97, 98]
 
 [[queries]]
 name = "twoSequencesWithTwoKeys"
@@ -672,7 +747,19 @@ sequence
 until
   [file where opcode == 2]    by unique_pid
 '''
-expected_event_ids  = []
+expected_event_ids = []
+
+[[queries]]
+name = "fourSequencesByPidWithUntil1-Runs"
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid
+  [file where opcode == 0]    by unique_pid  [runs=3]
+until
+  [file where opcode == 2]    by unique_pid
+'''
+expected_event_ids = []
+
 
 [[queries]]
 name = "fourSequencesByPidWithUntil2"
@@ -685,7 +772,19 @@ sequence
 until
   [file where opcode == 200]  by unique_pid
 '''
-expected_event_ids  = [54, 55, 61, 67]
+expected_event_ids = [54, 55, 61, 67]
+
+[[queries]]
+name = "fourSequencesByPidWithUntil2-Runs"
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid
+  [file where opcode == 0]    by unique_pid  [runs=3]
+until
+  [file where opcode == 200]  by unique_pid
+'''
+expected_event_ids = [54, 55, 61, 67]
+
 
 #[[queries]]
 #name = "fourSequencesByPidWithUntil3"
@@ -707,7 +806,16 @@ sequence
   [file where opcode == 0]    by unique_pid
   [file where opcode == 0]    by unique_pid
 '''
-expected_event_ids  = [54, 55, 61, 67]
+expected_event_ids = [54, 55, 61, 67]
+
+[[queries]]
+name = "fourSequencesByPid-Runs"
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid
+  [file where opcode == 0]    by unique_pid  [runs=3]
+'''
+expected_event_ids = [54, 55, 61, 67]
 
 
 [[queries]]
@@ -719,8 +827,16 @@ sequence
   [file where opcode == 0]    by unique_pid,  process_path
   [file where opcode == 0]    by unique_pid,  process_path
 '''
-expected_event_ids  = [54, 55, 61, 67]
+expected_event_ids = [54, 55, 61, 67]
 
+[[queries]]
+name = "fourSequencesByPidAndProcessPath1-Runs"
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path [runs=3]
+'''
+expected_event_ids = [54, 55, 61, 67]
 
 [[queries]]
 name = "fourSequencesByPidAndProcessPathWithUntil"
@@ -733,7 +849,30 @@ sequence
 until
   [file where opcode == 200]  by unique_pid,  process_path
 '''
-expected_event_ids  = [54, 55, 61, 67]
+expected_event_ids = [54, 55, 61, 67]
+
+[[queries]]
+name = "fourSequencesByPidAndProcessPathWithUntil-Runs"
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path [runs=3]
+until
+  [file where opcode == 200]  by unique_pid,  process_path
+'''
+expected_event_ids = [54, 55, 61, 67]
+
+[[queries]]
+name = "fourSequencesByPidAndProcessPathWithUntil-RunsExtra"
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path [runs=2]
+  [file where opcode == 0]    by unique_pid,  process_path [runs=1]
+until
+  [file where opcode == 200]  by unique_pid,  process_path
+'''
+expected_event_ids = [54, 55, 61, 67]
 
 [[queries]]
 name = "sequenceOneManyWithJoin"
@@ -742,7 +881,7 @@ sequence
   [process where serial_event_id==1] by unique_pid
   [process where true] by unique_ppid
 '''
-expected_event_ids  = [1, 2]
+expected_event_ids = [1, 2]
 
 
 [[queries]]
@@ -879,9 +1018,20 @@ sequence
   [process where serial_event_id < 5]
   [process where serial_event_id < 5]
 '''
-expected_event_ids  = [1, 2,
-                       2, 3,
-                       3, 4]
+expected_event_ids = [1, 2,
+                      2, 3,
+                      3, 4]
+
+[[queries]]
+name = "doubleSameSequence-Runs"
+query = '''
+sequence
+  [process where serial_event_id < 5] [runs=2]
+'''
+expected_event_ids = [1, 2,
+                      2, 3,
+                      3, 4]
+
 
 [[queries]]
 name = "sequencesOnDifferentEventTypesWithBy"
@@ -890,7 +1040,7 @@ sequence
   [file where opcode==0 and file_name:"svchost.exe"] by unique_pid
   [process where opcode == 1] by unique_ppid
 '''
-expected_event_ids  = [55, 56]
+expected_event_ids = [55, 56]
 
 [[queries]]
 name = "doubleSameSequenceWithBy"
@@ -900,7 +1050,17 @@ sequence
   [file where opcode==0] by unique_pid
 | head 1
 '''
-expected_event_ids  = [55, 61]
+expected_event_ids = [55, 61]
+
+[[queries]]
+name = "doubleSameSequenceWithBy-Runs"
+query = '''
+sequence
+  [file where opcode==0] by unique_pid  [runs=2]
+| head 1
+'''
+expected_event_ids = [55, 61]
+
 
 #[[queries]]
 #name = "doubleSameSequenceWithByAndFilter"
@@ -921,7 +1081,17 @@ sequence
 until [process where opcode==5000] by unique_ppid
 | head 1
 '''
-expected_event_ids  = [55, 61]
+expected_event_ids = [55, 61]
+
+[[queries]]
+name = "doubleSameSequenceWithByUntilAndHead1-Runs"
+query = '''
+sequence
+  [file where opcode==0 and file_name:"*.exe"] by unique_pid [runs=2]
+until [process where opcode==5000] by unique_ppid
+| head 1
+'''
+expected_event_ids = [55, 61]
 
 [[queries]]
 name = "doubleSameSequenceWithByUntilAndHead2"
@@ -929,6 +1099,16 @@ query = '''
 sequence
   [file where opcode==0 and file_name:"*.exe"] by unique_pid
   [file where opcode==0 and file_name:"*.exe"] by unique_pid
+until [process where opcode==1] by unique_ppid
+| head 1
+'''
+expected_event_ids = []
+
+[[queries]]
+name = "doubleSameSequenceWithByUntilAndHead2-Runs"
+query = '''
+sequence
+  [file where opcode==0 and file_name:"*.exe"] by unique_pid [runs=2]
 until [process where opcode==1] by unique_ppid
 | head 1
 '''

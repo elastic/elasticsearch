@@ -106,7 +106,7 @@ public class PermissionsIT extends ESRestTestCase {
             .put("number_of_shards", 1)
             .put("number_of_replicas", 0)
             .build();
-        createNewSingletonPolicy(client(), deletePolicy,"delete", new DeleteAction());
+        createNewSingletonPolicy(client(), deletePolicy,"delete", DeleteAction.WITH_SNAPSHOT_DELETE);
     }
 
     /**

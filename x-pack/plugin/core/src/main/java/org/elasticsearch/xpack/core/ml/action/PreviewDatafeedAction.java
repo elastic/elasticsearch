@@ -178,8 +178,19 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
                 }
                 if (jobBuilder != null) {
                     jobBuilder.setId("preview_job_id");
-                    if (datafeedBuilder == null) {
-                        throw new IllegalArgumentException("[datafeed_config] must be present when a [job_config] is provided");
+                    if (datafeedBuilder == null && jobBuilder.getDatafeedConfig() == null) {
+                        throw new IllegalArgumentException(
+                            "[datafeed_config] must be present when a [job_config.datafeed_config] is not present"
+                        );
+                    }
+                    if (datafeedBuilder != null && jobBuilder.getDatafeedConfig() != null) {
+                        throw new IllegalArgumentException(
+                            "[datafeed_config] must not be present when a [job_config.datafeed_config] is present"
+                        );
+                    }
+                    // If the datafeed_config has been provided via the jobBuilder, set it here for easier serialization and use
+                    if (jobBuilder.getDatafeedConfig() != null) {
+                        datafeedBuilder = jobBuilder.getDatafeedConfig().setJobId(jobBuilder.getId()).setId(jobBuilder.getId());
                     }
                 }
                 if (datafeedId != null && (datafeedBuilder != null || jobBuilder != null)) {

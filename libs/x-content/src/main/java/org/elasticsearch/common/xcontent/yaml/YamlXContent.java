@@ -19,7 +19,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -75,15 +77,33 @@ public class YamlXContent implements XContent {
     }
 
     @Override
+    public XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        InputStream is,
+        FilterPath[] includes,
+        FilterPath[] excludes
+    ) throws IOException {
+        return new YamlXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            yamlFactory.createParser(is),
+            RestApiVersion.current(),
+            includes,
+            excludes
+        );
+    }
+
+    @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, byte[] data) throws IOException {
-        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(data));
+        return createParser(xContentRegistry, deprecationHandler, data, 0, data.length);
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException {
-        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(data, offset, length));
+        return createParserForCompatibility(xContentRegistry, deprecationHandler, data, offset, length, RestApiVersion.current());
     }
 
     @Override
@@ -103,8 +123,12 @@ public class YamlXContent implements XContent {
     public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
                                                        DeprecationHandler deprecationHandler, byte[] data, int offset, int length,
                                                        RestApiVersion restApiVersion) throws IOException {
-        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(data, offset, length),
-            restApiVersion);
+        return new YamlXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            yamlFactory.createParser(new ByteArrayInputStream(data, offset, length)),
+            restApiVersion
+        );
     }
 
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseInsensitiveScalarFunction;
@@ -26,6 +25,9 @@ import java.util.Locale;
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOfFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -51,17 +53,17 @@ public class IndexOf extends CaseInsensitiveScalarFunction implements OptionalAr
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution resolution = isStringAndExact(input, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = isStringAndExact(substring, sourceText(), ParamOrdinal.SECOND);
+        resolution = isStringAndExact(substring, sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return isInteger(start, sourceText(), ParamOrdinal.THIRD);
+        return isInteger(start, sourceText(), THIRD);
     }
 
     @Override

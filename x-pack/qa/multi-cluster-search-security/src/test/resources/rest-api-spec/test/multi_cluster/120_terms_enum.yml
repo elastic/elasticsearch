@@ -117,7 +117,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lX2FsbDpzM2tyaXQtcGFzc3dvcmQ=" } # joe_all sees all docs
       terms_enum:
-        index: my_remote_cluster:terms_enum_index
+        index: my_remote_cluster:terms_enum_*
         body: { "field": "foo", "search_after": "foobar" }
   - length: { terms:          1 }
   - match: { terms.0:     "zar" }
@@ -126,13 +126,13 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lX25vbmU6czNrcml0LXBhc3N3b3Jk" } # joe_none can't see docs
       terms_enum:
-        index:  my_remote_cluster:terms_enum_index
+        index:  my_remote_cluster:terms_enum_*
         body:  {"field": "foo"}
   - length: {terms: 0}
 
   - do:
       headers: { Authorization: "Basic am9lX2ZsczpzM2tyaXQtcGFzc3dvcmQ=" } # joe_fls can't see field
       terms_enum:
-        index:  my_remote_cluster:terms_enum_index
+        index:  my_remote_*:terms_enum_index
         body:  {"field": "foo"}
   - length: {terms: 0}

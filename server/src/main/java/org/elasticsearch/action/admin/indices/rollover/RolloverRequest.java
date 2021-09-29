@@ -72,7 +72,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             if (includeTypeName) {
                 //expecting one type only
                 for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
-                    request.createIndexRequest.mapping((Map<String, Object>) mappingsEntry.getValue());
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> value = (Map<String, Object>) mappingsEntry.getValue();
+                    request.createIndexRequest.mapping(value);
                 }
             } else {
                 // a type is not included, add a dummy _doc type

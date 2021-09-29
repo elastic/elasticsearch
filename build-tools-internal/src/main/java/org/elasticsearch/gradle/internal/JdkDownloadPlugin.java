@@ -26,9 +26,8 @@ import java.util.Arrays;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
 
-    public static final String VENDOR_ADOPTOPENJDK = "adoptopenjdk";
+    public static final String VENDOR_ADOPTIUM = "adoptium";
     public static final String VENDOR_OPENJDK = "openjdk";
-    public static final String VENDOR_AZUL = "azul";
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
     private static final String EXTENSION_NAME = "jdks";
@@ -86,28 +85,28 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         /*
          * Define the appropriate repository for the given JDK vendor and version
          *
-         * For Oracle/OpenJDK/AdoptOpenJDK we define a repository per-version.
+         * For Oracle/OpenJDK/Adoptium we define a repository per-version.
          */
         String repoName = REPO_NAME_PREFIX + jdk.getVendor() + "_" + jdk.getVersion();
         String repoUrl;
         String artifactPattern;
 
-        if (jdk.getVendor().equals(VENDOR_ADOPTOPENJDK)) {
-            repoUrl = "https://api.adoptopenjdk.net/v3/binary/version/";
+        if (jdk.getVendor().equals(VENDOR_ADOPTIUM)) {
+            repoUrl = "https://api.adoptium.net/v3/binary/version/";
             if (jdk.getMajor().equals("8")) {
                 // legacy pattern for JDK 8
                 artifactPattern = "jdk"
                     + jdk.getBaseVersion()
                     + "-"
                     + jdk.getBuild()
-                    + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
+                    + "/[module]/[classifier]/jdk/hotspot/normal/adoptium";
             } else {
                 // current pattern since JDK 9
                 artifactPattern = "jdk-"
                     + jdk.getBaseVersion()
                     + "+"
                     + jdk.getBuild()
-                    + "/[module]/[classifier]/jdk/hotspot/normal/adoptopenjdk";
+                    + "/[module]/[classifier]/jdk/hotspot/normal/adoptium";
             }
         } else if (jdk.getVendor().equals(VENDOR_OPENJDK)) {
             repoUrl = "https://download.oracle.com";
@@ -128,32 +127,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + jdk.getBuild()
                     + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
             }
-        } else if (jdk.getVendor().equals(VENDOR_AZUL)) {
-            repoUrl = "https://cdn.azul.com";
-            // The following is an absolute hack until AdoptOpenJdk provides Apple aarch64 builds
-            String zuluPathSuffix = jdk.getPlatform().equals("linux") ? "-embedded" : "";
-            switch (jdk.getMajor()) {
-                case "16":
-                    artifactPattern = "zulu"
-                        + zuluPathSuffix
-                        + "/bin/zulu"
-                        + jdk.getMajor()
-                        + ".28.11-ca-jdk16.0.0-"
-                        + azulPlatform(jdk)
-                        + "_[classifier].[ext]";
-                    break;
-                case "11":
-                    artifactPattern = "zulu"
-                        + zuluPathSuffix
-                        + "/bin/zulu"
-                        + jdk.getMajor()
-                        + ".45.27-ca-jdk11.0.10-"
-                        + azulPlatform(jdk)
-                        + "_[classifier].[ext]";
-                    break;
-                default:
-                    throw new GradleException("Unknown Azul JDK major version  [" + jdk.getMajor() + "]");
-            }
         } else {
             throw new GradleException("Unknown JDK vendor [" + jdk.getVendor() + "]");
         }
@@ -170,18 +143,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         }
     }
 
-    @NotNull
-    private String azulPlatform(Jdk jdk) {
-        switch (jdk.getPlatform()) {
-            case "linux":
-                return "linux";
-            case "darwin":
-                return "macosx";
-            default:
-                throw new GradleException("Unsupported Azul JDK platform requested version  [" + jdk.getPlatform() + "]");
-        }
-    }
-
     @SuppressWarnings("unchecked")
     public static NamedDomainObjectContainer<Jdk> getContainer(Project project) {
         return (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName(EXTENSION_NAME);
@@ -189,7 +150,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     private static String dependencyNotation(Jdk jdk) {
         String platformDep = jdk.getPlatform().equals("darwin") || jdk.getPlatform().equals("mac")
-            ? (jdk.getVendor().equals(VENDOR_ADOPTOPENJDK) ? "mac" : "osx")
+            ? (jdk.getVendor().equals(VENDOR_ADOPTIUM) ? "mac" : "osx")
             : jdk.getPlatform();
         String extension = jdk.getPlatform().equals("windows") ? "zip" : "tar.gz";
 

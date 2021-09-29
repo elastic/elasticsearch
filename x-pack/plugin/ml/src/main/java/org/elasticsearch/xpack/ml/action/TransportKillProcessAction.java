@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.task.JobTask;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -41,18 +40,15 @@ public class TransportKillProcessAction extends TransportTasksAction<JobTask,
     private static final Logger logger = LogManager.getLogger(TransportKillProcessAction.class);
 
     private final AnomalyDetectionAuditor auditor;
-    private final AutodetectProcessManager processManager;
 
     @Inject
     public TransportKillProcessAction(TransportService transportService,
                                       ClusterService clusterService,
                                       ActionFilters actionFilters,
-                                      AutodetectProcessManager processManager,
                                       AnomalyDetectionAuditor auditor) {
         super(KillProcessAction.NAME, clusterService, transportService, actionFilters, KillProcessAction.Request::new,
             KillProcessAction.Response::new, KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
         this.auditor = auditor;
-        this.processManager = processManager;
     }
 
     @Override

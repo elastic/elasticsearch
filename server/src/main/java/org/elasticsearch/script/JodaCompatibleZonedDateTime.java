@@ -58,7 +58,7 @@ public class JodaCompatibleZonedDateTime
             @SuppressLoggerChecks(reason = "safely delegates to logger")
             @Override
             public Void run() {
-                deprecationLogger.deprecate(category, key, message, params);
+                deprecationLogger.critical(category, key, message, params);
                 return null;
             }
         });

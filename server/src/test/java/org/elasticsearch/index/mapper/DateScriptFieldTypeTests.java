@@ -40,6 +40,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -216,8 +217,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), ctx) {
+                    public ScoreScript newInstance(DocReader docReader) throws IOException {
+                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Dates dates = (ScriptDocValues.Dates) getDoc().get("test");
@@ -225,7 +226,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                             }
                         };
                     }
-                }, 354.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 354.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
     }
@@ -498,7 +499,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private static DateScriptFieldType build(Script script, DateFormatter dateTimeFormatter) {
-        return new DateScriptFieldType("test", factory(script), dateTimeFormatter, script, emptyMap(), (builder, params) -> builder);
+        return new DateScriptFieldType("test", factory(script), dateTimeFormatter, script, emptyMap());
     }
 
     private static long randomDate() {

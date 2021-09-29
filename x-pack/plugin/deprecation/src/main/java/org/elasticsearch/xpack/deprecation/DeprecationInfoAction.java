@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -73,7 +74,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 DeprecationIssue issue = entry.getKey();
                 String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
                 return new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(),
-                    details + "(nodes impacted: " + entry.getValue() + ")", issue.getMeta());
+                    details + "(nodes impacted: " + entry.getValue() + ")", issue.isResolveDuringRollingUpgrade(),
+                    issue.getMeta());
             }).collect(Collectors.toList());
     }
 

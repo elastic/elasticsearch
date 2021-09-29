@@ -41,7 +41,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class SuggestionTests extends ESTestCase {
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private static final Class<Suggestion<? extends Entry<? extends Option>>>[] SUGGESTION_TYPES = new Class[] {
         TermSuggestion.class, PhraseSuggestion.class, CompletionSuggestion.class
     };

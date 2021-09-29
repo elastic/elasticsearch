@@ -41,6 +41,19 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         assertEquals("{}", serialized.getConfig().utf8ToString());
     }
 
+    public void testMetaSerialization() throws IOException {
+        String configJson = "{\"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+        PipelineConfiguration configuration = new PipelineConfiguration("1",
+            new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        assertEquals(XContentType.JSON, configuration.getXContentType());
+        BytesStreamOutput out = new BytesStreamOutput();
+        configuration.writeTo(out);
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
+        assertEquals(XContentType.JSON, serialized.getXContentType());
+        assertEquals(configJson, serialized.getConfig().utf8ToString());
+    }
+
     public void testParser() throws IOException {
         ContextParser<Void, PipelineConfiguration> parser = PipelineConfiguration.getParser();
         XContentType xContentType = randomFrom(XContentType.values());

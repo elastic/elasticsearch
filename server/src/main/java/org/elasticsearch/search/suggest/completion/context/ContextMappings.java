@@ -212,6 +212,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      *  [{"name": .., "type": .., ..}, {..}]
      *
      */
+    @SuppressWarnings("unchecked")
     public static ContextMappings load(Object configuration) throws ElasticsearchParseException {
         final List<ContextMapping<?>> contextMappings;
         if (configuration instanceof List) {

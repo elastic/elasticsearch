@@ -10,6 +10,7 @@ package org.elasticsearch.search;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.action.ActionListener;
@@ -74,6 +75,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -95,10 +97,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This test class executes twice, first against the remote cluster, and then against another cluster that has the remote cluster
@@ -206,8 +211,7 @@ public class CCSDuelIT extends ESRestTestCase {
         assertTrue(bulkProcessor.awaitClose(30, TimeUnit.SECONDS));
 
         RefreshResponse refreshResponse = restHighLevelClient.indices().refresh(new RefreshRequest(INDEX_NAME), RequestOptions.DEFAULT);
-        assertEquals(0, refreshResponse.getFailedShards());
-        assertEquals(numShards, refreshResponse.getSuccessfulShards());
+        ElasticsearchAssertions.assertNoFailures(refreshResponse);
     }
 
     private static IndexRequest buildIndexRequest(String id, String type, String questionId) {
@@ -404,6 +408,10 @@ public class CCSDuelIT extends ESRestTestCase {
         duelSearch(searchRequest, response -> {
             assertHits(response);
             assertFalse(response.getProfileResults().isEmpty());
+            assertThat(
+                response.getProfileResults().values().stream().filter(sr -> sr.getFetchPhase() != null).collect(toList()),
+                not(empty())
+            );
         });
     }
 
@@ -812,6 +820,14 @@ public class CCSDuelIT extends ESRestTestCase {
             List<Map<String, Object>> shards = (List <Map<String, Object>>)profile.get("shards");
             for (Map<String, Object> shard : shards) {
                 replaceProfileTime(shard);
+                /*
+                 * The way we try to reduce round trips is by fetching all
+                 * of the results we could possibly need from the remote
+                 * cluster and then merging *those* together locally. This
+                 * will end up fetching more documents total. So we can't
+                 * really compare the fetch profiles here.
+                 */
+                shard.remove("fetch");
             }
         }
         return responseMap;

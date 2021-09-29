@@ -14,7 +14,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -43,14 +42,23 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to work with ExtrasFS
 public class MetadataStateFormatTests extends ESTestCase {
+
+    public void testReadClusterStateV1() throws IOException {
+        assertReadClusterState("global-3-V1.st");
+    }
+
+    public void testReadClusterStateV2() throws IOException {
+        assertReadClusterState("global-3-V2.st");
+    }
+
     /**
      * Ensure we can read a pre-generated cluster state.
      */
-    public void testReadClusterState() throws IOException {
+    private void assertReadClusterState(String clusterState) throws IOException {
         final MetadataStateFormat<Metadata> format = new MetadataStateFormat<Metadata>("global-") {
 
             @Override
-            public void toXContent(XContentBuilder builder, Metadata state) {
+            public void toXContent(XContentBuilder builder, Metadata state) throws IOException {
                 fail("this test doesn't write");
             }
 
@@ -60,9 +68,9 @@ public class MetadataStateFormatTests extends ESTestCase {
             }
         };
         Path tmp = createTempDir();
-        final InputStream resource = this.getClass().getResourceAsStream("global-3.st");
+        final InputStream resource = this.getClass().getResourceAsStream(clusterState);
         assertThat(resource, notNullValue());
-        Path dst = tmp.resolve("global-3.st");
+        Path dst = tmp.resolve(clusterState);
         Files.copy(resource, dst);
         Metadata read = format.read(xContentRegistry(), dst);
         assertThat(read, notNullValue());
@@ -155,7 +163,7 @@ public class MetadataStateFormatTests extends ESTestCase {
     }
 
     public static void corruptFile(Path fileToCorrupt, Logger logger) throws IOException {
-        try (SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParent())) {
+        try (Directory dir = newFSDirectory(fileToCorrupt.getParent())) {
             long checksumBeforeCorruption;
             try (IndexInput input = dir.openInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
                 checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
@@ -180,7 +188,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             assertThat(input.getFilePointer(), is(0L));
             input.seek(input.length() - 8); // one long is the checksum... 8 bytes
             checksumAfterCorruption = input.getChecksum();
-            actualChecksumAfterCorruption = input.readLong();
+            actualChecksumAfterCorruption = CodecUtil.readBELong(input);
         }
         StringBuilder msg = new StringBuilder();
         msg.append("Checksum before: [").append(checksumBeforeCorruption).append("]");

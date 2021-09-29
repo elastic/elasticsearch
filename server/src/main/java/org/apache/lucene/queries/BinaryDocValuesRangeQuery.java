@@ -15,12 +15,13 @@ import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.RangeType;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public final class BinaryDocValuesRangeQuery extends Query {
 
                 final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
 
-                    ByteArrayDataInput in = new ByteArrayDataInput();
+                    ByteArrayStreamInput in = new ByteArrayStreamInput();
                     BytesRef otherFrom = new BytesRef();
                     BytesRef otherTo = new BytesRef();
 
@@ -109,6 +110,13 @@ public final class BinaryDocValuesRangeQuery extends Query {
     }
 
     @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(fieldName)) {
+            visitor.visitLeaf(this);
+        }
+    }
+
+    @Override
     public String toString(String field) {
         return "BinaryDocValuesRangeQuery(fieldName=" + field + ",from=" + originalFrom + ",to=" + originalTo + ")";
     }
@@ -116,7 +124,7 @@ public final class BinaryDocValuesRangeQuery extends Query {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (sameClassAs(o) == false) return false;
         BinaryDocValuesRangeQuery that = (BinaryDocValuesRangeQuery) o;
         return Objects.equals(fieldName, that.fieldName) &&
                 queryType == that.queryType &&
@@ -127,7 +135,7 @@ public final class BinaryDocValuesRangeQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), fieldName, queryType, lengthType, from, to);
+        return Objects.hash(classHash(), fieldName, queryType, lengthType, from, to);
     }
 
     public enum QueryType {

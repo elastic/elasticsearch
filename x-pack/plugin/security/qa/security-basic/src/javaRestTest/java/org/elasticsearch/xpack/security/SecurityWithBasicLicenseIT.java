@@ -11,14 +11,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
@@ -35,8 +32,8 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         checkHasPrivileges();
         checkIndexWrite();
 
-        final Tuple<String, String> keyAndId = getApiKeyAndId();
-        assertAuthenticateWithApiKey(keyAndId, true);
+        final String apiKeyCredentials = getApiKeyCredentials();
+        assertAuthenticateWithApiKey(apiKeyCredentials, true);
 
         assertFailToGetToken();
         // Service account token works independently to oauth2 token service
@@ -50,7 +47,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     public void testWithTrialLicense() throws Exception {
         startTrial();
         String accessToken = null;
-        Tuple<String, String> keyAndId = null;
+        String apiKeyCredentials = null;
         try {
             checkLicenseType("trial");
             checkSecurityEnabled(true);
@@ -58,15 +55,15 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             checkHasPrivileges();
             checkIndexWrite();
             accessToken = getAccessToken();
-            keyAndId = getApiKeyAndId();
+            apiKeyCredentials = getApiKeyCredentials();
             assertAuthenticateWithToken(accessToken, true);
-            assertAuthenticateWithApiKey(keyAndId, true);
+            assertAuthenticateWithApiKey(apiKeyCredentials, true);
             assertAddRoleWithDLS(true);
             assertAddRoleWithFLS(true);
         } finally {
             revertTrial();
             assertAuthenticateWithToken(accessToken, false);
-            assertAuthenticateWithApiKey(keyAndId, true);
+            assertAuthenticateWithApiKey(apiKeyCredentials, true);
             assertFailToGetToken();
             assertAddRoleWithDLS(false);
             assertAddRoleWithFLS(false);
@@ -176,13 +173,12 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         return ObjectPath.evaluate(tokens, "access_token").toString();
     }
 
-    private Tuple<String, String> getApiKeyAndId() throws IOException {
+    private String getApiKeyCredentials() throws IOException {
         Response getApiKeyResponse = adminClient().performRequest(buildGetApiKeyRequest());
         assertThat(getApiKeyResponse.getStatusLine().getStatusCode(), equalTo(200));
         final Map<String, Object> apiKeyResponseMap = entityAsMap(getApiKeyResponse);
         assertOK(getApiKeyResponse);
-        return new Tuple<>(ObjectPath.evaluate(apiKeyResponseMap, "api_key").toString(),
-            ObjectPath.evaluate(apiKeyResponseMap, "id").toString());
+        return ObjectPath.evaluate(apiKeyResponseMap, "encoded").toString();
     }
 
     private void assertFailToGetToken() {
@@ -208,12 +204,11 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         }
     }
 
-    private void assertAuthenticateWithApiKey(Tuple<String, String> keyAndId, boolean shouldSucceed) throws IOException {
-        assertNotNull("API Key and Id cannot be null", keyAndId);
+    private void assertAuthenticateWithApiKey(String apiKeyCredentials, boolean shouldSucceed) throws IOException {
+        assertNotNull("API Key credentials cannot be null", apiKeyCredentials);
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        String headerValue = Base64.getEncoder().encodeToString((keyAndId.v2() + ":" + keyAndId.v1()).getBytes(StandardCharsets.UTF_8));
-        options.addHeader(HttpHeaders.AUTHORIZATION, "ApiKey " + headerValue);
+        options.addHeader(HttpHeaders.AUTHORIZATION, "ApiKey " + apiKeyCredentials);
         request.setOptions(options);
         if (shouldSucceed) {
             Response authenticateResponse = client().performRequest(request);

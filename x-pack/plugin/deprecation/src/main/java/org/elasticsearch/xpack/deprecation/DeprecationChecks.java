@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Collections;
 import java.util.List;
@@ -39,8 +40,9 @@ public class DeprecationChecks {
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
         IndexDeprecationChecks::oldIndicesCheck,
         IndexDeprecationChecks::translogRetentionSettingCheck,
-        IndexDeprecationChecks::checkIndexDataPath
-        );
+        IndexDeprecationChecks::checkIndexDataPath,
+        IndexDeprecationChecks::storeTypeSettingCheck
+    );
 
     /**
      * helper utility function to reduce repeat of running a specific {@link List} of checks.

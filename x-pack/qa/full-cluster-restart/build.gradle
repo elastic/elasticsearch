@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
@@ -31,12 +31,12 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
 }
 
 for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
-  String baseName = "v${bwcVersion}"
+  def bwcVersionString = bwcVersion.toString();
+  String baseName = "v"+ bwcVersionString;
 
-  testClusters {
-    "${baseName}" {
+  def baseCluster = testClusters.register(baseName) {
       testDistribution = "DEFAULT"
-      versions = [bwcVersion.toString(), project.version]
+      versions = [bwcVersionString, project.version]
       numberOfNodes = 2
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       user username: "test_user", password: "x-pack-test-password"
@@ -59,13 +59,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
       keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
       setting 'xpack.security.authc.api_key.enabled', 'true'
-    }
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     mustRunAfter("precommit")
-    useCluster testClusters."${baseName}"
-    dependsOn copyTestNodeKeyMaterial
+    useCluster baseCluster
+    dependsOn "copyTestNodeKeyMaterial"
     doFirst {
       delete("${buildDir}/cluster/shared/repo/${baseName}")
     }
@@ -75,13 +74,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
   }
 
-
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     mustRunAfter("precommit")
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     dependsOn "${baseName}#oldClusterTest"
     doFirst {
-      testClusters."${baseName}".goToNextVersion()
+      testClusters.named(baseName).get().goToNextVersion()
     }
     systemProperty 'tests.is_old_cluster', 'false'
     exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
@@ -89,12 +87,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
   }
 
-  String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")
+  String oldVersion = bwcVersionString.minus("-SNAPSHOT")
   tasks.matching { it.name.startsWith("${baseName}#") && it.name.endsWith("ClusterTest") }.configureEach {
     it.systemProperty 'tests.old_cluster_version', oldVersion
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    it.nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
+    it.nonInputProperties.systemProperty('tests.clustername', baseName)
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

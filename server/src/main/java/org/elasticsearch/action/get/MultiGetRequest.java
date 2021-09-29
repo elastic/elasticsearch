@@ -44,6 +44,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
+// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
+@SuppressWarnings("unchecked")
 public class MultiGetRequest extends ActionRequest
         implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, RealtimeRequest, ToXContentObject {
     private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(MultiGetRequest.class);
@@ -390,7 +392,7 @@ public class MultiGetRequest extends ActionRequest
                         id = parser.text();
                     } else if(parser.getRestApiVersion() == RestApiVersion.V_7 &&
                         TYPE.match(currentFieldName,parser.getDeprecationHandler())) {
-                        deprecationLogger.compatibleApiWarning("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+                        deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                     } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                         routing = parser.text();
                     } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {

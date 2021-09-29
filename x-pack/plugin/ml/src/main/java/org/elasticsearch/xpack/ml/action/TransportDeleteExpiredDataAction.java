@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.SearchAfterJobsIterator;
 import org.elasticsearch.xpack.ml.job.retention.EmptyStateIndexRemover;
+import org.elasticsearch.xpack.ml.job.retention.ExpiredAnnotationsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredForecastsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
@@ -48,7 +49,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 public class TransportDeleteExpiredDataAction extends HandledTransportAction<DeleteExpiredDataAction.Request,
@@ -100,7 +101,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
 
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
-        Supplier<Boolean> isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);
+        BooleanSupplier isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService);
 
         if (Strings.isNullOrEmpty(request.getJobId()) || Strings.isAllOrWildcard(request.getJobId())) {
@@ -128,7 +129,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
     private void deleteExpiredData(DeleteExpiredDataAction.Request request,
                                    List<MlDataRemover> dataRemovers,
                                    ActionListener<DeleteExpiredDataAction.Response> listener,
-                                   Supplier<Boolean> isTimedOutSupplier) {
+                                   BooleanSupplier isTimedOutSupplier) {
         Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);
         // If there is no throttle provided, default to none
         float requestsPerSec = request.getRequestsPerSecond() == null ? Float.POSITIVE_INFINITY : request.getRequestsPerSecond();
@@ -148,7 +149,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                            Iterator<MlDataRemover> mlDataRemoversIterator,
                            float requestsPerSecond,
                            ActionListener<DeleteExpiredDataAction.Response> listener,
-                           Supplier<Boolean> isTimedOutSupplier,
+                           BooleanSupplier isTimedOutSupplier,
                            boolean haveAllPreviousDeletionsCompleted) {
         if (haveAllPreviousDeletionsCompleted && mlDataRemoversIterator.hasNext()) {
             MlDataRemover remover = mlDataRemoversIterator.next();
@@ -174,7 +175,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
             if (haveAllPreviousDeletionsCompleted) {
                 logger.info("Completed deletion of expired ML data");
             } else {
-                if (isTimedOutSupplier.get()) {
+                if (isTimedOutSupplier.getAsBoolean()) {
                     TimeValue timeoutPeriod = request.getTimeout() == null ? MlDataRemover.DEFAULT_MAX_DURATION :
                         request.getTimeout();
                     String msg = "Deleting expired ML data was cancelled after the timeout period of [" +
@@ -210,7 +211,10 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                 new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), threadPool, parentTaskId, jobResultsProvider, auditor),
             new UnusedStateRemover(client, clusterService, parentTaskId),
             new EmptyStateIndexRemover(client, parentTaskId),
-            new UnusedStatsRemover(client, parentTaskId));
+            new UnusedStatsRemover(client, parentTaskId),
+            new ExpiredAnnotationsRemover(client,
+                new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), parentTaskId, auditor, threadPool)
+        );
     }
 
     private List<MlDataRemover> createDataRemovers(List<Job> jobs, TaskId parentTaskId, AnomalyDetectionAuditor auditor) {
@@ -224,7 +228,9 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                 auditor),
             new UnusedStateRemover(client, clusterService, parentTaskId),
             new EmptyStateIndexRemover(client, parentTaskId),
-            new UnusedStatsRemover(client, parentTaskId));
+            new UnusedStatsRemover(client, parentTaskId),
+            new ExpiredAnnotationsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, auditor, threadPool)
+        );
     }
 
 }

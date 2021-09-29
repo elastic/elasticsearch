@@ -15,13 +15,16 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -37,10 +40,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -58,6 +64,7 @@ import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
@@ -68,6 +75,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -77,6 +85,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -273,13 +282,18 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors();
         PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray(
             "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON);
-        Exception e = expectThrows(IllegalStateException.class, () -> ingestService.validatePipeline(emptyMap(), putRequest));
+
+        var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> ingestService.validatePipeline(emptyMap(), putRequest.getId(), pipelineConfig)
+        );
         assertEquals("Ingest info is empty", e.getMessage());
 
         DiscoveryNode discoveryNode = new DiscoveryNode("_node_id", buildNewFakeTransportAddress(),
             emptyMap(), emptySet(), Version.CURRENT);
         IngestInfo ingestInfo = new IngestInfo(Collections.singletonList(new ProcessorInfo("set")));
-        ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
+        ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest.getId(), pipelineConfig);
     }
 
     public void testGetProcessorsInPipeline() throws Exception {
@@ -585,6 +599,7 @@ public class IngestServiceTests extends ESTestCase {
             "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}," +
                 "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"),
             XContentType.JSON);
+        var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
 
         DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(),
             emptyMap(), emptySet(), Version.CURRENT);
@@ -594,14 +609,17 @@ public class IngestServiceTests extends ESTestCase {
         ingestInfos.put(node1, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"))));
 
-        ElasticsearchParseException e =
-            expectThrows(ElasticsearchParseException.class, () -> ingestService.validatePipeline(ingestInfos, putRequest));
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig)
+        );
         assertEquals("Processor type [remove] is not installed on node [" + node2 + "]", e.getMessage());
         assertEquals("remove", e.getMetadata("es.processor_type").get(0));
         assertEquals("tag2", e.getMetadata("es.processor_tag").get(0));
 
+        var pipelineConfig2 = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
-        ingestService.validatePipeline(ingestInfos, putRequest);
+        ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig2);
     }
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {
@@ -933,7 +951,7 @@ public class IngestServiceTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         int numIndexRequests = 0;
         for (int i = 0; i < numRequest; i++) {
-            DocWriteRequest request;
+            DocWriteRequest<?> request;
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     request = new DeleteRequest("_index", "_id");
@@ -1376,6 +1394,24 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
     }
 
+    public void testResolveFinalPipelineWithDateMathExpression() {
+        final long epochMillis = randomLongBetween(1, System.currentTimeMillis());
+        final DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
+        IndexMetadata.Builder builder = IndexMetadata.builder("idx-" + dateFormatter.formatMillis(epochMillis))
+            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        Metadata metadata = Metadata.builder().put(builder).build();
+
+        // index name matches with IDM:
+        IndexRequest indexRequest = new IndexRequest("<idx-{now/d}>");
+        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata, epochMillis);
+        assertThat(result, is(true));
+        assertThat(indexRequest.isPipelineResolved(), is(true));
+        assertThat(indexRequest.getPipeline(), equalTo("_none"));
+        assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+    }
+
     public void testResolveRequestOrDefaultPipelineAndFinalPipeline() {
         // no pipeline:
         {
@@ -1425,6 +1461,106 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
             assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
         }
+    }
+
+    public void testUpdatingRandomPipelineWithoutChangesIsNoOp() throws Exception {
+        var randomMap = randomMap(10, 50, IngestServiceTests::randomMapEntry);
+
+        XContentBuilder x = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .field("processors", randomMap)
+            .endObject();
+
+        OutputStream os = x.getOutputStream();
+        x.generator().close();
+        testUpdatingPipeline(os.toString());
+    }
+
+    public void testUpdatingPipelineWithoutChangesIsNoOp() throws Exception {
+        var value = randomAlphaOfLength(5);
+        var pipelineString = "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"" + value + "\"}}]}";
+        testUpdatingPipeline(pipelineString);
+    }
+
+    private void testUpdatingPipeline(String pipelineString) throws Exception {
+        var pipelineId = randomAlphaOfLength(5);
+        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        IngestService ingestService = new IngestService(clusterService, threadPool, null, null,
+            null, Collections.singletonList(DUMMY_PLUGIN), client);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        var listener = new ActionListener<AcknowledgedResponse>() {
+            final AtomicLong successCount = new AtomicLong(0);
+            final AtomicLong failureCount = new AtomicLong(0);
+
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                successCount.incrementAndGet();
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failureCount.incrementAndGet();
+                latch.countDown();
+            }
+
+            public long getSuccessCount() {
+                return successCount.get();
+            }
+
+            public long getFailureCount() {
+                return failureCount.get();
+            }
+        };
+
+        var consumer = new Consumer<ActionListener<NodesInfoResponse>>() {
+            final AtomicLong executionCount = new AtomicLong(0);
+
+            @Override
+            public void accept(ActionListener<NodesInfoResponse> nodesInfoResponseActionListener) {
+                executionCount.incrementAndGet();
+            }
+
+            public long getExecutionCount() {
+                return executionCount.get();
+            }
+        };
+
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        ingestService.putPipeline(request, listener, consumer);
+        latch.await();
+
+        assertThat(consumer.getExecutionCount(), equalTo(0L));
+        assertThat(listener.getSuccessCount(), equalTo(1L));
+        assertThat(listener.getFailureCount(), equalTo(0L));
+    }
+
+    private static Tuple<String, Object> randomMapEntry() {
+        return tuple(randomAlphaOfLength(5), randomObject());
+    }
+
+    private static Object randomObject() {
+        return randomFrom(
+            random(),
+            ESTestCase::randomLong,
+            () -> generateRandomStringArray(10, 5, true),
+            () -> randomMap(3, 5, IngestServiceTests::randomMapEntry),
+            () -> randomAlphaOfLength(5),
+            ESTestCase::randomTimeValue,
+            ESTestCase::randomDouble
+        );
     }
 
     private IngestDocument eqIndexTypeId(final Map<String, Object> source) {

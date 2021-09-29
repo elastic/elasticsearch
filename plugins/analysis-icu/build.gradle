@@ -1,5 +1,3 @@
-import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -7,7 +5,7 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -23,7 +21,7 @@ tasks.named("forbiddenApisMain").configure {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analyzers-icu:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
   api "com.ibm.icu:icu4j:${versions.icu4j}"
 }
 
@@ -36,23 +34,9 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
-
-tasks.named("yamlRestCompatTest").configure {
+tasks.named("yamlRestTestV7CompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
-    'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter'
-  ].join(',')
-}
-
-tasks.named('splitPackagesAudit').configure {
-    // o.e.i.analysis is owned by server. Move these to an icu package
-  ignoreClasses 'org.elasticsearch.index.analysis.ICUCollationKeyFilter',
-    'org.elasticsearch.index.analysis.IcuAnalyzerProvider',
-    'org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory',
-    'org.elasticsearch.index.analysis.IcuFoldingTokenFilterFactory',
-    'org.elasticsearch.index.analysis.IcuNormalizerCharFilterFactory',
-    'org.elasticsearch.index.analysis.IcuNormalizerTokenFilterFactory',
-    'org.elasticsearch.index.analysis.IcuTokenizerFactory',
-    'org.elasticsearch.index.analysis.IcuTransformTokenFilterFactory',
-    'org.elasticsearch.index.analysis.IndexableBinaryStringTools',
-    'org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper'
+      //marked as not needing compatible api
+      'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter' // Cleanup versioned deprecations in analysis #41560
+    ].join(',')
 }

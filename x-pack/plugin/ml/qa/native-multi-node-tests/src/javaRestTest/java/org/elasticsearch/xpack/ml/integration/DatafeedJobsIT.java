@@ -18,7 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -44,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -310,12 +310,32 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             .setMapping("time", "type=date")
             .get();
         long numDocs = randomIntBetween(32, 2048);
+        final long intervalMillis = TimeValue.timeValueHours(1).millis();
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;
         long twoWeeksAgo = oneWeekAgo - 604800000;
-        indexDocs(logger, indexName, numDocs, twoWeeksAgo, oneWeekAgo);
+        indexDocs(
+            logger,
+            indexName,
+            1,
+            Intervals.alignToCeil(twoWeeksAgo, intervalMillis),
+            Intervals.alignToCeil(twoWeeksAgo, intervalMillis) + 1
+        );
+        indexDocs(
+            logger,
+            indexName,
+            numDocs - 1,
+            Intervals.alignToCeil(twoWeeksAgo, intervalMillis) + intervalMillis,
+            Intervals.alignToFloor(oneWeekAgo, intervalMillis)
+        );
         long numDocs2 = randomIntBetween(32, 2048);
-        indexDocs(logger, indexName, numDocs2, oneWeekAgo, now);
+        indexDocs(
+            logger,
+            indexName,
+            numDocs2,
+            Intervals.alignToCeil(oneWeekAgo, intervalMillis),
+            Intervals.alignToFloor(now, intervalMillis)
+        );
         client().admin().cluster().prepareHealth(indexName).setWaitForYellowStatus().get();
 
         String scrollJobId = "stop-restart-scroll";
@@ -369,7 +389,8 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
                         .fixedInterval(new DateHistogramInterval("1h"))
                         .field("time")
                 )
-            ).subAggregation(AggregationBuilders.max("time").field("time"))
+            // Set size to 1 so that start stop actually doesn't page through all the results too quickly
+            ).subAggregation(AggregationBuilders.max("time").field("time")).size(1)
         );
         DatafeedConfig compositeDatafeedConfig = createDatafeedBuilder(
             compositeJobId + "-datafeed",
@@ -377,8 +398,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             Collections.singletonList(indexName))
             .setParsedAggregations(aggs)
             .setFrequency(TimeValue.timeValueHours(1))
-            // Start off chunking at an hour so that it runs more slowly and the test has time to stop it in the middle of processing
-            .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)))
             .build();
         putDatafeed(compositeDatafeedConfig);
         startDatafeed(compositeDatafeedConfig.getId(), 0L, null);
@@ -391,10 +410,20 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         );
         // If we are not OPENED, then we are closed and shouldn't restart as the datafeed finished running through the data
         if (getJobStats(compositeJobId).get(0).getState().equals(JobState.OPENED)) {
+            aggs = new AggregatorFactories.Builder();
+            aggs.addAggregator(
+                AggregationBuilders.composite(
+                    "buckets",
+                    Collections.singletonList(
+                        new DateHistogramValuesSourceBuilder("timebucket")
+                            .fixedInterval(new DateHistogramInterval("1h"))
+                            .field("time")
+                    )
+                ).subAggregation(AggregationBuilders.max("time").field("time")).size(100)
+            );
             updateDatafeed(new DatafeedUpdate.Builder()
                 .setId(compositeDatafeedConfig.getId())
-                // Set to auto to speed up and finish the job
-                .setChunkingConfig(ChunkingConfig.newAuto())
+                .setParsedAggregations(aggs)
                 .build());
             startDatafeed(
                 compositeDatafeedConfig.getId(),
@@ -406,10 +435,19 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         List<Bucket> scrollBuckets = getBuckets(scrollJobId);
         List<Bucket> compositeBuckets = getBuckets(compositeJobId);
+        assertThat(
+            "scroll bucket size " + scrollBuckets + " does not equal composite bucket size" + compositeBuckets,
+            compositeBuckets.size(),
+            equalTo(scrollBuckets.size())
+        );
         for (int i = 0; i < scrollBuckets.size(); i++) {
             Bucket scrollBucket = scrollBuckets.get(i);
             Bucket compositeBucket = compositeBuckets.get(i);
             try {
+                assertThat("scroll buckets " + scrollBuckets + " composite buckets " + compositeBuckets,
+                    compositeBucket.getTimestamp(),
+                    equalTo(scrollBucket.getTimestamp())
+                );
                 assertThat(
                     "composite bucket [" + compositeBucket.getTimestamp() + "] [" + compositeBucket.getEventCount() + "] does not equal"
                         + " scroll bucket [" + scrollBucket.getTimestamp() + "] [" + scrollBucket.getEventCount() + "]",
@@ -574,7 +612,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         final String datafeedId = jobId + "-datafeed";
         startRealtime(jobId);
 
-        ConcurrentMapLong<AssertionError> exceptions = ConcurrentCollections.newConcurrentMapLong();
+        Map<Long, AssertionError> exceptions = ConcurrentCollections.newConcurrentMap();
 
         // It's practically impossible to assert that a stop request has waited
         // for a concurrently executing request to finish before returning.

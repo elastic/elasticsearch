@@ -11,6 +11,9 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -32,6 +35,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -46,6 +50,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -56,6 +61,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -88,6 +94,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1219,6 +1226,77 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         internalCluster().startMasterOnlyNode();
         List<RepositoryMetadata> repositoryMetadata = client().admin().cluster().prepareGetRepositories("*").get().repositories();
         assertThat(repositoryMetadata, empty());
+    }
+
+    public void testConcurrentSnapshotAndRepoDelete() throws Exception {
+        internalCluster().startMasterOnlyNodes(1);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+
+        // create a few snapshots so deletes will run for a while
+        final int snapshotCount = randomIntBetween(10, 25);
+        final List<String> snapshotNames = createNSnapshots(repoName, snapshotCount);
+
+        // concurrently trigger repository and snapshot deletes
+        final List<ActionFuture<AcknowledgedResponse>> deleteFutures = new ArrayList<>(snapshotCount);
+        final ActionFuture<AcknowledgedResponse> deleteRepoFuture = clusterAdmin().prepareDeleteRepository(repoName).execute();
+        for (String snapshotName : snapshotNames) {
+            deleteFutures.add(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute());
+        }
+
+        try {
+            assertAcked(deleteRepoFuture.actionGet());
+        } catch (Exception e) {
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "trying to modify or unregister repository [test-repo] that is currently used (snapshot deletion is in progress)"
+                )
+            );
+        }
+        for (ActionFuture<AcknowledgedResponse> deleteFuture : deleteFutures) {
+            try {
+                assertAcked(deleteFuture.actionGet());
+            } catch (RepositoryException e) {
+                assertThat(
+                    e.getMessage(),
+                    either(containsString("[test-repo] repository is not in started state")).or(containsString("[test-repo] missing"))
+                );
+            }
+        }
+    }
+
+    public void testDeleteSnapshotsOfDifferentIndexSets() throws IllegalAccessException {
+        internalCluster().startMasterOnlyNodes(1);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no warnings", BlobStoreRepository.class.getCanonicalName(), Level.WARN, "*")
+        );
+        mockAppender.start();
+        final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
+        Loggers.addAppender(logger, mockAppender);
+        try {
+            final String index1 = "index-1";
+            final String index2 = "index-2";
+            createIndexWithContent("index-1");
+            createIndexWithContent("index-2");
+            createFullSnapshot(repoName, "full-snapshot");
+            final String snapshot1 = "index-1-snapshot";
+            final String snapshot2 = "index-2-snapshot";
+            createSnapshot(repoName, snapshot1, List.of(index1));
+            createSnapshot(repoName, snapshot2, List.of(index2));
+
+            clusterAdmin().prepareDeleteSnapshot(repoName, snapshot1, snapshot2).get();
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

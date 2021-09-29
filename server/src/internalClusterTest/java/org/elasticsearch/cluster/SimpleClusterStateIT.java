@@ -215,7 +215,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         int counter = 0;
         int numberOfFields = 0;
         while (true) {
-            mapping.startObject(UUIDs.randomBase64UUID()).field("type", "text").endObject();
+            mapping.startObject(UUIDs.randomBase64UUID()).field("type", "boolean").endObject();
             counter += 10; // each field is about 10 bytes, assuming compression in place
             numberOfFields++;
             if (counter > estimatedBytesSize) {

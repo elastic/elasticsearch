@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.ir.IRNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
@@ -416,6 +417,19 @@ public class Decorations {
         }
     }
 
+    public static class ThisPainlessMethod implements Decoration {
+
+        private final PainlessMethod thisPainlessMethod;
+
+        public ThisPainlessMethod(PainlessMethod thisPainlessMethod) {
+            this.thisPainlessMethod = Objects.requireNonNull(thisPainlessMethod);
+        }
+
+        public PainlessMethod getThisPainlessMethod() {
+            return thisPainlessMethod;
+        }
+    }
+
     public static class StandardPainlessClassBinding implements Decoration {
 
         private final PainlessClassBinding painlessClassBinding;
@@ -513,13 +527,13 @@ public class Decorations {
 
     public static class EncodingDecoration implements Decoration {
 
-        private final String encoding;
+        private final Def.Encoding encoding;
 
-        public EncodingDecoration(String encoding) {
-            this.encoding = Objects.requireNonNull(encoding);
+        public EncodingDecoration(boolean isStatic, boolean needsInstance, String symbol, String methodName, int captures) {
+            this.encoding = new Def.Encoding(isStatic, needsInstance, symbol, methodName, captures);
         }
 
-        public String getEncoding() {
+        public Def.Encoding getEncoding() {
             return encoding;
         }
     }
@@ -608,6 +622,16 @@ public class Decorations {
     // collect additional information about where doc is used
 
     public interface IsDocument extends Condition {
+
+    }
+
+    // Does the lambda need to capture the enclosing instance?
+    public interface InstanceCapturingLambda extends Condition {
+
+    }
+
+    // Does the function reference need to capture the enclosing instance?
+    public interface InstanceCapturingFunctionRef extends Condition {
 
     }
 }

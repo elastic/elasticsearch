@@ -2,6 +2,9 @@
 [[breaking_80_eql_changes]]
 ==== EQL changes
 
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
 .The `wildcard` function has been removed.
 [%collapsible]
@@ -10,7 +13,6 @@
 The `wildcard` function was deprecated in {es} 7.13.0 and has been removed.
 
 *Impact* +
-Use the <<eql-syntax-pattern-comparison-keywords,`like`>> or
-<<eql-syntax-pattern-comparison-keywords,`regex`>> keyword instead.
+Use the `like` or `regex` {ref}/eql-syntax.html#eql-syntax-pattern-comparison-keywords[keywords] instead.
 ====
 // end::notable-breaking-changes[]

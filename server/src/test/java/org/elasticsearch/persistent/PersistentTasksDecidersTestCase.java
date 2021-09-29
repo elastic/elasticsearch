@@ -103,6 +103,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
     }
 
     /** Asserts that the given cluster state contains nbTasks tasks that are assigned **/
+    @SuppressWarnings("rawtypes")
     protected static void assertNbAssignedTasks(final long nbTasks, final ClusterState clusterState) {
         assertPersistentTasks(nbTasks, clusterState, PersistentTasksCustomMetadata.PersistentTask::isAssigned);
     }
@@ -113,6 +114,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
     }
 
     /** Asserts that the cluster state contains nbTasks tasks that verify the given predicate **/
+    @SuppressWarnings("rawtypes")
     protected static void assertPersistentTasks(final long nbTasks,
                                               final ClusterState clusterState,
                                               final Predicate<PersistentTasksCustomMetadata.PersistentTask> predicate) {

@@ -56,7 +56,7 @@ import java.util.function.BiConsumer;
 
 public class AutodetectCommunicator implements Closeable {
 
-    private static final Logger LOGGER = LogManager.getLogger(AutodetectCommunicator.class);
+    private static final Logger logger = LogManager.getLogger(AutodetectCommunicator.class);
     private static final Duration FLUSH_PROCESS_CHECK_FREQUENCY = Duration.ofSeconds(1);
 
     private final Job job;
@@ -160,7 +160,7 @@ public class AutodetectCommunicator implements Closeable {
             } finally {
                 onFinishHandler.accept(null, true);
             }
-            LOGGER.info("[{}] job closed", job.getId());
+            logger.info("[{}] autodetect connection for job closed", job.getId());
             return null;
         });
         try {
@@ -195,7 +195,7 @@ public class AutodetectCommunicator implements Closeable {
                 try {
                     autodetectResultProcessor.awaitCompletion();
                 } catch (TimeoutException e) {
-                    LOGGER.warn(new ParameterizedMessage("[{}] Timed out waiting for killed job", job.getId()), e);
+                    logger.warn(new ParameterizedMessage("[{}] Timed out waiting for killed job", job.getId()), e);
                 }
             }
         } finally {
@@ -278,7 +278,7 @@ public class AutodetectCommunicator implements Closeable {
 
     @Nullable
     FlushAcknowledgement waitFlushToCompletion(String flushId, boolean waitForNormalization) throws Exception {
-        LOGGER.debug("[{}] waiting for flush", job.getId());
+        logger.debug("[{}] waiting for flush", job.getId());
 
         FlushAcknowledgement flushAcknowledgement;
         try {
@@ -296,11 +296,11 @@ public class AutodetectCommunicator implements Closeable {
             // We also have to wait for the normalizer to become idle so that we block
             // clients from querying results in the middle of normalization.
             if (waitForNormalization) {
-                LOGGER.debug("[{}] Initial flush completed, waiting until renormalizer is idle.", job.getId());
+                logger.debug("[{}] Initial flush completed, waiting until renormalizer is idle.", job.getId());
                 autodetectResultProcessor.waitUntilRenormalizerIsIdle();
             }
 
-            LOGGER.debug("[{}] Flush completed", job.getId());
+            logger.debug("[{}] Flush completed", job.getId());
         }
 
         return flushAcknowledgement;
@@ -360,7 +360,7 @@ public class AutodetectCommunicator implements Closeable {
                     handler.accept(null, ExceptionsHelper.conflictStatusException(
                             "[{}] Could not submit operation to process as it has been killed", job.getId()));
                 } else {
-                    LOGGER.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
+                    logger.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
                     handler.accept(null, e);
                 }
             }

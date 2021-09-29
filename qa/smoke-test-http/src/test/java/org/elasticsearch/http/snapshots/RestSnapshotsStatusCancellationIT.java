@@ -29,7 +29,7 @@ import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 public class RestSnapshotsStatusCancellationIT extends AbstractSnapshotRestTestCase {
 
     public void testSnapshotStatusCancellation() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode(SINGLE_THREADED_SNAPSHOT_META_SETTINGS);
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 

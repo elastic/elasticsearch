@@ -12,9 +12,10 @@ dependencies {
   testImplementation project(':x-pack:qa')
   testImplementation(project(xpackModule('ql:test-fixtures')))
   testImplementation project(xpackModule('sql'))
+  testImplementation project(xpackModule('sql:qa:server'))
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 
@@ -27,11 +28,11 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
     continue;
   }
 
-  String baseName = "v${bwcVersion}"
+  String bwcVersionString = bwcVersion.toString()
+  String baseName = "v" + bwcVersion
 
-  testClusters {
-    "${baseName}" {
-      versions = [bwcVersion.toString(), project.version]
+  def baseCluster = testClusters.register(baseName) {
+      versions = [bwcVersionString, project.version]
       numberOfNodes = 3
       testDistribution = 'DEFAULT'
       setting 'xpack.security.enabled', 'false'
@@ -40,31 +41,26 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
       setting 'xpack.license.self_generated.type', 'trial'
       // for debugging purposes
       // setting 'logger.org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction', 'TRACE'
-    }
   }
 
   tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     mustRunAfter("precommit")
     doFirst {
+      def cluster = baseCluster.get()
       // Getting the endpoints causes a wait for the cluster
-      println "Endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+      println "Endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
       println "Upgrading one node to create a mixed cluster"
-      testClusters."${baseName}".nextNodeToNextVersion()
+      cluster.nextNodeToNextVersion()
 
-      println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+      println "Upgrade complete, endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
+      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.clustername', baseName)
     }
     onlyIf { project.bwc_tests_enabled }
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn "${baseName}#mixedClusterTest"
-  }
-
-  // run these bwc tests as part of the "check" task
-  tasks.named("check").configure {
     dependsOn "${baseName}#mixedClusterTest"
   }
 }

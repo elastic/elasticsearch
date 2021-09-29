@@ -137,7 +137,7 @@ public class LegacyGeoShapeQueryProcessor  {
 
             @Override
             public ShapeBuilder<?, ?, ?> visit(LinearRing ring) {
-                throw new UnsupportedOperationException("circle is not supported");
+                throw new UnsupportedOperationException("LinearRing is not supported");
             }
 
             @Override

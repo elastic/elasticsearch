@@ -240,7 +240,8 @@ public class BottomSortValuesCollectorTests extends ESTestCase {
 
     private TopFieldDocs createTopDocs(SortField sortField, int totalHits, Object[] values) {
         FieldDoc[] fieldDocs = new FieldDoc[values.length];
-        FieldComparator cmp = sortField.getComparator(1, 0);
+        @SuppressWarnings("unchecked")
+        FieldComparator<Object> cmp = (FieldComparator<Object>) sortField.getComparator(1, 0);
         for (int i = 0; i < values.length; i++) {
             fieldDocs[i] = new FieldDoc(i, Float.NaN, new Object[] { values[i] });
         }

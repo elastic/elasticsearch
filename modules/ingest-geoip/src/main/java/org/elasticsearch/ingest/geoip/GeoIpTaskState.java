@@ -68,8 +68,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         databases = Collections.unmodifiableMap(input.readMap(StreamInput::readString,
             in -> {
                 long lastUpdate = in.readLong();
-                return new Metadata(lastUpdate, in.readVInt(), in.readVInt(), in.readString(),
-                    in.getVersion().onOrAfter(Version.V_7_14_0) ? in.readLong() : lastUpdate);
+                return new Metadata(lastUpdate, in.readVInt(), in.readVInt(), in.readString(), in.readLong());
             }));
     }
 
@@ -135,9 +134,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             o.writeVInt(v.firstChunk);
             o.writeVInt(v.lastChunk);
             o.writeString(v.md5);
-            if (o.getVersion().onOrAfter(Version.V_7_14_0)) {
-                o.writeLong(v.lastCheck);
-            }
+            o.writeLong(v.lastCheck);
         });
     }
 
@@ -187,6 +184,10 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
         public long getLastUpdate() {
             return lastUpdate;
+        }
+
+        public boolean isCloseToExpiration(){
+            return Instant.ofEpochMilli(lastCheck).isBefore(Instant.now().minus(25, ChronoUnit.DAYS));
         }
 
         public boolean isValid(Settings settings) {

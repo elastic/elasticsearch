@@ -14,7 +14,9 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.sql.plugin.SqlAsyncGetResultsAction;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.junit.After;
 
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -285,8 +288,10 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
             if (doc.isExists()) {
                 String value = doc.getSource().get("result").toString();
                 try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
-                    try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
-                        in.setVersion(Version.readVersion(in));
+                    final Version version = Version.readVersion(buf);
+                    final InputStream compressedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(buf);
+                    try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(compressedIn), registry)) {
+                        in.setVersion(version);
                         return new StoredAsyncResponse<>(SqlQueryResponse::new, in);
                     }
                 }

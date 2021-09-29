@@ -695,15 +695,60 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
 
-        logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("field1", "test"))
-                .highlighter(highlight().field("field1").order("score").preTags("<xxx>").postTags("</xxx>"));
+                .highlighter(highlight().highlighterType("plain").field("field1").order("score").preTags("<xxx>").postTags("</xxx>"));
 
         SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("this is a <xxx>test</xxx>"));
+    }
 
+    public void testPlainHighlighterOrder() throws Exception {
+        ensureGreen();
+
+        client().prepareIndex("test")
+                .setSource("field1", "The quick brown fox jumps over the lazy brown dog but to no suprise the dog doesn't care").get();
+        refresh();
+
+        {
+            // fragments should be in order of appearance by default
+            SearchSourceBuilder source = searchSource().query(matchQuery("field1", "brown dog"))
+                .highlighter(
+                    highlight().highlighterType("plain").field("field1").preTags("<xxx>").postTags("</xxx>").fragmentSize(25)
+                );
+
+            SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
+
+            assertHighlight(searchResponse, 0, "field1", 0, 3, equalTo("The quick <xxx>brown</xxx> fox"));
+            assertHighlight(searchResponse, 0, "field1", 1, 3, equalTo(" jumps over the lazy <xxx>brown</xxx> <xxx>dog</xxx>"));
+            assertHighlight(searchResponse, 0, "field1", 2, 3, equalTo(" <xxx>dog</xxx> doesn't care"));
+
+            // lets be explicit about the order
+            source = searchSource().query(matchQuery("field1", "brown dog"))
+                .highlighter(
+                    highlight().highlighterType("plain").field("field1").order("none").preTags("<xxx>").postTags("</xxx>").fragmentSize(25)
+                );
+
+            searchResponse = client().prepareSearch("test").setSource(source).get();
+
+            assertHighlight(searchResponse, 0, "field1", 0, 3, equalTo("The quick <xxx>brown</xxx> fox"));
+            assertHighlight(searchResponse, 0, "field1", 1, 3, equalTo(" jumps over the lazy <xxx>brown</xxx> <xxx>dog</xxx>"));
+            assertHighlight(searchResponse, 0, "field1", 2, 3, equalTo(" <xxx>dog</xxx> doesn't care"));
+        }
+        {
+            // order by score
+            SearchSourceBuilder source = searchSource().query(matchQuery("field1", "brown dog"))
+                .highlighter(
+                    highlight().highlighterType("plain").order("score").field("field1").preTags("<xxx>").postTags("</xxx>").fragmentSize(25)
+                );
+
+            SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
+
+            assertHighlight(searchResponse, 0, "field1", 0, 3, equalTo(" jumps over the lazy <xxx>brown</xxx> <xxx>dog</xxx>"));
+            assertHighlight(searchResponse, 0, "field1", 1, 3, equalTo("The quick <xxx>brown</xxx> fox"));
+            assertHighlight(searchResponse, 0, "field1", 2, 3, equalTo(" <xxx>dog</xxx> doesn't care"));
+        }
     }
 
     public void testFastVectorHighlighter() throws Exception {

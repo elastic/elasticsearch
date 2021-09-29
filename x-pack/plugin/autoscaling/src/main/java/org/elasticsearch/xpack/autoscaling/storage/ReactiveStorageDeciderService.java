@@ -224,10 +224,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public long storagePreventsAllocation() {
-            RoutingNodes routingNodes = new RoutingNodes(state, false);
             RoutingAllocation allocation = new RoutingAllocation(
                 allocationDeciders,
-                routingNodes,
+                state.getRoutingNodes(),
                 state,
                 info,
                 shardSizeInfo,
@@ -241,10 +240,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public long storagePreventsRemainOrMove() {
-            RoutingNodes routingNodes = new RoutingNodes(state, false);
             RoutingAllocation allocation = new RoutingAllocation(
                 allocationDeciders,
-                routingNodes,
+                state.getRoutingNodes(),
                 state,
                 info,
                 shardSizeInfo,

@@ -199,7 +199,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
 
     private void storeResults(T searchTask, StoredAsyncResponse<Response> storedResponse, ActionListener<Void> finalListener) {
         try {
-            asyncTaskIndexService.createResponse(searchTask.getExecutionId().getDocId(),
+            asyncTaskIndexService.createResponseForEQL(searchTask.getExecutionId().getDocId(),
                 searchTask.getOriginHeaders(), storedResponse, ActionListener.wrap(
                     // We should only unregister after the result is saved
                     resp -> {

@@ -164,7 +164,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             return this.key;
         }
 
-        boolean matches(double value) {
+        public boolean matches(double value) {
             return value >= from && value < to;
         }
 
@@ -207,9 +207,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
         });
 
         static {
-            PARSER.declareField(optionalConstructorArg(),
-                (p, c) -> p.text(),
-                KEY_FIELD, ValueType.DOUBLE); // DOUBLE supports string and number
+            PARSER.declareField(optionalConstructorArg(), (p, c) -> p.text(), KEY_FIELD, ValueType.DOUBLE); // DOUBLE supports string and
+                                                                                                            // number
             ContextParser<Void, Object> fromToParser = (p, c) -> {
                 if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                     return p.text();
@@ -239,10 +238,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
             }
             Range other = (Range) obj;
             return Objects.equals(key, other.key)
-                    && Objects.equals(from, other.from)
-                    && Objects.equals(fromAsStr, other.fromAsStr)
-                    && Objects.equals(to, other.to)
-                    && Objects.equals(toAsStr, other.toAsStr);
+                && Objects.equals(from, other.from)
+                && Objects.equals(fromAsStr, other.fromAsStr)
+                && Objects.equals(to, other.to)
+                && Objects.equals(toAsStr, other.toAsStr);
         }
     }
 
@@ -430,19 +429,20 @@ public abstract class RangeAggregator extends BucketsAggregator {
         );
     }
 
-    private final ValuesSource.Numeric valuesSource;
+    protected final ValuesSource valuesSource;
     private final DocValueFormat format;
     protected final Range[] ranges;
     private final boolean keyed;
+    @SuppressWarnings("rawtypes")
     private final InternalRange.Factory rangeFactory;
     private final double averageDocsPerRange;
 
-    private RangeAggregator(
+    public RangeAggregator(
         String name,
         AggregatorFactories factories,
-        ValuesSource.Numeric valuesSource,
+        ValuesSource valuesSource,
         DocValueFormat format,
-        InternalRange.Factory rangeFactory,
+        @SuppressWarnings("rawtypes") InternalRange.Factory rangeFactory,
         Range[] ranges,
         double averageDocsPerRange,
         boolean keyed,
@@ -469,44 +469,40 @@ public abstract class RangeAggregator extends BucketsAggregator {
         return super.scoreMode();
     }
 
-    @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
-        return new LeafBucketCollectorBase(sub, values) {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
-                    for (int i = 0, lo = 0; i < valuesCount; ++i) {
-                        final double value = values.nextValue();
-                        lo = RangeAggregator.this.collect(sub, doc, value, bucket, lo);
-                    }
-                }
-            }
-        };
-    }
-
     protected long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {
         return owningBucketOrdinal * ranges.length + rangeOrd;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForFixedBucketCount(owningBucketOrds, ranges.length,
+        return buildAggregationsForFixedBucketCount(
+            owningBucketOrds,
+            ranges.length,
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 Range range = ranges[offsetInOwningOrd];
                 return rangeFactory.createBucket(range.key, range.from, range.to, docCount, subAggregationResults, keyed, format);
-            }, buckets -> rangeFactory.create(name, buckets, format, keyed, metadata()));
+            },
+            buckets -> rangeFactory.create(name, buckets, format, keyed, metadata())
+        );
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
-            org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =
-                    rangeFactory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, format);
+            org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket = rangeFactory.createBucket(
+                range.key,
+                range.from,
+                range.to,
+                0,
+                subAggs,
+                keyed,
+                format
+            );
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
@@ -524,6 +520,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
 
         private final R[] ranges;
         private final boolean keyed;
+        @SuppressWarnings("rawtypes")
         private final InternalRange.Factory factory;
         private final DocValueFormat format;
 
@@ -535,7 +532,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             DocValueFormat format,
             AggregationContext context,
             Aggregator parent,
-            InternalRange.Factory factory,
+            @SuppressWarnings("rawtypes") InternalRange.Factory factory,
             Map<String, Object> metadata
         ) throws IOException {
             super(name, context, parent, factories, metadata);
@@ -546,6 +543,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public InternalAggregation buildEmptyAggregation() {
             InternalAggregations subAggs = buildEmptySubAggregations();
             List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
@@ -556,16 +554,67 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    protected abstract int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound)
-        throws IOException;
+    private abstract static class NumericRangeAggregator extends RangeAggregator {
 
-    static class NoOverlap extends RangeAggregator {
+        NumericRangeAggregator(
+            String name,
+            AggregatorFactories factories,
+            ValuesSource.Numeric valuesSource,
+            DocValueFormat format,
+            Factory<?, ?> rangeFactory,
+            Range[] ranges,
+            double averageDocsPerRange,
+            boolean keyed,
+            AggregationContext context,
+            Aggregator parent,
+            CardinalityUpperBound cardinality,
+            Map<String, Object> metadata
+        ) throws IOException {
+            super(
+                name,
+                factories,
+                valuesSource,
+                format,
+                rangeFactory,
+                ranges,
+                averageDocsPerRange,
+                keyed,
+                context,
+                parent,
+                cardinality,
+                metadata
+            );
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) this.valuesSource).doubleValues(ctx);
+            return new LeafBucketCollectorBase(sub, values) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (values.advanceExact(doc)) {
+                        final int valuesCount = values.docValueCount();
+                        for (int i = 0, lo = 0; i < valuesCount; ++i) {
+                            final double value = values.nextValue();
+                            lo = NumericRangeAggregator.this.collect(sub, doc, value, bucket, lo);
+                        }
+                    }
+                }
+            };
+        }
+
+        protected abstract int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound)
+            throws IOException;
+    }
+
+    static class NoOverlap extends NumericRangeAggregator {
+
         NoOverlap(
             String name,
             AggregatorFactories factories,
             Numeric valuesSource,
             DocValueFormat format,
-            Factory rangeFactory,
+            @SuppressWarnings("rawtypes") Factory rangeFactory,
             Range[] ranges,
             double averageDocsPerRange,
             boolean keyed,
@@ -609,13 +658,13 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    private static class Overlap extends RangeAggregator {
+    private static class Overlap extends NumericRangeAggregator {
         Overlap(
             String name,
             AggregatorFactories factories,
             Numeric valuesSource,
             DocValueFormat format,
-            Factory rangeFactory,
+            Factory<?, ?> rangeFactory,
             Range[] ranges,
             double averageDocsPerRange,
             boolean keyed,
@@ -690,7 +739,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
 
             for (int i = startLo; i <= endHi; ++i) {
                 if (ranges[i].matches(value)) {
-                            collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
+                    collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
                 }
             }
 
@@ -737,15 +786,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 Range r = ranges[i];
                 InternalFilters.InternalBucket b = filters.getBuckets().get(i);
                 buckets.add(
-                    rangeFactory.createBucket(
-                        r.getKey(),
-                        r.getFrom(),
-                        r.getTo(),
-                        b.getDocCount(),
-                        (InternalAggregations) b.getAggregations(),
-                        keyed,
-                        format
-                    )
+                    rangeFactory.createBucket(r.getKey(), r.getFrom(), r.getTo(), b.getDocCount(), b.getAggregations(), keyed, format)
                 );
             }
             return rangeFactory.create(name(), buckets, format, keyed, filters.getMetadata());
@@ -759,7 +800,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    private static boolean hasOverlap(Range[] ranges) {
+    public static boolean hasOverlap(Range[] ranges) {
         double lastEnd = ranges[0].to;
         for (int i = 1; i < ranges.length; ++i) {
             if (ranges[i].from < lastEnd) {

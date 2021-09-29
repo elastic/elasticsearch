@@ -38,7 +38,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
             "_type", value -> {
-                deprecationLogger.deprecate(DeprecationCategory.INDICES, "conditional-processor__type",
+                deprecationLogger.critical(DeprecationCategory.INDICES, "conditional-processor__type",
                         "[types removal] Looking up doc types [_type] in scripts is deprecated.");
                 return value;
             });
@@ -137,6 +137,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         return condition.getIdOrCode();
     }
 
+    @SuppressWarnings("unchecked")
     private static Object wrapUnmodifiable(Object raw) {
         // Wraps all mutable types that the JSON parser can create by immutable wrappers.
         // Any inputs not wrapped are assumed to be immutable
@@ -303,6 +304,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <T> T[] toArray(final T[] a) {
             Object[] raw = data.toArray(new Object[0]);
             T[] wrapped = (T[]) Arrays.copyOf(raw, a.length, a.getClass());

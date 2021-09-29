@@ -92,7 +92,17 @@ public class FieldFetcher {
                 }
                 // only add concrete fields if they are not beneath a known nested field
                 if (nestedParentPath == null) {
-                    ValueFetcher valueFetcher = ft.valueFetcher(context, fieldAndFormat.format);
+                    ValueFetcher valueFetcher;
+                    try {
+                        valueFetcher = ft.valueFetcher(context, fieldAndFormat.format);
+                    } catch (IllegalArgumentException e) {
+                        StringBuilder error = new StringBuilder("error fetching [").append(field).append(']');
+                        if (isWildcardPattern) {
+                            error.append(" which matched [").append(fieldAndFormat.field).append(']');
+                        }
+                        error.append(": ").append(e.getMessage());
+                        throw new IllegalArgumentException(error.toString(), e);
+                    }
                     fieldContexts.put(field, new FieldContext(field, valueFetcher));
                 }
             }
@@ -182,9 +192,11 @@ public class FieldFetcher {
                 }
                 if (value instanceof Map) {
                     // one step deeper into source tree
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> objectMap = (Map<String, Object>) value;
                     collectUnmapped(
                         documentFields,
-                        (Map<String, Object>) value,
+                        objectMap,
                         currentPath + ".",
                         step(this.unmappedFieldsFetchAutomaton, ".", currentState)
                     );
@@ -227,9 +239,11 @@ public class FieldFetcher {
         List<Object> list = new ArrayList<>();
         for (Object value : iterable) {
             if (value instanceof Map) {
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> objectMap = (Map<String, Object>) value;
                 collectUnmapped(
                     documentFields,
-                    (Map<String, Object>) value,
+                    objectMap,
                     parentPath + ".",
                     step(this.unmappedFieldsFetchAutomaton, ".", lastState)
                 );

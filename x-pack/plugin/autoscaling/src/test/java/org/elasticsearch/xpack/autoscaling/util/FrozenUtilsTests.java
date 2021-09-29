@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConst
 
 import java.util.Objects;
 
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.hamcrest.Matchers.is;
 
 public class FrozenUtilsTests extends AutoscalingTestCase {
@@ -46,7 +47,7 @@ public class FrozenUtilsTests extends AutoscalingTestCase {
         // pass setting validator.
         if (Objects.equals(tierPreference, DataTier.DATA_FROZEN)) {
             settings.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE);
         }
         return settings.build();
     }

@@ -115,15 +115,13 @@ public class MockNioTransport extends TcpTransport {
 
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 // loop through all profiles and start them up, special handling for default one
-                for (ProfileSettings profileSettings : profileSettings) {
+                for (ProfileSettings profileSettings : profileSettingsSet) {
                     String profileName = profileSettings.profileName;
                     MockTcpChannelFactory factory = new MockTcpChannelFactory(false, profileSettings, profileName);
                     profileToChannelFactory.putIfAbsent(profileName, factory);
                     bindServer(profileSettings);
                 }
             }
-
-            super.doStart();
             success = true;
         } catch (IOException e) {
             throw new ElasticsearchException(e);
@@ -171,6 +169,7 @@ public class MockNioTransport extends TcpTransport {
         builder.setConnectTimeout(connectionProfile.getConnectTimeout());
         builder.setPingInterval(connectionProfile.getPingInterval());
         builder.setCompressionEnabled(connectionProfile.getCompressionEnabled());
+        builder.setCompressionScheme(connectionProfile.getCompressionScheme());
         return builder.build();
     }
 
@@ -264,7 +263,6 @@ public class MockNioTransport extends TcpTransport {
         private final Releasable releasable;
 
         LeakAwareRefCounted(Releasable releasable) {
-            super("leak-aware-ref-counted");
             this.releasable = releasable;
             leak = LeakTracker.INSTANCE.track(releasable);
         }

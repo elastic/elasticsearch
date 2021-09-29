@@ -235,9 +235,6 @@ setup:
 
 ---
 "Get snapshot info without repository names":
-  - skip:
-      version: " - 7.99.99"
-      reason: "8.0 changes get snapshots response format"
 
   - do:
       indices.create:

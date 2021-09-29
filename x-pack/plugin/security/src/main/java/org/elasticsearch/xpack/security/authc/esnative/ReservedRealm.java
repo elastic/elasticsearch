@@ -59,6 +59,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final ReservedUserInfo bootstrapUserInfo;
     public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password",
             KeyStoreWrapper.SEED_SETTING);
+    public static final Setting<SecureString> AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH =
+        SecureSetting.secureString("autoconfig.password_hash", null);
 
     private final NativeUsersStore nativeUsersStore;
     private final AnonymousUser anonymousUser;
@@ -231,7 +233,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private void logDeprecatedUser(final User user){
         Map<String, Object> metadata = user.metadata();
         if (Boolean.TRUE.equals(metadata.get(MetadataUtils.DEPRECATED_METADATA_KEY))) {
-            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "deprecated_user-" + user.principal(), "The user [" +
+            deprecationLogger.critical(DeprecationCategory.SECURITY, "deprecated_user-" + user.principal(), "The user [" +
                 user.principal() +
                     "] is deprecated and will be removed in a future version of Elasticsearch. " +
                     metadata.get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY));

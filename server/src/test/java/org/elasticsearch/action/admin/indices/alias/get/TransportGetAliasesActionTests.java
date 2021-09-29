@@ -13,11 +13,12 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -195,30 +196,71 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         var tuples = List.of(new Tuple<>("logs-foo", 1), new Tuple<>("logs-bar", 1), new Tuple<>("logs-baz", 1));
         var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(tuples, List.of());
         var builder = Metadata.builder(clusterState.metadata());
-        builder.put("logs", "logs-foo", null);
-        builder.put("logs", "logs-bar", null);
-        builder.put("secret", "logs-bar", null);
+        builder.put("logs", "logs-foo", null, null);
+        builder.put("logs", "logs-bar", null, null);
+        builder.put("secret", "logs-bar", null, null);
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
 
         // return all all data streams with aliases
         var getAliasesRequest = new GetAliasesRequest();
         var result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-foo", "logs-bar"));
-        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null)));
-        assertThat(result.get("logs-bar"), containsInAnyOrder(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null),
-            new DataStreamAlias("secret", List.of("logs-bar"), null)));
+        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null, null)));
+        assertThat(result.get("logs-bar"), containsInAnyOrder(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null, null),
+            new DataStreamAlias("secret", List.of("logs-bar"), null, null)));
 
         // filter by alias name
         getAliasesRequest = new GetAliasesRequest("secret");
         result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-bar"));
-        assertThat(result.get("logs-bar"), contains(new DataStreamAlias("secret", List.of("logs-bar"), null)));
+        assertThat(result.get("logs-bar"), contains(new DataStreamAlias("secret", List.of("logs-bar"), null, null)));
 
         // filter by data stream:
         getAliasesRequest = new GetAliasesRequest().indices("logs-foo");
         result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-foo"));
-        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null)));
+        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null, null)));
+    }
+
+    public void testNetNewSystemIndicesDontErrorWhenNotRequested() {
+        GetAliasesRequest aliasesRequest = new GetAliasesRequest();
+        // `.b` will be the "net new" system index this test case
+        ClusterState clusterState = systemIndexTestClusterState();
+        String[] concreteIndices;
+
+        SystemIndexDescriptor netNewDescriptor = SystemIndexDescriptor.builder()
+            .setIndexPattern(".b")
+            .setAliasName(".y")
+            .setPrimaryIndex(".b")
+            .setDescription(this.getTestName())
+            .setMappings("{\"_meta\":  {\"version\":  \"1.0.0\"}}")
+            .setSettings(Settings.EMPTY)
+            .setVersionMetaKey("version")
+            .setOrigin(this.getTestName())
+            .setNetNew()
+            .build();
+        SystemIndices systemIndices = new SystemIndices(Collections.singletonMap(
+            this.getTestName(),
+            new SystemIndices.Feature(this.getTestName(), "test feature",
+                Collections.singletonList(netNewDescriptor))));
+
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+        concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasesRequest);
+
+        ImmutableOpenMap<String, List<AliasMetadata>> initialAliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder().build();
+        ImmutableOpenMap<String, List<AliasMetadata>> finalResponse = TransportGetAliasesAction.postProcess(
+            aliasesRequest,
+            concreteIndices,
+            initialAliases,
+            clusterState,
+            SystemIndexAccessLevel.NONE,
+            threadContext,
+            systemIndices
+        );
+
+        // The real assertion is that the above `postProcess` call doesn't throw
+        assertFalse(finalResponse.containsKey(".b"));
     }
 
     public ClusterState systemIndexTestClusterState() {

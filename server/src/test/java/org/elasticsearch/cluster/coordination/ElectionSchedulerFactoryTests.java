@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -129,7 +130,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         final long maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(settings).millis();
         final long duration = ELECTION_DURATION_SETTING.get(settings).millis();
 
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final ElectionSchedulerFactory electionSchedulerFactory
             = new ElectionSchedulerFactory(settings, random(), deterministicTaskQueue.getThreadPool());
 

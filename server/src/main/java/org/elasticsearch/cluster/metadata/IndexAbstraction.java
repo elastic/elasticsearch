@@ -71,8 +71,15 @@ public interface IndexAbstraction {
      * @return whether this index abstraction is related to data streams
      */
     default boolean isDataStreamRelated() {
-        return getType() == Type.DATA_STREAM || this instanceof DataStreamAlias;
+        return false;
     }
+
+    /**
+     * @return the names of aliases referring to this instance.
+     *         Returns <code>null</code> if aliases can't point to this instance.
+     */
+    @Nullable
+    List<String> getAliases();
 
     /**
      * An index abstraction type.
@@ -161,6 +168,11 @@ public interface IndexAbstraction {
         public boolean isSystem() {
             return concreteIndex.isSystem();
         }
+
+        @Override
+        public List<String> getAliases() {
+            return List.of(concreteIndex.getAliases().keys().toArray(String.class));
+        }
     }
 
     /**
@@ -172,6 +184,7 @@ public interface IndexAbstraction {
         private final List<IndexMetadata> referenceIndexMetadatas;
         private final IndexMetadata writeIndex;
         private final boolean isHidden;
+        private final boolean dataStreamAlias;
 
         public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indices) {
             this.aliasName = aliasMetadata.getAlias();
@@ -198,7 +211,18 @@ public interface IndexAbstraction {
             }
 
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
+            dataStreamAlias = false;
             validateAliasProperties();
+        }
+
+        public Alias(org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias,
+                     List<IndexMetadata> indicesOfAllDataStreams,
+                     IndexMetadata writeIndexOfWriteDataStream) {
+            this.aliasName = dataStreamAlias.getName();
+            this.referenceIndexMetadatas = indicesOfAllDataStreams;
+            this.writeIndex = writeIndexOfWriteDataStream;
+            this.isHidden = false;
+            this.dataStreamAlias = true;
         }
 
         @Override
@@ -234,6 +258,16 @@ public interface IndexAbstraction {
         @Override
         public boolean isSystem() {
             return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
+        }
+
+        @Override
+        public boolean isDataStreamRelated() {
+            return dataStreamAlias;
+        }
+
+        @Override
+        public List<String> getAliases() {
+            return null;
         }
 
         private void validateAliasProperties() {
@@ -285,11 +319,15 @@ public interface IndexAbstraction {
         private final org.elasticsearch.cluster.metadata.DataStream dataStream;
         private final List<IndexMetadata> dataStreamIndices;
         private final IndexMetadata writeIndex;
+        private final List<String> referencedByDataStreamAliases;
 
-        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream, List<IndexMetadata> dataStreamIndices) {
+        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream,
+                          List<IndexMetadata> dataStreamIndices,
+                          List<String> aliases) {
             this.dataStream = dataStream;
             this.dataStreamIndices = List.copyOf(dataStreamIndices);
             this.writeIndex =  dataStreamIndices.get(dataStreamIndices.size() - 1);
+            this.referencedByDataStreamAliases = aliases;
         }
 
         @Override
@@ -327,62 +365,19 @@ public interface IndexAbstraction {
             return dataStream.isSystem();
         }
 
+        @Override
+        public boolean isDataStreamRelated() {
+            return true;
+        }
+
+        @Override
+        public List<String> getAliases() {
+            return referencedByDataStreamAliases;
+        }
+
         public org.elasticsearch.cluster.metadata.DataStream getDataStream() {
             return dataStream;
         }
     }
 
-    class DataStreamAlias implements IndexAbstraction {
-
-        private final org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias;
-        private final List<IndexMetadata> indicesOfAllDataStreams;
-        private final IndexMetadata writeIndexOfWriteDataStream;
-
-        public DataStreamAlias(org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias,
-                               List<IndexMetadata> indicesOfAllDataStreams,
-                               IndexMetadata writeIndexOfWriteDataStream) {
-            this.dataStreamAlias = dataStreamAlias;
-            this.indicesOfAllDataStreams = indicesOfAllDataStreams;
-            this.writeIndexOfWriteDataStream = writeIndexOfWriteDataStream;
-        }
-
-        @Override
-        public Type getType() {
-            return Type.ALIAS;
-        }
-
-        @Override
-        public String getName() {
-            return dataStreamAlias.getName();
-        }
-
-        @Override
-        public List<IndexMetadata> getIndices() {
-            return indicesOfAllDataStreams;
-        }
-
-        @Override
-        public IndexMetadata getWriteIndex() {
-            return writeIndexOfWriteDataStream;
-        }
-
-        @Override
-        public DataStream getParentDataStream() {
-            return null;
-        }
-
-        @Override
-        public boolean isHidden() {
-            return false;
-        }
-
-        @Override
-        public boolean isSystem() {
-            return false;
-        }
-
-        public org.elasticsearch.cluster.metadata.DataStreamAlias getDataStreamAlias() {
-            return dataStreamAlias;
-        }
-    }
 }

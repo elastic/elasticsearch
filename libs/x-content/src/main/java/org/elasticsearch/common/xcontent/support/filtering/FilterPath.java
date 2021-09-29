@@ -52,6 +52,13 @@ public class FilterPath {
         return doubleWildcard;
     }
 
+    public boolean hasDoubleWildcard() {
+        if (filter == null) {
+            return false;
+        }
+        return filter.indexOf("**") >= 0;
+    }
+
     boolean isSimpleWildcard() {
         return simpleWildcard;
     }

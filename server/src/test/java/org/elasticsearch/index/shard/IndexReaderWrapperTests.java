@@ -26,6 +26,8 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
+import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -33,6 +35,9 @@ import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class IndexReaderWrapperTests extends ESTestCase {
 
@@ -56,7 +61,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         final AtomicBoolean closeCalled = new AtomicBoolean(false);
         final Engine.Searcher wrap =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
             IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-            () -> closeCalled.set(true)), wrapper);
+            () -> closeCalled.set(true)), mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper);
         assertEquals(1, wrap.getIndexReader().getRefCount());
         ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
             if (key == open.getReaderCacheHelper().getKey()) {
@@ -97,7 +102,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         AtomicBoolean closeCalled = new AtomicBoolean(false);
         try (Engine.Searcher wrap =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-                () -> closeCalled.set(true)), wrapper)) {
+                () -> closeCalled.set(true)), mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper)) {
             ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
                 cache.remove(key);
             });
@@ -113,7 +118,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         assertEquals(1, closeCalls.get());
     }
 
-    public void testNoWrap() throws IOException {
+    public void testAlwaysWrapWithFieldUsageTrackingDirectoryReader() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig();
         IndexWriter writer = new IndexWriter(dir, iwc);
@@ -128,9 +133,11 @@ public class IndexReaderWrapperTests extends ESTestCase {
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         try (Engine.Searcher engineSearcher =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-                open::close), wrapper)) {
-            final Engine.Searcher wrap = IndexShard.wrapSearcher(engineSearcher, wrapper);
-            assertSame(wrap, engineSearcher);
+                open::close), mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper)) {
+            final Engine.Searcher wrap = IndexShard.wrapSearcher(engineSearcher,
+                mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper);
+            assertNotSame(wrap, engineSearcher);
+            assertThat(wrap.getDirectoryReader(), instanceOf(FieldUsageTrackingDirectoryReader.class));
         }
         IOUtils.close(writer, dir);
     }

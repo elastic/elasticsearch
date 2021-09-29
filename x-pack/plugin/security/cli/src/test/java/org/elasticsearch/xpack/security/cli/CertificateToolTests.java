@@ -29,10 +29,12 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -46,7 +48,6 @@ import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateInformati
 import org.elasticsearch.xpack.security.cli.CertificateTool.GenerateCertificateCommand;
 import org.elasticsearch.xpack.security.cli.CertificateTool.Name;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -70,6 +71,7 @@ import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.Principal;
+import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAKey;
@@ -86,13 +88,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.ssl.KeyStoreUtil.createKeyManager;
+import static org.elasticsearch.common.ssl.KeyStoreUtil.createTrustManager;
 import static org.elasticsearch.test.FileMatchers.pathExists;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -361,7 +368,7 @@ public class CertificateToolTests extends ESTestCase {
                             GeneralNames.fromExtensions(x509CertHolder.getExtensions(), Extension.subjectAlternativeName);
                     assertSubjAltNames(subjAltNames, certInfo);
                 }
-                assertThat(p12, Matchers.not(pathExists()));
+                assertThat(p12, not(pathExists()));
             }
         }
     }
@@ -380,6 +387,75 @@ public class CertificateToolTests extends ESTestCase {
         final UserException e = expectThrows(UserException.class,
             () -> certificateTool.execute(new MockTerminal(), optionSet));
         assertThat(e.getMessage(), containsString("Generating certificates without providing a CA is no longer supported"));
+    }
+
+    public void testHandleLongPasswords() throws Exception {
+        final Path tempDir = initTempDir();
+
+        final MockTerminal terminal = new MockTerminal();
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
+
+        final Path caFile = tempDir.resolve("ca.p12");
+        final Path pemZipFile = tempDir.resolve("cert.zip").toAbsolutePath();
+
+        final String longPassword = randomAlphaOfLengthBetween(51, 256);
+
+        boolean expectPrompt = randomBoolean();
+        final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile);
+        final OptionSet gen1Options = caCommand.getParser()
+            .parse("-ca-dn", "CN=Test-Ca", (expectPrompt ? "-pass" : "-pass=" + longPassword), "-out", caFile.toString());
+
+        if (expectPrompt) {
+            terminal.addSecretInput(longPassword);
+            terminal.addTextInput("y"); // Yes, really use it
+        }
+        caCommand.execute(terminal, gen1Options, env);
+        assertThat(terminal.getOutput(), containsString("50 characters"));
+        assertThat(terminal.getOutput(), containsString("OpenSSL"));
+        assertThat(terminal.getOutput(), containsString("1.1.0"));
+
+        terminal.reset();
+        final GenerateCertificateCommand genCommand = new PathAwareGenerateCertificateCommand(caFile, pemZipFile);
+        final OptionSet gen2Options = genCommand.getParser().parse(
+            "-ca", "<ca>",
+            "-ca-pass", longPassword,
+            (expectPrompt ? "-pass" : "-pass=" + longPassword),
+            "-out", "<node2>",
+            "-name", "cert",
+            "-pem"
+        );
+
+        if (expectPrompt) {
+            terminal.addSecretInput(longPassword);
+            terminal.addTextInput("n"); // No, don't really use it
+            terminal.addSecretInput(longPassword);
+            terminal.addTextInput("y"); // This time, yes we will use it
+        }
+        genCommand.execute(terminal, gen2Options, env);
+        assertThat(terminal.getOutput(), containsString("50 characters"));
+        assertThat(terminal.getOutput(), containsString("OpenSSL"));
+        assertThat(terminal.getOutput(), containsString("1.1.0"));
+
+        assertThat(pemZipFile, pathExists());
+
+        final KeyStore caKeyStore = KeyStoreUtil.readKeyStore(caFile, "PKCS12", longPassword.toCharArray());
+        Certificate caCert = caKeyStore.getCertificate("ca");
+        assertThat(caCert, notNullValue());
+
+        FileSystem zip = FileSystems.newFileSystem(new URI("jar:" + pemZipFile.toUri()), Collections.emptyMap());
+        Path zipRoot = zip.getPath("/");
+
+        final Path keyPath = zipRoot.resolve("cert/cert.key");
+        final PrivateKey key = PemUtils.readPrivateKey(keyPath, () -> longPassword.toCharArray());
+        assertThat(key, notNullValue());
+
+        final Path certPath = zipRoot.resolve("cert/cert.crt");
+        final List<Certificate> certificates = PemUtils.readCertificates(List.of(certPath));
+        assertThat(certificates, hasSize(1));
+        assertThat(
+            ((X509Certificate) certificates.get(0)).getIssuerX500Principal(),
+            equalTo(((X509Certificate) caCert).getSubjectX500Principal())
+        );
     }
 
     public void testGetCAInfo() throws Exception {
@@ -520,7 +596,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testCreateCaAndMultipleInstances() throws Exception {
         final Path tempDir = initTempDir();
 
-        final Terminal terminal = new MockTerminal();
+        final MockTerminal terminal = new MockTerminal();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
@@ -591,9 +667,9 @@ public class CertificateToolTests extends ESTestCase {
 
         assertThat(node3File, pathExists());
 
-        final KeyStore node1KeyStore = CertParsingUtils.readKeyStore(node1File, "PKCS12", node1Password.toCharArray());
-        final KeyStore node2KeyStore = CertParsingUtils.readKeyStore(node2File, "PKCS12", node2Password.toCharArray());
-        final KeyStore node3KeyStore = CertParsingUtils.readKeyStore(node3File, "PKCS12", node3Password.toCharArray());
+        final KeyStore node1KeyStore = KeyStoreUtil.readKeyStore(node1File, "PKCS12", node1Password.toCharArray());
+        final KeyStore node2KeyStore = KeyStoreUtil.readKeyStore(node2File, "PKCS12", node2Password.toCharArray());
+        final KeyStore node3KeyStore = KeyStoreUtil.readKeyStore(node3File, "PKCS12", node3Password.toCharArray());
 
         checkTrust(node1KeyStore, node1Password.toCharArray(), node1KeyStore, true);
         checkTrust(node1KeyStore, node1Password.toCharArray(), node2KeyStore, true);
@@ -689,18 +765,18 @@ public class CertificateToolTests extends ESTestCase {
         Path zip2Root = zip2FS.getPath("/");
 
         final Path ca2 = zip2Root.resolve("ca/ca.p12");
-        assertThat(ca2, Matchers.not(pathExists()));
+        assertThat(ca2, not(pathExists()));
 
         final Path node2Cert = zip2Root.resolve("node02/node02.crt");
         assertThat(node2Cert, pathExists());
         final Path node2Key = zip2Root.resolve("node02/node02.key");
         assertThat(node2Key, pathExists());
 
-        final KeyStore node1KeyStore = CertParsingUtils.readKeyStore(node1Pkcs12, "PKCS12", node1Password.toCharArray());
+        final KeyStore node1KeyStore = KeyStoreUtil.readKeyStore(node1Pkcs12, "PKCS12", node1Password.toCharArray());
         final KeyStore node1TrustStore = node1KeyStore;
 
         final KeyStore node2KeyStore = CertParsingUtils.getKeyStoreFromPEM(node2Cert, node2Key, new char[0]);
-        final KeyStore node2TrustStore = CertParsingUtils.readKeyStore(caFile, "PKCS12", caPassword.toCharArray());
+        final KeyStore node2TrustStore = KeyStoreUtil.readKeyStore(caFile, "PKCS12", caPassword.toCharArray());
 
         checkTrust(node1KeyStore, node1Password.toCharArray(), node2TrustStore, true);
         checkTrust(node2KeyStore, new char[0], node1TrustStore, true);
@@ -764,9 +840,8 @@ public class CertificateToolTests extends ESTestCase {
      * Checks whether there are keys in {@code keyStore} that are trusted by {@code trustStore}.
      */
     private void checkTrust(KeyStore keyStore, char[] keyPassword, KeyStore trustStore, boolean trust) throws Exception {
-        final X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(keyStore, keyPassword,
-                KeyManagerFactory.getDefaultAlgorithm());
-        final X509ExtendedTrustManager trustManager = CertParsingUtils.trustManager(trustStore, TrustManagerFactory.getDefaultAlgorithm());
+        final X509ExtendedKeyManager keyManager = createKeyManager(keyStore, keyPassword, KeyManagerFactory.getDefaultAlgorithm());
+        final X509ExtendedTrustManager trustManager = createTrustManager(trustStore, TrustManagerFactory.getDefaultAlgorithm());
 
         final X509Certificate[] node1CertificateIssuers = trustManager.getAcceptedIssuers();
         final Principal[] trustedPrincipals = new Principal[node1CertificateIssuers.length];
@@ -881,6 +956,51 @@ public class CertificateToolTests extends ESTestCase {
         return PathUtils.get(path).toAbsolutePath();
     }
 
+    private String generateCA(Path caFile, MockTerminal terminal, Environment env) throws Exception {
+        final int caKeySize = randomIntBetween(4, 8) * 512;
+        final int days = randomIntBetween(7, 1500);
+        final String caPassword = randomFrom("", randomAlphaOfLengthBetween(4, 80));
+
+        final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile);
+        final OptionSet caOptions = caCommand.getParser().parse(
+            "-ca-dn", "CN=My ElasticSearch Cluster",
+            "-pass", caPassword,
+            "-out", caFile.toString(),
+            "-keysize", String.valueOf(caKeySize),
+            "-days", String.valueOf(days)
+        );
+        caCommand.execute(terminal, caOptions, env);
+
+        // Check output for OpenSSL compatibility version
+        if (caPassword.length() > 50) {
+            assertThat(terminal.getOutput(), containsString("OpenSSL"));
+        } else {
+            assertThat(terminal.getOutput(), not(containsString("OpenSSL")));
+        }
+
+        assertThat(caFile, pathExists());
+
+        return caPassword;
+    }
+
+    /**
+     * Converting jimfs Paths into strings and back to paths doesn't work with the security manager.
+     * This class works around that by sticking with the original path objects
+     */
+    private class PathAwareCertificateAuthorityCommand extends CertificateAuthorityCommand {
+        private final Path caFile;
+
+        private PathAwareCertificateAuthorityCommand(Path caFile) {
+            this.caFile = caFile;
+        }
+
+        @Override
+        Path resolveOutputPath(Terminal terminal, OptionSet options, String defaultFilename) {
+            // Needed to work within the security manager
+            return caFile;
+        }
+    }
+
     /**
      * Converting jimfs Paths into strings and back to paths doesn't work with the security manager.
      * This class works around that by sticking with the original path objects
@@ -906,31 +1026,5 @@ public class CertificateToolTests extends ESTestCase {
         Path resolveOutputPath(Terminal terminal, OptionSet options, String defaultFilename) throws IOException {
             return outFile;
         }
-    }
-
-    private String generateCA(Path caFile, Terminal terminal, Environment env) throws Exception {
-        final int caKeySize = randomIntBetween(4, 8) * 512;
-        final int days = randomIntBetween(7, 1500);
-        final String caPassword = randomFrom("", randomAlphaOfLengthBetween(4, 16));
-
-        final CertificateAuthorityCommand caCommand = new CertificateAuthorityCommand() {
-            @Override
-            Path resolveOutputPath(Terminal terminal, OptionSet options, String defaultFilename) {
-                // Needed to work within the security manager
-                return caFile;
-            }
-        };
-        final OptionSet caOptions = caCommand.getParser().parse(
-            "-ca-dn", "CN=My ElasticSearch Cluster",
-            "-pass", caPassword,
-            "-out", caFile.toString(),
-            "-keysize", String.valueOf(caKeySize),
-            "-days", String.valueOf(days)
-        );
-        caCommand.execute(terminal, caOptions, env);
-
-        assertThat(caFile, pathExists());
-
-        return caPassword;
     }
 }

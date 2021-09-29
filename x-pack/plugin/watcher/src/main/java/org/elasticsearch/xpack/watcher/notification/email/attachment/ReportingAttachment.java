@@ -92,7 +92,7 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
         }
 
         if (interval != null) {
-            builder.field(INTERVAL.getPreferredName(), interval);
+            builder.field(INTERVAL.getPreferredName(), interval.getStringRep());
         }
 
         if (inline) {

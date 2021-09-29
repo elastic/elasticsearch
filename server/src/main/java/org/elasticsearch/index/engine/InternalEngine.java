@@ -30,6 +30,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -585,8 +586,7 @@ public class InternalEngine extends Engine {
             try {
                 final ElasticsearchDirectoryReader directoryReader =
                     ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
-                internalReaderManager = new ElasticsearchReaderManager(directoryReader,
-                       new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService()));
+                internalReaderManager = new ElasticsearchReaderManager(directoryReader);
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalRefreshListener);
                 success = true;
@@ -607,26 +607,31 @@ public class InternalEngine extends Engine {
         }
     }
 
+    private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
+        @Override
+        public void onUse(Query query) {
+
+        }
+
+        @Override
+        public boolean shouldCache(Query query) {
+            return false;
+        }
+    };
+
+    public final AtomicLong translogGetCount = new AtomicLong(); // number of times realtime get was done on translog
+    public final AtomicLong translogInMemorySegmentsCount = new AtomicLong(); // number of times in-memory index needed to be created
+
     private GetResult getFromTranslog(Get get, Translog.Index index, MappingLookup mappingLookup, DocumentParser documentParser,
                                       Function<Searcher, Searcher> searcherWrapper) throws IOException {
         assert get.isReadFromTranslog();
-        final SingleDocDirectoryReader inMemoryReader = new SingleDocDirectoryReader(shardId, index, mappingLookup, documentParser,
-            config().getAnalyzer());
+        translogGetCount.incrementAndGet();
+        final TranslogDirectoryReader inMemoryReader = new TranslogDirectoryReader(shardId, index, mappingLookup, documentParser,
+            config().getAnalyzer(), translogInMemorySegmentsCount::incrementAndGet);
         final Engine.Searcher searcher = new Engine.Searcher("realtime_get", ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
-            config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), inMemoryReader);
+            config().getSimilarity(), null /*query cache disabled*/, NEVER_CACHE_POLICY, inMemoryReader);
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
-        if (wrappedSearcher == searcher) {
-            searcher.close();
-            assert inMemoryReader.assertMemorySegmentStatus(false);
-            final TranslogLeafReader translogLeafReader = new TranslogLeafReader(index);
-            return new GetResult(new Engine.Searcher("realtime_get", translogLeafReader,
-                IndexSearcher.getDefaultSimilarity(), null, IndexSearcher.getDefaultQueryCachingPolicy(), translogLeafReader),
-                new VersionsAndSeqNoResolver.DocIdAndVersion(
-                    0, index.version(), index.seqNo(), index.primaryTerm(), translogLeafReader, 0), true);
-        } else {
-            assert inMemoryReader.assertMemorySegmentStatus(true);
-            return getFromSearcher(get, wrappedSearcher);
-        }
+        return getFromSearcher(get, wrappedSearcher, true);
     }
 
     @Override
@@ -675,10 +680,10 @@ public class InternalEngine extends Engine {
                     assert versionValue.seqNo >= 0 : versionValue;
                     refreshIfNeeded("realtime_get", versionValue.seqNo);
                 }
-                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper));
+                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
-                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper));
+                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
             }
         }
     }
@@ -827,7 +832,11 @@ public class InternalEngine extends Engine {
         return doGenerateSeqNoForOperation(operation);
     }
 
-    protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
+    protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
+        advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
+    }
+
+    protected void advanceMaxSeqNoOfDeletesOnPrimary(long seqNo) {
         advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
     }
 
@@ -895,7 +904,7 @@ public class InternalEngine extends Engine {
 
                         final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
                         if (toAppend == false) {
-                            advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(index.seqNo());
+                            advanceMaxSeqNoOfUpdatesOnPrimary(index.seqNo());
                         }
                     } else {
                         markSeqNoAsSeen(index.seqNo());
@@ -1271,7 +1280,7 @@ public class InternalEngine extends Engine {
                         delete.primaryTerm(), delete.version(), delete.versionType(), delete.origin(), delete.startTime(),
                         delete.getIfSeqNo(), delete.getIfPrimaryTerm());
 
-                    advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(delete.seqNo());
+                    advanceMaxSeqNoOfDeletesOnPrimary(delete.seqNo());
                 } else {
                     markSeqNoAsSeen(delete.seqNo());
                 }
@@ -1913,6 +1922,14 @@ public class InternalEngine extends Engine {
                 }
                 if (flush) {
                     flush(false, true);
+
+                    // If any merges happened then we need to release the unmerged input segments so they can be deleted. A periodic refresh
+                    // will do this eventually unless the user has disabled refreshes or isn't searching this shard frequently, in which
+                    // case we should do something here to ensure a timely refresh occurs. However there's no real need to defer it nor to
+                    // have any should-we-actually-refresh-here logic: we're already doing an expensive force-merge operation at the user's
+                    // request and therefore don't expect any further writes so we may as well do the final refresh immediately and get it
+                    // out of the way.
+                    refresh("force-merge");
                 }
             } finally {
                 store.decRef();
@@ -2175,6 +2192,11 @@ public class InternalEngine extends Engine {
         iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
+        }
+        // Provide a custom leaf sorter, so that index readers opened from this writer
+        // will have its leaves sorted according the given leaf sorter.
+        if (engineConfig.getLeafSorter() != null) {
+            iwc.setLeafSorter(engineConfig.getLeafSorter());
         }
         return iwc;
     }
@@ -2507,14 +2529,31 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
+        ensureOpen();
+        refreshIfNeeded(source, toSeqNo);
+        try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL)) {
+            return LuceneChangesSnapshot.countOperations(searcher, fromSeqNo, toSeqNo);
+        } catch (Exception e) {
+            try {
+                maybeFailEngine("count changes", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        }
+    }
+
+    @Override
     public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo,
-                                                boolean requiredFullRange, boolean singleConsumer) throws IOException {
+                                                boolean requiredFullRange, boolean singleConsumer,
+                                                boolean accessStats) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer);
+                searcher, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
             searcher = null;
             return snapshot;
         } catch (Exception e) {

@@ -26,8 +26,10 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,6 +67,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
 
     private void assertEqualInstances(GetSnapshotsResponse expectedInstance, GetSnapshotsResponse newInstance) {
         assertEquals(expectedInstance.getSnapshots(), newInstance.getSnapshots());
+        assertEquals(expectedInstance.next(), newInstance.next());
         assertEquals(expectedInstance.getFailures().keySet(), newInstance.getFailures().keySet());
         for (Map.Entry<String, ElasticsearchException> expectedEntry : expectedInstance.getFailures().entrySet()) {
             ElasticsearchException expectedException = expectedEntry.getValue();
@@ -119,7 +122,19 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             failures.put(repository, new ElasticsearchException(randomAlphaOfLength(10)));
         }
 
-        return new GetSnapshotsResponse(responses, failures);
+        return new GetSnapshotsResponse(
+            responses,
+            failures,
+            randomBoolean()
+                ? Base64.getUrlEncoder()
+                    .encodeToString(
+                        (randomAlphaOfLengthBetween(1, 5) + "," + randomAlphaOfLengthBetween(1, 5) + "," + randomAlphaOfLengthBetween(1, 5))
+                            .getBytes(StandardCharsets.UTF_8)
+                    )
+                : null,
+            randomIntBetween(responses.size(), responses.size() + 100),
+            randomIntBetween(0, 100)
+        );
     }
 
     public void testSerialization() throws IOException {

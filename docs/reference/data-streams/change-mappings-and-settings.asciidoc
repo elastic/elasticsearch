@@ -320,6 +320,10 @@ PUT /my-data-stream/_settings
 ----
 --
 
+IMPORTANT: To change the `index.lifecycle.name` setting, first use the
+<<ilm-remove-policy,remove policy API>> to remove the existing {ilm-init}
+policy. See <<switch-lifecycle-policies>>.
+
 [discrete]
 [[change-static-index-setting-for-a-data-stream]]
 === Change a static index setting for a data stream

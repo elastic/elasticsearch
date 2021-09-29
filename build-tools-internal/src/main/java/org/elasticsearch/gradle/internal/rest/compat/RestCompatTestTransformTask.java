@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
+import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -24,12 +25,14 @@ import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer
 import org.elasticsearch.gradle.internal.test.rest.transform.do_.ReplaceKeyInDo;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceKeyInLength;
+import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceValueInLength;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceValueInMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsFalse;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsTrue;
+import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceTextual;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectAllowedWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.RemoveWarnings;
@@ -53,6 +56,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -94,7 +98,18 @@ public class RestCompatTestTransformTask extends DefaultTask {
         // always inject compat headers
         headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
         headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
-        transformations.add(new InjectHeaders(headers));
+        transformations.add(new InjectHeaders(headers, Set.of(RestCompatTestTransformTask::doesNotHaveCatOperation)));
+    }
+
+    private static boolean doesNotHaveCatOperation(ObjectNode doNodeValue) {
+        final Iterator<String> fieldNamesIterator = doNodeValue.fieldNames();
+        while (fieldNamesIterator.hasNext()) {
+            final String fieldName = fieldNamesIterator.next();
+            if (fieldName.startsWith("cat.")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -124,6 +139,17 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * @see ReplaceKeyInDo
      * @param oldKeyName   the key name directly under do to replace.
      * @param newKeyName   the new key name directly under do.
+     * @param testName the testName to apply replacement
+     */
+    public void replaceKeyInDo(String oldKeyName, String newKeyName, String testName) {
+        transformations.add(new ReplaceKeyInDo(oldKeyName, newKeyName, testName));
+    }
+
+    /**
+     * A transformation to replace the key in a do section for given REST test.
+     * @see ReplaceKeyInDo
+     * @param oldKeyName   the key name directly under do to replace.
+     * @param newKeyName   the new key name directly under do.
      */
     public void replaceKeyInDo(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceKeyInDo(oldKeyName, newKeyName, null));
@@ -137,6 +163,28 @@ public class RestCompatTestTransformTask extends DefaultTask {
      */
     public void replaceKeyInLength(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceKeyInLength(oldKeyName, newKeyName, null));
+    }
+
+    /**
+     * Replaces all the values of a length assertion for all project REST tests.
+     * For example "length":{"x": 1} to "length":{"x": 99}
+     *
+     * @param subKey the key name directly under match to replace. For example "x"
+     * @param value  the value used in the replacement. For example 99
+     */
+    public void replaceValueInLength(String subKey, int value) {
+        transformations.add(new ReplaceValueInLength(subKey, MAPPER.convertValue(value, NumericNode.class)));
+    }
+
+    /**
+     * Replaces all the values of a length assertion for the given REST test.
+     * For example "length":{"x": 1} to "length":{"x": 99}
+     * @param subKey   the key name directly under match to replace. For example "x"
+     * @param value    the value used in the replacement. For example 99
+     * @param testName the testName to apply replacement
+     */
+    public void replaceValueInLength(String subKey, int value, String testName) {
+        transformations.add(new ReplaceValueInLength(subKey, MAPPER.convertValue(value, NumericNode.class), testName));
     }
 
     /**
@@ -182,6 +230,32 @@ public class RestCompatTestTransformTask extends DefaultTask {
     public void replaceIsFalse(String oldValue, Object newValue, String testName) {
         transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
     }
+
+    /**
+     * Replaces all the values of a given key/value pairs for all project REST tests.
+     * For example "foo": "bar" can replaced as "foo": "baz"
+     *
+     * @param key the key to find
+     * @param oldValue the value of that key to find
+     * @param newValue  the value used in the replacement
+     */
+    public void replaceValueTextByKeyValue(String key, String oldValue, Object newValue) {
+        transformations.add(new ReplaceTextual(key, oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+    }
+
+    /**
+     * Replaces all the values of a given key/value pairs for given REST test.
+     * For example "foo": "bar" can replaced as "foo": "baz"
+     *
+     * @param key the key to find
+     * @param oldValue the value of that key to find
+     * @param newValue  the value used in the replacement
+     * @param testName the testName to apply replacement
+     */
+    public void replaceValueTextByKeyValue(String key, String oldValue, Object newValue, String testName) {
+        transformations.add(new ReplaceTextual(key, oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
+    }
+
 
     /**
      * Removes the key/value of a match assertion all project REST tests for the matching subkey.
@@ -244,6 +318,15 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
+     * Removes one or more warnings
+     * @param warnings the warning(s) to remove
+     * @param testName the test name to remove the warning
+     */
+    public void removeWarningForTest(String warnings, String testName) {
+        transformations.add(new RemoveWarnings(Set.copyOf(Arrays.asList(warnings)), testName));
+    }
+
+    /**
      * Adds one or more allowed warnings
      * @param allowedWarnings the warning(s) to add
      */
@@ -257,6 +340,15 @@ public class RestCompatTestTransformTask extends DefaultTask {
      */
     public void addAllowedWarningRegex(String... allowedWarningsRegex) {
         transformations.add(new InjectAllowedWarnings(true, Arrays.asList(allowedWarningsRegex)));
+    }
+
+    /**
+     * Adds one or more allowed regular expression warnings
+     * @param allowedWarningsRegex the regex warning(s) to add
+     * @testName the test name to add a allowedWarningRegex
+     */
+    public void addAllowedWarningRegexForTest(String allowedWarningsRegex, String testName) {
+        transformations.add(new InjectAllowedWarnings(true, Arrays.asList(allowedWarningsRegex), testName));
     }
 
     @OutputDirectory

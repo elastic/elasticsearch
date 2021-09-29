@@ -11,7 +11,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -29,64 +29,70 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
    *  <li>run tests with systemProperty 'tests.rest.suite', 'upgraded_cluster'
    * </ul>
    */
-  String baseName = "v${bwcVersion}"
 
-  testClusters {
-    "${baseName}" {
-      versions = [bwcVersion.toString(), project.version]
-      numberOfNodes = 3
+  String bwcVersionString = bwcVersion.toString()
+  String baseName = "v" + bwcVersionString
 
-      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      setting 'xpack.security.enabled', 'false'
-    }
+  def baseCluster = testClusters.register(baseName) {
+    versions = [bwcVersionString, project.version]
+    numberOfNodes = 3
+
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    setting 'xpack.security.enabled', 'false'
   }
+
+  String oldVersion = bwcVersion.toString()
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "processTestResources"
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     mustRunAfter("precommit")
     doFirst {
       delete("${buildDir}/cluster/shared/repo/${baseName}")
     }
     systemProperty 'tests.rest.suite', 'old_cluster'
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.upgrade_from_version', oldVersion
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
   }
 
   tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+      baseCluster.get().nextNodeToNextVersion()
     }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.first_round', 'true'
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
   }
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgradedTest"
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+      baseCluster.get().nextNodeToNextVersion()
     }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
+    systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.first_round', 'false'
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
   }
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdsUpgradedTest"
     doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+      baseCluster.get().nextNodeToNextVersion()
     }
-    useCluster testClusters."${baseName}"
+    useCluster testClusters.named(baseName)
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    systemProperty 'tests.upgrade_from_version', oldVersion
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

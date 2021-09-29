@@ -25,8 +25,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
@@ -135,14 +133,6 @@ public abstract class Engine implements Closeable {
         this.logger = Loggers.getLogger(Engine.class,
             engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
-    }
-
-    /** Returns 0 in the case where accountable is null, otherwise returns {@code ramBytesUsed()} */
-    protected static long guardedRamBytesUsed(Accountable a) {
-        if (a == null) {
-            return 0;
-        }
-        return a.ramBytesUsed();
     }
 
     public final EngineConfig config() {
@@ -548,10 +538,14 @@ public abstract class Engine implements Closeable {
 
     }
 
-    protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher) throws EngineException {
+    protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher, boolean uncachedLookup) throws EngineException {
         final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+            if (uncachedLookup) {
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), true);
+            } else {
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+            }
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             //TODO: A better exception goes here
@@ -576,7 +570,7 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             // don't release the searcher on this path, it is the
             // responsibility of the caller to call GetResult.release
-            return new GetResult(searcher, docIdAndVersion, false);
+            return new GetResult(searcher, docIdAndVersion);
         } else {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
@@ -691,12 +685,24 @@ public abstract class Engine implements Closeable {
      */
     public abstract Closeable acquireHistoryRetentionLock();
 
+
+    /**
+     * Counts the number of operations in the range of the given sequence numbers.
+     *
+     * @param source    the source of the request
+     * @param fromSeqNo the start sequence number (inclusive)
+     * @param toSeqNo   the end sequence number (inclusive)
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean)
+     */
+    public abstract int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException;
+
     /**
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
      * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
      */
     public abstract Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo,
-                                                         boolean requiredFullRange, boolean singleConsumer) throws IOException;
+                                                         boolean requiredFullRange, boolean singleConsumer,
+                                                         boolean accessStats) throws IOException;
 
     /**
      * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
@@ -779,13 +785,7 @@ public abstract class Engine implements Closeable {
     }
 
     protected void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
-        stats.add(1, segmentReader.ramBytesUsed());
-        stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
-        stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
-        stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
-        stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
-        stats.addPointsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPointsReader()));
-        stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
+        stats.add(1);
         if (includeSegmentFileSizes) {
             stats.addFiles(getSegmentFileSizes(segmentReader));
         }
@@ -893,11 +893,7 @@ public abstract class Engine implements Closeable {
         } catch (IOException e) {
             logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
         }
-        segment.memoryInBytes = segmentReader.ramBytesUsed();
         segment.segmentSort = info.info.getIndexSort();
-        if (verbose) {
-            segment.ramTree = Accountables.namedAccountable("root", segmentReader);
-        }
         segment.attributes = info.info.getAttributes();
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);
@@ -1561,21 +1557,18 @@ public abstract class Engine implements Closeable {
         private final long version;
         private final DocIdAndVersion docIdAndVersion;
         private final Engine.Searcher searcher;
-        private final boolean fromTranslog;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null, false);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
 
-        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher, boolean fromTranslog) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
-            this.fromTranslog = fromTranslog;
-            assert fromTranslog == false || searcher.getIndexReader() instanceof TranslogLeafReader;
         }
 
-        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
-            this(true, docIdAndVersion.version, docIdAndVersion, searcher, fromTranslog);
+        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion) {
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
         }
 
         public boolean exists() {
@@ -1584,14 +1577,6 @@ public abstract class Engine implements Closeable {
 
         public long version() {
             return this.version;
-        }
-
-        /**
-         * Returns {@code true} iff the get was performed from a translog operation. Notes that this returns {@code false}
-         * if the get was performed on an in-memory Lucene segment created from the corresponding translog operation.
-         */
-        public boolean isFromTranslog() {
-            return fromTranslog;
         }
 
         public Engine.Searcher searcher() {

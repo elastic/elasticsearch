@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -38,7 +39,6 @@ import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOO
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -63,8 +63,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
 
-        final DeterministicTaskQueue deterministicTaskQueue
-            = new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final AtomicLong warningCount = new AtomicLong();
         final AtomicLong logLastFailedJoinAttemptWarningCount = new AtomicLong();
@@ -288,7 +287,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 0L, electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [otherNode], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
@@ -296,7 +295,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, singletonList(otherAddress), emptyList(), 0L, electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [otherNode], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [" + otherAddress + "] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
@@ -304,7 +303,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(otherNode), 0L, electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [otherNode], " +
-                "have discovered [" + noAttr(otherNode) + "] which is a quorum; " +
+                "have discovered possible quorum [" + noAttr(otherNode) + "]; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
@@ -312,49 +311,49 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(yetAnotherNode), 0L, electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [otherNode], " +
-                "have discovered [" + noAttr(yetAnotherNode) + "] which is not a quorum; " +
+                "have only discovered non-quorum [" + noAttr(yetAnotherNode) + "]; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2"), emptyList(), emptyList(), 0L, electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires two nodes with ids [n1, n2], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", "n3"), emptyList(), emptyList(), 0L,
                 electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires at least 2 nodes with ids from [n1, n2, n3], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", BOOTSTRAP_PLACEHOLDER_PREFIX + "n3"),
                 emptyList(), emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires 2 nodes with ids [n1, n2], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", "n3", "n4"), emptyList(), emptyList(), 0L,
                 electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", "n3", "n4", "n5"), emptyList(), emptyList(), 0L,
                 electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4, n5], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", "n3", "n4", BOOTSTRAP_PLACEHOLDER_PREFIX + "n5"),
                 emptyList(), emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
@@ -362,28 +361,28 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             BOOTSTRAP_PLACEHOLDER_PREFIX + "n4", BOOTSTRAP_PLACEHOLDER_PREFIX + "n5"), emptyList(), emptyList(), 0L, electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires 3 nodes with ids [n1, n2, n3], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, new String[]{"n1"}, new String[]{"n1"}), emptyList(),
                 emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [n1], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, new String[]{"n1"}, new String[]{"n2"}), emptyList(),
                 emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [n1] and a node with id [n2], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, new String[]{"n1"}, new String[]{"n2", "n3"}), emptyList(),
                 emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [n1] and two nodes with ids [n2, n3], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
@@ -391,7 +390,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(), emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [n1] and " +
                 "at least 2 nodes with ids from [n2, n3, n4], " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
@@ -415,12 +414,12 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             // nodes from last-known cluster state could be in either order
             is(oneOf(
                 "master not discovered or elected yet, an election requires two nodes with ids [n1, n2], " +
-                    "have discovered [] which is not a quorum; " +
+                    "have only discovered non-quorum []; " +
                     "discovery will continue using [] from hosts providers and [" + noAttr(localNode) + ", " + noAttr(otherMasterNode) +
                     "] from last-known cluster state; node term 0, last-accepted version 0 in term 0",
 
                 "master not discovered or elected yet, an election requires two nodes with ids [n1, n2], " +
-                    "have discovered [] which is not a quorum; " +
+                    "have only discovered non-quorum []; " +
                     "discovery will continue using [] from hosts providers and [" + noAttr(otherMasterNode) + ", " + noAttr(localNode) +
                     "] from last-known cluster state; node term 0, last-accepted version 0 in term 0")));
 
@@ -428,7 +427,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires one or more nodes that have already participated as " +
                 "master-eligible nodes in the cluster but this node was not master-eligible the last time it joined the cluster, " +
-                "have discovered [] which is not a quorum; " +
+                "have only discovered non-quorum []; " +
                 "discovery will continue using [] from hosts providers and [" + noAttr(localNode) +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 

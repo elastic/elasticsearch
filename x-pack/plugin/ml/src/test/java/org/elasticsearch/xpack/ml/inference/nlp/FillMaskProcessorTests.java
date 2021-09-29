@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -26,27 +29,29 @@ public class FillMaskProcessorTests extends ESTestCase {
     public void testProcessResults() {
         // only the scores of the MASK index array
         // are used the rest is filler
-        double[][] scores = {
+        double[][][] scores = {{
             { 0, 0, 0, 0, 0, 0, 0}, // The
             { 0, 0, 0, 0, 0, 0, 0}, // capital
             { 0, 0, 0, 0, 0, 0, 0}, // of
             { 0.01, 0.01, 0.3, 0.1, 0.01, 0.2, 1.2}, // MASK
             { 0, 0, 0, 0, 0, 0, 0}, // is
             { 0, 0, 0, 0, 0, 0, 0} // paris
-        };
+        }};
 
         String input = "The capital of " + BertTokenizer.MASK_TOKEN + " is Paris";
 
         List<String> vocab = Arrays.asList("The", "capital", "of", BertTokenizer.MASK_TOKEN, "is", "Paris", "France");
-        List<String> tokens = Arrays.asList(input.split(" "));
+        String[] tokens = input.split(" ");
         int[] tokenMap = new int[] {0, 1, 2, 3, 4, 5};
         int[] tokenIds = new int[] {0, 1, 2, 3, 4, 5};
 
-        BertTokenizer.TokenizationResult tokenization = new BertTokenizer.TokenizationResult(input, vocab, tokens,
-            tokenIds, tokenMap);
+        TokenizationResult tokenization = new TokenizationResult(vocab);
+        tokenization.addTokenization(input, tokens, tokenIds, tokenMap);
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class));
-        FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, new PyTorchResult("1", scores, null));
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null);
+
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
+        FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 0L, null));
         assertThat(result.getPredictions(), hasSize(5));
         FillMaskResults.Prediction prediction = result.getPredictions().get(0);
         assertEquals("France", prediction.getToken());
@@ -62,20 +67,23 @@ public class FillMaskProcessorTests extends ESTestCase {
     }
 
     public void testProcessResults_GivenMissingTokens() {
-        BertTokenizer.TokenizationResult tokenization =
-            new BertTokenizer.TokenizationResult("", Collections.emptyList(), Collections.emptyList(),
-            new int[] {}, new int[] {});
+        TokenizationResult tokenization = new TokenizationResult(Collections.emptyList());
+        tokenization.addTokenization("", new String[]{}, new int[] {}, new int[] {});
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class));
-        PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][]{{}}, null);
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null);
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
+        PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][][]{{{}}}, 0L, null);
         FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, pyTorchResult);
+
         assertThat(result.getPredictions(), empty());
     }
 
     public void testValidate_GivenMissingMaskToken() {
-        String input = "The capital of France is Paris";
+        List<String> input = List.of("The capital of France is Paris");
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class));
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null);
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
+
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("no [MASK] token could be found"));
@@ -83,9 +91,11 @@ public class FillMaskProcessorTests extends ESTestCase {
 
 
     public void testProcessResults_GivenMultipleMaskTokens() {
-        String input = "The capital of [MASK] is [MASK]";
+        List<String> input = List.of("The capital of [MASK] is [MASK]");
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class));
+        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null);
+        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
+
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("only one [MASK] token should exist in the input"));

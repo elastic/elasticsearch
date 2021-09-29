@@ -147,9 +147,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         BulkItemResponse bulkItemResponse;
         if (exception != null) {
             Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getId(), exception, status);
-            bulkItemResponse = new BulkItemResponse(id, opType, failure);
+            bulkItemResponse = BulkItemResponse.failure(id, opType, failure);
         } else {
-            bulkItemResponse = new BulkItemResponse(id, opType, builder.build());
+            bulkItemResponse = BulkItemResponse.success(id, opType, builder.build());
         }
         return bulkItemResponse;
     }
@@ -319,7 +319,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(INDEX_FIELD, index);
             if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+                builder.field("type", MapperService.SINGLE_MAPPING_NAME);
             }
             if (id != null) {
                 builder.field(ID_FIELD, id);
@@ -341,66 +341,48 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         }
     }
 
-    private int id;
+    private final int id;
 
-    private OpType opType;
+    private final OpType opType;
 
-    private DocWriteResponse response;
+    private final DocWriteResponse response;
 
-    private Failure failure;
-
-    BulkItemResponse() {}
+    private final Failure failure;
 
     BulkItemResponse(ShardId shardId, StreamInput in) throws IOException {
         id = in.readVInt();
         opType = OpType.fromId(in.readByte());
-
-        byte type = in.readByte();
-        if (type == 0) {
-            response = new IndexResponse(shardId, in);
-        } else if (type == 1) {
-            response = new DeleteResponse(shardId, in);
-        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
-            response = new UpdateResponse(shardId, in);
-        } else if (type != 2) {
-            throw new IllegalArgumentException("Unexpected type [" + type + "]");
-        }
-
-        if (in.readBoolean()) {
-            failure = new Failure(in);
-        }
+        response = readResponse(shardId, in);
+        failure = in.readBoolean() ? new Failure(in) : null;
+        assertConsistent();
     }
 
     BulkItemResponse(StreamInput in) throws IOException {
         id = in.readVInt();
         opType = OpType.fromId(in.readByte());
-
-        byte type = in.readByte();
-        if (type == 0) {
-            response = new IndexResponse(in);
-        } else if (type == 1) {
-            response = new DeleteResponse(in);
-        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
-            response = new UpdateResponse(in);
-        } else if (type != 2) {
-            throw new IllegalArgumentException("Unexpected type [" + type + "]");
-        }
-
-        if (in.readBoolean()) {
-            failure = new Failure(in);
-        }
+        response = readResponse(in);
+        failure = in.readBoolean() ? new Failure(in) : null;
+        assertConsistent();
     }
 
-    public BulkItemResponse(int id, OpType opType, DocWriteResponse response) {
+    private BulkItemResponse(int id, OpType opType, DocWriteResponse response, Failure failure) {
         this.id = id;
         this.response = response;
         this.opType = opType;
+        this.failure = failure;
+        assertConsistent();
     }
 
-    public BulkItemResponse(int id, OpType opType, Failure failure) {
-        this.id = id;
-        this.opType = opType;
-        this.failure = failure;
+    private void assertConsistent() {
+        assert (response == null) ^ (failure == null) : "only one of response or failure may be set";
+    }
+
+    public static BulkItemResponse success(int id, OpType opType, DocWriteResponse response) {
+        return new BulkItemResponse(id, opType, response, null);
+    }
+
+    public static BulkItemResponse failure(int id, OpType opType, Failure failure) {
+        return new BulkItemResponse(id, opType, null, failure);
     }
 
     /**
@@ -451,6 +433,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
      * The actual response ({@link IndexResponse} or {@link DeleteResponse}). {@code null} in
      * case of failure.
      */
+    @SuppressWarnings("unchecked")
     public <T extends DocWriteResponse> T getResponse() {
         return (T) response;
     }
@@ -525,6 +508,38 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             out.writeByte((byte) 3); // make 3 instead of 2, because 2 is already in use for 'no responses'
         } else {
             throw new IllegalStateException("Unexpected response type found [" + response.getClass() + "]");
+        }
+    }
+
+    private static DocWriteResponse readResponse(ShardId shardId, StreamInput in) throws IOException {
+        int type = in.readByte();
+        switch (type) {
+            case 0:
+                return new IndexResponse(shardId, in);
+            case 1:
+                return new DeleteResponse(shardId, in);
+            case 2:
+                return null;
+            case 3:
+                return new UpdateResponse(shardId, in);
+            default:
+                throw new IllegalArgumentException("Unexpected type [" + type + "]");
+        }
+    }
+
+    private static DocWriteResponse readResponse(StreamInput in) throws IOException {
+        int type = in.readByte();
+        switch (type) {
+            case 0:
+                return new IndexResponse(in);
+            case 1:
+                return new DeleteResponse(in);
+            case 2:
+                return null;
+            case 3:
+                return new UpdateResponse(in);
+            default:
+                throw new IllegalArgumentException("Unexpected type [" + type + "]");
         }
     }
 }

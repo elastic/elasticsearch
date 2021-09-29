@@ -28,6 +28,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
@@ -74,12 +78,14 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -515,7 +521,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.processData(jobTask, analysisRegistry, createInputStream(""), randomFrom(XContentType.values()), mock(DataLoadParams.class),
                 (dataCounts1, e) -> {
                 });
-        verify(manager).setJobState(any(), eq(JobState.OPENED));
+        verify(manager).setJobState(any(), eq(JobState.OPENED), any(), any());
         // job is created
         assertEquals(1, manager.numberOfOpenJobs());
         expectThrows(ElasticsearchException.class, () -> manager.closeJob(jobTask, null));
@@ -579,12 +585,19 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     public void testKillingAMissingJobFinishesTheTask() {
         AutodetectProcessManager manager = createSpyManager();
-        JobTask jobTask = mock(JobTask.class);
-        when(jobTask.getJobId()).thenReturn("foo");
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        AtomicBoolean markCalled = new AtomicBoolean();
+        JobTask jobTask = new JobTask("foo", 0, "type", "action", TaskId.EMPTY_TASK_ID, Map.of(), licenseState) {
+            @Override
+            protected void doMarkAsCompleted() {
+                markCalled.set(true);
+            }
+        };
+        jobTask.init(mock(PersistentTasksService.class), mock(TaskManager.class), "taskid", 0);
 
         manager.killProcess(jobTask, false, null);
 
-        verify(jobTask).markAsCompleted();
+        assertThat(markCalled.get(), is(true));
     }
 
     public void testProcessData_GivenStateNotOpened() {

@@ -7,8 +7,12 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PointValues;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,17 +29,38 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
+    // Datastreams' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
+    public static Comparator<LeafReader> DATASTREAM_LEAF_READERS_SORTER =
+        Comparator.comparingLong(
+            (LeafReader r) -> {
+                try {
+                    PointValues points = r.getPointValues(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+                    if (points != null) {
+                        byte[] sortValue = points.getMaxPackedValue();
+                        return LongPoint.decodeDimension(sortValue, 0);
+                    } else if (r.numDocs() == 0) {
+                        // points can be null if the segment contains only deleted documents
+                        return Long.MIN_VALUE;
+                    }
+                } catch (IOException e) {
+                }
+                throw new IllegalStateException("Can't access [" +
+                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the data stream!");
+            })
+        .reversed();
 
     private final LongSupplier timeProvider;
     private final String name;
@@ -155,8 +180,20 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      *
      * @param index the backing index to remove
      * @return new {@code DataStream} instance with the remaining backing indices
+     * @throws IllegalArgumentException if {@code index} is not a backing index or is the current write index of the data stream
      */
     public DataStream removeBackingIndex(Index index) {
+        int backingIndexPosition = indices.indexOf(index);
+
+        if (backingIndexPosition == -1) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]",
+                index.getName(), name));
+        }
+        if (generation == (backingIndexPosition + 1)) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "cannot remove backing index [%s] of data stream [%s] because " +
+                "it is the write index", index.getName(), name));
+        }
+
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
@@ -177,7 +214,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         List<Index> backingIndices = new ArrayList<>(indices);
         int backingIndexPosition = backingIndices.indexOf(existingBackingIndex);
         if (backingIndexPosition == -1) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "index [%s] is not part of data stream [%s] ",
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]",
                 existingBackingIndex.getName(), name));
         }
         if (generation == (backingIndexPosition + 1)) {
@@ -186,6 +223,53 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
         return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, replicated, system);
+    }
+
+    /**
+     * Adds the specified index as a backing index and returns a new {@code DataStream} instance with the new combination
+     * of backing indices.
+     *
+     * @param index index to add to the data stream
+     * @return new {@code DataStream} instance with the added backing index
+     * @throws IllegalArgumentException if {@code index} is ineligible to be a backing index for the data stream
+     */
+    public DataStream addBackingIndex(Metadata clusterMetadata, Index index) {
+        // validate that index is not part of another data stream
+        final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
+        if (parentDataStream != null) {
+            if (parentDataStream.getDataStream().equals(this)) {
+                return this;
+            } else {
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT,
+                        "cannot add index [%s] to data stream [%s] because it is already a backing index on data stream [%s]",
+                        index.getName(),
+                        getName(),
+                        parentDataStream.getName()
+                    )
+                );
+            }
+        }
+
+        // ensure that no aliases reference index
+        IndexMetadata im = clusterMetadata.getIndicesLookup().get(index.getName()).getWriteIndex();
+        if (im.getAliases().size() > 0) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT,
+                    "cannot add index [%s] to data stream [%s] until its alias(es) [%s] are removed",
+                    index.getName(),
+                    getName(),
+                    Strings.collectionToCommaDelimitedString(
+                        im.getAliases().stream().map(Map.Entry::getKey).sorted().collect(Collectors.toList())
+                    )
+                )
+            );
+        }
+
+        List<Index> backingIndices = new ArrayList<>(indices);
+        backingIndices.add(0, index);
+        assert backingIndices.size() == indices.size() + 1;
+        return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated, system);
     }
 
     public DataStream promoteDataStream() {

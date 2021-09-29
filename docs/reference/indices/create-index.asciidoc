@@ -77,7 +77,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 .Properties of `aliases` objects
 =======
 `<alias>`::
-(Required, object) The key is the alias name. Supports
+(Required, object) The key is the alias name. Index alias names support
 <<date-math-index-names,date math>>.
 +
 The object body contains options for the alias. Supports an empty object.
@@ -186,7 +186,7 @@ PUT /test
 [[create-index-aliases]]
 ===== Aliases
 
-The create index API allows also to provide a set of <<alias,aliases>>:
+The create index API allows also to provide a set of <<aliases,aliases>>:
 
 [source,console]
 --------------------------------------------------

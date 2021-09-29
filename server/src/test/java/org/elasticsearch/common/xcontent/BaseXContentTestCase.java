@@ -80,7 +80,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     protected abstract XContentType xcontentType();
 
-    private XContentBuilder builder() throws IOException {
+    protected XContentBuilder builder() throws IOException {
         return XContentBuilder.builder(xcontentType().xContent());
     }
 
@@ -1146,6 +1146,18 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         try (XContentParser xParser = createParser(builder)) {
             JsonParseException pex = expectThrows(JsonParseException.class, () -> xParser.map());
             assertThat(pex.getMessage(), startsWith("Duplicate field 'key'"));
+        }
+    }
+
+    public void testAllowsDuplicates() throws Exception {
+        XContentBuilder builder = builder()
+                .startObject()
+                    .field("key", 1)
+                    .field("key", 2)
+                .endObject();
+        try (XContentParser xParser = createParser(builder)) {
+            xParser.allowDuplicateKeys(true);
+            assertThat(xParser.map(), equalTo(Collections.singletonMap("key", 2)));
         }
     }
 

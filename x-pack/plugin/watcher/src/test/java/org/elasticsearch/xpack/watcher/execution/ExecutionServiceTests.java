@@ -120,6 +120,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class ExecutionServiceTests extends ESTestCase {
 
     private Payload payload;

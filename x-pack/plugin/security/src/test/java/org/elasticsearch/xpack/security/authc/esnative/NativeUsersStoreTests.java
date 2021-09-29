@@ -10,21 +10,26 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -38,6 +43,7 @@ import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -53,6 +60,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -208,6 +216,36 @@ public class NativeUsersStoreTests extends ESTestCase {
         assertThat(disabledUserInfo.hasEmptyPassword(), equalTo(true));
         assertThat(enabledUserInfo.hasEmptyPassword(), equalTo(true));
         assertThat(constructedUserInfo.hasEmptyPassword(), equalTo(false));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCreateElasticUser() throws Exception {
+        final NativeUsersStore nativeUsersStore = startNativeUsersStore();
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        char[] passwordHash = randomAlphaOfLength(4).toCharArray();
+        nativeUsersStore.createElasticUser(passwordHash, future);
+
+        Tuple<IndexRequest, ActionListener<?>> createElasticUserRequest = findRequest(IndexRequest.class);
+        assertThat(createElasticUserRequest.v1().opType(), is(DocWriteRequest.OpType.CREATE));
+        assertThat(createElasticUserRequest.v1().index(), is(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+        assertThat(createElasticUserRequest.v1().id(), is(NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, "elastic")));
+        assertThat(createElasticUserRequest.v1().getRefreshPolicy(), is(WriteRequest.RefreshPolicy.IMMEDIATE));
+
+        if (randomBoolean()) {
+            ((ActionListener<IndexResponse>) createElasticUserRequest.v2()).onResponse(Mockito.mock(IndexResponse.class));
+            Tuple<ClearRealmCacheRequest, ActionListener<?>> clearRealmCacheRequest = findRequest(ClearRealmCacheRequest.class);
+            assertThat(clearRealmCacheRequest.v1().allRealms(), is(true));
+            assertThat(clearRealmCacheRequest.v1().usernames().length, is(1));
+            assertThat(clearRealmCacheRequest.v1().usernames()[0], is("elastic"));
+            ((ActionListener<ClearRealmCacheResponse>) clearRealmCacheRequest.v2()).onResponse(Mockito.mock(ClearRealmCacheResponse.class));
+            future.get();
+        } else {
+            Exception exception = mock(Exception.class);
+            createElasticUserRequest.v2().onFailure(exception);
+            ExecutionException executionException = expectThrows(ExecutionException.class, () -> future.get());
+            assertThat(executionException.getCause(), is(exception));
+        }
     }
 
     @SuppressWarnings("unchecked")

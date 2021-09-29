@@ -128,6 +128,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                             logDeprecatedUser(user);
                             // promote the auto-configured password as the elastic user password
                             if (userInfo == autoconfigUserInfo) {
+                                assert ElasticUser.NAME.equals(token.principal());
                                 nativeUsersStore.createElasticUser(userInfo.passwordHash, ActionListener.wrap(aVoid -> {
                                     hashCleanupListener.onResponse(AuthenticationResult.success(user));
                                 }, e -> {

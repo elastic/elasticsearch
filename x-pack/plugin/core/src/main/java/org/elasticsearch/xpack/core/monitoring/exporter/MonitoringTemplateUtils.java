@@ -7,14 +7,9 @@
 package org.elasticsearch.xpack.core.monitoring.exporter;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 
-import java.io.IOException;
 import java.time.Instant;
 
 public final class MonitoringTemplateUtils {
@@ -40,109 +35,7 @@ public final class MonitoringTemplateUtils {
      */
     public static final String OLD_TEMPLATE_VERSION = "6";
 
-    /**
-     * IDs of pipelines that can be used with
-     */
-    public static final String[] PIPELINE_IDS = { TEMPLATE_VERSION, OLD_TEMPLATE_VERSION };
-
     private MonitoringTemplateUtils() { }
-
-    /**
-     * Get a pipeline name for any template ID.
-     *
-     * @param id The template identifier.
-     * @return Never {@code null} {@link String} prefixed by "xpack_monitoring_" and the {@code id}.
-     */
-    public static String pipelineName(String id) {
-        return "xpack_monitoring_" + id;
-    }
-
-    /**
-     * Create a pipeline that allows documents for different template versions to be upgraded.
-     * <p>
-     * The expectation is that you will call either {@link Strings#toString(XContentBuilder)} or
-     * {@link BytesReference#bytes(XContentBuilder)}}.
-     *
-     * @param id The API version (e.g., "6") to use
-     * @param type The type of data you want to format for the request
-     * @return Never {@code null}. Always an ended-object.
-     * @throws IllegalArgumentException if {@code apiVersion} is unrecognized
-     * @see #PIPELINE_IDS
-     */
-    public static XContentBuilder loadPipeline(final String id, final XContentType type) {
-        switch (id) {
-            case TEMPLATE_VERSION:
-                return emptyPipeline(type);
-            case OLD_TEMPLATE_VERSION:
-                return pipelineForApiVersion6(type);
-        }
-
-        throw new IllegalArgumentException("unrecognized pipeline API version [" + id + "]");
-    }
-
-    /**
-     * Create a pipeline to upgrade documents from {@link MonitoringTemplateUtils#OLD_TEMPLATE_VERSION}
-     * The expectation is that you will call either {@link Strings#toString(XContentBuilder)} or
-     * {@link BytesReference#bytes(XContentBuilder)}}.
-     *
-     * @param type The type of data you want to format for the request
-     * @return Never {@code null}. Always an ended-object.
-     * @see #LAST_UPDATED_VERSION
-     */
-    static XContentBuilder pipelineForApiVersion6(final XContentType type) {
-        try {
-            return XContentBuilder.builder(type.xContent()).startObject()
-                    .field("description", "This pipeline upgrades documents from the older version of the Monitoring API to " +
-                        "the newer version (" + TEMPLATE_VERSION + ") by fixing breaking " +
-                        "changes in those older documents before they are indexed from the older version (" +
-                        OLD_TEMPLATE_VERSION + ").")
-                    .field("version", LAST_UPDATED_VERSION)
-                    .startArray("processors")
-                        .startObject()
-                            // remove the type
-                            .startObject("script")
-                                .field("source","ctx._type = null" )
-                            .endObject()
-                        .endObject()
-                        .startObject()
-                            // ensure the data lands in the correct index
-                            .startObject("gsub")
-                                .field("field", "_index")
-                                .field("pattern", "(.monitoring-\\w+-)6(-.+)")
-                                .field("replacement", "$1" + TEMPLATE_VERSION + "$2")
-                            .endObject()
-                        .endObject()
-                    .endArray()
-                .endObject();
-        } catch (final IOException e) {
-            throw new RuntimeException("Failed to create pipeline to upgrade from older version [" + OLD_TEMPLATE_VERSION +
-                "] to the newer version [" + TEMPLATE_VERSION + "].", e);
-        }
-    }
-
-    /**
-     * Create an empty pipeline.
-     * The expectation is that you will call either {@link Strings#toString(XContentBuilder)} or
-     * {@link BytesReference#bytes(XContentBuilder)}}.
-     *
-     * @param type The type of data you want to format for the request
-     * @return Never {@code null}. Always an ended-object.
-     * @see #LAST_UPDATED_VERSION
-     */
-    public static XContentBuilder emptyPipeline(final XContentType type) {
-        try {
-            // For now: We prepend the API version to the string so that it's easy to parse in the future; if we ever add metadata
-            //  to pipelines, then it would better serve this use case
-            return XContentBuilder.builder(type.xContent()).startObject()
-                    .field("description", "This is a placeholder pipeline for Monitoring API version " + TEMPLATE_VERSION +
-                                                " so that future versions may fix breaking changes.")
-                    .field("version", LAST_UPDATED_VERSION)
-                    .startArray("processors").endArray()
-                    .endObject();
-        } catch (final IOException e) {
-            throw new RuntimeException("Failed to create empty pipeline", e);
-        }
-    }
 
     /**
      * Get the index name given a specific date format, a monitored system and a timestamp.

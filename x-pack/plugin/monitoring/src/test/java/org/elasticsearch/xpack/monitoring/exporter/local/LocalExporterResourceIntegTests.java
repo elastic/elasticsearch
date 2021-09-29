@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -40,7 +39,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -81,7 +79,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
 
         // these were "newer" or at least the same version, so they shouldn't be replaced
         assertTemplateNotUpdated();
-        assertPipelinesNotUpdated();
     }
 
     public void testRemoveWhenResourcesShouldBeRemoved() throws Exception {
@@ -97,7 +94,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         waitNoPendingTasksOnAll();
         assertBusy(() -> {
             assertTemplatesExist();
-            assertPipelinesExist();
             assertNoWatchesExist();
         });
     }
@@ -180,7 +176,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         waitNoPendingTasksOnAll();
 
         putTemplate(version);
-        putPipelines(version);
         putWatches(version);
     }
 
@@ -189,45 +184,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         final BytesReference source = generateTemplateSource(templateName, version);
 
         assertAcked(client().admin().indices().preparePutTemplate(templateName).setSource(source, XContentType.JSON).get());
-    }
-
-    private void putPipelines(final Integer version) {
-        for (final String pipelineId : MonitoringTemplateUtils.PIPELINE_IDS) {
-            putPipeline(MonitoringTemplateUtils.pipelineName(pipelineId), version);
-        }
-    }
-
-    private void putPipeline(final String pipelineName, final Integer version) {
-        assertAcked(client().admin().cluster().preparePutPipeline(pipelineName, replaceablePipeline(version), XContentType.JSON).get());
-    }
-
-    /**
-     * Create a pipeline with nothing in it whose description is literally "test".
-     *
-     * @param version Version to add to the pipeline, if any
-     * @return Never {@code null}.
-     */
-    private BytesReference replaceablePipeline(final Integer version) {
-        try {
-            final XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
-
-            builder.startObject();
-
-            {
-                builder.startArray("processors").endArray();
-                // something we can quickly check to ensure we have/have not replaced it
-                builder.field("description", getTestName());
-
-                // sometimes give it a version that should be overwritten (and sometimes don't give it a version at all)
-                if (version != null) {
-                    builder.field("version", version);
-                }
-            }
-
-            return BytesReference.bytes(builder.endObject());
-        } catch (final IOException e) {
-            throw new RuntimeException("Failed to create pipeline", e);
-        }
     }
 
     /**
@@ -299,15 +255,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         }
     }
 
-    private void assertPipelinesExist() {
-        for (PipelineConfiguration pipeline : client().admin().cluster().prepareGetPipeline("xpack_monitoring_*").get().pipelines()) {
-            final Object description = pipeline.getConfigAsMap().get("description");
-
-            // this just ensures that it's set; not who set it
-            assertThat(description, notNullValue());
-        }
-    }
-
     private void assertWatchesExist() {
         // Check if watches index exists
         if (client().admin().indices().prepareGetIndex().addIndices(".watches").get().getIndices().length == 0) {
@@ -360,7 +307,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
 
         assertBusy(() -> {
             assertTemplatesExist();
-            assertPipelinesExist();
             assertWatchesExist();
         });
     }
@@ -373,14 +319,6 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
 
             assertThat(docMapping, notNullValue());
             assertThat(docMapping, containsString("test"));
-        }
-    }
-
-    private void assertPipelinesNotUpdated() {
-        for (PipelineConfiguration pipeline : client().admin().cluster().prepareGetPipeline("xpack_monitoring_*").get().pipelines()) {
-            final Object description = pipeline.getConfigAsMap().get("description");
-
-            assertThat(description, equalTo(getTestName()));
         }
     }
 }

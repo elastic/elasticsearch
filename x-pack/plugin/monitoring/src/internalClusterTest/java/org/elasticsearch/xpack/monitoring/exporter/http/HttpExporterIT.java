@@ -44,7 +44,6 @@ import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
@@ -93,7 +92,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private final List<String> clusterAlertBlacklist =
             rarely() ? randomSubsetOf(Arrays.asList(ClusterAlertsUtil.WATCH_IDS)) : Collections.emptyList();
-    private final boolean pipelineExistsAlready = randomBoolean();
     private final boolean remoteClusterAllowsWatcher = randomBoolean();
     private final boolean currentLicenseAllowsWatcher = true;
     private final boolean watcherAlreadyExists = randomBoolean();
@@ -154,7 +152,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,
-                              true, pipelineExistsAlready,
+                              true,
                               remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
@@ -162,7 +160,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         export(settings, newRandomMonitoringDocs(nbDocs));
 
         assertMonitorResources(webServer,
-                               true, pipelineExistsAlready,
+                               true,
                                remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         assertBulk(webServer, nbDocs);
     }
@@ -181,7 +179,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,
-            true, pipelineExistsAlready,
+            true,
             remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
@@ -194,7 +192,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         localStateMonitoring.getMonitoring().reload(settings);
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,
-            true, pipelineExistsAlready,
+            true,
             remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
@@ -220,7 +218,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,
-                              true, pipelineExistsAlready,
+                              true,
                               remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
@@ -228,7 +226,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         export(settings, newRandomMonitoringDocs(nbDocs));
 
         assertMonitorResources(webServer,
-                               true, pipelineExistsAlready,
+                               true,
                                remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists,
                                headers, null);
         assertBulk(webServer, nbDocs, headers, null);
@@ -273,7 +271,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,
-                              true, pipelineExistsAlready,
+                              true,
                               remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         enqueueResponse(200, "{\"errors\": false}");
 
@@ -281,7 +279,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         export(builder.build(), newRandomMonitoringDocs(nbDocs));
 
         assertMonitorResources(webServer,
-                               true, pipelineExistsAlready,
+                               true,
                                remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists,
                                headers, basePath);
         assertBulk(webServer, nbDocs, headers, basePath);
@@ -292,14 +290,14 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,
-                              true, pipelineExistsAlready,
+                              true,
                               remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         enqueueResponse(200, "{\"errors\": false}");
 
         export(settings, Collections.singletonList(newRandomMonitoringDoc()));
 
         assertMonitorResources(webServer,
-                               true, pipelineExistsAlready,
+                               true,
                                remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         assertBulk(webServer);
 
@@ -311,14 +309,14 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                     .build();
 
             enqueueGetClusterVersionResponse(secondWebServer, Version.CURRENT);
-            enqueueSetupResponses(secondWebServer, true, pipelineExistsAlready, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher,
+            enqueueSetupResponses(secondWebServer, true, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher,
                 watcherAlreadyExists);
             enqueueResponse(secondWebServer, 200, "{\"errors\": false}");
 
             // second event
             export(newSettings, Collections.singletonList(newRandomMonitoringDoc()));
 
-            assertMonitorResources(secondWebServer, true, true, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher,
+            assertMonitorResources(secondWebServer, true, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher,
                 watcherAlreadyExists);
             assertBulk(secondWebServer);
         }
@@ -372,7 +370,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         // returning an unsupported cluster version
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,
-            false, pipelineExistsAlready,
+            false,
             remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
 
         // ensure that the exporter is not able to be used
@@ -406,7 +404,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
         enqueueSetupResponses(webServer,
-                              true, pipelineExistsAlready,
+                              true,
                               remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
@@ -414,7 +412,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         export(settings, Collections.singletonList(doc));
 
         assertMonitorResources(webServer,
-                               true, pipelineExistsAlready,
+                               true,
                                remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         MockRequest recordedRequest = assertBulk(webServer);
 
@@ -435,7 +433,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 .build();
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
-        enqueueSetupResponses(webServer, true, true,
+        enqueueSetupResponses(webServer, true,
                               true, true, true);
         enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
 
@@ -447,7 +445,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         String expectedMonitoringIndex = ".monitoring-es-" + TEMPLATE_VERSION + "-"
                 + newTimeFormatter.format(Instant.ofEpochMilli(doc.getTimestamp()));
 
-        assertMonitorResources(webServer, true, true,
+        assertMonitorResources(webServer, true,
                                true, true, true);
         recordedRequest = assertBulk(webServer);
 
@@ -477,24 +475,21 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private void assertMonitorResources(final MockWebServer webServer,
                                         final boolean templateAlreadyExists,
-                                        final boolean pipelineAlreadyExists,
                                         final boolean remoteClusterAllowsWatcher, final boolean currentLicenseAllowsWatcher,
                                         final boolean watcherAlreadyExists) throws Exception {
-        assertMonitorResources(webServer, templateAlreadyExists, pipelineAlreadyExists,
+        assertMonitorResources(webServer, templateAlreadyExists,
                                remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists,
                                null, null);
     }
 
     private void assertMonitorResources(final MockWebServer webServer,
                                         final boolean templateAlreadyExists,
-                                        final boolean pipelineAlreadyExists,
                                         final boolean remoteClusterAllowsWatcher, final boolean currentLicenseAllowsWatcher,
                                         final boolean watcherAlreadyExists,
                                         @Nullable final Map<String, String[]> customHeaders,
                                         @Nullable final String basePath) throws Exception {
         assertMonitorVersion(webServer, customHeaders, basePath);
         assertMonitorTemplates(webServer, templateAlreadyExists, customHeaders, basePath);
-        assertMonitorPipelines(webServer, pipelineAlreadyExists, customHeaders, basePath);
         assertMonitorWatches(webServer, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists,
                              customHeaders, basePath);
     }
@@ -518,34 +513,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 // If the templates do not exist already, the resources simply short circuit on the first missing template
                 // and notifies the exporter to wait.
                 break;
-            }
-        }
-    }
-
-    private void assertMonitorPipelines(final MockWebServer webServer,
-                                        final boolean alreadyExists,
-                                        @Nullable final Map<String, String[]> customHeaders,
-                                        @Nullable final String basePath) throws Exception {
-        final String resourcePrefix = "/_ingest/pipeline/";
-        final String pathPrefix = basePathToAssertablePrefix(basePath);
-
-        for (Tuple<String, String> resource : monitoringPipelines()) {
-            final MockRequest getRequest = webServer.takeRequest();
-
-            assertThat(getRequest.getMethod(), equalTo("GET"));
-            assertThat(getRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-            assertMonitorVersionQueryString(getRequest.getUri().getQuery(), Collections.emptyMap());
-            assertHeaders(getRequest, customHeaders);
-
-            if (alreadyExists == false) {
-                final MockRequest putRequest = webServer.takeRequest();
-
-                assertThat(putRequest.getMethod(), equalTo("PUT"));
-                assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                Map<String, String> parameters = Collections.emptyMap();
-                assertMonitorVersionQueryString(putRequest.getUri().getQuery(), parameters);
-                assertThat(putRequest.getBody(), equalTo(resource.v2()));
-                assertHeaders(putRequest, customHeaders);
             }
         }
     }
@@ -759,9 +726,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private String bulkQueryString() {
-        final String pipelineName = MonitoringTemplateUtils.pipelineName(TEMPLATE_VERSION);
 
-        return "pipeline=" + pipelineName + "&filter_path=" + "errors,items.*.error";
+        return "filter_path=" + "errors,items.*.error";
     }
 
     private void enqueueGetClusterVersionResponse(Version v) throws IOException {
@@ -776,11 +742,9 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private void enqueueSetupResponses(final MockWebServer webServer,
                                        final boolean templatesAlreadyExists,
-                                       final boolean pipelineAlreadyExists,
                                        final boolean remoteClusterAllowsWatcher, final boolean currentLicenseAllowsWatcher,
                                        final boolean watcherAlreadyExists) throws IOException {
         enqueueTemplateResponses(webServer, templatesAlreadyExists);
-        enqueuePipelineResponses(webServer, pipelineAlreadyExists);
         enqueueWatcherResponses(webServer, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
     }
 
@@ -801,22 +765,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private void enqueueTemplateResponsesExistsAlready(final MockWebServer webServer)
             throws IOException {
         enqueueVersionedResourceResponsesExistsAlready(Arrays.asList(MonitoringTemplateRegistry.TEMPLATE_NAMES), webServer);
-    }
-
-    private void enqueuePipelineResponses(final MockWebServer webServer, final boolean alreadyExists) throws IOException {
-        if (alreadyExists) {
-            enqueuePipelineResponsesExistsAlready(webServer);
-        } else {
-            enqueuePipelineResponsesDoesNotExistYet(webServer);
-        }
-    }
-
-    private void enqueuePipelineResponsesDoesNotExistYet(final MockWebServer webServer) throws IOException {
-        enqueueVersionedResourceResponsesDoesNotExistYet(monitoringPipelineNames(), webServer);
-    }
-
-    private void enqueuePipelineResponsesExistsAlready(final MockWebServer webServer) throws IOException {
-        enqueueVersionedResourceResponsesExistsAlready(monitoringPipelineNames(), webServer);
     }
 
     private void enqueueVersionedResourceResponsesDoesNotExistYet(final List<String> names, final MockWebServer webServer)

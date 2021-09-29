@@ -14,13 +14,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
@@ -122,25 +120,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected void ensureMonitoringIndicesYellow() {
         ensureYellowAndNoInitializingShards(".monitoring-es-*");
-    }
-
-    private Tuple<String, String> monitoringPipeline(final String pipelineId) {
-        final XContentType json = XContentType.JSON;
-
-        return new Tuple<>(MonitoringTemplateUtils.pipelineName(pipelineId),
-                Strings.toString(MonitoringTemplateUtils.loadPipeline(pipelineId, json)));
-    }
-
-    protected List<Tuple<String, String>> monitoringPipelines() {
-        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
-                .map(this::monitoringPipeline)
-                .collect(Collectors.toList());
-    }
-
-    protected List<String> monitoringPipelineNames() {
-        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
-                .map(MonitoringTemplateUtils::pipelineName)
-                .collect(Collectors.toList());
     }
 
     protected List<Tuple<String, String>> monitoringWatches() {

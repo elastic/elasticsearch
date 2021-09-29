@@ -104,11 +104,15 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         // Silently skipping security auto configuration because node considered as restarting.
         if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because it appears that the node is not starting up for the first time.");
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new " +
-                            "clusters only.");
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "Skipping security auto configuration because it appears that the node is not starting up for the first time."
+            );
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new "
+                    + "clusters only."
+            );
             // we wish the node to start as usual during a restart
             // but still the exit code should indicate that this has not been run
             throw new UserException(ExitCodes.NOOP, null);
@@ -120,21 +124,39 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         // it is odd for the `elasticsearch.yml` file to be missing or not be a regular (the node won't start)
         // but auto configuration should not be concerned with fixing it (by creating the file) and let the node startup fail
         if (false == Files.exists(ymlPath) || false == Files.isRegularFile(ymlPath, LinkOption.NOFOLLOW_LINKS)) {
-            terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because" +
-                    " the configuration file [%s] is missing or is not a regular file", ymlPath));
+            terminal.println(
+                Terminal.Verbosity.NORMAL,
+                String.format(
+                    Locale.ROOT,
+                    "Skipping security auto configuration because" + " the configuration file [%s] is missing or is not a regular file",
+                    ymlPath
+                )
+            );
             throw new UserException(ExitCodes.CONFIG, null);
         }
         // If the node's yml configuration is not readable, most probably auto-configuration isn't run under the suitable user
         if (false == Files.isReadable(ymlPath)) {
-            terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because" +
-                    " the configuration file [%s] is not readable", ymlPath));
+            terminal.println(
+                Terminal.Verbosity.NORMAL,
+                String.format(
+                    Locale.ROOT,
+                    "Skipping security auto configuration because" + " the configuration file [%s] is not readable",
+                    ymlPath
+                )
+            );
             throw new UserException(ExitCodes.NOOP, null);
         }
         // Inform that auto-configuration will not run if keystore cannot be read.
-        if (Files.exists(keystorePath) && (false == Files.isRegularFile(keystorePath, LinkOption.NOFOLLOW_LINKS) ||
-                false == Files.isReadable(keystorePath))) {
-            terminal.println(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, "Skipping security auto configuration because" +
-                    " the node keystore file [%s] is not a readable regular file", keystorePath));
+        if (Files.exists(keystorePath)
+            && (false == Files.isRegularFile(keystorePath, LinkOption.NOFOLLOW_LINKS) || false == Files.isReadable(keystorePath))) {
+            terminal.println(
+                Terminal.Verbosity.NORMAL,
+                String.format(
+                    Locale.ROOT,
+                    "Skipping security auto configuration because" + " the node keystore file [%s] is not a readable regular file",
+                    keystorePath
+                )
+            );
             throw new UserException(ExitCodes.NOOP, null);
         }
 
@@ -154,7 +176,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
             if (view != null) {
                 view.setPermissions(PosixFilePermissions.fromString("rwxr-x---"));
             }
-        } catch(Throwable t) {
+        } catch (Throwable t) {
             try {
                 deleteDirectory(instantAutoConfigDir);
             } catch (Exception ex) {
@@ -175,7 +197,13 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         if (false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS))) {
             deleteDirectory(instantAutoConfigDir);
             // the following is only printed once, if the node starts successfully
-            throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because of config dir ownership mismatch");
+            throw new UserException(
+                ExitCodes.CONFIG,
+                "Aborting auto configuration because of config dir ownership mismatch :"
+                    + newFileOwner.getName()
+                    + " vs "
+                    + Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS).getName()
+            );
         }
         final KeyPair transportKeyPair;
         final X509Certificate transportCert;
@@ -185,34 +213,59 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         final X509Certificate httpCert;
         try {
             // the transport key-pair is the same across the cluster and is trusted without hostname verification (it is self-signed),
-            final X500Principal certificatePrincipal = new X500Principal("CN="+System.getenv("HOSTNAME"));
+            final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
             final X500Principal caPrincipal = new X500Principal(AUTO_CONFIG_ALT_DN);
             // this does DNS resolve and could block
             final GeneralNames subjectAltNames = getSubjectAltNames();
 
             transportKeyPair = CertGenUtils.generateKeyPair(TRANSPORT_KEY_SIZE);
             // self-signed which is not a CA
-            transportCert = CertGenUtils.generateSignedCertificate(certificatePrincipal,
-                    subjectAltNames, transportKeyPair, null, null, false, TRANSPORT_CERTIFICATE_DAYS, "SHA256withRSA");
+            transportCert = CertGenUtils.generateSignedCertificate(
+                certificatePrincipal,
+                subjectAltNames,
+                transportKeyPair,
+                null,
+                null,
+                false,
+                TRANSPORT_CERTIFICATE_DAYS,
+                "SHA256withRSA"
+            );
             httpCAKeyPair = CertGenUtils.generateKeyPair(HTTP_CA_KEY_SIZE);
             // self-signed CA
-            httpCACert = CertGenUtils.generateSignedCertificate(caPrincipal,
-                   null , httpCAKeyPair, null, null, true, HTTP_CA_CERTIFICATE_DAYS, "SHA256withRSA");
+            httpCACert = CertGenUtils.generateSignedCertificate(
+                caPrincipal,
+                null,
+                httpCAKeyPair,
+                null,
+                null,
+                true,
+                HTTP_CA_CERTIFICATE_DAYS,
+                "SHA256withRSA"
+            );
             httpKeyPair = CertGenUtils.generateKeyPair(HTTP_KEY_SIZE);
             // non-CA
-            httpCert = CertGenUtils.generateSignedCertificate(certificatePrincipal,
-                    subjectAltNames, httpKeyPair, httpCACert, httpCAKeyPair.getPrivate(), false, HTTP_CERTIFICATE_DAYS, "SHA256withRSA");
+            httpCert = CertGenUtils.generateSignedCertificate(
+                certificatePrincipal,
+                subjectAltNames,
+                httpKeyPair,
+                httpCACert,
+                httpCAKeyPair.getPrivate(),
+                false,
+                HTTP_CERTIFICATE_DAYS,
+                "SHA256withRSA"
+            );
 
             // the HTTP CA PEM file is provided "just in case". The node doesn't use it, but clients (configured manually, outside of the
             // enrollment process) might indeed need it, and it is currently impossible to retrieve it
 
             fullyWriteFile(instantAutoConfigDir, HTTP_AUTOGENERATED_CA_NAME + ".crt", false, stream -> {
-                try (JcaPEMWriter pemWriter =
-                             new JcaPEMWriter(new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8)))) {
+                try (
+                    JcaPEMWriter pemWriter = new JcaPEMWriter(new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8)))
+                ) {
                     pemWriter.writeObject(httpCACert);
                 }
             });
-        } catch(Throwable t) {
+        } catch (Throwable t) {
             deleteDirectory(instantAutoConfigDir);
             // this is an error which mustn't be ignored during node startup
             // the exit code for unhandled Exceptions is "1"
@@ -220,12 +273,12 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         }
 
         // save original keystore before updating (replacing)
-        final Path keystoreBackupPath =
-                env.configFile().resolve(KeyStoreWrapper.KEYSTORE_FILENAME + "." + autoConfigDate.toInstant().getEpochSecond() + ".orig");
+        final Path keystoreBackupPath = env.configFile()
+            .resolve(KeyStoreWrapper.KEYSTORE_FILENAME + "." + autoConfigDate.toInstant().getEpochSecond() + ".orig");
         if (Files.exists(keystorePath)) {
             try {
                 Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
-            } catch(Throwable t) {
+            } catch (Throwable t) {
                 try {
                     deleteDirectory(instantAutoConfigDir);
                 } catch (Exception ex) {
@@ -237,21 +290,22 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
 
         final SetOnce<SecureString> nodeKeystorePassword = new SetOnce<>();
         try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> {
-            nodeKeystorePassword.set(new SecureString(terminal.readSecret("",
-                    KeyStoreWrapper.MAX_PASSPHRASE_LENGTH)));
+            nodeKeystorePassword.set(new SecureString(terminal.readSecret("", KeyStoreWrapper.MAX_PASSPHRASE_LENGTH)));
             return nodeKeystorePassword.get().clone();
         })) {
             // do not overwrite keystore entries
             // instead expect the user to manually remove them herself
-            if (nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.keystore.secure_password") ||
-                nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.truststore.secure_password") ||
-                nodeKeystore.getSettingNames().contains("xpack.security.http.ssl.keystore.secure_password")) {
+            if (nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.keystore.secure_password")
+                || nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.truststore.secure_password")
+                || nodeKeystore.getSettingNames().contains("xpack.security.http.ssl.keystore.secure_password")) {
                 // this error condition is akin to condition of existing configuration in the yml file
                 // this is not a fresh install and the admin has something planned for Security
                 // Even though this is probably invalid configuration, do NOT fix it, let the node fail to start in its usual way.
                 // Still display a message, because this can be tricky to figure out (why auto-conf did not run) if by mistake.
-                throw new UserException(ExitCodes.CONFIG, "Aborting auto configuration because the node keystore contains password " +
-                        "settings already");
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Aborting auto configuration because the node keystore contains password " + "settings already"
+                );
             }
             try (SecureString transportKeystorePassword = newKeystorePassword()) {
                 KeyStore transportKeystore = KeyStore.getInstance("PKCS12");
@@ -302,7 +356,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
             }
             // finally overwrites the node keystore (if the keystores have been successfully written)
             nodeKeystore.save(env.configFile(), nodeKeystorePassword.get() == null ? new char[0] : nodeKeystorePassword.get().getChars());
-        } catch(Throwable t) {
+        } catch (Throwable t) {
             // restore keystore to revert possible keystore bootstrap
             try {
                 if (Files.exists(keystoreBackupPath)) {
@@ -373,28 +427,33 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                     bw.newLine();
                     bw.write("xpack.security.transport.ssl.verification_mode: certificate");
                     bw.newLine();
-                    bw.write("xpack.security.transport.ssl.keystore.path: " + instantAutoConfigDir
-                            .resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
+                    bw.write(
+                        "xpack.security.transport.ssl.keystore.path: "
+                            + instantAutoConfigDir.resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12")
+                    );
                     bw.newLine();
                     // we use the keystore as a truststore in order to minimize the number of auto-generated resources,
                     // and also because a single file is more idiomatic to the scheme of a shared secret between the cluster nodes
                     // no one should only need the TLS cert without the associated key for the transport layer
-                    bw.write("xpack.security.transport.ssl.truststore.path: " + instantAutoConfigDir
-                            .resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"));
+                    bw.write(
+                        "xpack.security.transport.ssl.truststore.path: "
+                            + instantAutoConfigDir.resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12")
+                    );
                     bw.newLine();
 
                     bw.newLine();
                     bw.write("xpack.security.http.ssl.enabled: true");
                     bw.newLine();
-                    bw.write("xpack.security.http.ssl.keystore.path: " + instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME +
-                            ".p12"));
+                    bw.write(
+                        "xpack.security.http.ssl.keystore.path: " + instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12")
+                    );
                     bw.newLine();
 
                     // we have configured TLS on the transport layer with newly generated certs and keys,
                     // hence this node cannot form a multi-node cluster
                     // if we don't set the following the node might trip the discovery bootstrap check
-                    if (false == DiscoveryModule.isSingleNodeDiscovery(env.settings()) &&
-                            false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.exists(env.settings())) {
+                    if (false == DiscoveryModule.isSingleNodeDiscovery(env.settings())
+                        && false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.exists(env.settings())) {
                         bw.newLine();
                         bw.write("# The initial node with security auto-configured must form a cluster on its own,");
                         bw.newLine();
@@ -406,26 +465,33 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
 
                     // if any address settings have been set, assume the admin has thought it through wrt to addresses,
                     // and don't try to be smart and mess with that
-                    if (false == (env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey()) ||
-                            env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_BIND_HOST.getKey()) ||
-                            env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.getKey()) ||
-                            env.settings().hasValue(NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey()) ||
-                            env.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey()) ||
-                            env.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
+                    if (false == (env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_HOST.getKey())
+                        || env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_BIND_HOST.getKey())
+                        || env.settings().hasValue(HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.getKey())
+                        || env.settings().hasValue(NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey())
+                        || env.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey())
+                        || env.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
                         bw.newLine();
-                        bw.write("# With security now configured, which includes user authentication over HTTPs, " +
-                                "it's reasonable to serve requests on the local network too");
+                        bw.write(
+                            "# With security now configured, which includes user authentication over HTTPs, "
+                                + "it's reasonable to serve requests on the local network too"
+                        );
                         bw.newLine();
                         bw.write(HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": [_local_, _site_]");
                         bw.newLine();
                     }
                 }
             });
-        } catch(Throwable t) {
+        } catch (Throwable t) {
             try {
                 if (Files.exists(keystoreBackupPath)) {
-                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
-                            StandardCopyOption.COPY_ATTRIBUTES);
+                    Files.move(
+                        keystoreBackupPath,
+                        keystorePath,
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.COPY_ATTRIBUTES
+                    );
                 } else {
                     Files.deleteIfExists(keystorePath);
                 }
@@ -484,39 +550,49 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
         if (XPackSettings.SECURITY_ENABLED.exists(settings)) {
             // do not try to validate, correct or fill in any incomplete security configuration,
             // instead rely on the regular node startup to do this validation
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because it appears that security is already configured.");
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "Skipping security auto configuration because it appears that security is already configured."
+            );
             throw new UserException(ExitCodes.NOOP, null);
         }
         // Security auto configuration must not run if the node is configured for multi-node cluster formation (bootstrap or join).
         // This is because transport TLS with newly generated certs will hinder cluster formation because the other nodes cannot trust yet.
         if (false == isInitialClusterNode(settings)) {
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because this node is configured to bootstrap or to join a " +
-                            "multi-node cluster, which is not supported.");
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "Skipping security auto configuration because this node is configured to bootstrap or to join a "
+                    + "multi-node cluster, which is not supported."
+            );
             throw new UserException(ExitCodes.NOOP, null);
         }
         // Silently skip security auto configuration because node cannot become master.
-        boolean canBecomeMaster = DiscoveryNode.isMasterNode(settings) &&
-                false == DiscoveryNode.hasRole(settings, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
+        boolean canBecomeMaster = DiscoveryNode.isMasterNode(settings)
+            && false == DiscoveryNode.hasRole(settings, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
         if (false == canBecomeMaster) {
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because the node is configured such that it cannot become master.");
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "Skipping security auto configuration because the node is configured such that it cannot become master."
+            );
             throw new UserException(ExitCodes.NOOP, null);
         }
         // Silently skip security auto configuration, because the node cannot contain the Security index data
         boolean canHoldSecurityIndex = DiscoveryNode.canContainData(settings);
         if (false == canHoldSecurityIndex) {
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because the node is configured such that it cannot contain data.");
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "Skipping security auto configuration because the node is configured such that it cannot contain data."
+            );
             throw new UserException(ExitCodes.NOOP, null);
         }
         // Silently skipping security auto configuration because TLS is already configured
-        if (false == settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX).isEmpty() ||
-                false == settings.getByPrefix(XPackSettings.HTTP_SSL_PREFIX).isEmpty()) {
+        if (false == settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX).isEmpty()
+            || false == settings.getByPrefix(XPackSettings.HTTP_SSL_PREFIX).isEmpty()) {
             // zero validation for the TLS settings as well, let the node boot and do its thing
-            terminal.println(Terminal.Verbosity.VERBOSE,
-                    "Skipping security auto configuration because it appears that TLS is already configured.");
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "Skipping security auto configuration because it appears that TLS is already configured."
+            );
             throw new UserException(ExitCodes.NOOP, null);
         }
         // auto-configuration runs even if the realms are configured in any way,
@@ -533,19 +609,21 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
     // value, we assume the admin intended a multi-node cluster configuration. There is only one exception: if the initial master
     // nodes setting contains just the current node name.
     private boolean isInitialClusterNode(Settings settings) {
-        return DiscoveryModule.isSingleNodeDiscovery(settings) ||
-                (ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).isEmpty() &&
-                        SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty() &&
-                        DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(settings).isEmpty()) ||
-                ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).equals(List.of(Node.NODE_NAME_SETTING.get(settings)));
+        return DiscoveryModule.isSingleNodeDiscovery(settings)
+            || (ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).isEmpty()
+                && SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()
+                && DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(settings).isEmpty())
+            || ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).equals(List.of(Node.NODE_NAME_SETTING.get(settings)));
     }
 
-    private static void fullyWriteFile(Path basePath, String fileName, boolean replace,
-                                       CheckedConsumer<OutputStream, Exception> writer) throws Exception {
+    private static void fullyWriteFile(Path basePath, String fileName, boolean replace, CheckedConsumer<OutputStream, Exception> writer)
+        throws Exception {
         Path filePath = basePath.resolve(fileName);
         if (false == replace && Files.exists(filePath)) {
-            throw new UserException(ExitCodes.IO_ERROR, String.format(Locale.ROOT, "Output file [%s] already exists and " +
-                    "will not be replaced", filePath));
+            throw new UserException(
+                ExitCodes.IO_ERROR,
+                String.format(Locale.ROOT, "Output file [%s] already exists and " + "will not be replaced", filePath)
+            );
         }
         // the default permission, if not replacing; if replacing use the permission of the to be replaced file
         Set<PosixFilePermission> permission = PosixFilePermissions.fromString("rw-rw----");

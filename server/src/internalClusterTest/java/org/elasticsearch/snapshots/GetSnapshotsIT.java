@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -180,17 +179,6 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         for (ActionFuture<CreateSnapshotResponse> inProgressSnapshot : inProgressSnapshots) {
             assertSuccessful(inProgressSnapshot);
         }
-
-        awaitClusterState(
-            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .entries()
-                .stream()
-                .flatMap(s -> s.shards().stream())
-                .allMatch(
-                    e -> e.getKey().getIndexName().equals("test-index-1") == false
-                        || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
-                )
-        );
 
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);

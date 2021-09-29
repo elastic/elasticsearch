@@ -49,6 +49,7 @@ public class CertGenCliTests extends PackagingTestCase {
     public void test10Install() throws Exception {
         install();
         // Enable security for this test only where it is necessary, until we can enable it for all
+        // Only needed until https://github.com/elastic/elasticsearch/pull/75144 is merged
         ServerUtils.enableSecurityFeatures(installation);
         // Disable security auto-configuration as we want to generate keys/certificates manually here
         ServerUtils.disableSecurityAutoConfiguration(installation);

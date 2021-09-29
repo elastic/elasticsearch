@@ -419,7 +419,7 @@ public class Archives {
     }
 
     public static void verifySecurityAutoConfigured(Installation es) throws Exception {
-        Optional<String> autoConfigDirName = getAutoConfigPathDir(es);
+        Optional<String> autoConfigDirName = getAutoConfigDirName(es);
         assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
         assertThat(es.config(autoConfigDirName.get()), file(Directory, ARCHIVE_OWNER, ARCHIVE_OWNER, p750));
         Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
@@ -454,7 +454,7 @@ public class Archives {
     }
 
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
-        assertThat(getAutoConfigPathDir(es).isPresent(), Matchers.is(false));
+        assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         assertThat(
             configLines,
@@ -462,8 +462,13 @@ public class Archives {
         );
     }
 
-    public static Optional<String> getAutoConfigPathDir(Installation es) {
-        final Shell.Result lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
+    public static Optional<String> getAutoConfigDirName(Installation es) {
+        final Shell.Result lsResult;
+        if (es.distribution.platform.equals(Distribution.Platform.WINDOWS)) {
+            lsResult = sh.run("Get-ChildItem -Path " + es.config + " -Name\n");
+        } else {
+            lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
+        }
         assertNotNull(lsResult.stdout);
         return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("tls_auto_config_initial_node_")).findFirst();
     }

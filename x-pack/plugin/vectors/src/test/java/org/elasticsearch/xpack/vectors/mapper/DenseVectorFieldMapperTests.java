@@ -12,10 +12,13 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
@@ -24,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.vectors.Vectors;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -93,6 +97,20 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(DenseVectorFieldType.class));
         assertEquals(fieldType.isSearchable(), indexed);
+    }
+
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
+        if (indexed) {
+            assertThat(query, instanceOf(KnnVectorFieldExistsQuery.class));
+            KnnVectorFieldExistsQuery existsQuery = (KnnVectorFieldExistsQuery) query;
+            assertEquals("field", existsQuery.getField());
+        } else {
+            assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
+            DocValuesFieldExistsQuery existsQuery = (DocValuesFieldExistsQuery) query;
+            assertEquals("field", existsQuery.getField());
+            assertDocValuesField(fields, "field");
+        }
+        assertNoFieldNamesField(fields);
     }
 
     public void testDims() {

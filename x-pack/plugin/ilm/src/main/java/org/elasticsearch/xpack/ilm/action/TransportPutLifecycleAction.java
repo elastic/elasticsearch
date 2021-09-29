@@ -86,46 +86,47 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                     SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
             }
         }
+
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
-                new AckedClusterStateUpdateTask(request, listener) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
-                        IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
-                        if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
-                            currentMetadata = IndexLifecycleMetadata.EMPTY;
-                        }
-                        LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas()
-                            .get(request.getPolicy().getName());
-                        long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
-                        SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
-                        LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders,
-                            nextVersion, Instant.now().toEpochMilli());
-                        LifecyclePolicyMetadata oldPolicy = newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
-                        if (oldPolicy == null) {
-                            logger.info("adding index lifecycle policy [{}]", request.getPolicy().getName());
-                        } else {
-                            logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
-                        }
-                        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
-                        stateBuilder.metadata(Metadata.builder(currentState.getMetadata())
-                                .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
-                        ClusterState nonRefreshedState = stateBuilder.build();
-                        if (oldPolicy == null) {
+            new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
+                    IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+                    if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
+                        currentMetadata = IndexLifecycleMetadata.EMPTY;
+                    }
+                    LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas()
+                        .get(request.getPolicy().getName());
+                    long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
+                    SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
+                    LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders,
+                        nextVersion, Instant.now().toEpochMilli());
+                    LifecyclePolicyMetadata oldPolicy = newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
+                    if (oldPolicy == null) {
+                        logger.info("adding index lifecycle policy [{}]", request.getPolicy().getName());
+                    } else {
+                        logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
+                    }
+                    IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
+                    stateBuilder.metadata(Metadata.builder(currentState.getMetadata())
+                        .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
+                    ClusterState nonRefreshedState = stateBuilder.build();
+                    if (oldPolicy == null) {
+                        return nonRefreshedState;
+                    } else {
+                        try {
+                            return updateIndicesForPolicy(nonRefreshedState, xContentRegistry, client,
+                                oldPolicy.getPolicy(), lifecyclePolicyMetadata, licenseState);
+                        } catch (Exception e) {
+                            logger.warn(new ParameterizedMessage("unable to refresh indices phase JSON for updated policy [{}]",
+                                oldPolicy.getName()), e);
+                            // Revert to the non-refreshed state
                             return nonRefreshedState;
-                        } else {
-                            try {
-                                return updateIndicesForPolicy(nonRefreshedState, xContentRegistry, client,
-                                    oldPolicy.getPolicy(), lifecyclePolicyMetadata, licenseState);
-                            } catch (Exception e) {
-                                logger.warn(new ParameterizedMessage("unable to refresh indices phase JSON for updated policy [{}]",
-                                    oldPolicy.getName()), e);
-                                // Revert to the non-refreshed state
-                                return nonRefreshedState;
-                            }
                         }
                     }
-                });
+                }
+            });
     }
 
     @Override

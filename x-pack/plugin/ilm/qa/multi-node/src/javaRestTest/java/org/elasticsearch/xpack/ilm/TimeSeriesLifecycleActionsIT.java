@@ -435,7 +435,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testNonexistentPolicy() throws Exception {
-        String indexPrefix = randomAlphaOfLengthBetween(5,15).toLowerCase(Locale.ROOT);
+        String indexPrefix = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
         final StringEntity template = new StringEntity("{\n" +
             "  \"index_patterns\": \"" + indexPrefix + "*\",\n" +
             "  \"settings\": {\n" +
@@ -452,7 +452,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(templateRequest);
 
-        policy = randomAlphaOfLengthBetween(5,20);
+        policy = randomAlphaOfLengthBetween(5, 20);
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L));
 
         index = indexPrefix + "-000001";
@@ -476,7 +476,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             }
             logger.info(responseMap);
-            Map<String, Object> indexStatus = (Map<String, Object>)((Map<String, Object>) responseMap.get("indices")).get(index);
+            Map<String, Object> indexStatus = (Map<String, Object>) ((Map<String, Object>) responseMap.get("indices")).get(index);
             assertNull(indexStatus.get("phase"));
             assertNull(indexStatus.get("action"));
             assertNull(indexStatus.get("step"));
@@ -490,11 +490,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testInvalidPolicyNames() {
         ResponseException ex;
 
-        policy = randomAlphaOfLengthBetween(0,10) + "," + randomAlphaOfLengthBetween(0,10);
+        policy = randomAlphaOfLengthBetween(0, 10) + "," + randomAlphaOfLengthBetween(0, 10);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy(client(), policy, "delete", new DeleteAction()));
         assertThat(ex.getMessage(), containsString("invalid policy name"));
 
-        policy = randomAlphaOfLengthBetween(0,10) + "%20" + randomAlphaOfLengthBetween(0,10);
+        policy = randomAlphaOfLengthBetween(0, 10) + "%20" + randomAlphaOfLengthBetween(0, 10);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy(client(), policy, "delete", new DeleteAction()));
         assertThat(ex.getMessage(), containsString("invalid policy name"));
 
@@ -585,7 +585,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testCanStopILMWithPolicyUsingNonexistentPolicy() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(5,15)));
+            .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(5, 15)));
 
         Request stopILMRequest = new Request("POST", "_ilm/stop");
         assertOK(client().performRequest(stopILMRequest));
@@ -618,7 +618,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(client(), originalIndex, policy);
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
         createIndexTemplate.setJsonEntity("{" +
-            "\"index_patterns\": [\""+ index + "-*\"], \n" +
+            "\"index_patterns\": [\"" + index + "-*\"], \n" +
             "  \"settings\": {\n" +
             "    \"number_of_shards\": 1,\n" +
             "    \"number_of_replicas\": 142,\n" +
@@ -644,11 +644,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
         createIndexTemplate.setJsonEntity("{" +
-            "\"index_patterns\": [\""+ index + "-*\"], \n" +
+            "\"index_patterns\": [\"" + index + "-*\"], \n" +
             "  \"settings\": {\n" +
             "    \"number_of_shards\": 1,\n" +
             "    \"number_of_replicas\": 0,\n" +
-            "    \"index.lifecycle.name\": \"" + policy+ "\",\n" +
+            "    \"index.lifecycle.name\": \"" + policy + "\",\n" +
             "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
             "  }\n" +
             "}");
@@ -748,11 +748,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 100L));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
         createIndexTemplate.setJsonEntity("{" +
-            "\"index_patterns\": [\""+ index + "-*\"], \n" +
+            "\"index_patterns\": [\"" + index + "-*\"], \n" +
             "  \"settings\": {\n" +
             "    \"number_of_shards\": 1,\n" +
             "    \"number_of_replicas\": 0,\n" +
-            "    \"index.lifecycle.name\": \"" + policy+ "\",\n" +
+            "    \"index.lifecycle.name\": \"" + policy + "\",\n" +
             "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
             "  }\n" +
             "}");
@@ -883,8 +883,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                     for (Object snapshot : snapshots) {
                         Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
                         if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
-                                // wait for the snapshot to be completed (successfully or not) otherwise the teardown might fail
-                                SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
+                            // wait for the snapshot to be completed (successfully or not) otherwise the teardown might fail
+                            SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
                             return true;
                         }
                     }
@@ -946,7 +946,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 historyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             }
             logger.info("--> history response: {}", historyResponseMap);
-            int hits = (int)((Map<String, Object>) ((Map<String, Object>) historyResponseMap.get("hits")).get("total")).get("value");
+            int hits = (int) ((Map<String, Object>) ((Map<String, Object>) historyResponseMap.get("hits")).get("total")).get("value");
 
             // For a failure, print out whatever history we *do* have for the index
             if (hits == 0) {

@@ -67,7 +67,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         LifecyclePolicy policy = createRandomPolicy(policyName);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
         assertAcked(execute(putRequest, highLevelClient().indexLifecycle()::putLifecyclePolicy,
-                highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
+            highLevelClient().indexLifecycle()::putLifecyclePolicyAsync));
 
         createIndex("foo", Settings.builder().put("index.lifecycle.name", policyName).build());
         createIndex("baz", Settings.builder().put("index.lifecycle.name", policyName).build());
@@ -84,7 +84,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         indices.add("rbh");
         RemoveIndexLifecyclePolicyRequest removeReq = new RemoveIndexLifecyclePolicyRequest(indices);
         RemoveIndexLifecyclePolicyResponse removeResp = execute(removeReq, highLevelClient().indexLifecycle()::removeIndexLifecyclePolicy,
-                highLevelClient().indexLifecycle()::removeIndexLifecyclePolicyAsync);
+            highLevelClient().indexLifecycle()::removeIndexLifecyclePolicyAsync);
         assertThat(removeResp.hasFailures(), is(false));
         assertThat(removeResp.getFailedIndexes().isEmpty(), is(true));
 
@@ -115,19 +115,19 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         StopILMRequest stopReq = new StopILMRequest();
         AcknowledgedResponse stopResponse = execute(stopReq, highLevelClient().indexLifecycle()::stopILM,
-                highLevelClient().indexLifecycle()::stopILMAsync);
+            highLevelClient().indexLifecycle()::stopILMAsync);
         assertTrue(stopResponse.isAcknowledged());
 
 
         statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::lifecycleManagementStatus,
             highLevelClient().indexLifecycle()::lifecycleManagementStatusAsync);
         assertThat(statusResponse.getOperationMode(),
-                Matchers.anyOf(equalTo(OperationMode.STOPPING),
-                    equalTo(OperationMode.STOPPED)));
+            Matchers.anyOf(equalTo(OperationMode.STOPPING),
+                equalTo(OperationMode.STOPPED)));
 
         StartILMRequest startReq = new StartILMRequest();
         AcknowledgedResponse startResponse = execute(startReq, highLevelClient().indexLifecycle()::startILM,
-                highLevelClient().indexLifecycle()::startILMAsync);
+            highLevelClient().indexLifecycle()::startILMAsync);
         assertTrue(startResponse.isAcknowledged());
 
         statusResponse = execute(statusRequest, highLevelClient().indexLifecycle()::lifecycleManagementStatus,

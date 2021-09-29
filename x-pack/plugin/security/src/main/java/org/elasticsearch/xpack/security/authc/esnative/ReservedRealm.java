@@ -71,6 +71,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final AnonymousUser anonymousUser;
     private final boolean realmEnabled;
     private final boolean anonymousEnabled;
+    private final boolean elasticUserAutoconfigured;
 
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
@@ -94,7 +95,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 throw new IllegalArgumentException("Invalid password hash for elastic user auto configuration");
             }
         }
-        if (AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(settings) && false == BOOTSTRAP_ELASTIC_PASSWORD.exists(settings)) {
+        elasticUserAutoconfigured =
+            AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(settings) && false == BOOTSTRAP_ELASTIC_PASSWORD.exists(settings);
+        if (elasticUserAutoconfigured) {
             autoconfigUserInfo = new ReservedUserInfo(autoconfigPasswordHash, true);
             bootstrapUserInfo = null;
         } else {
@@ -176,6 +179,10 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 }
             });
         }
+    }
+
+    public boolean isElasticUserAutoconfigured() {
+        return elasticUserAutoconfigured;
     }
 
     private User getUser(String username, ReservedUserInfo userInfo) {
@@ -269,11 +276,13 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private ReservedUserInfo getDefaultUserInfo(String username) {
         if (ElasticUser.NAME.equals(username)) {
-            if (autoconfigUserInfo != null) {
+            if (elasticUserAutoconfigured) {
                 assert bootstrapUserInfo == null;
+                assert autoconfigUserInfo != null;
                 return autoconfigUserInfo;
             } else {
                 assert bootstrapUserInfo != null;
+                assert autoconfigUserInfo == null;
                 return bootstrapUserInfo;
             }
         } else {

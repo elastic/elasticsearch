@@ -465,7 +465,7 @@ public class Archives {
     public static Optional<String> getAutoConfigDirName(Installation es) {
         final Shell.Result lsResult;
         if (es.distribution.platform.equals(Distribution.Platform.WINDOWS)) {
-            lsResult = sh.run("Get-ChildItem -Path " + es.config + " -Name\n");
+            lsResult = sh.run("Get-ChildItem -Path " + es.config + " -Name");
         } else {
             lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
         }

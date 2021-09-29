@@ -17,9 +17,9 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.matrix.ArrayValuesSource.NumericArrayValuesSource;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ArrayValuesSource.NumericArrayValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;

@@ -22,6 +22,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -111,9 +113,11 @@ public abstract class PeerFinder {
 
     public void deactivate(DiscoveryNode leader) {
         final boolean peersRemoved;
+        final List<Releasable> connectionReferences;
         synchronized (mutex) {
             logger.trace("deactivating and setting leader to {}", leader);
             active = false;
+            connectionReferences = peersByAddress.values().stream().map(Peer::getConnectionReference).collect(Collectors.toList());
             peersRemoved = handleWakeUp();
             this.leader = Optional.of(leader);
             assert assertInactiveWithNoKnownPeers();
@@ -121,6 +125,24 @@ public abstract class PeerFinder {
         if (peersRemoved) {
             onFoundPeersUpdated();
         }
+
+        // Discovery is over, we're joining a cluster, so we can release all the connections that were being used for discovery. We haven't
+        // finished joining/forming the cluster yet, but if we're joining an existing master then the join will hold open the connection
+        // it's using and if we're becoming the master then join validation will hold open the connections to the joining peers; this set of
+        // peers is a quorum so that's good enough.
+        //
+        // Note however that this might still close connections to other master-eligible nodes that we discovered but which aren't currently
+        // involved in joining: either they're not the master we're joining or else we're becoming the master but they didn't try and join
+        // us yet. It's a pretty safe bet that we'll want to have connections to these nodes in the near future: either they're already in
+        // the cluster or else they will discover we're the master and join us straight away. In theory we could keep these discovery
+        // connections open for a while rather than closing them here and then reopening them again, but in practice it's so much simpler to
+        // forget about them for now.
+        //
+        // Note also that the NodeConnectionsService is still maintaining connections to the nodes in the last-applied cluster state, so
+        // this will only close connections to nodes that we didn't know about beforehand. In most cases that's because we only just started
+        // and haven't applied any cluster states at all yet. This won't cause any connection disruption during a typical master failover.
+        assert peersRemoved || connectionReferences.isEmpty() : connectionReferences;
+        Releasables.close(connectionReferences);
     }
 
     // exposed to subclasses for testing
@@ -207,12 +229,6 @@ public abstract class PeerFinder {
             .map(Peer::getDiscoveryNode).filter(Objects::nonNull).distinct().collect(Collectors.toList());
     }
 
-    private Peer createConnectingPeer(TransportAddress transportAddress) {
-        Peer peer = new Peer(transportAddress);
-        peer.establishConnection();
-        return peer;
-    }
-
     /**
      * @return whether any peers were removed due to disconnection
      */
@@ -282,12 +298,16 @@ public abstract class PeerFinder {
             return;
         }
 
-        peersByAddress.computeIfAbsent(transportAddress, this::createConnectingPeer);
+        if (peersByAddress.containsKey(transportAddress) == false) {
+            final Peer peer = new Peer(transportAddress);
+            peersByAddress.put(transportAddress, peer);
+            peer.establishConnection();
+        }
     }
 
     private class Peer {
         private final TransportAddress transportAddress;
-        private final SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();
+        private final SetOnce<ProbeConnectionResult> probeConnectionResult = new SetOnce<>();
         private volatile boolean peersRequestInFlight;
 
         Peer(TransportAddress transportAddress) {
@@ -296,13 +316,17 @@ public abstract class PeerFinder {
 
         @Nullable
         DiscoveryNode getDiscoveryNode() {
-            return discoveryNode.get();
+            return Optional.ofNullable(probeConnectionResult.get()).map(ProbeConnectionResult::getDiscoveryNode).orElse(null);
+        }
+
+        private boolean isActive() {
+            return active && peersByAddress.get(transportAddress) == this;
         }
 
         boolean handleWakeUp() {
             assert holdsLock() : "PeerFinder mutex not held";
 
-            if (active == false) {
+            if (isActive() == false) {
                 return true;
             }
 
@@ -326,29 +350,41 @@ public abstract class PeerFinder {
         void establishConnection() {
             assert holdsLock() : "PeerFinder mutex not held";
             assert getDiscoveryNode() == null : "unexpectedly connected to " + getDiscoveryNode();
-            assert active;
+            assert isActive();
 
             final boolean verboseFailureLogging
                     = transportService.getThreadPool().relativeTimeInMillis() - activatedAtMillis > verbosityIncreaseTimeout.millis();
 
             logger.trace("{} attempting connection", this);
-            transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<DiscoveryNode>() {
+            transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<ProbeConnectionResult>() {
                 @Override
-                public void onResponse(DiscoveryNode remoteNode) {
+                public void onResponse(ProbeConnectionResult connectResult) {
+                    assert holdsLock() == false : "PeerFinder mutex is held in error";
+                    final DiscoveryNode remoteNode = connectResult.getDiscoveryNode();
                     assert remoteNode.isMasterNode() : remoteNode + " is not master-eligible";
                     assert remoteNode.equals(getLocalNode()) == false : remoteNode + " is the local node";
-                    synchronized (mutex) {
-                        if (active == false) {
-                            return;
+                    boolean retainConnection = false;
+                    try {
+                        synchronized (mutex) {
+                            if (isActive() == false) {
+                                return;
+                            }
+
+                            assert probeConnectionResult.get() == null :
+                                "connection result unexpectedly already set to " + probeConnectionResult.get();
+                            probeConnectionResult.set(connectResult);
+
+                            requestPeers();
                         }
 
-                        assert discoveryNode.get() == null : "discoveryNode unexpectedly already set to " + discoveryNode.get();
-                        discoveryNode.set(remoteNode);
-                        requestPeers();
-                    }
+                        onFoundPeersUpdated();
 
-                    assert holdsLock() == false : "PeerFinder mutex is held in error";
-                    onFoundPeersUpdated();
+                        retainConnection = true;
+                    } finally {
+                        if (retainConnection == false) {
+                            Releasables.close(connectResult);
+                        }
+                    }
                 }
 
                 @Override
@@ -373,6 +409,8 @@ public abstract class PeerFinder {
                         logger.debug(new ParameterizedMessage("{} connection failed", Peer.this), e);
                     }
                     synchronized (mutex) {
+                        assert probeConnectionResult.get() == null
+                            : "discoveryNode unexpectedly already set to " + probeConnectionResult.get();
                         peersByAddress.remove(transportAddress);
                     }
                 }
@@ -382,7 +420,7 @@ public abstract class PeerFinder {
         private void requestPeers() {
             assert holdsLock() : "PeerFinder mutex not held";
             assert peersRequestInFlight == false : "PeersRequest already in flight";
-            assert active;
+            assert isActive();
 
             final DiscoveryNode discoveryNode = getDiscoveryNode();
             assert discoveryNode != null : "cannot request peers without first connecting";
@@ -408,7 +446,7 @@ public abstract class PeerFinder {
                 public void handleResponse(PeersResponse response) {
                     logger.trace("{} received {}", Peer.this, response);
                     synchronized (mutex) {
-                        if (active == false) {
+                        if (isActive() == false) {
                             return;
                         }
 
@@ -442,9 +480,15 @@ public abstract class PeerFinder {
                 peersResponseHandler);
         }
 
+        @Nullable
+        Releasable getConnectionReference() {
+            assert holdsLock() : "PeerFinder mutex not held";
+            return probeConnectionResult.get();
+        }
+
         @Override
         public String toString() {
-            return "address [" + transportAddress + "], node [" + discoveryNode.get() + "], requesting [" + peersRequestInFlight + "]";
+            return "address [" + transportAddress + "], node [" + getDiscoveryNode() + "], requesting [" + peersRequestInFlight + "]";
         }
     }
 }

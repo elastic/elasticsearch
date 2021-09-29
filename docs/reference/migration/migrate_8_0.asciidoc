@@ -22,8 +22,10 @@ coming[8.0.0]
 * <<breaking_80_http_changes>>
 * <<breaking_80_ilm_changes>>
 * <<breaking_80_indices_changes>>
+* <<breaking_80_ingest_changes>>
 * <<breaking_80_java_changes>>
 * <<breaking_80_mappings_changes>>
+* <<breaking_80_monitoring_changes>>
 * <<breaking_80_network_changes>>
 * <<breaking_80_node_changes>>
 * <<breaking_80_packaging_changes>>
@@ -36,6 +38,7 @@ coming[8.0.0]
 * <<breaking_80_snapshots_changes>>
 * <<breaking_80_threadpool_changes>>
 * <<breaking_80_transport_changes>>
+* <<breaking_80_watcher_changes>>
 
 [discrete]
 [[breaking-changes-8.0]]
@@ -84,6 +87,29 @@ Use the replacement REST API endpoints. Requests submitted to the `_xpack`
 API endpoints will return an error.
 ====
 
+.Several EOL operating systems are no longer supported.
+[%collapsible]
+====
+*Details* +
+The following operating systems have reached their end of life and are no longer
+supported by {es}:
+
+* Amazon Linux
+* CentOS 6
+* Debian 8
+* openSUSE Leap 42
+* Oracle Enterprise Linux 6
+* Ubuntu 16.04
+
+We've also removed support for `SysV init`. No supported operating systems use
+the `SysV init` process.
+
+*Details* +
+Ensure your nodes use a
+https://www.elastic.co/support/matrix#matrix_os[supported operating system].
+Running {es} on an unsupported operating system can result in unexpected errors
+or failures.
+====
 
 // end::notable-breaking-changes[]
 
@@ -98,8 +124,10 @@ include::migrate_8_0/eql.asciidoc[]
 include::migrate_8_0/http.asciidoc[]
 include::migrate_8_0/ilm.asciidoc[]
 include::migrate_8_0/indices.asciidoc[]
+include::migrate_8_0/ingest.asciidoc[]
 include::migrate_8_0/java.asciidoc[]
 include::migrate_8_0/mappings.asciidoc[]
+include::migrate_8_0/monitoring.asciidoc[]
 include::migrate_8_0/network.asciidoc[]
 include::migrate_8_0/node.asciidoc[]
 include::migrate_8_0/packaging.asciidoc[]
@@ -112,6 +140,7 @@ include::migrate_8_0/settings.asciidoc[]
 include::migrate_8_0/snapshots.asciidoc[]
 include::migrate_8_0/threadpool.asciidoc[]
 include::migrate_8_0/transport.asciidoc[]
+include::migrate_8_0/watcher.asciidoc[]
 include::migrate_8_0/migrate_to_java_time.asciidoc[]
 
 ////

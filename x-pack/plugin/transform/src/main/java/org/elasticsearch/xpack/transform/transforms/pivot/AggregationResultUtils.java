@@ -10,10 +10,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.LineStringBuilder;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.PolygonBuilder;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
+
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -81,6 +78,12 @@ public final class AggregationResultUtils {
 
         BUCKET_KEY_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
+
+    private static final String FIELD_TYPE = "type";
+    private static final String FIELD_COORDINATES = "coordinates";
+    private static final String POINT = "point";
+    private static final String LINESTRING = "linestring";
+    private static final String POLYGON = "polygon";
 
     /**
      * Extracts aggregation results from a composite aggregation and puts it into a map.
@@ -413,17 +416,17 @@ public final class AggregationResultUtils {
             final Map<String, Object> geoShape = new HashMap<>();
             // If the two geo_points are equal, it is a point
             if (aggregation.topLeft().equals(aggregation.bottomRight())) {
-                geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PointBuilder.TYPE.shapeName());
+                geoShape.put(FIELD_TYPE, POINT);
                 geoShape.put(
-                    ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                    FIELD_COORDINATES,
                     Arrays.asList(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat())
                 );
                 // If only the lat or the lon of the two geo_points are equal, than we know it should be a line
             } else if (Double.compare(aggregation.topLeft().getLat(), aggregation.bottomRight().getLat()) == 0
                 || Double.compare(aggregation.topLeft().getLon(), aggregation.bottomRight().getLon()) == 0) {
-                    geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), LineStringBuilder.TYPE.shapeName());
+                    geoShape.put(FIELD_TYPE, LINESTRING);
                     geoShape.put(
-                        ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                        FIELD_COORDINATES,
                         Arrays.asList(
                             new Double[] { aggregation.topLeft().getLon(), aggregation.topLeft().getLat() },
                             new Double[] { aggregation.bottomRight().getLon(), aggregation.bottomRight().getLat() }
@@ -431,11 +434,11 @@ public final class AggregationResultUtils {
                     );
                 } else {
                     // neither points are equal, we have a polygon that is a square
-                    geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PolygonBuilder.TYPE.shapeName());
+                    geoShape.put(FIELD_TYPE, POLYGON);
                     final GeoPoint tl = aggregation.topLeft();
                     final GeoPoint br = aggregation.bottomRight();
                     geoShape.put(
-                        ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                        FIELD_COORDINATES,
                         Collections.singletonList(
                             Arrays.asList(
                                 new Double[] { tl.getLon(), tl.getLat() },
@@ -468,9 +471,9 @@ public final class AggregationResultUtils {
             assert key instanceof String;
             Rectangle rectangle = GeoTileUtils.toBoundingBox(key.toString());
             final Map<String, Object> geoShape = new HashMap<>();
-            geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PolygonBuilder.TYPE.shapeName());
+            geoShape.put(FIELD_TYPE, POLYGON);
             geoShape.put(
-                ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                FIELD_COORDINATES,
                 Collections.singletonList(
                     Arrays.asList(
                         new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() },

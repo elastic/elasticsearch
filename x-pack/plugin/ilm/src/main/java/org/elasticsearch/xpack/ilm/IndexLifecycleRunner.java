@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -35,7 +36,10 @@ import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryItem;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
@@ -62,6 +66,13 @@ class IndexLifecycleRunner {
      */
     static Step getCurrentStep(PolicyStepsRegistry stepRegistry, String policy, IndexMetadata indexMetadata) {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        return getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
+    }
+
+    static Step getCurrentStep(PolicyStepsRegistry stepRegistry,
+                               String policy,
+                               IndexMetadata indexMetadata,
+                               LifecycleExecutionState lifecycleState) {
         StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
         logger.trace("[{}] retrieved current step key: {}", indexMetadata.getIndex().getName(), currentStepKey);
         if (currentStepKey == null) {
@@ -126,7 +137,7 @@ class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata);
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;
@@ -261,7 +272,7 @@ class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata);
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;
@@ -322,7 +333,7 @@ class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
         try {
-            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata);
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
         } catch (Exception e) {
             markPolicyRetrievalError(policy, indexMetadata.getIndex(), lifecycleState, e);
             return;
@@ -367,7 +378,7 @@ class IndexLifecycleRunner {
             }
         } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             logger.debug("[{}] running policy with current-step [{}]", indexMetadata.getIndex().getName(), currentStep.getKey());
-            clusterService.submitStateUpdateTask(String.format(Locale.ROOT, "ilm-execute-cluster-state-steps [%s]", currentStep),
+            submitUnlessAlreadyQueued(String.format(Locale.ROOT, "ilm-execute-cluster-state-steps [%s]", currentStep),
                 new ExecuteStepsUpdateTask(policy, indexMetadata.getIndex(), currentStep, stepRegistry, this, nowSupplier));
         } else {
             logger.trace("[{}] ignoring step execution from cluster state change event [{}]", index, currentStep.getKey());
@@ -380,7 +391,7 @@ class IndexLifecycleRunner {
      */
     private void moveToStep(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey newStepKey) {
         logger.debug("[{}] moving to step [{}] {} -> {}", index.getName(), policy, currentStepKey, newStepKey);
-        clusterService.submitStateUpdateTask(
+        submitUnlessAlreadyQueued(
             String.format(Locale.ROOT, "ilm-move-to-step {policy [%s], index [%s], currentStep [%s], nextStep [%s]}", policy,
                 index.getName(), currentStepKey, newStepKey),
             new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState ->
@@ -413,7 +424,7 @@ class IndexLifecycleRunner {
      * changing other execution state.
      */
     private void setStepInfo(Index index, String policy, @Nullable Step.StepKey currentStepKey, ToXContentObject stepInfo) {
-        clusterService.submitStateUpdateTask(
+        submitUnlessAlreadyQueued(
             String.format(Locale.ROOT, "ilm-set-step-info {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(),
                 currentStepKey),
             new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
@@ -496,5 +507,28 @@ class IndexLifecycleRunner {
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
                 LifecycleExecutionState.fromIndexMetadata(indexMetadata),
                 failure));
+    }
+
+    private final Set<IndexLifecycleClusterStateUpdateTask> executingTasks = Collections.synchronizedSet(new HashSet<>());
+
+    /**
+     * Tracks already executing {@link IndexLifecycleClusterStateUpdateTask} tasks in {@link #executingTasks} to prevent queueing up
+     * duplicate cluster state updates.
+     * TODO: refactor ILM logic so that this is not required any longer. It is unreasonably expensive to only filter out duplicate tasks at
+     *       this point given how these tasks are mostly set up on the cluster state applier thread.
+     *
+     * @param source source string as used in {@link ClusterService#submitStateUpdateTask(String, ClusterStateTaskConfig)}
+     * @param task   task to submit unless already tracked in {@link #executingTasks}.
+     */
+    private void submitUnlessAlreadyQueued(String source, IndexLifecycleClusterStateUpdateTask task) {
+        if (executingTasks.add(task)) {
+            task.addListener(ActionListener.wrap(() -> {
+                final boolean removed = executingTasks.remove(task);
+                assert removed : "tried to unregister unknown task [" + task + "]";
+            }));
+            clusterService.submitStateUpdateTask(source, task);
+        } else {
+            logger.trace("skipped redundant execution of [{}]", source);
+        }
     }
 }

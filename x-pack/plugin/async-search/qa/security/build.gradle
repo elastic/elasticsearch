@@ -4,9 +4,10 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(xpackModule('async-search'))
   javaRestTestImplementation project(':test:framework')
+  javaRestTestImplementation project(":client:rest-high-level")
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
   setting 'xpack.license.self_generated.type', 'trial'

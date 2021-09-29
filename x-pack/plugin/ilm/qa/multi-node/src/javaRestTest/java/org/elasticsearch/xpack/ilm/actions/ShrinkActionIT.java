@@ -233,7 +233,7 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // assign the policy that'll attempt to shrink the index (disabling the migrate action as it'll otherwise wait for
         // all shards to be active and we want that to happen as part of the shrink action)
-        MigrateAction migrateAction = new MigrateAction(false);
+        MigrateAction migrateAction = MigrateAction.DISABLED;
         ShrinkAction shrinkAction = new ShrinkAction(expectedFinalShards, null);
         Phase phase = new Phase("warm", TimeValue.ZERO, Map.of(migrateAction.getWriteableName(), migrateAction,
             shrinkAction.getWriteableName(), shrinkAction));

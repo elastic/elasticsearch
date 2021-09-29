@@ -174,7 +174,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Phase phase = policy.getPhases().get(phaseName);
         PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(phaseExecutionInfo);
-        LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
+        LifecycleAction action = randomValueOtherThan(MigrateAction.DISABLED, () -> randomFrom(phase.getActions().values()));
         Step step = randomFrom(action.toSteps(new NoOpClient(threadPool), phaseName, null, null));
         StepKey stepKey = step.getKey();
 
@@ -732,7 +732,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Phase phase = policy.getPhases().get(phaseName);
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(pei);
-        LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
+        LifecycleAction action = randomValueOtherThan(MigrateAction.DISABLED, () -> randomFrom(phase.getActions().values()));
         Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, null));
         Settings indexSettings = Settings.builder()
             .put("index.number_of_shards", 1)

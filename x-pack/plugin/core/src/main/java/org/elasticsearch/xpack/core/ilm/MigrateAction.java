@@ -36,11 +36,14 @@ public class MigrateAction implements LifecycleAction {
     public static final String NAME = "migrate";
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
+    public static final MigrateAction ENABLED = new MigrateAction(true);
+    public static final MigrateAction DISABLED = new MigrateAction(false);
+
     private static final Logger logger = LogManager.getLogger(MigrateAction.class);
     static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-skip-action";
 
     private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new MigrateAction(a[0] == null ? true : (boolean) a[0]));
+        a -> a[0] == null || (boolean) a[0] ? ENABLED : DISABLED);
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
@@ -52,16 +55,12 @@ public class MigrateAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public MigrateAction() {
-        this(true);
-    }
-
-    public MigrateAction(boolean enabled) {
+    private MigrateAction(boolean enabled) {
         this.enabled = enabled;
     }
 
-    public MigrateAction(StreamInput in) throws IOException {
-        this(in.readBoolean());
+    public static MigrateAction readFrom(StreamInput in) throws IOException {
+        return in.readBoolean() ? ENABLED : DISABLED;
     }
 
     @Override

@@ -52,15 +52,15 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     (in) -> TimeseriesLifecycleType.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, WaitForSnapshotAction.NAME, WaitForSnapshotAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, FreezeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, UnfollowAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, in -> UnfollowAction.INSTANCE),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new)
             ));
@@ -232,7 +232,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     case WaitForSnapshotAction.NAME:
                         return WaitForSnapshotActionTests.randomInstance();
                     case DeleteAction.NAME:
-                        return new DeleteAction();
+                        return DeleteAction.WITH_SNAPSHOT_DELETE;
                     case ForceMergeAction.NAME:
                         return ForceMergeActionTests.randomInstance();
                     case ReadOnlyAction.NAME:
@@ -242,15 +242,15 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     case ShrinkAction.NAME:
                         return ShrinkActionTests.randomInstance();
                     case FreezeAction.NAME:
-                        return new FreezeAction();
+                        return FreezeAction.INSTANCE;
                     case SetPriorityAction.NAME:
                         return SetPriorityActionTests.randomInstance();
                     case UnfollowAction.NAME:
-                        return new UnfollowAction();
+                        return UnfollowAction.INSTANCE;
                     case SearchableSnapshotAction.NAME:
                         return new SearchableSnapshotAction("repo", randomBoolean());
                     case MigrateAction.NAME:
-                        return new MigrateAction(false);
+                        return MigrateAction.DISABLED;
                     case RollupILMAction.NAME:
                         return RollupILMActionTests.randomInstance();
                     default:

@@ -170,7 +170,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
         phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME,
-            new DeleteAction(true))));
+                DeleteAction.WITH_SNAPSHOT_DELETE)));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();
@@ -219,7 +219,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L), SearchableSnapshotAction.NAME,
                 new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10)))),
             new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null))),
-            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction())),
+            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE)),
             null, null
             )
         );
@@ -336,7 +336,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO,
                 Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME, new ForceMergeAction(1, null))
             ),
-            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction())),
+            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE)),
             null, null
         );
 

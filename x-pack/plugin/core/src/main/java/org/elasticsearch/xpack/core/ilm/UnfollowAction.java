@@ -10,7 +10,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,7 +37,9 @@ public final class UnfollowAction implements LifecycleAction {
     static final String OPEN_FOLLOWER_INDEX_STEP_NAME = "open-follower-index";
     static final String CONDITIONAL_UNFOLLOW_STEP = BranchingStep.NAME + "-check-unfollow-prerequisites";
 
-    public UnfollowAction() {}
+    public static final UnfollowAction INSTANCE = new UnfollowAction();
+
+    private UnfollowAction() {}
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
@@ -81,12 +82,10 @@ public final class UnfollowAction implements LifecycleAction {
         return NAME;
     }
 
-    public UnfollowAction(StreamInput in) throws IOException {}
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {}
 
-    private static final ObjectParser<UnfollowAction, Void> PARSER = new ObjectParser<>(NAME, UnfollowAction::new);
+    private static final ObjectParser<UnfollowAction, Void> PARSER = new ObjectParser<>(NAME, () -> INSTANCE);
 
     public static UnfollowAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);

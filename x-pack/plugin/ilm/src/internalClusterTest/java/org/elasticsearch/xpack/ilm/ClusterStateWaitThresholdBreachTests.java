@@ -88,7 +88,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         internalCluster().startDataOnlyNode();
 
         int numShards = 2;
-        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(false), ShrinkAction.NAME,
+        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(MigrateAction.NAME, MigrateAction.DISABLED, ShrinkAction.NAME,
             new ShrinkAction(1, null)));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("warm", warmPhase));
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);

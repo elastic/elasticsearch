@@ -24,12 +24,12 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
 
     @Override
     protected FreezeAction createTestInstance() {
-        return new FreezeAction();
+        return FreezeAction.INSTANCE;
     }
 
     @Override
     protected Reader<FreezeAction> instanceReader() {
-        return FreezeAction::new;
+        return in -> FreezeAction.INSTANCE;
     }
 
     public void testToSteps() {

@@ -22,12 +22,12 @@ public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
 
     @Override
     protected DeleteAction createTestInstance() {
-        return new DeleteAction();
+        return DeleteAction.WITH_SNAPSHOT_DELETE;
     }
 
     @Override
     protected Reader<DeleteAction> instanceReader() {
-        return DeleteAction::new;
+        return DeleteAction::readFrom;
     }
 
     public void testToSteps() {
@@ -35,8 +35,7 @@ public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
         {
-            DeleteAction action = new DeleteAction(true);
-            List<Step> steps = action.toSteps(null, phase, nextStepKey);
+            List<Step> steps = DeleteAction.WITH_SNAPSHOT_DELETE.toSteps(null, phase, nextStepKey);
             assertNotNull(steps);
             assertEquals(3, steps.size());
             StepKey expectedFirstStepKey = new StepKey(phase, DeleteAction.NAME, WaitForNoFollowersStep.NAME);
@@ -53,8 +52,7 @@ public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
         }
 
         {
-            DeleteAction actionKeepsSnapshot = new DeleteAction(false);
-            List<Step> steps = actionKeepsSnapshot.toSteps(null, phase, nextStepKey);
+            List<Step> steps = DeleteAction.NO_SNAPSHOT_DELETE.toSteps(null, phase, nextStepKey);
             StepKey expectedFirstStepKey = new StepKey(phase, DeleteAction.NAME, WaitForNoFollowersStep.NAME);
             StepKey expectedSecondStepKey = new StepKey(phase, DeleteAction.NAME, DeleteStep.NAME);
             assertEquals(2, steps.size());

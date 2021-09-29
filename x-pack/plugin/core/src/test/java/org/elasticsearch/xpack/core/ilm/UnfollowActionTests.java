@@ -28,12 +28,12 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
 
     @Override
     protected UnfollowAction createTestInstance() {
-        return new UnfollowAction();
+        return UnfollowAction.INSTANCE;
     }
 
     @Override
     protected Reader<UnfollowAction> instanceReader() {
-        return UnfollowAction::new;
+        return in -> UnfollowAction.INSTANCE;
     }
 
     public void testToSteps() {

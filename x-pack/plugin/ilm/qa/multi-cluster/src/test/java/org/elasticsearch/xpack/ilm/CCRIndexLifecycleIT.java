@@ -121,7 +121,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             createIndex(indexName, indexSettings);
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
-            createNewSingletonPolicy("unfollow-only", "hot", new UnfollowAction(), TimeValue.ZERO);
+            createNewSingletonPolicy("unfollow-only", "hot", UnfollowAction.INSTANCE, TimeValue.ZERO);
             followIndex(indexName, indexName);
             ensureGreen(indexName);
 

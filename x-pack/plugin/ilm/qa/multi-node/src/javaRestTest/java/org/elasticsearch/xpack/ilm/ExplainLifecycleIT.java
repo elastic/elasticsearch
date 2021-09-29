@@ -137,7 +137,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExplainIndicesWildcard() throws Exception {
-        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(), TimeValue.timeValueDays(100));
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueDays(100));
         String firstIndex = this.index + "-first";
         String secondIndex = this.index + "-second";
         String unmanagedIndex = this.index + "-unmanaged";

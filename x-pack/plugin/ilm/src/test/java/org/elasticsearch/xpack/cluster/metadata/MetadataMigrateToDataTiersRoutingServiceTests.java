@@ -126,13 +126,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     public void testMigrateIlmPolicyFOrPhaseWithDeactivatedMigrateAction() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
         AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
-        MigrateAction deactivatedMigrateAction = new MigrateAction(false);
 
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName,
             Map.of("warm",
                 new Phase("warm", TimeValue.ZERO, Map.of(shrinkAction.getWriteableName(), shrinkAction,
-                    warmAllocateAction.getWriteableName(), warmAllocateAction, deactivatedMigrateAction.getWriteableName(),
-                    deactivatedMigrateAction))
+                    warmAllocateAction.getWriteableName(), warmAllocateAction, MigrateAction.DISABLED.getWriteableName(),
+                        MigrateAction.DISABLED))
             ));
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
             randomNonNegativeLong(), randomNonNegativeLong());

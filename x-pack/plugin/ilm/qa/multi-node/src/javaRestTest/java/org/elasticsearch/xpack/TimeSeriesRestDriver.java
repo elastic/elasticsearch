@@ -189,7 +189,7 @@ public final class TimeSeriesRestDriver {
         phases.put("hot", new Phase("hot", hotTime, hotActions));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
+        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE)));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();

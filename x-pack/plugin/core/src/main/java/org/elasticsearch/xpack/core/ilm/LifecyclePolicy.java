@@ -47,6 +47,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     public static final ParseField PHASES_FIELD = new ParseField("phases");
     private static final ParseField METADATA = new ParseField("_meta");
 
+    private static final StepKey NEW_STEP_KEY = new StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
+
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", false,
             (a, name) -> {
@@ -246,8 +248,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }
 
         // The very first after step is in a phase before the hot phase so call this "new"
-        Step.StepKey afterStepKey = new Step.StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
-        Step phaseAfterStep = new PhaseCompleteStep(afterStepKey, lastStepKey);
+        Step phaseAfterStep = new PhaseCompleteStep(NEW_STEP_KEY, lastStepKey);
         steps.add(phaseAfterStep);
         lastStepKey = phaseAfterStep.getKey();
 

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,16 +30,15 @@ public class FreezeAction implements LifecycleAction {
     public static final String NAME = "freeze";
     public static final String CONDITIONAL_SKIP_FREEZE_STEP = BranchingStep.NAME + "-freeze-check-prerequisites";
 
-    private static final ObjectParser<FreezeAction, Void> PARSER = new ObjectParser<>(NAME, FreezeAction::new);
+    public static final FreezeAction INSTANCE = new FreezeAction();
+
+    private static final ObjectParser<FreezeAction, Void> PARSER = new ObjectParser<>(NAME, () -> INSTANCE);
 
     public static FreezeAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public FreezeAction() {
-    }
-
-    public FreezeAction(StreamInput in) {
+    private FreezeAction() {
     }
 
     @Override

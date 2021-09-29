@@ -25,11 +25,11 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     public static final String NAME = "classification";
 
-    public static final String PREDICTION_PROBABILITY = "prediction_probability";
     public static final String PREDICTION_SCORE = "prediction_score";
 
     private final String topNumClassesField;
-    private final String resultsField;
+    // Accessed in sub-classes
+    protected final String resultsField;
     private final String classificationLabel;
     private final Double predictionProbability;
     private final Double predictionScore;
@@ -60,15 +60,41 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
                                            ClassificationConfig classificationConfig,
                                            Double predictionProbability,
                                            Double predictionScore) {
+        this(
+            value,
+            classificationLabel,
+            topClasses,
+            featureImportance,
+            classificationConfig.getTopClassesResultsField(),
+            classificationConfig.getResultsField(),
+            classificationConfig.getPredictionFieldType(),
+            classificationConfig.getNumTopFeatureImportanceValues(),
+            predictionProbability,
+            predictionScore
+        );
+    }
+
+    public ClassificationInferenceResults(
+        double value,
+        String classificationLabel,
+        List<TopClassEntry> topClasses,
+        List<ClassificationFeatureImportance> featureImportance,
+        String topNumClassesField,
+        String resultsField,
+        PredictionFieldType predictionFieldType,
+        int numTopFeatureImportanceValues,
+        Double predictionProbability,
+        Double predictionScore
+    ) {
         super(value);
         this.classificationLabel = classificationLabel;
         this.topClasses = topClasses == null ? Collections.emptyList() : Collections.unmodifiableList(topClasses);
-        this.topNumClassesField = classificationConfig.getTopClassesResultsField();
-        this.resultsField = classificationConfig.getResultsField();
-        this.predictionFieldType = classificationConfig.getPredictionFieldType();
+        this.topNumClassesField = topNumClassesField;
+        this.resultsField = resultsField;
+        this.predictionFieldType = predictionFieldType;
         this.predictionProbability = predictionProbability;
         this.predictionScore = predictionScore;
-        this.featureImportance = takeTopFeatureImportances(featureImportance, classificationConfig.getNumTopFeatureImportanceValues());
+        this.featureImportance = takeTopFeatureImportances(featureImportance, numTopFeatureImportanceValues);
     }
 
     static List<ClassificationFeatureImportance> takeTopFeatureImportances(List<ClassificationFeatureImportance> featureImportances,

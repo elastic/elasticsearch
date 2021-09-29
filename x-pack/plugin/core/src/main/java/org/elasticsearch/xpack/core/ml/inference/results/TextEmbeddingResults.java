@@ -9,29 +9,29 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 public class TextEmbeddingResults implements InferenceResults {
 
     public static final String NAME = "text_embedding_result";
-    static final String DEFAULT_RESULTS_FIELD = "results";
 
-    private static final ParseField INFERENCE = new ParseField("inference");
-
+    private final String resultsField;
     private final double[] inference;
 
-    public TextEmbeddingResults(double[] inference) {
+    public TextEmbeddingResults(String resultsField, double[] inference) {
         this.inference = inference;
+        this.resultsField = resultsField;
     }
 
     public TextEmbeddingResults(StreamInput in) throws IOException {
         inference = in.readDoubleArray();
+        resultsField = in.readString();
     }
 
     public double[] getInference() {
@@ -40,8 +40,7 @@ public class TextEmbeddingResults implements InferenceResults {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(INFERENCE.getPreferredName(), inference);
-        return builder;
+        return builder.field(resultsField, inference);
     }
 
     @Override
@@ -52,11 +51,12 @@ public class TextEmbeddingResults implements InferenceResults {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(inference);
+        out.writeString(resultsField);
     }
 
     @Override
     public Map<String, Object> asMap() {
-        return Collections.singletonMap(DEFAULT_RESULTS_FIELD, inference);
+        return Collections.singletonMap(resultsField, inference);
     }
 
     @Override
@@ -69,11 +69,11 @@ public class TextEmbeddingResults implements InferenceResults {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TextEmbeddingResults that = (TextEmbeddingResults) o;
-        return Arrays.equals(inference, that.inference);
+        return Arrays.equals(inference, that.inference) && Objects.equals(resultsField, that.resultsField);
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(inference);
+        return Objects.hash(Arrays.hashCode(inference), resultsField);
     }
 }

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
@@ -20,8 +22,9 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 public class
@@ -49,34 +52,34 @@ FillMaskProcessorTests extends ESTestCase {
         TokenizationResult tokenization = new TokenizationResult(vocab);
         tokenization.addTokenization(input, tokens, tokenIds, tokenMap);
 
-        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null, null, null);
+        String resultsField = randomAlphaOfLength(10);
+        FillMaskResults result = (FillMaskResults) FillMaskProcessor.processResult(
+            tokenization,
+            new PyTorchResult("1", scores, 0L, null),
+            4,
+            resultsField
+        );
+        assertThat(result.asMap().get(resultsField), equalTo("France"));
+        assertThat(result.getTopClasses(), hasSize(4));
+        assertEquals("France", result.getClassificationLabel());
+        assertEquals("The capital of France is Paris", result.getPredictedSequence());
 
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
-        FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 0L, null), 4);
-        assertThat(result.getPredictions(), hasSize(4));
-        FillMaskResults.Prediction prediction = result.getPredictions().get(0);
-        assertEquals("France", prediction.getToken());
-        assertEquals("The capital of France is Paris", prediction.getSequence());
+        TopClassEntry prediction = result.getTopClasses().get(1);
+        assertEquals("of", prediction.getClassification());
 
-        prediction = result.getPredictions().get(1);
-        assertEquals("of", prediction.getToken());
-        assertEquals("The capital of of is Paris", prediction.getSequence());
-
-        prediction = result.getPredictions().get(2);
-        assertEquals("Paris", prediction.getToken());
-        assertEquals("The capital of Paris is Paris", prediction.getSequence());
+        prediction = result.getTopClasses().get(2);
+        assertEquals("Paris", prediction.getClassification());
     }
 
     public void testProcessResults_GivenMissingTokens() {
         TokenizationResult tokenization = new TokenizationResult(Collections.emptyList());
         tokenization.addTokenization("", new String[]{}, new int[] {}, new int[] {});
 
-        FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null, null, null);
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
         PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][][]{{{}}}, 0L, null);
-        FillMaskResults result = (FillMaskResults) processor.processResult(tokenization, pyTorchResult, 5);
-
-        assertThat(result.getPredictions(), empty());
+        assertThat(
+            FillMaskProcessor.processResult(tokenization, pyTorchResult, 5, randomAlphaOfLength(10)),
+            instanceOf(WarningInferenceResults.class)
+        );
     }
 
     public void testValidate_GivenMissingMaskToken() {

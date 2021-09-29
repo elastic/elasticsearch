@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.util.List;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
 /**
  * A NLP processor that returns a single double[] output from the model. Assumes that only one tensor is returned via inference
@@ -40,11 +43,14 @@ public class TextEmbeddingProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        return TextEmbeddingProcessor::processResult;
+        return (tokenization, pyTorchResult) -> processResult(tokenization, pyTorchResult, config.getResultsField());
     }
 
-    private static InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
+    private static InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult, String resultsField) {
         // TODO - process all results in the batch
-        return new TextEmbeddingResults(pyTorchResult.getInferenceResult()[0][0]);
+        return new TextEmbeddingResults(
+            Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
+            pyTorchResult.getInferenceResult()[0][0]
+        );
     }
 }

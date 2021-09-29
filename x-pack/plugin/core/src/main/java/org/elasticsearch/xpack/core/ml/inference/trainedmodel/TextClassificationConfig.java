@@ -85,16 +85,7 @@ public class TextClassificationConfig implements NlpConfig {
         }
         this.classificationLabels = classificationLabels;
         this.numTopClasses = Optional.ofNullable(numTopClasses).orElse(-1);
-        if (this.numTopClasses == 0) {
-            throw ExceptionsHelper.badRequestException(
-                    "[{}] requires at least 1 [{}]; provided [{}]",
-                    NAME,
-                    TextClassificationConfig.NUM_TOP_CLASSES,
-                    numTopClasses
-            );
-        }
         this.resultsField = resultsField;
-
     }
 
     public TextClassificationConfig(StreamInput in) throws IOException {

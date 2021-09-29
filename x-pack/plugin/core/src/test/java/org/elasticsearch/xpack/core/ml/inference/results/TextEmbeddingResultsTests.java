@@ -12,6 +12,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.hasSize;
 
 public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingResults> {
@@ -28,13 +29,13 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             arr[i] = randomDouble();
         }
 
-        return new TextEmbeddingResults(arr);
+        return new TextEmbeddingResults(DEFAULT_RESULTS_FIELD, arr);
     }
 
     public void testAsMap() {
         TextEmbeddingResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
         assertThat(asMap.keySet(), hasSize(1));
-        assertArrayEquals(testInstance.getInference(), (double[]) asMap.get(TextEmbeddingResults.DEFAULT_RESULTS_FIELD), 1e-10);
+        assertArrayEquals(testInstance.getInference(), (double[]) asMap.get(DEFAULT_RESULTS_FIELD), 1e-10);
     }
 }

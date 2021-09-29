@@ -7,20 +7,26 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextClassificationResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD;
 
 public class TextClassificationProcessor implements NlpTask.Processor {
 
@@ -54,32 +60,69 @@ public class TextClassificationProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        return this::processResult;
+        if (config instanceof TextClassificationConfig) {
+            TextClassificationConfig textClassificationConfig = (TextClassificationConfig) config;
+            return (tokenization, pytorchResult) -> processResult(
+                tokenization,
+                pytorchResult,
+                textClassificationConfig.getNumTopClasses() < 0 ?
+                    textClassificationConfig.getClassificationLabels().size() :
+                    textClassificationConfig.getNumTopClasses(),
+                textClassificationConfig.getClassificationLabels(),
+                textClassificationConfig.getResultsField()
+            );
+        }
+        return (tokenization, pytorchResult) -> processResult(
+            tokenization,
+            pytorchResult,
+            numTopClasses,
+            Arrays.asList(classLabels),
+            DEFAULT_RESULTS_FIELD
+        );
     }
 
-    InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
+    static InferenceResults processResult(
+        TokenizationResult tokenization,
+        PyTorchResult pyTorchResult,
+        int numTopClasses,
+        List<String> labels,
+        String resultsField
+    ) {
         if (pyTorchResult.getInferenceResult().length < 1) {
             return new WarningInferenceResults("Text classification result has no data");
         }
 
         // TODO only the first entry in the batch result is verified and
         // checked. Implement for all in batch
-        if (pyTorchResult.getInferenceResult()[0][0].length != classLabels.length) {
+        if (pyTorchResult.getInferenceResult()[0][0].length != labels.size()) {
             return new WarningInferenceResults(
                 "Expected exactly [{}] values in text classification result; got [{}]",
-                classLabels.length,
+                labels.size(),
                 pyTorchResult.getInferenceResult()[0][0].length
             );
         }
 
         double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0][0]);
-        return new TextClassificationResults(
-            IntStream.range(0, normalizedScores.length)
-                .mapToObj(i -> new TopClassEntry(classLabels[i], normalizedScores[i]))
-                // Put the highest scoring class first
-                .sorted(Comparator.comparing(TopClassEntry::getProbability).reversed())
+        int[] sortedIndices = IntStream.range(0, normalizedScores.length)
+            .boxed()
+            .sorted(Comparator.comparing(i -> normalizedScores[(Integer) i]).reversed())
+            .mapToInt(i -> i)
+            .toArray();
+
+        return new ClassificationInferenceResults(
+            sortedIndices[0],
+            labels.get(sortedIndices[0]),
+            Arrays.stream(sortedIndices)
+                .mapToObj(i -> new TopClassEntry(labels.get(i), normalizedScores[i]))
                 .limit(numTopClasses)
-                .collect(Collectors.toList())
+                .collect(Collectors.toList()),
+            List.of(),
+            DEFAULT_TOP_CLASSES_RESULTS_FIELD,
+            Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
+            PredictionFieldType.STRING,
+            0,
+            normalizedScores[sortedIndices[0]],
+            null
         );
     }
 }

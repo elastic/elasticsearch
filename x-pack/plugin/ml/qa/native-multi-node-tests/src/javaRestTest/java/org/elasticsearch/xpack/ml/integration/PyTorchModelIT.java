@@ -173,6 +173,18 @@ public class PyTorchModelIT extends ESRestTestCase {
         }
     }
 
+    public void testEvaluateWithResultFieldOverride() throws IOException {
+        String modelId = "test_evaluate";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        String resultsField = randomAlphaOfLength(10);
+        Response inference = infer("my words", modelId, resultsField);
+        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"" + resultsField + "\":[[1.0,1.0]]}"));
+        stopDeployment(modelId);
+    }
+
     public void testDeleteFailureDueToDeployment() throws IOException {
         String modelId = "test_deployed_model_delete";
         createTrainedModel(modelId);
@@ -440,6 +452,15 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
         request.setJsonEntity("{  " +
             "\"docs\": [{\"input\":\"" + input + "\"}]\n" +
+            "}");
+        return client().performRequest(request);
+    }
+
+    private Response infer(String input, String modelId, String resultsField) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        request.setJsonEntity("{  " +
+            "\"docs\": [{\"input\":\"" + input + "\"}],\n" +
+            "\"inference_config\": {\"pass_through\":{\"results_field\": \"" + resultsField + "\"}}\n" +
             "}");
         return client().performRequest(request);
     }

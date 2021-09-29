@@ -158,6 +158,11 @@ public class FillMaskConfig implements NlpConfig {
     }
 
     @Override
+    public String getResultsField() {
+        return resultsField;
+    }
+
+    @Override
     public boolean isAllocateOnly() {
         return true;
     }

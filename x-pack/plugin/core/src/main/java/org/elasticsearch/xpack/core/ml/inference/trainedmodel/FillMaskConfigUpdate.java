@@ -127,7 +127,7 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
 
     @Override
     public boolean isSupported(InferenceConfig config) {
-        return false;
+        return config instanceof FillMaskConfig;
     }
 
     @Override

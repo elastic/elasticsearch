@@ -110,6 +110,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         return topClassesResultsField;
     }
 
+    @Override
     public String getResultsField() {
         return resultsField;
     }

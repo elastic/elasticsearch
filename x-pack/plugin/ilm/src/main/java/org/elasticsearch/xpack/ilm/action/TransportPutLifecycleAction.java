@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
@@ -40,6 +39,7 @@ import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -77,10 +77,11 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         // same context, and therefore does not have access to the appropriate security headers.
         Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
-        List<Phase> phasesDefiningSearchableSnapshot = request.getPolicy().getPhases().values().stream()
-            .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
+        List<SearchableSnapshotAction> searchableSnapshotActions = request.getPolicy().getPhases().values().stream()
+            .map(phase -> (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME))
+            .filter(Objects::nonNull)
             .collect(Collectors.toList());
-        if (phasesDefiningSearchableSnapshot.isEmpty() == false) {
+        if (searchableSnapshotActions.isEmpty() == false) {
             if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
                 throw new IllegalArgumentException("policy [" + request.getPolicy().getName() + "] defines the [" +
                     SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");

@@ -85,7 +85,8 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
         }
         assertAcked(client("cluster_a").admin().indices().prepareCreate("prod")
             .setMapping("f", "type=keyword")
-            .setSettings(Settings.builder().put(allocationFilter.build()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3))));
+            .setSettings(Settings.builder().put(allocationFilter.build())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3))));
         assertFalse(client("cluster_a").admin().cluster().prepareHealth("prod")
             .setWaitForYellowStatus().setTimeout(TimeValue.timeValueSeconds(10)).get().isTimedOut());
         indexDocs(client("cluster_a"), "prod");

@@ -406,8 +406,8 @@ setup:
 ---
 "Delete data stream by wildcard":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason: "change to [-7.8.99] and [data streams only supported in 7.9+] after backport"
 
   - do:
       indices.create_data_stream:

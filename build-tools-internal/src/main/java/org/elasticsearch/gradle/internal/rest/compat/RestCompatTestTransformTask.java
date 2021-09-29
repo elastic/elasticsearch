@@ -39,7 +39,6 @@ import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceTextual
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectAllowedWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.RemoveWarnings;
-
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
@@ -56,7 +55,6 @@ import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
 import org.gradle.internal.Factory;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,6 +68,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
 
 /**
  * A task to transform REST tests for use in REST API compatibility before they are executed.
@@ -92,7 +91,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private final Factory<PatternSet> patternSetFactory;
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
     private final Map<PatternFilterable, String> skippedTestByFilePatternTransformations = new HashMap<>();
-    private final Map<Pair<String, String>, Map<String, String>> skippedTestByTestNameTransformations = new HashMap<>();
+    private final Map<PatternFilterable, List<Pair<String, String>>> skippedTestByTestNameTransformations = new HashMap<>();
 
     @Inject
     public RestCompatTestTransformTask(
@@ -124,20 +123,29 @@ public class RestCompatTestTransformTask extends DefaultTask {
         return true;
     }
 
-    public void skipTest(String testName, String reason) {
+    public void skipTest(String fullTestName, String reason) {
         //The tests are defined by 3 parts a/b/c where
         // a = the folder name
         // b = the file name without the .yml extension
-        // c = the root name inside the .yml
+        // c = the test name inside the .yml
         // For example: indices.get_mapping/20_missing_type/Non-existent type returns 404
-        String[] testParts = testName.split("/");
+        // However, the folder can be arbitrarily nest so, a == a1/a2/a3, and the test name can include forward slashes, so c == c1/c2/c3
+        // So we also need to support a1/a2/a3/b/c1/c2/c3
+
+        String[] testParts = fullTestName.split("/");
         if(testParts.length < 3 ){
-            throw new IllegalArgumentException("To skip tests, all 3 parts [folder/file/test name] must be defined. found [" + testName + "]");
+            throw new IllegalArgumentException("To skip tests, all 3 parts [folder/file/test name] must be defined. found [" + fullTestName + "]");
         }
 
-        //some tests have a "/" in the name, so allow for 1 forward slash
-        skippedTestByTestNameTransformations.computeIfAbsent(Pair.of(testParts[0], testParts[1] + ".yml"),
-            k -> new HashMap<>()).put(testParts[2] + (testParts.length == 4 ? "/" + testParts[3] : ""), reason);
+        PatternSet skippedPatternSet = patternSetFactory.create();
+        //create file patterns for all a1/a2/a3/b.yml possibilities.
+        for(int i = testParts.length - 1; i > 1; i-- ){
+            final String lastPart = testParts[i];
+            String filePattern = "**/" + Arrays.stream(testParts).takeWhile(x -> x.equals(lastPart) == false).collect(Collectors.joining("/")) + ".yml";
+            skippedPatternSet.include(filePattern);
+        }
+
+        skippedTestByTestNameTransformations.computeIfAbsent(skippedPatternSet, k -> new ArrayList<>()).add(Pair.of(fullTestName, reason));
     }
 
     public void skipTestsByFilePattern(String filePattern, String reason) {
@@ -421,6 +429,14 @@ public class RestCompatTestTransformTask extends DefaultTask {
             }
         });
 
+        Map<File, List<Pair<String, String>>> skippedFilesWithTestAndReason = new HashMap<>();
+        skippedTestByTestNameTransformations.forEach((filePattern, testWithReason) -> {
+            //resolve file pattern to concrete files
+            for (File file : getTestFiles().matching(filePattern).getFiles()) {
+                skippedFilesWithTestAndReason.put(file, testWithReason);
+            }
+        });
+
         RestTestTransformer transformer = new RestTestTransformer();
         // TODO: instead of flattening the FileTree here leverage FileTree.visit() so we can preserve folder hierarchy in a more robust way
         for (File file : getTestFiles().getFiles()) {
@@ -431,18 +447,16 @@ public class RestCompatTestTransformTask extends DefaultTask {
                 //skip all the tests in the file
                 transformRestTests = transformer.transformRestTests(new LinkedList<>(tests),
                     Collections.singletonList(new Skip(skippedFilesWithReason.get(file))));
-            }  else {
-
-                if (skippedTestByTestNameTransformations.containsKey(Pair.of(file.getParentFile().getName(), file.getName()))) {
+            } else {
+                if (skippedFilesWithTestAndReason.containsKey(file)) {
                     //skip the named tests for this file
-                    skippedTestByTestNameTransformations.get(Pair.of(file.getParentFile().getName(), file.getName())).forEach((testName, reason) -> {
-                        transformations.add(new Skip(testName, reason));
+                    skippedFilesWithTestAndReason.get(file).forEach(fullTestNameAndReasonPair -> {
+                        String prefix = file.getName().replace(".yml", "/");
+                        String singleTestName = fullTestNameAndReasonPair.getLeft().replaceAll(".*" + prefix, "");
+                        transformations.add(new Skip(singleTestName, fullTestNameAndReasonPair.getRight()));
                     });
                 }
-
-
                 transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), transformations);
-
             }
 
             // convert to url to ensure forward slashes
@@ -479,10 +493,9 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     @Input
     public String getSkippedTestByTestNameTransformations() {
+
         return skippedTestByTestNameTransformations.keySet().stream()
-            .map(key -> key +
-                skippedTestByTestNameTransformations.get(key).keySet().stream().map(k2 -> k2 + "="
-                    + skippedTestByTestNameTransformations.get(k2)).collect(Collectors.joining()))
+            .map(key -> String.join(",", key.getIncludes()) + skippedTestByTestNameTransformations.get(key))
             .collect(Collectors.joining());
     }
 }

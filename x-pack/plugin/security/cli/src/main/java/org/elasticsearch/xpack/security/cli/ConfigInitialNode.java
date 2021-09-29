@@ -140,7 +140,8 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                 Terminal.Verbosity.NORMAL,
                 String.format(
                     Locale.ROOT,
-                    "Skipping security auto configuration because" + " the configuration file [%s] is not readable",
+                    "Skipping security auto configuration because the current user does not have permission to read "
+                        + " configuration file [%s]",
                     ymlPath
                 )
             );
@@ -153,7 +154,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                 Terminal.Verbosity.NORMAL,
                 String.format(
                     Locale.ROOT,
-                    "Skipping security auto configuration because" + " the node keystore file [%s] is not a readable regular file",
+                    "Skipping security auto configuration because the node keystore file [%s] is not a readable regular file",
                     keystorePath
                 )
             );

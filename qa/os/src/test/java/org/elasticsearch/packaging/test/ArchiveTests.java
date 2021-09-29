@@ -30,8 +30,6 @@ import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.elasticsearch.packaging.util.Archives.verifySecurityAutoConfigured;
-import static org.elasticsearch.packaging.util.Archives.verifySecurityNotAutoConfigured;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
@@ -136,7 +134,10 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
-    public void test40AutoconfigurationNotTriggered() throws Exception {
+    public void test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster() throws Exception {
+        // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
+        // we don't trigger false negatives for the auto-configuration process
+        Platforms.onWindows(()-> sh.chown(installation.config));
         FileUtils.assertPathsDoNotExist(installation.data);
         ServerUtils.addSettingToExistingConfiguration(installation, "discovery.seed_hosts", "[\"127.0.0.1:9300\"]");
         startElasticsearch();
@@ -144,21 +145,27 @@ public class ArchiveTests extends PackagingTestCase {
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "discovery.seed_hosts");
         FileUtils.rm(installation.data);
+    }
 
+    public void test41AutoconfigurationNotTriggeredWhenNodeCannotContainData() throws Exception {
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"voting_only\", \"master\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
         FileUtils.rm(installation.data);
+    }
 
+    public void test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster() throws Exception {
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"ingest\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
         FileUtils.rm(installation.data);
+    }
 
+    public void test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured() throws Exception {
         ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.http.ssl.enabled", "false");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
@@ -167,7 +174,7 @@ public class ArchiveTests extends PackagingTestCase {
         FileUtils.rm(installation.data);
     }
 
-    public void test41AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
+    public void test44AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
         Path tempDir = createTempDir("custom-config");
         Path tempConf = tempDir.resolve("elasticsearch");
         FileUtils.copyDirectory(installation.config, tempConf);
@@ -388,18 +395,6 @@ public class ArchiveTests extends PackagingTestCase {
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
-            // Auto-configuration file paths are absolute so we need to replace them in the config now that we copied them to tempConf
-            Path yml = tempConf.resolve("elasticsearch.yml");
-            List<String> lines;
-            try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-                lines = allLines.map(l -> {
-                    if (l.contains(installation.config.toString())) {
-                        return l.replace(installation.config.toString(), tempConf.toString());
-                    }
-                    return l;
-                }).collect(Collectors.toList());
-            }
-            Files.write(yml, lines, TRUNCATE_EXISTING);
             startElasticsearch();
 
             final String nodesResponse = makeRequest(
@@ -481,21 +476,8 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test80RelativePathConf() throws Exception {
-
         withCustomConfig(tempConf -> {
-            // Auto-configuration file paths are absolute so we need to replace them in the config now that we copied them to tempConf
-            Path yml = tempConf.resolve("elasticsearch.yml");
-            List<String> lines;
-            try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-                lines = allLines.map(l -> {
-                    if (l.contains(installation.config.toString())) {
-                        return l.replace(installation.config.toString(), tempConf.toString());
-                    }
-                    return l;
-                }).collect(Collectors.toList());
-            }
-            lines.add("node.name: relative");
-            Files.write(yml, lines, TRUNCATE_EXISTING);
+            append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
             startElasticsearch();
 
             final String nodesResponse = makeRequest(

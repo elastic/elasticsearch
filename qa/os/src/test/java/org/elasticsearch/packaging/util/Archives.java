@@ -10,16 +10,13 @@ package org.elasticsearch.packaging.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hamcrest.Matchers;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -30,7 +27,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.FileUtils.getDefaultArchiveInstallPath;
@@ -39,15 +35,12 @@ import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
-import static org.elasticsearch.packaging.util.docker.Docker.sh;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyOrNullString;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
-import static org.junit.Assert.assertNotNull;
 
 /**
  * Installation and verification logic for archive distributions
@@ -416,61 +409,6 @@ public class Archives {
 
     private static Path getPowershellOutputPath(Installation installation) {
         return installation.logs.resolve("output.out");
-    }
-
-    public static void verifySecurityAutoConfigured(Installation es) throws Exception {
-        Optional<String> autoConfigDirName = getAutoConfigDirName(es);
-        assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
-        assertThat(es.config(autoConfigDirName.get()), file(Directory, ARCHIVE_OWNER, ARCHIVE_OWNER, p750));
-        Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
-            .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660)));
-        List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-
-        assertThat(configLines, hasItem("xpack.security.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.http.ssl.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.enabled: true"));
-
-        assertThat(configLines, hasItem("xpack.security.enrollment.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.verification_mode: certificate"));
-        assertThat(
-            configLines,
-            hasItem(
-                "xpack.security.transport.ssl.keystore.path: "
-                    + es.config(autoConfigDirName.get()).resolve("transport_keystore_all_nodes.p12")
-            )
-        );
-        assertThat(
-            configLines,
-            hasItem(
-                "xpack.security.transport.ssl.truststore.path: "
-                    + es.config(autoConfigDirName.get()).resolve("transport_keystore_all_nodes.p12")
-            )
-        );
-        assertThat(
-            configLines,
-            hasItem("xpack.security.http.ssl.keystore.path: " + es.config(autoConfigDirName.get()).resolve("http_keystore_local_node.p12"))
-        );
-        assertThat(configLines, hasItem("http.host: [_local_, _site_]"));
-    }
-
-    public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
-        assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
-        List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        assertThat(
-            configLines,
-            Matchers.not(hasItem("# have been automatically generated in order to configure Security.               #"))
-        );
-    }
-
-    public static Optional<String> getAutoConfigDirName(Installation es) {
-        final Shell.Result lsResult;
-        if (es.distribution.platform.equals(Distribution.Platform.WINDOWS)) {
-            lsResult = sh.run("Get-ChildItem -Path " + es.config + " -Name");
-        } else {
-            lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
-        }
-        assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("tls_auto_config_initial_node_")).findFirst();
     }
 
 }

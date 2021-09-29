@@ -97,6 +97,14 @@ public class NodeMetadataTests extends ESTestCase {
             allOf(startsWith("cannot upgrade a node from version ["), endsWith("] directly to version [" + Version.CURRENT + "]")));
     }
 
+    public void testUpgradeMarksPreviousVersion() {
+        final String nodeId = randomAlphaOfLength(10);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.V_7_16_0);
+        final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, version).upgradeToCurrentVersion();
+        assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
+        assertThat(nodeMetadata.previousNodeVersion(), equalTo(version));
+    }
+
     public static Version tooNewVersion() {
         return Version.fromId(between(Version.CURRENT.id + 1, 99999999));
     }

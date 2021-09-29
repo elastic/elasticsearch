@@ -39,7 +39,11 @@ public final class NodeMetadata {
     public NodeMetadata(final String nodeId, final Version nodeVersion, final Version previousNodeVersion) {
         this.nodeId = Objects.requireNonNull(nodeId);
         this.nodeVersion = Objects.requireNonNull(nodeVersion);
-        this.previousNodeVersion = previousNodeVersion;
+        this.previousNodeVersion = Objects.requireNonNull(previousNodeVersion);
+    }
+
+    public NodeMetadata(final String nodeId, final Version nodeVersion) {
+       this(nodeId, nodeVersion, nodeVersion);
     }
 
     @Override public boolean equals(Object o) {

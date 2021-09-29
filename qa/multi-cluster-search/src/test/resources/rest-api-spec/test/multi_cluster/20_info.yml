@@ -96,8 +96,6 @@
   - match: { test_remote_cluster.mode: "proxy" }
 
   - do:
-      warnings:
-        - "[transientSettings removal] Updating cluster settings through transientSettings is deprecated. Prefer using persistent settings instead."
       cluster.put_settings:
         body:
           transient:

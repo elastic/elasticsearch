@@ -70,7 +70,7 @@ public class TransformIT extends TransformIntegTestCase {
     public void setClusterSettings() throws IOException {
         Request settingsRequest = new Request("PUT", "/_cluster/settings");
         settingsRequest.setJsonEntity(
-            "{\"transient\": {"
+            "{\"persistent\": {"
                 + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"debug\","
                 + "\"logger.org.elasticsearch.xpack.transform\": \"debug\"}}"
         );

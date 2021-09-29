@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.List;
 import org.elasticsearch.index.IndexModule;
@@ -51,25 +52,25 @@ public class DataTierAllocationDecider extends AllocationDecider {
     public static final String CLUSTER_ROUTING_EXCLUDE = "cluster.routing.allocation.exclude._tier";
     public static final String INDEX_ROUTING_REQUIRE = "index.routing.allocation.require._tier";
     public static final String INDEX_ROUTING_INCLUDE = "index.routing.allocation.include._tier";
-    public static final String INDEX_ROUTING_PREFER = "index.routing.allocation.include._tier_preference";
     public static final String INDEX_ROUTING_EXCLUDE = "index.routing.allocation.exclude._tier";
+    public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";
 
     private static final DataTierValidator VALIDATOR = new DataTierValidator();
     public static final Setting<String> CLUSTER_ROUTING_REQUIRE_SETTING = Setting.simpleString(CLUSTER_ROUTING_REQUIRE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
+        DataTierAllocationDecider::validateTierSetting, Property.Dynamic, Property.NodeScope, Property.Deprecated);
     public static final Setting<String> CLUSTER_ROUTING_INCLUDE_SETTING = Setting.simpleString(CLUSTER_ROUTING_INCLUDE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
+        DataTierAllocationDecider::validateTierSetting, Property.Dynamic, Property.NodeScope, Property.Deprecated);
     public static final Setting<String> CLUSTER_ROUTING_EXCLUDE_SETTING = Setting.simpleString(CLUSTER_ROUTING_EXCLUDE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
+        DataTierAllocationDecider::validateTierSetting, Property.Dynamic, Property.NodeScope, Property.Deprecated);
     public static final Setting<String> INDEX_ROUTING_REQUIRE_SETTING = Setting.simpleString(INDEX_ROUTING_REQUIRE,
-        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.Deprecated);
+        VALIDATOR, Property.Dynamic, Property.IndexScope, Property.Deprecated);
     public static final Setting<String> INDEX_ROUTING_INCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_INCLUDE,
-        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.Deprecated);
+        VALIDATOR, Property.Dynamic, Property.IndexScope, Property.Deprecated);
     public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
-        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.Deprecated);
-    public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = new Setting<String>(new Setting.SimpleKey(INDEX_ROUTING_PREFER),
+        VALIDATOR, Property.Dynamic, Property.IndexScope, Property.Deprecated);
+    public static final Setting<String> TIER_PREFERENCE_SETTING = new Setting<String>(new Setting.SimpleKey(TIER_PREFERENCE),
         DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR,
-        Setting.Property.Dynamic, Setting.Property.IndexScope) {
+        Property.Dynamic, Property.IndexScope) {
         @Override
         public String get(Settings settings) {
             if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)) {
@@ -88,16 +89,18 @@ public class DataTierAllocationDecider extends AllocationDecider {
             for (String s : setting.split(",")) {
                 if (DataTier.validTierName(s) == false) {
                     throw new IllegalArgumentException(
-                            "invalid tier names found in [" + setting + "] allowed values are " + DataTier.ALL_DATA_TIERS);
+                        "invalid tier names found in [" + setting + "] allowed values are " + DataTier.ALL_DATA_TIERS);
                 }
             }
         }
     }
 
     private static class DataTierValidator implements Setting.Validator<String> {
-        private static final Collection<Setting<?>> dependencies =
-            List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
-                SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING);
+
+        private static final Collection<Setting<?>> dependencies = List.of(
+            IndexModule.INDEX_STORE_TYPE_SETTING,
+            SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING
+        );
 
         public static String getDefaultTierPreference(Settings settings) {
             if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)) {
@@ -202,7 +205,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
     private Decision shouldIndexPreferTier(IndexMetadata indexMetadata, Set<DiscoveryNodeRole> roles,
                                            PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
         Settings indexSettings = indexMetadata.getSettings();
-        String tierPreference = INDEX_ROUTING_PREFER_SETTING.get(indexSettings);
+        String tierPreference = TIER_PREFERENCE_SETTING.get(indexSettings);
 
         if (Strings.hasText(tierPreference)) {
             Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes());

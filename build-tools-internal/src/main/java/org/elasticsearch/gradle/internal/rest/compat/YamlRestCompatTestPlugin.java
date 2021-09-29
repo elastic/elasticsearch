@@ -54,7 +54,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         final int compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
-        final String sourceSetName = "yamlRestTestV" + compatibleVersion;
+        final String sourceSetName = "yamlRestTestV" + compatibleVersion + "Compat";
         final Path compatRestResourcesDir = Path.of("restResources").resolve("v" + compatibleVersion);
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
         final Path compatTestsDir = compatRestResourcesDir.resolve("yamlTests");

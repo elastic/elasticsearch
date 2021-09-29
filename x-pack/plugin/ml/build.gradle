@@ -62,7 +62,10 @@ dependencies {
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('shutdown'))
   testImplementation project(path: xpackModule('data-streams'))
+  testImplementation project(path: xpackModule('monitoring'))
   testImplementation project(':modules:ingest-common')
+  testImplementation project(':modules:reindex')
+  testImplementation project(':modules:analysis-common')
   // This should not be here
   testImplementation(testArtifact(project(xpackModule('security'))))
   // ml deps

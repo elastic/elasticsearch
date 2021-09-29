@@ -432,7 +432,12 @@ public class DockerTests extends PackagingTestCase {
         }
 
         // Also check that an unauthenticated call fails
-        final int statusCode = Request.Get("http://localhost:9200/_nodes").execute().returnResponse().getStatusLine().getStatusCode();
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(
+            Request.Get("https://localhost:9200"),
+            null,
+            null,
+            ServerUtils.getCaCert(installation)
+        );
         assertThat("Expected server to require authentication", statusCode, equalTo(401));
     }
 

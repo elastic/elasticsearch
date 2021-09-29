@@ -94,7 +94,11 @@ public class EquivalenceIT extends ESIntegTestCase {
 
     @After
     private void cleanupMaxBuckets() {
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Collections.singletonMap("search.max_buckets", null)).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Collections.singletonMap("search.max_buckets", null))
+            .get();
     }
 
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported

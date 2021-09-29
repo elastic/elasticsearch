@@ -558,6 +558,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         Metadata metadata = client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata();
 
                         final Set<String> persistentKeys = new HashSet<>(metadata.persistentSettings().keySet());
+                        if (isInternalCluster() && internalCluster().getAutoManageMinMasterNode()) {
+                            // this is set by the test infra
+                            persistentKeys.remove(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());
+                        }
+
                         assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
 
                         final Set<String> transientKeys = new HashSet<>(metadata.transientSettings().keySet());

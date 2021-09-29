@@ -70,7 +70,9 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()))
+            .setPersistentSettings(
+                Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            )
             .get();
 
         // validation done by InternalTestCluster.ensureEstimatedStats()

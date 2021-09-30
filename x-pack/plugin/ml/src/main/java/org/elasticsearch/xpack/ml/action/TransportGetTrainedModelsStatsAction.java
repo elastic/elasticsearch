@@ -152,7 +152,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     }
 
     static String[] ingestNodes(final ClusterState clusterState) {
-        return clusterState.nodes().getIngestNodes().keySet().toArray(String[]::new);
+        return clusterState.nodes().getIngestNodes().keySet().toArray(new String[0]);
     }
 
     static Map<String, Set<String>> pipelineIdsByModelIdsOrAliases(ClusterState state, IngestService ingestService, Set<String> modelIds) {

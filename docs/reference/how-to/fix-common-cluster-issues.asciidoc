@@ -17,9 +17,16 @@ usage goes below the <<cluster-routing-watermark-high,high disk watermark>>. To
 achieve this, {es} automatically moves some of the affected node's shards to
 other nodes in the same data tier.
 
-To verify that shards are moving off the affected node, use the
-<<cluster-allocation-explain,cluster allocation explanation API>>. If shards
-remain on the node, the API provides an explanation for their status.
+To verify that shards are moving off the affected node, use the <<cat-shards,cat
+shards API>>.
+
+[source,console]
+----
+GET _cat/shards?v=true
+----
+
+If shards remain on the node, use the <<cluster-allocation-explain,cluster
+allocation explanation API>> to get an explanation for their allocation status.
 
 [source,console]
 ----
@@ -56,7 +63,7 @@ PUT */_settings?expand_wildcards=all
 ----
 // TEST[s/^/PUT my-index\n/]
 
-As a long-term solution, we recommend you add nodes to the affected data tiers
+As a long-term solution, we recommend you add nodes to the affected data tier
 or upgrade existing nodes to increase disk space. To free up additional disk
 space, you can delete unneeded indices using the <<indices-delete-index,delete
 index API>>.
@@ -67,7 +74,8 @@ DELETE my-index
 ----
 // TEST[s/^/PUT my-index\n/]
 
-When a long-term solution is in place, reset or reconfigure the disk watermarks.
+When a long-term solution is in place, you can reset or reconfigure the disk
+watermarks.
 
 [source,console]
 ----

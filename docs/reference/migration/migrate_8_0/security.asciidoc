@@ -6,6 +6,40 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+.The file and native realms are now enabled unless explicitly disabled.
+[%collapsible]
+====
+*Details* +
+The file and native realms are now enabled unless explicitly disabled. If
+explicitly disabled, the file and native realms remain disabled at all times.
+
+Previously, the file and native realms had the following implicit behaviors:
+
+* If the file and native realms were not configured, they were implicitly disabled
+if any other realm was configured.
+
+* If no other realm was available because realms were either not configured,
+not perrmitted by license, or explicitly disabled, the file and native realms 
+were enabled, even if explicitly disabled.
+
+*Impact* +
+To explicilty disable the file or native realm, set the respective
+`file.<realm-name>.enabled` or `native.<realm-name>.enabled` setting to `false`
+under the `xpack.security.authc.realms` namespace in `elasticsearch.yml`.
+
+The following configuration example disables the native realm and the file realm.
+
+[source,yaml]
+----
+xpack.security.authc.realms:
+  
+  native.realm1.enabled: false
+  file.realm2.enabled: false
+
+  ...
+----
+====
+
 .The realm `order` setting is now required.
 [%collapsible]
 ====

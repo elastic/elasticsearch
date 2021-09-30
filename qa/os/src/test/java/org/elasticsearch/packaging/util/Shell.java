@@ -81,6 +81,10 @@ public class Shell {
     }
 
     public void chown(Path path) throws Exception {
+        chown(path, System.getenv("username"));
+    }
+
+    public void chown(Path path, String newOwner) throws Exception {
         Platforms.onLinux(() -> run("chown -R elasticsearch:elasticsearch " + path));
         Platforms.onWindows(
             () -> run(
@@ -98,7 +102,7 @@ public class Shell {
                         + "  $acl.SetOwner($account); "
                         + "  Set-Acl $_.FullName $acl "
                         + "}",
-                    System.getenv("username"),
+                    newOwner,
                     path,
                     path
                 )

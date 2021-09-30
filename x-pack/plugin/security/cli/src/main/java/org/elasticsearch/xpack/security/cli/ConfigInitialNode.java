@@ -128,7 +128,7 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
                 Terminal.Verbosity.NORMAL,
                 String.format(
                     Locale.ROOT,
-                    "Skipping security auto configuration because" + " the configuration file [%s] is missing or is not a regular file",
+                    "Skipping security auto configuration because the configuration file [%s] is missing or is not a regular file",
                     ymlPath
                 )
             );
@@ -200,10 +200,10 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
             // the following is only printed once, if the node starts successfully
             throw new UserException(
                 ExitCodes.CONFIG,
-                "Aborting auto configuration because of config dir ownership mismatch :"
-                    + newFileOwner.getName()
-                    + " vs "
+                "Aborting auto configuration because of config dir ownership mismatch. Config dir is owned by "
                     + Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS).getName()
+                    + " but auto-configuration directory would be owned by "
+                    + newFileOwner.getName()
             );
         }
         final KeyPair transportKeyPair;

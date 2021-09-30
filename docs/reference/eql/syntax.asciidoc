@@ -695,6 +695,46 @@ until [ process where event.type == "stop" ]
 ====
 
 [discrete]
+[[eql-runs-keyword]]
+=== `runs` keyword
+
+Use a `runs` statement to run the same event criteria successively within a
+sequence query. For example:
+
+[source,eql]
+----
+sequence
+  [ process where event.type == "creation" ]
+  [ library where process.name == "regsvr32.exe" ] [runs=3]
+  [ registry where true ]
+----
+
+is equivalent to:
+
+[source,eql]
+----
+sequence
+  [ process where event.type == "creation" ]
+  [ library where process.name == "regsvr32.exe" ]
+  [ library where process.name == "regsvr32.exe" ]
+  [ library where process.name == "regsvr32.exe" ]
+  [ registry where true ]
+----
+
+A `runs` statement must be enclosed in square brackets (`[ ]`). The `runs` value
+must be between `1` and `100` (inclusive).
+ 
+You can use a `runs` statement with the <<eql-by-keyword,`by` keyword>>. For
+example:
+
+[source,eql]
+----
+sequence
+  [ process where event.type == "creation" ] by process.executable
+  [ library where process.name == "regsvr32.exe" ] by dll.path [runs=3]
+----
+
+[discrete]
 [[eql-functions]]
 === Functions
 

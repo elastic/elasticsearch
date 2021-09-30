@@ -237,7 +237,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via an environment variable.
      */
-    @AwaitsFix(bugUrl = "Keystore fails to save with resource busy")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
     public void test40DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -262,7 +262,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via a file, pointed at from an environment variable.
      */
-    @AwaitsFix(bugUrl = "Keystore fails to save with resource busy")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
     public void test41DockerEnvironmentVariablePasswordFromFile() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -302,7 +302,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that if we provide the wrong password for a mounted and password-protected
      * keystore, Elasticsearch doesn't start.
      */
-    @AwaitsFix(bugUrl = "Keystore fails to save with resource busy")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
     public void test42DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
 

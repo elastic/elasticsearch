@@ -276,7 +276,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             new PutTrainedModelAction.Request(
                 TrainedModelConfig.builder()
                     .setModelType(TrainedModelType.PYTORCH)
-                    .setInferenceConfig(new PassThroughConfig(null, new BertTokenization(null, false, null)))
+                    .setInferenceConfig(new PassThroughConfig(null, new BertTokenization(null, false, null), null))
                     .setModelId(modelId)
                     .build(),
                 false

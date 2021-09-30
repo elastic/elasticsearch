@@ -189,13 +189,13 @@ import static org.hamcrest.Matchers.sameInstance;
  */
 public class IndexShardTests extends IndexShardTestCase {
 
-    public static ShardStateMetadata load(Logger logger, Path shardPath) throws IOException {
-        return ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPath);
+    public static ShardStateMetadata load(Logger logger, Path... shardPaths) throws IOException {
+        return ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPaths);
     }
 
     public static void write(ShardStateMetadata shardStateMetadata,
-                             Path shardPath) throws IOException {
-        ShardStateMetadata.FORMAT.writeAndCleanup(shardStateMetadata, shardPath);
+                             Path... shardPaths) throws IOException {
+        ShardStateMetadata.FORMAT.writeAndCleanup(shardStateMetadata, shardPaths);
     }
 
     public static Engine getEngineFromShard(IndexShard shard) {

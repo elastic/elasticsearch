@@ -1338,7 +1338,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
              .setOrigin(SECURITY_ORIGIN)
              .setPriorSystemIndexDescriptors(org.elasticsearch.core.List.of(
                  SystemIndexDescriptor.builder()
-                     .setIndexPattern(".security-[0-9]+")
+                     .setIndexPattern(".security-[0-9]+*")
                      .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
                      .setDescription("Contains Security configuration")
                      .setMappings(getIndexMappings(Version.V_7_12_0))

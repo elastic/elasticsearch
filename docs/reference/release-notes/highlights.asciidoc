@@ -32,9 +32,9 @@ Other versions:
 [discrete]
 === EQL: `runs` keyword for repeated events
 
-In 7.16, we added the `runs` keyword to EQL. Sometimes you want to find a
-sequence that contains a repeated, successive event. Rather than type the same
-event criteria multiple times, you can use a `runs` statement to declare the
-criteria once and run it successively. For more details, check out the
-{ref}/eql-syntax.html#eql-runs-keyword[EQL syntax documentation].
+In 7.16, we added the `runs` keyword to EQL sequence queries. Sometimes you want
+to find a sequence that contains a repeated, successive event. Rather than type
+the same event criteria multiple times, you can use a `runs` statement to
+declare the criteria once and run it successively. For more details, check out
+the {ref}/eql-syntax.html#eql-runs-keyword[EQL syntax documentation].
 // end::notable-highlights[]

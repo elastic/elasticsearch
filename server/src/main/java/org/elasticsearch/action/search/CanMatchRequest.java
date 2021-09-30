@@ -45,6 +45,11 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
     public static class ShardLevelRequest implements Writeable {
         private final String clusterAlias;
         private final ShardId shardId;
+
+        public int getShardRequestIndex() {
+            return shardRequestIndex;
+        }
+
         private final int shardRequestIndex;
         private final int numberOfShards;
         private final SearchType searchType;
@@ -129,7 +134,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
             // TODO: parent task super(in);
             shardId = new ShardId(in);
             searchType = SearchType.fromId(in.readByte());
-            shardRequestIndex = in.getVersion().onOrAfter(Version.V_7_11_0) ? in.readVInt() : -1;
+            shardRequestIndex = in.readVInt();
             numberOfShards = in.readVInt();
             scroll = in.readOptionalWriteable(Scroll::new);
             if (in.getVersion().before(Version.V_8_0_0)) {
@@ -171,21 +176,12 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
             out.writeOptionalBoolean(requestCache);
             out.writeOptionalString(clusterAlias);
             out.writeBoolean(allowPartialSearchResults);
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-            out.writeOptionalString(null);
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
             Version.writeVersion(channelVersion, out);
         }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalWriteable(source);
-        OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 
     public CanMatchRequest(
@@ -199,9 +195,18 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
     }
 
     public CanMatchRequest(StreamInput in) throws IOException {
+        super(in);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         originalIndices = OriginalIndices.readOriginalIndices(in);
         shards = in.readList(ShardLevelRequest::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalWriteable(source);
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
+        out.writeList(shards);
     }
 
     @Override

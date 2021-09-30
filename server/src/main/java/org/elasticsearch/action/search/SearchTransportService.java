@@ -124,9 +124,9 @@ public class SearchTransportService {
     }
 
     public void sendCanMatch(Transport.Connection connection, final CanMatchRequest request, SearchTask task, final
-                             ActionListener<SearchService.CanMatchResponse> listener) {
+                             ActionListener<CanMatchNodeResponse> listener) {
         transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NODE_NAME, request, task,
-            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchService.CanMatchResponse::new));
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchNodeResponse::new));
     }
 
     public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {

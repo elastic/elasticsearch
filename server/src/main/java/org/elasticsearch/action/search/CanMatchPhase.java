@@ -16,6 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -35,6 +36,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -56,6 +59,12 @@ public class CanMatchPhase extends SearchPhase {
     private final Map<SearchShardIterator, Integer> shardItIndexMap;
     private final Map<String, Float> concreteIndexBoosts;
     private final Map<String, AliasFilter> aliasFilter;
+    private final SearchTask task;
+    private final Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory;
+
+    private final AtomicReferenceArray<Object> responses;
+    private final CanMatchSearchPhaseResults results;
+    private final AtomicInteger counter = new AtomicInteger();
 
     public CanMatchPhase(Logger logger, SearchTransportService searchTransportService,
                          BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -76,7 +85,11 @@ public class CanMatchPhase extends SearchPhase {
         this.timeProvider = timeProvider;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.aliasFilter = aliasFilter;
+        this.task = task;
+        this.phaseFactory = phaseFactory;
         this.shardItIndexMap = new HashMap<>();
+        this.responses = new AtomicReferenceArray<>(shardsIts.size());
+        results = new CanMatchSearchPhaseResults(shardsIts.size());
 
         // we compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
@@ -125,23 +138,63 @@ public class CanMatchPhase extends SearchPhase {
 
     private void runRound() {
         // create CanMatchRequests for the given round
-        Map<String, List<SearchShardTarget>> requests = new HashMap<>();
+        Map<Tuple<String, String>, List<SearchShardIterator>> requests = new HashMap<>();
         for (int i = 0; i < shardsIts.size(); i++) {
             final SearchShardIterator shardRoutings = shardsIts.get(i);
             assert shardRoutings.skip() == false;
-//            assert shardItIndexMap.containsKey(shardRoutings);
-//            int shardIndex = shardItIndexMap.get(shardRoutings);
+            assert shardItIndexMap.containsKey(shardRoutings);
             SearchShardTarget target = shardRoutings.nextOrNull();
             if (target != null) {
-                requests.computeIfAbsent(target.getNodeId(), t -> new ArrayList<>()).add(target);
+                requests.computeIfAbsent(Tuple.tuple(target.getClusterAlias(), target.getNodeId()),
+                    t -> new ArrayList<>()).add(shardRoutings);
+            } else {
+                onOperation(shardItIndexMap.get(shardRoutings), null);
             }
-
-
-            //performPhaseOnShard(shardIndex, shardRoutings, shardRoutings.nextOrNull());
         }
 
-        for (Map.Entry<String, List<SearchShardTarget>> entry : requests.entrySet()) {
-            //new CanMatchRequest(getOriginalIndices(), request);
+        for (Map.Entry<Tuple<String, String>, List<SearchShardIterator>> entry : requests.entrySet()) {
+            SearchShardIterator first = entry.getValue().get(0);
+            List<CanMatchRequest.ShardLevelRequest> shardLevelRequests =
+                entry.getValue().stream().map(ssi -> buildShardLevelRequest(ssi, shardItIndexMap.get(ssi))).collect(Collectors.toList());
+            CanMatchRequest canMatchRequest = new CanMatchRequest(first.getOriginalIndices(), request,
+                shardLevelRequests);
+            // TODO: use proper cluster alias
+            searchTransportService.sendCanMatch(getConnection(entry.getKey().v1(), entry.getKey().v2()), canMatchRequest,
+                task, new ActionListener<>() {
+                    @Override
+                    public void onResponse(CanMatchNodeResponse canMatchResponse) {
+                        for (int i = 0; i < canMatchResponse.getResponses().size(); i++) {
+                            SearchService.CanMatchResponse response = canMatchResponse.getResponses().get(i);
+                            response.setShardIndex(shardLevelRequests.get(i).getShardRequestIndex());
+                            results.consumeResult(response, () -> {});
+                            onOperation(response.getShardIndex(), response);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert false : e;
+                    }
+                }
+            );
+        }
+    }
+
+    private void onOperation(int idx, SearchService.CanMatchResponse response) {
+        responses.set(idx, response);
+        if (counter.incrementAndGet() == responses.length()) {
+            finishHim();
+        }
+    }
+
+    private void finishHim() {
+        try {
+            phaseFactory.apply(getIterator(results, shardsIts)).run();
+        } catch (Exception e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
+            }
+            onPhaseFailure(this, "", e);
         }
     }
 
@@ -204,6 +257,7 @@ public class CanMatchPhase extends SearchPhase {
 
 
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+        assert false : cause;
         // listener.onFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }
 

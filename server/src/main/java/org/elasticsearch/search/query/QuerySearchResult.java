@@ -10,7 +10,6 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +33,10 @@ import java.io.IOException;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
+/**
+ * Notice that the ref counting on this only concerns the aggregations and that other parts of this object is sometimes used in non
+ * ref-count safe situations
+ */
 public final class QuerySearchResult extends SearchPhaseResult {
     private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(QuerySearchResult.class);
     private int from;
@@ -440,18 +443,5 @@ public final class QuerySearchResult extends SearchPhaseResult {
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
-    }
-
-    // todo: remove this and the logger before merging
-    @Override
-    protected void finalize() throws Throwable {
-        if (Assertions.ENABLED) {
-            if (refCounted.hasReferences()) {
-                // cannot really assert this.
-                logger.info("LEAK: " + this);
-//                 finalizer thread errors are not reported anywhere.
-//                new Thread(() -> { assert refCounted.hasReferences() == false : where; }).start();
-            }
-        }
     }
 }

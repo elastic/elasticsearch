@@ -33,6 +33,8 @@ import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySearchResultTests extends ESTestCase {
 
@@ -68,8 +70,15 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
+        assertTrue(querySearchResult.hasReferences());
         QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry,
             QuerySearchResult::new, Version.CURRENT);
+        if (randomBoolean()) {
+            // double copy to check serializing the serialized version.
+            deserialized = copyWriteable(querySearchResult, namedWriteableRegistry,
+                QuerySearchResult::new, Version.CURRENT);
+        }
+        assertTrue(deserialized.hasReferences());
         assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
         assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
@@ -90,5 +99,34 @@ public class QuerySearchResultTests extends ESTestCase {
         QuerySearchResult deserialized =
             copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
+    }
+
+    public void testAggregationRefCount() throws Exception {
+        QuerySearchResult querySearchResult = createTestInstance();
+        assertTrue(querySearchResult.hasReferences());
+        boolean hasAggs = querySearchResult.hasAggs();
+
+        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry,
+            QuerySearchResult::new, Version.CURRENT);
+        assertTrue(deserialized.hasReferences());
+
+        querySearchResult.decRef();
+        assertFalse(querySearchResult.hasReferences());
+        assertThat(querySearchResult.aggregations(), is(nullValue()));
+
+        assertThat(deserialized.hasAggs(), is(hasAggs));
+        boolean inc = randomBoolean();
+        if (inc && hasAggs) {
+            deserialized.incRef();
+        }
+        if (hasAggs) {
+            assertNotNull(deserialized.consumeAggs());
+        }
+        if (inc || hasAggs == false) {
+            assertTrue(deserialized.hasReferences());
+            deserialized.decRef();
+        }
+        assertThat(deserialized.aggregations(), is(nullValue()));
+        assertFalse(deserialized.hasReferences());
     }
 }

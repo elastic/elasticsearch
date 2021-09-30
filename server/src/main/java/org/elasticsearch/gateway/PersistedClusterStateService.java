@@ -351,9 +351,6 @@ public class PersistedClusterStateService {
                                         + "now unreadable"
                                 );
                             }
-                        }  catch (IndexNotFoundException e) {
-                            logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
-                            continue;
                         }
                     }
 
@@ -390,9 +387,9 @@ public class PersistedClusterStateService {
                             && onDiskState.currentTerm > bestOnDiskState.currentTerm))) {
                             bestOnDiskState = onDiskState;
                         }
-                    } catch (IndexNotFoundException e) {
-                        logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
                     }
+                } catch (IndexNotFoundException e) {
+                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
                 }
             }
         }

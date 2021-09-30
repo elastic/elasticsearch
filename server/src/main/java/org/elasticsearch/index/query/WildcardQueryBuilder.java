@@ -178,20 +178,20 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                 .rewrite(rewrite)
                 .boost(boost)
                 .queryName(queryName);
-    }    
-    
+    }
+
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if ("_index".equals(fieldName)) {
-            // Special-case optimisation for canMatch phase:  
+            // Special-case optimisation for canMatch phase:
             // We can skip querying this shard if the index name doesn't match the value of this query on the "_index" field.
             QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
-            if (shardContext != null && shardContext.indexMatches(BytesRefs.toString(value)) == false) {
+            if (shardContext != null && !shardContext.index().getName().equals(BytesRefs.toString(value))) {
                 return new MatchNoneQueryBuilder();
-            }            
+            }
         }
         return super.doRewrite(queryRewriteContext);
-    }    
+    }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {

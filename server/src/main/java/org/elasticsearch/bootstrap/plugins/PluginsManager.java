@@ -249,13 +249,13 @@ public class PluginsManager {
         final BiConsumer<String, List<PluginDescriptor>> printSummary = (action, plugins) -> {
             if (plugins.isEmpty() == false) {
                 List<String> pluginIds = plugins.stream().map(PluginDescriptor::getId).collect(Collectors.toList());
-                this.logger.info("Plugins to be {}d: {}", action, pluginIds);
+                this.logger.info("Plugins to be {}: {}", action, pluginIds);
             }
         };
 
-        printSummary.accept("remove", changes.remove);
-        printSummary.accept("install", changes.install);
-        printSummary.accept("upgrade", changes.upgrade);
+        printSummary.accept("removed", changes.remove);
+        printSummary.accept("installed", changes.install);
+        printSummary.accept("upgraded", changes.upgrade);
     }
 
     private static class PluginChanges {

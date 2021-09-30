@@ -38,20 +38,15 @@ public class PluginsConfig {
     private String proxy;
 
     public PluginsConfig() {
-        plugins = null;
+        plugins = List.of();
         proxy = null;
     }
 
     public void setPlugins(List<PluginDescriptor> plugins) {
-        this.plugins = plugins;
+        this.plugins = plugins == null ? List.of() : plugins;
     }
 
     public void setProxy(String proxy) {
-        this.proxy = proxy;
-    }
-
-    public PluginsConfig(List<PluginDescriptor> plugins, String proxy) {
-        this.plugins = plugins == null ? List.of() : plugins;
         this.proxy = proxy;
     }
 

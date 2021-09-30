@@ -113,7 +113,7 @@ public abstract class Terminal {
     }
 
     /** Prints message to the terminal at {@code verbosity} level, without a newline. */
-    private void print(Verbosity verbosity, String msg, boolean isError) {
+    protected void print(Verbosity verbosity, String msg, boolean isError) {
         if (isPrintable(verbosity)) {
             PrintWriter writer = isError ? getErrorWriter() : getWriter();
             writer.print(msg);

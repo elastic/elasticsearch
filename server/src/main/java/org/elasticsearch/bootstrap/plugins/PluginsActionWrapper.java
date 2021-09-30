@@ -10,11 +10,11 @@ package org.elasticsearch.bootstrap.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.InstallPluginProvider;
 import org.elasticsearch.plugins.PluginDescriptor;
-import org.elasticsearch.plugins.PluginLogger;
 import org.elasticsearch.plugins.RemovePluginProblem;
 import org.elasticsearch.plugins.RemovePluginProvider;
 
@@ -38,22 +38,22 @@ public class PluginsActionWrapper {
 
         @SuppressWarnings("unchecked")
         final Class<InstallPluginProvider> installClass = (Class<InstallPluginProvider>) classLoader.loadClass(
-            "org.elasticsearch.plugins.cli.InstallPluginAction"
+            "org.elasticsearch.plugins.cli.action.InstallPluginAction"
         );
         @SuppressWarnings("unchecked")
         final Class<RemovePluginProvider> removeClass = (Class<RemovePluginProvider>) classLoader.loadClass(
-            "org.elasticsearch.plugins.cli.RemovePluginAction"
+            "org.elasticsearch.plugins.cli.action.RemovePluginAction"
         );
 
-        this.pluginInstaller = installClass.getDeclaredConstructor(PluginLogger.class, Environment.class, boolean.class)
-            .newInstance(Log4jPluginLogger.getLogger("org.elasticsearch.plugins.cli.InstallPluginAction"), env, true);
+        this.pluginInstaller = installClass.getDeclaredConstructor(Terminal.class, Environment.class, boolean.class)
+            .newInstance(LoggerTerminal.getLogger("org.elasticsearch.plugins.cli.action.InstallPluginAction"), env, true);
 
         if (proxy != null) {
             this.pluginInstaller.setProxy(proxy);
         }
 
-        this.pluginRemover = removeClass.getDeclaredConstructor(PluginLogger.class, Environment.class, boolean.class)
-            .newInstance(Log4jPluginLogger.getLogger("org.elasticsearch.plugins.cli.RemovePluginAction"), env, true);
+        this.pluginRemover = removeClass.getDeclaredConstructor(Terminal.class, Environment.class, boolean.class)
+            .newInstance(LoggerTerminal.getLogger("org.elasticsearch.plugins.cli.action.RemovePluginAction"), env, true);
     }
 
     public void removePlugins(List<PluginDescriptor> plugins) throws Exception {
@@ -63,6 +63,7 @@ public class PluginsActionWrapper {
 
         final Tuple<RemovePluginProblem, String> problem = this.pluginRemover.checkRemovePlugins(plugins);
         if (problem != null) {
+            logger.error("Cannot proceed with plugin removal: {}", problem.v2());
             throw new PluginSyncException(problem.v2());
         }
 
@@ -84,6 +85,7 @@ public class PluginsActionWrapper {
 
         final Tuple<RemovePluginProblem, String> problem = this.pluginRemover.checkRemovePlugins(plugins);
         if (problem != null) {
+            logger.error("Cannot proceed with plugin removal: {}", problem.v2());
             throw new PluginSyncException(problem.v2());
         }
 

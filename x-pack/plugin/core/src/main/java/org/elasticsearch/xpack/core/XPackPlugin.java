@@ -434,7 +434,7 @@ public class XPackPlugin extends XPackClientPlugin
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING);
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING);
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING);
+        settings.add(DataTierAllocationDecider.TIER_PREFERENCE_SETTING);
         return settings;
     }
 

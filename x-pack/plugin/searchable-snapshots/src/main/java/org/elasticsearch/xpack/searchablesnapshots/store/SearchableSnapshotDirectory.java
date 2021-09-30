@@ -704,7 +704,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public void putCachedBlob(String name, ByteRange range, BytesReference content, ActionListener<Void> listener) {
-        blobStoreCacheService.putAsync(repository, snapshotId, indexId, shardId, name, range, content, listener);
+        blobStoreCacheService.putAsync(
+            repository,
+            snapshotId,
+            indexId,
+            shardId,
+            name,
+            range,
+            content,
+            threadPool.absoluteTimeInMillis(),
+            listener
+        );
     }
 
     public FrozenCacheFile getFrozenCacheFile(String fileName, long length) {

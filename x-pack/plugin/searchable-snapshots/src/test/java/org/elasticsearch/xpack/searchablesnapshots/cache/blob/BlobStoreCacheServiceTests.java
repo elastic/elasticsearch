@@ -100,7 +100,7 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
             return null;
         }).when(mockClient).execute(eq(GetAction.INSTANCE), any(GetRequest.class), any(ActionListener.class));
 
-        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX, () -> 0L);
+        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();
 
         PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
@@ -132,17 +132,17 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
             return null;
         }).when(mockClient).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
 
-        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX, () -> 0L);
+        BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();
 
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, future);
+        blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, future);
         assertThat(future.actionGet(), nullValue());
 
         blobCacheService.stop();
 
         future = PlainActionFuture.newFuture();
-        blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, future);
+        blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, future);
         IllegalStateException exception = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(exception.getMessage(), containsString("Blob cache service is closed"));
     }
@@ -170,7 +170,7 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
             return null;
         }).when(mockClient).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
 
-        final BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX, () -> 0L);
+        final BlobStoreCacheService blobCacheService = new BlobStoreCacheService(null, mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();
 
         assertThat(blobCacheService.getInFlightCacheFills(), equalTo(0));
@@ -180,7 +180,7 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
             final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
             threadPool.generic()
                 .execute(
-                    () -> blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, future)
+                    () -> blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, future)
                 );
             futures.add(future);
         }

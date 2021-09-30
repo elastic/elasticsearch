@@ -49,7 +49,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -72,17 +71,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
     private final ClusterService clusterService;
     private final Semaphore inFlightCacheFills;
-    private final Supplier<Long> timeSupplier;
     private final AtomicBoolean closed;
     private final Client client;
     private final String index;
 
-    public BlobStoreCacheService(ClusterService clusterService, Client client, String index, Supplier<Long> timeSupplier) {
+    public BlobStoreCacheService(ClusterService clusterService, Client client, String index) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.inFlightCacheFills = new Semaphore(MAX_IN_FLIGHT_CACHE_FILLS);
         this.closed = new AtomicBoolean(false);
         this.clusterService = clusterService;
-        this.timeSupplier = timeSupplier;
         this.index = index;
     }
 
@@ -242,12 +239,13 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         final String name,
         final ByteRange range,
         final BytesReference bytes,
+        final long timeInEpochMillis,
         final ActionListener<Void> listener
     ) {
         final String id = generateId(repository, snapshotId, indexId, shardId, name, range);
         try {
             final CachedBlob cachedBlob = new CachedBlob(
-                Instant.ofEpochMilli(timeSupplier.get()),
+                Instant.ofEpochMilli(timeInEpochMillis),
                 Version.CURRENT,
                 repository,
                 name,

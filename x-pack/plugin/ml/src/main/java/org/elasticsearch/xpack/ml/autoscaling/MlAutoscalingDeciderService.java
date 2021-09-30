@@ -116,9 +116,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             @Override
             public void afterStart() {
                 running = true;
-                if (isMaster) {
-                    mlMemoryTracker.asyncRefresh();
-                }
             }
 
             @Override
@@ -287,9 +284,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     @Override
     public void onMaster() {
         isMaster = true;
-        if (running) {
-            mlMemoryTracker.asyncRefresh();
-        }
     }
 
     private void resetScaleDownCoolDown() {

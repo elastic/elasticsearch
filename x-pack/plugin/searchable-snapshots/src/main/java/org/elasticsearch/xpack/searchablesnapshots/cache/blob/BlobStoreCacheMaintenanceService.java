@@ -143,7 +143,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
             for (Index deletedIndex : event.indicesDeleted()) {
                 final IndexMetadata indexMetadata = event.previousState().metadata().index(deletedIndex);
-                assert indexMetadata != null : "no previous metadata found for " + deletedIndex;
+                assert indexMetadata != null || state.metadata().indexGraveyard().containsIndex(deletedIndex)
+                    : "no previous metadata found for " + deletedIndex;
                 if (indexMetadata != null) {
                     final Settings indexSetting = indexMetadata.getSettings();
                     if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSetting)) {

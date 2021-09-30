@@ -589,7 +589,9 @@ public class WildcardFieldMapper extends FieldMapper {
                 if (q instanceof MatchAllDocsQuery) {
                     matchAllCount++;
                 } else if (q instanceof MatchAllButRequireVerificationQuery) {
-                    verifyCount++;
+                    if (booleanClause.getOccur() != Occur.SHOULD) {
+                        verifyCount++;
+                    }
                 } else {
                     // Concrete query
                     if (booleanClause.getOccur() != Occur.SHOULD) {
@@ -598,7 +600,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
             }
 
-            if ((allConcretesAreOptional && matchAllCount > 0)) {
+            if ((allConcretesAreOptional && matchAllCount > 0 && verifyCount == 0)) {
                 // Any match all expression takes precedence over all optional concrete queries.
                 return new MatchAllDocsQuery();
             }

@@ -591,6 +591,32 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
 
     }
+    
+    public void testMatchAllRegexOptimisations() throws IOException, ParseException {
+
+        // See https://github.com/elastic/elasticsearch/issues/78391
+        String noMatchAllPatterns[] = { "[a*]a+"};
+        for (String pattern : noMatchAllPatterns) {
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
+            wildcardFieldQuery = unwrapAnyConstantScore(wildcardFieldQuery);
+            BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;
+            assertFalse(
+                pattern + " Should not have been a match all " + formatQuery(wildcardFieldQuery),
+                q.getApproximationQuery() instanceof MatchAllDocsQuery
+            );
+        }
+        String matchAllPatterns[] = { "a*", "a*b*c*", "(a*)", "[a]*", "foo|.*" };
+        for (String pattern : matchAllPatterns) {
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
+            wildcardFieldQuery = unwrapAnyConstantScore(wildcardFieldQuery);
+            BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;
+            assertTrue(
+                pattern + " Should have been a match all " + formatQuery(wildcardFieldQuery),
+                q.getApproximationQuery() instanceof MatchAllDocsQuery
+            );
+        }
+
+    }    
 
     public void testQueryCachingEquality() throws IOException, ParseException {
         String pattern = "A*b*B?a";

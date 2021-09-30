@@ -86,7 +86,7 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
                 originalConfig.getHypothesisTemplate(),
                 originalConfig.isMultiLabel(),
                 List.of("foo", "bar"),
-                null
+                originalConfig.getResultsField()
             ),
             equalTo(
                 new ZeroShotClassificationConfigUpdate.Builder()
@@ -102,7 +102,7 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
                 originalConfig.getHypothesisTemplate(),
                 true,
                 originalConfig.getLabels(),
-                null
+                originalConfig.getResultsField()
             ),
             equalTo(
                 new ZeroShotClassificationConfigUpdate.Builder()

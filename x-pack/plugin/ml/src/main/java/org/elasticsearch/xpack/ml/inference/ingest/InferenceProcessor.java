@@ -380,7 +380,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 return RegressionConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(TextClassificationConfig.NAME)) {
-                checkSupportedVersion(new TextClassificationConfig(null, null, null, null, null));
+                checkSupportedVersion(new TextClassificationConfig(null, null, List.of("meeting", "requirements"), null, null));
                 return TextClassificationConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(TextEmbeddingConfig.NAME)) {
                 checkSupportedVersion(new TextEmbeddingConfig(null, null, null));

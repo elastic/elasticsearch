@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -19,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TextClassificationConfigUpdateTests extends AbstractBWCSerializationTestCase<TextClassificationConfigUpdate> {
@@ -45,20 +47,29 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
         assertFalse(new TextClassificationConfigUpdate.Builder()
             .setResultsField("foo")
             .build()
-            .isNoop(new TextClassificationConfig.Builder().setResultsField("bar").build()));
+            .isNoop(new TextClassificationConfig.Builder()
+                .setClassificationLabels(List.of("a", "b"))
+                .setNumTopClasses(-1)
+                .setResultsField("bar").build()));
 
         assertTrue(new TextClassificationConfigUpdate.Builder()
             .setNumTopClasses(3)
             .build()
-            .isNoop(new TextClassificationConfig.Builder().setNumTopClasses(3).build()));
+            .isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("a", "b")).setNumTopClasses(3).build()));
         assertFalse(new TextClassificationConfigUpdate.Builder()
             .setClassificationLabels(List.of("a", "b"))
             .build()
-            .isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("c")).build()));
+            .isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("c", "d")).setNumTopClasses(3).build()));
     }
 
     public void testApply() {
-        TextClassificationConfig originalConfig = TextClassificationConfigTests.createRandom();
+        TextClassificationConfig originalConfig = new TextClassificationConfig(
+            VocabularyConfigTests.createRandom(),
+            BertTokenizationTests.createRandom(),
+            List.of("one", "two"),
+            randomIntBetween(-1, 10),
+            "foo-results"
+        );
 
         assertThat(originalConfig, equalTo(new TextClassificationConfigUpdate.Builder().build().apply(originalConfig)));
 
@@ -85,6 +96,24 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
                 .build()
                 .apply(originalConfig)
             ));
+    }
+
+    public void testApplyWithInvalidLabels() {
+        TextClassificationConfig originalConfig = TextClassificationConfigTests.createRandom();
+
+        int numberNewLabels = originalConfig.getClassificationLabels().size() +1;
+        List<String> newLabels = randomList(numberNewLabels, numberNewLabels, () -> randomAlphaOfLength(6));
+
+        var update = new TextClassificationConfigUpdate.Builder()
+            .setClassificationLabels(newLabels)
+            .build();
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> update.apply(originalConfig));
+        assertThat(e.getMessage(),
+            containsString("The number of [classification_labels] the model is defined with ["
+                + originalConfig.getClassificationLabels().size() +
+                "] does not match the number in the update [" + numberNewLabels + "]"));
     }
 
     @Override

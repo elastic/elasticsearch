@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -74,15 +73,28 @@ public class TextClassificationConfig implements NlpConfig {
 
     public TextClassificationConfig(@Nullable VocabularyConfig vocabularyConfig,
                                     @Nullable Tokenization tokenization,
-                                    @Nullable List<String> classificationLabels,
+                                    List<String> classificationLabels,
                                     @Nullable Integer numTopClasses,
                                     @Nullable String resultsField) {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
-        this.classificationLabels = classificationLabels == null ? Collections.emptyList() : classificationLabels;
+        if (classificationLabels == null || classificationLabels.size() < 2) {
+            throw ExceptionsHelper.badRequestException("[{}] requires at least 2 [{}]; provided {}",
+                NAME, CLASSIFICATION_LABELS, classificationLabels);
+        }
+        this.classificationLabels = classificationLabels;
         this.numTopClasses = Optional.ofNullable(numTopClasses).orElse(-1);
+        if (this.numTopClasses == 0) {
+            throw ExceptionsHelper.badRequestException(
+                    "[{}] requires at least 1 [{}]; provided [{}]",
+                    NAME,
+                    TextClassificationConfig.NUM_TOP_CLASSES,
+                    numTopClasses
+            );
+        }
         this.resultsField = resultsField;
+
     }
 
     public TextClassificationConfig(StreamInput in) throws IOException {
@@ -107,9 +119,7 @@ public class TextClassificationConfig implements NlpConfig {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig, params);
         NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION.getPreferredName(), tokenization);
-        if (classificationLabels.isEmpty() == false) {
-            builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
-        }
+        builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         builder.field(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
         if (resultsField != null) {
             builder.field(RESULTS_FIELD.getPreferredName(), resultsField);

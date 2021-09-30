@@ -111,6 +111,14 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
             builder.setNumTopClasses(numTopClasses);
         }
         if (classificationLabels != null) {
+            if (classificationLabels.size() != classificationConfig.getClassificationLabels().size()) {
+                throw ExceptionsHelper.badRequestException(
+                    "The number of [{}] the model is defined with [{}] does not match the number in the update [{}]",
+                    CLASSIFICATION_LABELS,
+                    classificationConfig.getClassificationLabels().size(),
+                    classificationLabels.size()
+                );
+            }
             builder.setClassificationLabels(classificationLabels);
         }
         if (resultsField != null) {

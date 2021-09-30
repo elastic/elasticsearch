@@ -189,7 +189,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         this.proxy = proxy;
     }
 
-    public void execute(List<PluginDescriptor> plugins) throws Exception {
+    public void execute(List<PluginDescriptor> plugins) throws InstallPluginException {
         if (plugins == null || plugins.isEmpty()) {
             throw new IllegalArgumentException("at least one plugin id is required");
         }
@@ -201,10 +201,12 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
             }
         }
 
+        final String logPrefix = terminal.isHeadless() ? "" : "-> ";
+
         final Map<String, List<Path>> deleteOnFailures = new LinkedHashMap<>();
         for (final PluginDescriptor plugin : plugins) {
             final String pluginId = plugin.getId();
-            terminal.println("-> Installing " + pluginId);
+            terminal.println(logPrefix + "Installing " + pluginId);
             try {
                 if ("x-pack".equals(pluginId)) {
                     handleInstallXPack(buildFlavor());
@@ -217,14 +219,14 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
                 final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
                 final PluginInfo pluginInfo = installPlugin(plugin, extractedZip, deleteOnFailure);
-                terminal.println("-> Installed " + pluginInfo.getName());
+                terminal.println(logPrefix + "Installed " + pluginInfo.getName());
                 // swap the entry by plugin id for one with the installed plugin name, it gives a cleaner error message for URL installs
                 deleteOnFailures.remove(pluginId);
                 deleteOnFailures.put(pluginInfo.getName(), deleteOnFailure);
             } catch (final Exception installProblem) {
-                terminal.println("-> Failed installing " + pluginId);
+                terminal.println(logPrefix + "Failed installing " + pluginId);
                 for (final Map.Entry<String, List<Path>> deleteOnFailureEntry : deleteOnFailures.entrySet()) {
-                    terminal.println("-> Rolling back " + deleteOnFailureEntry.getKey());
+                    terminal.println(logPrefix + "Rolling back " + deleteOnFailureEntry.getKey());
                     boolean success = false;
                     try {
                         IOUtils.rm(deleteOnFailureEntry.getValue().toArray(new Path[0]));
@@ -235,12 +237,13 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
                             exceptionWhileRemovingFiles
                         );
                         installProblem.addSuppressed(exception);
-                        terminal.println("-> Failed rolling back " + deleteOnFailureEntry.getKey());
+                        terminal.println(logPrefix + "Failed rolling back " + deleteOnFailureEntry.getKey());
                     }
                     if (success) {
-                        terminal.println("-> Rolled back " + deleteOnFailureEntry.getKey());
+                        terminal.println(logPrefix + "Rolled back " + deleteOnFailureEntry.getKey());
                     }
                 }
+
                 if (installProblem instanceof InstallPluginException) {
                     throw (InstallPluginException) installProblem;
                 }
@@ -252,7 +255,9 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
                 );
             }
         }
-        terminal.println("-> Please restart Elasticsearch to activate any plugins installed");
+        if (terminal.isHeadless() == false) {
+            terminal.println("-> Please restart Elasticsearch to activate any plugins installed");
+        }
     }
 
     Build.Flavor buildFlavor() {
@@ -282,20 +287,22 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
     private Path download(PluginDescriptor plugin, Path tmpDir) throws Exception {
         final String pluginId = plugin.getId();
 
+        final String logPrefix = terminal.isHeadless() ? "" : "-> ";
+
         // See `InstallPluginCommand` it has to use a string argument for both the ID and the location
         if (OFFICIAL_PLUGINS.contains(pluginId) && (plugin.getLocation() == null || plugin.getLocation().equals(pluginId))) {
             final String pluginArchiveDir = System.getenv("ES_PLUGIN_ARCHIVE_DIR");
             if (pluginArchiveDir != null && pluginArchiveDir.isEmpty() == false) {
                 final Path pluginPath = getPluginArchivePath(pluginId, pluginArchiveDir);
                 if (Files.exists(pluginPath)) {
-                    terminal.println("-> Downloading " + pluginId + " from local archive: " + pluginArchiveDir);
+                    terminal.println(logPrefix + "Downloading " + pluginId + " from local archive: " + pluginArchiveDir);
                     return downloadZip("file://" + pluginPath, tmpDir);
                 }
                 // else carry on to regular download
             }
 
             final String url = getElasticUrl(getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
-            terminal.println("-> Downloading " + pluginId + " from elastic");
+            terminal.println(logPrefix + "Downloading " + pluginId + " from elastic");
             return downloadAndValidate(url, tmpDir, true);
         }
 
@@ -305,7 +312,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         String[] coordinates = pluginLocation.split(":");
         if (coordinates.length == 3 && pluginLocation.contains("/") == false && pluginLocation.startsWith("file:") == false) {
             String mavenUrl = getMavenUrl(coordinates);
-            terminal.println("-> Downloading " + pluginId + " from maven central");
+            terminal.println(logPrefix + "Downloading " + pluginId + " from maven central");
             return downloadAndValidate(mavenUrl, tmpDir, false);
         }
 
@@ -319,7 +326,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
             }
             throw new InstallPluginException(InstallPluginProblem.UNKNOWN_PLUGIN, msg);
         }
-        terminal.println("-> Downloading " + URLDecoder.decode(pluginLocation, StandardCharsets.UTF_8));
+        terminal.println(logPrefix + "Downloading " + URLDecoder.decode(pluginLocation, StandardCharsets.UTF_8));
         return downloadZip(pluginLocation, tmpDir);
     }
 

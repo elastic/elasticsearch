@@ -25,6 +25,11 @@ public final class LoggerTerminal extends Terminal {
     }
 
     @Override
+    public boolean isHeadless() {
+        return true;
+    }
+
+    @Override
     public String readText(String prompt) {
         throw new UnsupportedOperationException();
     }

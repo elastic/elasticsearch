@@ -206,6 +206,16 @@ public abstract class Terminal {
         this.getErrorWriter().flush();
     }
 
+    /**
+     * Indicates whether this terminal is for a headless system i.e. is not interactive. If an instances answers
+     * {@code false}, interactive operations can be attempted, but it is not guaranteed that they will succeed.
+     *
+     * @return if this terminal is headless.
+     */
+    public boolean isHeadless() {
+        return false;
+    }
+
     private static class ConsoleTerminal extends Terminal {
 
         private static final Console CONSOLE = System.console();

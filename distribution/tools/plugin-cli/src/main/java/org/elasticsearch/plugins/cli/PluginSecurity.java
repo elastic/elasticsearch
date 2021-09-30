@@ -36,31 +36,45 @@ public class PluginSecurity {
         List<String> requested = new ArrayList<>(permissions);
         if (requested.isEmpty()) {
             terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
-        } else {
+            return;
+        }
 
-            // sort permissions in a reasonable order
-            Collections.sort(requested);
+        // sort permissions in a reasonable order
+        Collections.sort(requested);
 
-            terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
-            terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            // print all permissions:
-            for (String permission : requested) {
-                terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
-            }
-            terminal.errorPrintln(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
-            terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
-            prompt(terminal, batch);
+        if (terminal.isHeadless()) {
+            terminal.errorPrintln(
+                "WARNING: plugin requires additional permissions: ["
+                    + requested.stream().map(each -> '\'' + each + '\'').collect(Collectors.joining(", "))
+                    + "]"
+            );
+            terminal.errorPrintln(
+                "See https://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html"
+                    + " for descriptions of what these permissions allow and the associated risks."
+            );
+            return;
+        }
+
+        terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+        terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
+        terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+        // print all permissions:
+        for (String permission : requested) {
+            terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
+        }
+        terminal.errorPrintln(Verbosity.NORMAL, "See https://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
+        terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
+
+        if (batch == false) {
+            prompt(terminal);
         }
     }
 
-    private static void prompt(final Terminal terminal, final boolean batch) throws UserException {
-        if (batch == false) {
-            terminal.println(Verbosity.NORMAL, "");
-            String text = terminal.readText("Continue with installation? [y/N]");
-            if (text.equalsIgnoreCase("y") == false) {
-                throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
-            }
+    private static void prompt(final Terminal terminal) throws UserException {
+        terminal.println(Verbosity.NORMAL, "");
+        String text = terminal.readText("Continue with installation? [y/N]");
+        if (text.equalsIgnoreCase("y") == false) {
+            throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
         }
     }
 

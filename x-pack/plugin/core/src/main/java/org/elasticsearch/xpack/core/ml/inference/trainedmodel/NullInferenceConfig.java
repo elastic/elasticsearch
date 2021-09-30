@@ -63,4 +63,9 @@ public class NullInferenceConfig implements InferenceConfig {
     public boolean isAllocateOnly() {
         return false;
     }
+
+    @Override
+    public String getResultsField() {
+        return null;
+    }
 }

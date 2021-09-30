@@ -36,7 +36,7 @@ public class StringMatcher implements Predicate<String> {
 
     private static final StringMatcher MATCH_NOTHING = new StringMatcher("(empty)", s -> false);
 
-    protected static final Predicate<String> ALWAYS_TRUE_PREDICATE = s -> true;
+    public static final Predicate<String> ALWAYS_TRUE_PREDICATE = s -> true;
 
     private final String description;
     private final Predicate<String> predicate;

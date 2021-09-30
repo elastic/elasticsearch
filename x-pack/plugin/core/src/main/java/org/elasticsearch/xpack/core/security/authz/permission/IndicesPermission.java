@@ -118,6 +118,10 @@ public final class IndicesPermission {
         return groups;
     }
 
+    public boolean isTotal() {
+        return Arrays.stream(groups).anyMatch(Group::isTotal);
+    }
+
     /**
      * @return A predicate that will match all the indices that this permission
      * has the privilege for executing the given action on.
@@ -340,6 +344,10 @@ public final class IndicesPermission {
         Map<String, IndexAbstraction> lookup,
         FieldPermissionsCache fieldPermissionsCache
     ) {
+        // Quick path if the permission grants access to all indices
+        if (isTotal()) {
+            return null;
+        }
 
         final List<IndexResource> resources = new ArrayList<>(requestedIndicesOrAliases.size());
         int totalResourceCount = 0;
@@ -566,6 +574,14 @@ public final class IndicesPermission {
 
         public Automaton getIndexMatcherAutomaton() {
             return indexNameAutomaton.get();
+        }
+
+        public boolean isTotal() {
+            return allowRestrictedIndices
+                && indexNameMatcher == StringMatcher.ALWAYS_TRUE_PREDICATE
+                && privilege == IndexPrivilege.ALL
+                && query == null
+                && false == fieldPermissions.hasFieldLevelSecurity();
         }
     }
 

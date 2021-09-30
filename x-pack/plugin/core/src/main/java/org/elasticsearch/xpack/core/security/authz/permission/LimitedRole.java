@@ -85,6 +85,10 @@ public final class LimitedRole extends Role {
         IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup,
                 fieldPermissionsCache);
 
+        if (indicesAccessControl == IndicesAccessControl.ALLOW_ALL && limitedByIndicesAccessControl == IndicesAccessControl.ALLOW_ALL) {
+            return IndicesAccessControl.ALLOW_ALL;
+        }
+
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 
@@ -94,9 +98,13 @@ public final class LimitedRole extends Role {
      */
     @Override
     public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
-        Predicate<IndexAbstraction> predicate = super.indices().allowedIndicesMatcher(action);
-        predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
-        return predicate;
+        if (super.indices().isTotal() && limitedBy.indices().isTotal()) {
+            return MATCH_ALL_INDICES_MATCHER;
+        } else {
+            Predicate<IndexAbstraction> predicate = super.indices().allowedIndicesMatcher(action);
+            predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
+            return predicate;
+        }
     }
 
     @Override

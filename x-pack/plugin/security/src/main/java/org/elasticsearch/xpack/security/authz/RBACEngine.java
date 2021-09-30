@@ -92,6 +92,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction.getApplicationNames;
@@ -595,11 +596,23 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     static Set<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
-        Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
+        final Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();
         final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
+        if (predicate == Role.MATCH_ALL_INDICES_MATCHER) {
+            if (includeDataStreams) {
+                return lookup.values().stream()
+                    .map(IndexAbstraction::getName)
+                    .collect(Collectors.toUnmodifiableSet());
+            } else {
+                return lookup.values().stream()
+                    .filter(indexAbstraction -> indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM)
+                    .map(IndexAbstraction::getName)
+                    .collect(Collectors.toUnmodifiableSet());
+            }
+        }
 
         Set<String> indicesAndAliases = new HashSet<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?

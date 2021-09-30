@@ -33,7 +33,7 @@ public interface Authenticator {
      * Whether authentication can proceed to authenticate as anonymous or fallback user
      * if this authenticator can extract a credentials.
      */
-    default boolean canFollowedByNullTokenHandler() {
+    default boolean canBeFollowedByNullTokenHandler() {
         return true;
     }
 
@@ -193,6 +193,7 @@ public interface Authenticator {
         }
 
         public static Result success(Authentication authentication) {
+            Objects.requireNonNull(authentication);
             return new Result(Status.SUCCESS, authentication, null, null);
         }
 

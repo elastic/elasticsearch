@@ -16,8 +16,8 @@ import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytes
 
 /**
  * A text categorization group that provides methods for:
- *  - calculating similarity between it and a new log
- *  - expanding the existing log group by adding a new log
+ *  - calculating similarity between it and a new text
+ *  - expanding the existing categorization by adding a new array of tokens
  */
 class TextCategorization implements Accountable {
 
@@ -30,11 +30,11 @@ class TextCategorization implements Accountable {
     // Used at the shard level for tracking the bucket ordinal for collecting sub aggregations
     long bucketOrd;
 
-    TextCategorization(int[] logTokenIds, long count, long id) {
+    TextCategorization(int[] tokenIds, long count, long id) {
         this.id = id;
-        this.categorization = logTokenIds;
+        this.categorization = tokenIds;
         this.count = count;
-        this.tokenCounts = new long[logTokenIds.length];
+        this.tokenCounts = new long[tokenIds.length];
         Arrays.fill(this.tokenCounts, count);
     }
 
@@ -50,13 +50,13 @@ class TextCategorization implements Accountable {
         return count;
     }
 
-    Similarity calculateSimilarity(int[] logEvent) {
-        assert logEvent.length == this.categorization.length;
+    Similarity calculateSimilarity(int[] tokenIds) {
+        assert tokenIds.length == this.categorization.length;
         int eqParams = 0;
         long tokenCount = 0;
         long tokensKept = 0;
-        for (int i = 0; i < logEvent.length; i++) {
-            if (logEvent[i] == this.categorization[i]) {
+        for (int i = 0; i < tokenIds.length; i++) {
+            if (tokenIds[i] == this.categorization[i]) {
                 tokensKept += tokenCounts[i];
                 tokenCount += tokenCounts[i];
             } else if (this.categorization[i] == WILD_CARD_ID) {
@@ -68,10 +68,10 @@ class TextCategorization implements Accountable {
         return new Similarity((double) tokensKept / tokenCount, eqParams);
     }
 
-    void addLog(int[] logEvent, long docCount) {
-        assert logEvent.length == this.categorization.length;
-        for (int i = 0; i < logEvent.length; i++) {
-            if (logEvent[i] != this.categorization[i]) {
+    void addTokens(int[] tokenIds, long docCount) {
+        assert tokenIds.length == this.categorization.length;
+        for (int i = 0; i < tokenIds.length; i++) {
+            if (tokenIds[i] != this.categorization[i]) {
                 this.categorization[i] = WILD_CARD_ID;
             } else {
                 tokenCounts[i] += docCount;

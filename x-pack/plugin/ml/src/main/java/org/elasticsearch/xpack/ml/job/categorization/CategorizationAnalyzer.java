@@ -15,7 +15,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +25,7 @@ import java.util.List;
  * Converts messages to lists of tokens that will be fed to the ML categorization algorithm.
  *
  */
-public class CategorizationAnalyzer implements Closeable, Releasable {
+public class CategorizationAnalyzer implements Releasable {
 
     private final Analyzer analyzer;
     private final boolean closeAnalyzer;

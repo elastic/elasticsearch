@@ -36,24 +36,24 @@ public class LeafTreeNodeTests extends ESTestCase {
 
     public void testAddGroup() {
         TreeNode.LeafTreeNode leafTreeNode = new TreeNode.LeafTreeNode(0, 60);
-        TextCategorization group = leafTreeNode.addLog(getTokens(bytesRefHash, "foo", "bar", "baz", "biz"), 1, factory);
+        TextCategorization group = leafTreeNode.addText(getTokens(bytesRefHash, "foo", "bar", "baz", "biz"), 1, factory);
 
         assertArrayEquals(group.getCategorization(), getTokens(bytesRefHash, "foo", "bar", "baz", "biz"));
         assertThat(group.getCount(), equalTo(1L));
-        assertThat(leafTreeNode.getAllChildrenLogGroups(), hasSize(1));
+        assertThat(leafTreeNode.getAllChildrenTextCategorizations(), hasSize(1));
         long previousBytesUsed = leafTreeNode.ramBytesUsed();
 
-        group = leafTreeNode.addLog(getTokens(bytesRefHash, "foo", "bar", "bozo", "bizzy"), 1, factory);
+        group = leafTreeNode.addText(getTokens(bytesRefHash, "foo", "bar", "bozo", "bizzy"), 1, factory);
         assertArrayEquals(group.getCategorization(), getTokens(bytesRefHash, "foo", "bar", "bozo", "bizzy"));
         assertThat(group.getCount(), equalTo(1L));
-        assertThat(leafTreeNode.getAllChildrenLogGroups(), hasSize(2));
+        assertThat(leafTreeNode.getAllChildrenTextCategorizations(), hasSize(2));
         assertThat(leafTreeNode.ramBytesUsed(), greaterThan(previousBytesUsed));
         previousBytesUsed = leafTreeNode.ramBytesUsed();
 
-        group = leafTreeNode.addLog(getTokens(bytesRefHash, "foo", "bar", "baz", "different"), 3, factory);
+        group = leafTreeNode.addText(getTokens(bytesRefHash, "foo", "bar", "baz", "different"), 3, factory);
         assertArrayEquals(group.getCategorization(), getTokens(bytesRefHash, "foo", "bar", "baz", "*"));
         assertThat(group.getCount(), equalTo(4L));
-        assertThat(leafTreeNode.getAllChildrenLogGroups(), hasSize(2));
+        assertThat(leafTreeNode.getAllChildrenTextCategorizations(), hasSize(2));
         assertThat(previousBytesUsed, equalTo(leafTreeNode.ramBytesUsed()));
     }
 
@@ -65,23 +65,23 @@ public class LeafTreeNodeTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> leafTreeNode.mergeWith(new TreeNode.InnerTreeNode(1, 2, 3)));
 
         leafTreeNode.incCount(5);
-        leafTreeNode.addLog(getTokens(bytesRefHash, "foo", "bar", "baz", "biz"), 5, factory);
+        leafTreeNode.addText(getTokens(bytesRefHash, "foo", "bar", "baz", "biz"), 5, factory);
 
         TreeNode.LeafTreeNode toMerge = new TreeNode.LeafTreeNode(0, 60);
         leafTreeNode.incCount(1);
-        toMerge.addLog(getTokens(bytesRefHash, "foo", "bar", "baz", "bizzy"), 1, factory);
+        toMerge.addText(getTokens(bytesRefHash, "foo", "bar", "baz", "bizzy"), 1, factory);
         leafTreeNode.incCount(1);
-        toMerge.addLog(getTokens(bytesRefHash, "foo", "bart", "bat", "built"), 1, factory);
+        toMerge.addText(getTokens(bytesRefHash, "foo", "bart", "bat", "built"), 1, factory);
         leafTreeNode.mergeWith(toMerge);
 
-        assertThat(leafTreeNode.getAllChildrenLogGroups(), hasSize(2));
+        assertThat(leafTreeNode.getAllChildrenTextCategorizations(), hasSize(2));
         assertThat(leafTreeNode.getCount(), equalTo(7L));
         assertArrayEquals(
-            leafTreeNode.getAllChildrenLogGroups().get(0).getCategorization(),
+            leafTreeNode.getAllChildrenTextCategorizations().get(0).getCategorization(),
             getTokens(bytesRefHash, "foo", "bar", "baz", "*")
         );
         assertArrayEquals(
-            leafTreeNode.getAllChildrenLogGroups().get(1).getCategorization(),
+            leafTreeNode.getAllChildrenTextCategorizations().get(1).getCategorization(),
             getTokens(bytesRefHash, "foo", "bart", "bat", "built")
         );
     }

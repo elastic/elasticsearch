@@ -56,9 +56,9 @@ public class TextCategorizationTests extends ESTestCase {
         assertThat(sims.getWildCardCount(), equalTo(0));
     }
 
-    public void testAddLog() {
+    public void testAddTokens() {
         TextCategorization lg = new TextCategorization(getTokens(bytesRefHash, "foo", "bar", "baz", "biz"), 1, 1);
-        lg.addLog(getTokens(bytesRefHash, "foo", "bar", "baz", "bozo"), 2);
+        lg.addTokens(getTokens(bytesRefHash, "foo", "bar", "baz", "bozo"), 2);
         assertThat(lg.getCount(), equalTo(3L));
         assertArrayEquals(lg.getCategorization(), getTokens(bytesRefHash, "foo", "bar", "baz", "*"));
     }

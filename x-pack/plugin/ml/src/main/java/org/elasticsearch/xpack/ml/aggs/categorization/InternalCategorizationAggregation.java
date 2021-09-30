@@ -357,7 +357,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             );
             // TODO: Could we do a merge sort similar to terms?
             //  It would require us returning partial reductions sorted by key, not by doc_count
-            // First, make sure we have all the counts for equal log groups
+            // First, make sure we have all the counts for equal categorizations
             Map<BucketKey, DelayedCategorizationBucket> reduced = new HashMap<>();
             for (InternalAggregation aggregation : aggregations) {
                 InternalCategorizationAggregation categorizationAggregation = (InternalCategorizationAggregation) aggregation;
@@ -370,13 +370,13 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 .stream()
                 .sorted(Comparator.comparing(DelayedCategorizationBucket::getDocCount).reversed())
                 .forEach(bucket ->
-                    // Parse log line takes document count into account and merging on smallest groups
-                    categorizationTokenTree.parseLogLine(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount)
+                    // Parse tokens takes document count into account and merging on smallest groups
+                    categorizationTokenTree.parseTokens(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount)
                 );
             categorizationTokenTree.mergeSmallestChildren();
             Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>();
             for (DelayedCategorizationBucket delayedBucket : reduced.values()) {
-                TextCategorization group = categorizationTokenTree.parseLogLineConst(hash.getIds(delayedBucket.key.keyAsTokens()))
+                TextCategorization group = categorizationTokenTree.parseTokensConst(hash.getIds(delayedBucket.key.keyAsTokens()))
                     .orElseThrow(
                         () -> new AggregationExecutionException(
                             "Unexpected null categorization group for bucket [" + delayedBucket.key.asString() + "]"

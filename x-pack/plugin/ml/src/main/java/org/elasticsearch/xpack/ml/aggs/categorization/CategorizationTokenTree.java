@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * With the following key differences
  *  - This structure keeps track of the "smallest" sub-tree. So, instead of naively adding a new "*" node, the smallest sub-tree
  *    is transformed if the incoming token has a higher doc_count.
- *  - Additionally, similarities are weighted, which allows for nicer merging of existing log categories
+ *  - Additionally, similarities are weighted, which allows for nicer merging of existing categories
  *  - An optional tree reduction step is available to collapse together tiny sub-trees
  *
  *
@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  *
  * Examples:
  *
- * Given log values:
+ * Given token values:
  *
  * Node is online
  * Node is offline
@@ -69,7 +69,7 @@ public class CategorizationTokenTree implements Accountable {
     }
 
     public List<InternalCategorizationAggregation.Bucket> toIntermediateBuckets(CategorizationBytesRefHash hash) {
-        return root.values().stream().flatMap(c -> c.getAllChildrenLogGroups().stream()).map(lg -> {
+        return root.values().stream().flatMap(c -> c.getAllChildrenTextCategorizations().stream()).map(lg -> {
             int[] categoryTokenIds = lg.getCategorization();
             BytesRef[] bytesRefs = new BytesRef[categoryTokenIds.length];
             for (int i = 0; i < categoryTokenIds.length; i++) {
@@ -92,43 +92,43 @@ public class CategorizationTokenTree implements Accountable {
     /**
      * This method does not mutate the underlying structure. Meaning, if a matching categories isn't found, it may return empty.
      *
-     * @param logTokenIds The tokens to categorize
-     * @return The log category or `Optional.empty()` if one doesn't exist
+     * @param tokenIds The tokens to categorize
+     * @return The category or `Optional.empty()` if one doesn't exist
      */
-    public Optional<TextCategorization> parseLogLineConst(final int[] logTokenIds) {
-        TreeNode currentNode = this.root.get(logTokenIds.length);
-        if (currentNode == null) { // we are missing an entire sub tree. New log length found
+    public Optional<TextCategorization> parseTokensConst(final int[] tokenIds) {
+        TreeNode currentNode = this.root.get(tokenIds.length);
+        if (currentNode == null) { // we are missing an entire sub tree. New token length found
             return Optional.empty();
         }
-        return Optional.ofNullable(currentNode.getLogGroup(logTokenIds));
+        return Optional.ofNullable(currentNode.getCategorization(tokenIds));
     }
 
     /**
      * This categorizes the passed tokens, potentially mutating the structure by expanding an existing category or adding a new one.
-     * @param logTokenIds The log tokens to categorize
+     * @param tokenIds The tokens to categorize
      * @param docCount The count of docs for the given tokens
      * @return An existing categorization or a newly created one
      */
-    public TextCategorization parseLogLine(final int[] logTokenIds, long docCount) {
-        TreeNode currentNode = this.root.get(logTokenIds.length);
-        if (currentNode == null) { // we are missing an entire sub tree. New log length found
-            currentNode = newNode(docCount, 0, logTokenIds);
+    public TextCategorization parseTokens(final int[] tokenIds, long docCount) {
+        TreeNode currentNode = this.root.get(tokenIds.length);
+        if (currentNode == null) { // we are missing an entire sub tree. New token length found
+            currentNode = newNode(docCount, 0, tokenIds);
             incSize(currentNode.ramBytesUsed() + RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
-            this.root.put(logTokenIds.length, currentNode);
+            this.root.put(tokenIds.length, currentNode);
         } else {
             currentNode.incCount(docCount);
         }
-        return currentNode.addLog(logTokenIds, docCount, this);
+        return currentNode.addText(tokenIds, docCount, this);
     }
 
-    TreeNode newNode(long docCount, int tokenPos, int[] logTokenIds) {
-        return tokenPos < maxMatchTokens - 1 && tokenPos < logTokenIds.length
+    TreeNode newNode(long docCount, int tokenPos, int[] tokenIds) {
+        return tokenPos < maxMatchTokens - 1 && tokenPos < tokenIds.length
             ? new TreeNode.InnerTreeNode(docCount, tokenPos, maxUniqueTokens)
             : new TreeNode.LeafTreeNode(docCount, similarityThreshold);
     }
 
-    TextCategorization newGroup(long docCount, int[] logTokenIds) {
-        return new TextCategorization(logTokenIds, docCount, idGenerator++);
+    TextCategorization newCategorization(long docCount, int[] tokenIds) {
+        return new TextCategorization(tokenIds, docCount, idGenerator++);
     }
 
     void incSize(long size) {

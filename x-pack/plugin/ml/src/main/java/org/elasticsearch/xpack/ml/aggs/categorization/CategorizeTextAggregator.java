@@ -216,7 +216,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                     ts.close();
                 }
                 long previousSize = categorizer.ramBytesUsed();
-                TextCategorization lg = categorizer.parseLogLine(
+                TextCategorization lg = categorizer.parseTokens(
                     tokens.stream().mapToInt(Integer::valueOf).toArray(),
                     docCountProvider.getDocCount(doc)
                 );

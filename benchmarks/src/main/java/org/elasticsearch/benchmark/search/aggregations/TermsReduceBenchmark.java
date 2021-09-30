@@ -11,7 +11,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.QueryPhaseResultConsumer;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchProgressListener;
@@ -173,9 +172,7 @@ public class TermsReduceBenchmark {
                 new DocValueFormat[] { DocValueFormat.RAW }
             );
             result.aggregations(candidateList.get(i));
-            result.setSearchShardTarget(
-                new SearchShardTarget("node", new ShardId(new Index("index", "index"), i), null, OriginalIndices.NONE)
-            );
+            result.setSearchShardTarget(new SearchShardTarget("node", new ShardId(new Index("index", "index"), i), null));
             shards.add(result);
         }
         SearchRequest request = new SearchRequest();

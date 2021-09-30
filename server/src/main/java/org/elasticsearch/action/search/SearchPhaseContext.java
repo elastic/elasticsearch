@@ -48,6 +48,13 @@ interface SearchPhaseContext extends Executor {
     SearchRequest getRequest();
 
     /**
+     * Returns the targeted {@link OriginalIndices} for the provided cluster alias or the local cluster
+     * if {@code clusterAlias} is {@code null}.
+     * or the local cluster
+     */
+    OriginalIndices getOriginalIndices(@Nullable String clusterAlias);
+
+    /**
      * Checks if the given context id is part of the point in time of this search (if exists).
      * We should not release search contexts that belong to the point in time during or after searches.
      */

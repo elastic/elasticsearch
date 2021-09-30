@@ -225,7 +225,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     public interface SinglePhaseSearchAction {
-        void executeOnShardTarget(SearchTask searchTask, SearchShardTarget target, Transport.Connection connection,
+        void executeOnShardTarget(SearchTask searchTask, SearchShardIterator shardIt, Transport.Connection connection,
                                   ActionListener<SearchPhaseResult> listener);
     }
 
@@ -248,7 +248,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
                                                        SearchActionListener<SearchPhaseResult> listener) {
                         final Transport.Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
-                        phaseSearchAction.executeOnShardTarget(task, shard, connection, listener);
+                        phaseSearchAction.executeOnShardTarget(task, shardIt, connection, listener);
                     }
 
                     @Override

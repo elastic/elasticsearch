@@ -18,7 +18,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
@@ -807,7 +806,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         DefaultSearchContext searchContext = null;
         try {
             SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
-                reader.indexShard().shardId(), request.getClusterAlias(), OriginalIndices.NONE);
+                reader.indexShard().shardId(), request.getClusterAlias());
             searchContext = new DefaultSearchContext(reader, request, shardTarget,
                 threadPool::relativeTimeInMillis, timeout, fetchPhase, lowLevelCancellation);
             // we clone the query shard context here just for rewriting otherwise we

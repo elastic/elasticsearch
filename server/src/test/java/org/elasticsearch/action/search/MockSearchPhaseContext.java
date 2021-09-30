@@ -75,6 +75,11 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
+    public OriginalIndices getOriginalIndices(String clusterAlias) {
+        return new OriginalIndices(searchRequest.indices(), searchRequest.indicesOptions());
+    }
+
+    @Override
     public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
         String searchContextId =

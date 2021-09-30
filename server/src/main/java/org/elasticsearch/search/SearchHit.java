@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -787,7 +786,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         String nodeId = get(Fields._NODE, values, null);
         if (shardId != null && nodeId != null) {
             assert shardId.getIndexName().equals(index);
-            searchHit.shard(new SearchShardTarget(nodeId, shardId, clusterAlias, OriginalIndices.NONE));
+            searchHit.shard(new SearchShardTarget(nodeId, shardId, clusterAlias));
         } else {
             //these fields get set anyways when setting the shard target,
             //but we set them explicitly when we don't have enough info to rebuild the shard target

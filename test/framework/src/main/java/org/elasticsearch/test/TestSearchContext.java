@@ -10,7 +10,6 @@ package org.elasticsearch.test;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
@@ -55,7 +54,7 @@ import static java.util.Collections.emptyMap;
 
 public class TestSearchContext extends SearchContext {
     public static final SearchShardTarget SHARD_TARGET =
-        new SearchShardTarget("test", new ShardId("test", "test", 0), null, OriginalIndices.NONE);
+        new SearchShardTarget("test", new ShardId("test", "test", 0), null);
 
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;

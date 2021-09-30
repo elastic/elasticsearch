@@ -159,7 +159,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             ShardId failureShardId = new ShardId("index", "index-uuid", i);
             String failureClusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
             String failureNodeId = randomAlphaOfLengthBetween(5, 10);
-            action.onShardFailure(i, new SearchShardTarget(failureNodeId, failureShardId, failureClusterAlias, OriginalIndices.NONE),
+            action.onShardFailure(i, new SearchShardTarget(failureNodeId, failureShardId, failureClusterAlias),
                 new IllegalArgumentException());
         }
         action.sendSearchResponse(InternalSearchResponse.empty(), phaseResults.results);
@@ -235,7 +235,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             String resultNodeId = randomAlphaOfLengthBetween(5, 10);
             ShardId resultShardId = new ShardId("index", "index-uuid", i);
             nodeLookups.add(Tuple.tuple(resultClusterAlias, resultNodeId));
-            phaseResult.setSearchShardTarget(new SearchShardTarget(resultNodeId, resultShardId, resultClusterAlias, OriginalIndices.NONE));
+            phaseResult.setSearchShardTarget(new SearchShardTarget(resultNodeId, resultShardId, resultClusterAlias));
             phaseResult.setShardIndex(i);
             phaseResults.consumeResult(phaseResult, () -> {});
         }

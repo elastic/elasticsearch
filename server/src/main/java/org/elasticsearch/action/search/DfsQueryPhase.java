@@ -64,13 +64,13 @@ final class DfsQueryPhase extends SearchPhase {
             searchResults.size(),
             () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)), context);
         for (final DfsSearchResult dfsResult : searchResults) {
-            final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
-            Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-            QuerySearchRequest querySearchRequest = new QuerySearchRequest(searchShardTarget.getOriginalIndices(),
+            final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
+            Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+            QuerySearchRequest querySearchRequest = new QuerySearchRequest(context.getOriginalIndices(shardTarget.getClusterAlias()),
                     dfsResult.getContextId(), dfsResult.getShardSearchRequest(), dfs);
             final int shardIndex = dfsResult.getShardIndex();
             searchTransportService.sendExecuteQuery(connection, querySearchRequest, context.getTask(),
-                new SearchActionListener<QuerySearchResult>(searchShardTarget, shardIndex) {
+                new SearchActionListener<QuerySearchResult>(shardTarget, shardIndex) {
 
                     @Override
                     protected void innerOnResponse(QuerySearchResult response) {
@@ -86,15 +86,15 @@ final class DfsQueryPhase extends SearchPhase {
                         try {
                             context.getLogger().debug(() -> new ParameterizedMessage("[{}] Failed to execute query phase",
                                 querySearchRequest.contextId()), exception);
-                            progressListener.notifyQueryFailure(shardIndex, searchShardTarget, exception);
-                            counter.onFailure(shardIndex, searchShardTarget, exception);
+                            progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
+                            counter.onFailure(shardIndex, shardTarget, exception);
                         } finally {
                             if (context.isPartOfPointInTime(querySearchRequest.contextId()) == false) {
                                 // the query might not have been executed at all (for example because thread pool rejected
                                 // execution) and the search context that was created in dfs phase might not be released.
                                 // release it again to be in the safe side
                                 context.sendReleaseSearchContext(
-                                    querySearchRequest.contextId(), connection, searchShardTarget.getOriginalIndices());
+                                    querySearchRequest.contextId(), connection, context.getOriginalIndices(shardTarget.getClusterAlias()));
                             }
                         }
                     }

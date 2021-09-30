@@ -7,42 +7,23 @@ This guide describes how to fix common errors and problems with {es} clusters.
 === Error: disk usage exceeded flood-stage watermark, index has read-only-allow-delete block
 
 This error indicates a data node is critically low on disk space and has reached
-the <<cluster-routing-flood-stage,flood-stage disk usage watermark>>. When a
-node reaches this watermark, {es} blocks writes to any index with a shard on the
-node to prevent a full disk. If the block affects related system indices, {kib}
-and other {stack} features may become unavailable.
+the <<cluster-routing-flood-stage,flood-stage disk usage watermark>>. To prevent
+a full disk, when a node reaches this watermark, {es} blocks writes to any index
+with a shard on the node. If the block affects related system indices, {kib} and
+other {stack} features may become unavailable.
 
-{es} will automatically remove the write block when the affected node goes below
-the <<cluster-routing-watermark-high,high disk watermark>>. To achieve this,
-{es} automatically moves some of the affected node's shards to other nodes in
-the data tier. However, {es} will only allocate shards to nodes below the high
-disk usage watermark.
+{es} will automatically remove the write block when the affected node's disk
+usage goes below the <<cluster-routing-watermark-high,high disk watermark>>. To
+achieve this, {es} automatically moves some of the affected node's shards to
+other nodes in the data tier.
 
-To verify that some nodes in the tier are below the high disk watermark, use the
-<<cat-allocation,cat allocation API>> to get each node's disk usage percentage
-(`disk.percent`) and current available disk space (`disk.avail`).
-
-[source,console]
-----
-GET _cat/allocation?v=true
-----
-
-To check that shards are moving from the affected node to other nodes, use the
-<<cat-shards,cat shards API>>. If {es} can't allocate a shard to another node,
-the shard has a `state` of `UNASSIGNED`. The `unassigned.reason` describes why
-the shard remains unassigned.
+To verify that shards are moving off the affected node, use the
+<<cluster-allocation-explain,cluster allocation explanation API>>. If shards
+remain on the node, the API provides a detailed explanation for their status.
 
 [source,console]
 ----
-GET _cat/shards?v=true&h=index,shard,prirep,state,node,unassigned.reason&s=state
-----
-
-To get a more in-depth explanation of an unassigned shard's allocation status,
-use the <<cluster-allocation-explain,cluster allocation explanation API>>.
-
-[source,console]
-----
-GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node_name,node_allocation_decisions.deciders.*
+GET _cluster/allocation/explain
 {
   "index": "my-index",
   "shard": 0,
@@ -50,8 +31,6 @@ GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node
   "current_node": "my-node"
 }
 ----
-// TEST[s/^/PUT my-index\n/]
-// TEST[s/"primary": false,/"primary": false/]
 // TEST[s/"current_node": "my-node"//]
 
 To immediately restore write operations, you can temporarily increase the disk

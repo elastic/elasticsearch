@@ -617,9 +617,11 @@ public abstract class PackagingTestCase extends Assert {
                         DockerFileMatcher.file(File, "elasticsearch", "root", p660)
                     )
                 );
-            copyFromContainer(es.config("elasticsearch.yml"), getRootTempDir().resolve("docker_elasticsearch.yml"));
+            Path localTempDir = createTempDir("docker-config");
+            copyFromContainer(es.config("elasticsearch.yml"), localTempDir.resolve("docker_elasticsearch.yml"));
             configLines = Files.readAllLines(getRootTempDir().resolve("docker_elasticsearch.yml"));
-            rm(getRootTempDir().resolve("docker_elasticsearch.yml"));
+            rm(localTempDir.resolve("docker_elasticsearch.yml"));
+            rm(localTempDir);
         }
 
         assertThat(configLines, hasItem("xpack.security.enabled: true"));

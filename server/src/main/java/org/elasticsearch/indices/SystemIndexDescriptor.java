@@ -31,6 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A system index descriptor describes one or more system indices. It can match a number of indices using
@@ -361,14 +362,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     @Override
     public List<String> getMatchingIndices(Metadata metadata) {
-        ArrayList<String> matchingIndices = new ArrayList<>();
-        metadata.indices().keysIt().forEachRemaining(indexName -> {
-            if (matchesIndexPattern(indexName)) {
-                matchingIndices.add(indexName);
-            }
-        });
-
-        return Collections.unmodifiableList(matchingIndices);
+        return metadata.indices().keySet()
+            .stream()
+            .filter(this::matchesIndexPattern)
+            .collect(Collectors.toUnmodifiableList());
     }
 
     /**

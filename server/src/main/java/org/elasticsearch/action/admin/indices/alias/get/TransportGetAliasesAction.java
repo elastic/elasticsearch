@@ -35,7 +35,6 @@ import org.elasticsearch.transport.Transports;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -136,8 +135,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
         List<String> netNewSystemIndices = new ArrayList<>();
         List<String> systemIndicesNames = new ArrayList<>();
-        for (Iterator<String> it = aliasesMap.keysIt(); it.hasNext(); ) {
-            String indexName = it.next();
+        aliasesMap.keySet().forEach(indexName -> {
             IndexMetadata index = state.metadata().index(indexName);
             if (index != null && index.isSystem()) {
                 if (systemIndexAccessAllowPredicate.test(index) == false) {
@@ -148,7 +146,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
                     }
                 }
             }
-        }
+        });
         if (systemIndicesNames.isEmpty() == false) {
             deprecationLogger.critical(DeprecationCategory.API, "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system " +

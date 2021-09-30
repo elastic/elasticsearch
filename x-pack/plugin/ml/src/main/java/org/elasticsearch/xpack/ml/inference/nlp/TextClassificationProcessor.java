@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextClassificationResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -33,11 +31,7 @@ public class TextClassificationProcessor implements NlpTask.Processor {
     TextClassificationProcessor(NlpTokenizer tokenizer, TextClassificationConfig config) {
         this.requestBuilder = tokenizer.requestBuilder();
         List<String> classLabels = config.getClassificationLabels();
-        if (classLabels == null || classLabels.isEmpty()) {
-            this.classLabels = new String[] {"negative", "positive"};
-        } else {
-            this.classLabels = classLabels.toArray(String[]::new);
-        }
+        this.classLabels = classLabels.toArray(String[]::new);
         // negative values are a special case of asking for ALL classes. Since we require the output size to equal the classLabel size
         // This is a nice way of setting the value
         this.numTopClasses = config.getNumTopClasses() < 0 ? this.classLabels.length : config.getNumTopClasses();
@@ -45,26 +39,7 @@ public class TextClassificationProcessor implements NlpTask.Processor {
     }
 
     private void validate() {
-        if (classLabels.length < 2) {
-            throw new ValidationException().addValidationError(
-                String.format(
-                    Locale.ROOT,
-                    "Text classification requires at least 2 [%s]. Invalid labels [%s]",
-                    TextClassificationConfig.CLASSIFICATION_LABELS,
-                    Strings.arrayToCommaDelimitedString(classLabels)
-                )
-            );
-        }
-        if (numTopClasses == 0) {
-            throw new ValidationException().addValidationError(
-                String.format(
-                    Locale.ROOT,
-                    "Text classification requires at least 1 [%s]; provided [%d]",
-                    TextClassificationConfig.NUM_TOP_CLASSES,
-                    numTopClasses
-                )
-            );
-        }
+        // validation occurs in TextClassificationConfig
     }
 
     @Override
@@ -73,12 +48,12 @@ public class TextClassificationProcessor implements NlpTask.Processor {
     }
 
     @Override
-    public NlpTask.RequestBuilder getRequestBuilder() {
+    public NlpTask.RequestBuilder getRequestBuilder(NlpConfig config) {
         return requestBuilder;
     }
 
     @Override
-    public NlpTask.ResultProcessor getResultProcessor() {
+    public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
         return this::processResult;
     }
 

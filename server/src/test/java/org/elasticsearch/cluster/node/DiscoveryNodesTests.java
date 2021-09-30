@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -309,30 +310,22 @@ public class DiscoveryNodesTests extends ESTestCase {
         }, MASTER_ELIGIBLE(DiscoveryNodeRole.MASTER_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                Set<String> ids = new HashSet<>();
-                nodes.getMasterNodes().keysIt().forEachRemaining(ids::add);
-                return ids;
+                return nodes.getMasterNodes().keySet();
             }
         }, DATA(DiscoveryNodeRole.DATA_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                Set<String> ids = new HashSet<>();
-                nodes.getDataNodes().keysIt().forEachRemaining(ids::add);
-                return ids;
+                return nodes.getDataNodes().keySet();
             }
         }, INGEST(DiscoveryNodeRole.INGEST_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                Set<String> ids = new HashSet<>();
-                nodes.getIngestNodes().keysIt().forEachRemaining(ids::add);
-                return ids;
+                return nodes.getIngestNodes().keySet();
             }
         }, COORDINATING_ONLY(DiscoveryNode.COORDINATING_ONLY + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                Set<String> ids = new HashSet<>();
-                nodes.getCoordinatingOnlyNodes().keysIt().forEachRemaining(ids::add);
-                return ids;
+                return nodes.getCoordinatingOnlyNodes().keySet();
             }
         }, CUSTOM_ATTRIBUTE("attr:value") {
             @Override

@@ -494,13 +494,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
-        final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore, anonymousUser, threadPool);
-        if (reservedRealm.isElasticUserAutoconfigured()) {
-            //TODO kibana enrollment token should be printed even if the elastic user is auto configured
-            GenerateInitialBuiltinUsersPasswordListener generateInitialBuiltinUsersPasswordListener =
-                new GenerateInitialBuiltinUsersPasswordListener(nativeUsersStore, securityIndex.get());
-            securityIndex.get().addStateListener(generateInitialBuiltinUsersPasswordListener);
-        }
+
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(environment, client, clusterService,
@@ -569,6 +563,16 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
         securityIndex.get().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
+        if (SECURITY_AUTOCONFIGURATION_ENABLED.get(settings)) {
+            InitialSecurityConfigurationListener initialSecurityConfigurationListener = new InitialSecurityConfigurationListener(
+                nativeUsersStore,
+                securityIndex.get(),
+                getSslService(),
+                client,
+                environment
+            );
+            securityIndex.get().addStateListener(initialSecurityConfigurationListener);
+        }
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);

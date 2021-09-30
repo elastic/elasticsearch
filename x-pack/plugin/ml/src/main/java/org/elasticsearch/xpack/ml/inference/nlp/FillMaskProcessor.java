@@ -10,18 +10,18 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 public class FillMaskProcessor implements NlpTask.Processor {
-
-    private static final int NUM_RESULTS = 5;
 
     private final NlpTask.RequestBuilder requestBuilder;
 
@@ -49,28 +49,31 @@ public class FillMaskProcessor implements NlpTask.Processor {
     }
 
     @Override
-    public NlpTask.RequestBuilder getRequestBuilder() {
+    public NlpTask.RequestBuilder getRequestBuilder(NlpConfig config) {
         return requestBuilder;
     }
 
     @Override
-    public NlpTask.ResultProcessor getResultProcessor() {
-        return this::processResult;
+    public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
+        if (config instanceof FillMaskConfig) {
+            return (tokenization, result) -> processResult(tokenization, result, ((FillMaskConfig)config).getNumTopClasses());
+        } else {
+            return (tokenization, result) -> processResult(tokenization, result, FillMaskConfig.DEFAULT_NUM_RESULTS);
+        }
     }
 
-    InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
-
+    InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult, int numResults) {
         if (tokenization.getTokenizations().isEmpty() ||
-            tokenization.getTokenizations().get(0).getTokens().isEmpty()) {
+            tokenization.getTokenizations().get(0).getTokens().length == 0) {
             return new FillMaskResults(Collections.emptyList());
         }
 
-        int maskTokenIndex = tokenization.getTokenizations().get(0).getTokens().indexOf(BertTokenizer.MASK_TOKEN);
+        int maskTokenIndex = Arrays.asList(tokenization.getTokenizations().get(0).getTokens()).indexOf(BertTokenizer.MASK_TOKEN);
         // TODO - process all results in the batch
         double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0][maskTokenIndex]);
 
-        NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(NUM_RESULTS, normalizedScores);
-        List<FillMaskResults.Prediction> results = new ArrayList<>(NUM_RESULTS);
+        NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(numResults, normalizedScores);
+        List<FillMaskResults.Prediction> results = new ArrayList<>(numResults);
         for (NlpHelpers.ScoreAndIndex scoreAndIndex : scoreAndIndices) {
             String predictedToken = tokenization.getFromVocab(scoreAndIndex.index);
             String sequence = tokenization.getTokenizations().get(0).getInput().replace(BertTokenizer.MASK_TOKEN, predictedToken);

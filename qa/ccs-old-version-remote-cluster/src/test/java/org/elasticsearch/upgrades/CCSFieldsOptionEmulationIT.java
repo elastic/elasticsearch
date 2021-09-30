@@ -41,17 +41,20 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.GetMappingsRequest;
+import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.AbstractCCSRestTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -72,13 +75,10 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
     private static final String CLUSTER_ALIAS = "remote_cluster";
 
-    static int indexDocs(RestHighLevelClient client, String index, int numDocs, boolean expectWarnings) throws IOException {
+    static int indexDocs(RestHighLevelClient client, String index, int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
-            Request indexDoc = new Request("PUT", index + "/type/" + i);
+            Request indexDoc = new Request("PUT", index + "/_doc/" + i);
             indexDoc.setJsonEntity("{\"field\": \"f" + i + "\", \"array\": [1, 2, 3] , \"obj\": { \"innerObj\" : \"foo\" } }");
-            if (expectWarnings) {
-                indexDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
-            }
             client.getLowLevelClient().performRequest(indexDoc);
         }
         client.indices().refresh(new RefreshRequest(index), RequestOptions.DEFAULT);
@@ -99,7 +99,8 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
     public void testFieldsOptionEmulation() throws Exception {
         String localIndex = "test_bwc_fields_index";
         String remoteIndex = "test_bwc_fields_remote_index";
-        try (RestHighLevelClient localClient = newLocalClient(LOGGER); RestHighLevelClient remoteClient = newRemoteClient()) {
+        try (RestHighLevelClient localClient = newLocalClient(LOGGER);
+             RestHighLevelClient remoteClient = newRemoteClient()) {
             localClient.indices()
                 .create(
                     new CreateIndexRequest(localIndex).settings(
@@ -107,13 +108,25 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
                     ),
                     RequestOptions.DEFAULT
                 );
-            int localNumDocs = indexDocs(localClient, localIndex, between(10, 20), true);
+            int localNumDocs = indexDocs(localClient, localIndex, between(10, 20));
 
             Builder remoteIndexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5));
             remoteClient.indices().create(new CreateIndexRequest(remoteIndex).settings(remoteIndexSettings), RequestOptions.DEFAULT);
-            boolean expectRemoteIndexWarnings = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0);
-            int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 20), expectRemoteIndexWarnings);
+            int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 20));
             int expectedHitCount = localNumDocs + remoteNumDocs;
+
+            // create a second remote index with "_source : false" to check error behaviour in this case
+            String remoteNoSourceIndex = "remote_index_source_disabled";
+            String mappings = "{\"_source\":{\"enabled\":false}}";
+            remoteClient.indices()
+                .create(
+                    new CreateIndexRequest(remoteNoSourceIndex).settings(remoteIndexSettings).mapping(mappings, XContentType.JSON),
+                    RequestOptions.DEFAULT
+                );
+            GetMappingsResponse mapping = remoteClient.indices()
+                .getMapping(new GetMappingsRequest().indices(remoteNoSourceIndex), RequestOptions.DEFAULT);
+            assertEquals("{\"_source\":{\"enabled\":false}}", mapping.mappings().get(remoteNoSourceIndex).source().string());
+            int remoteNoSourceNumDocs = indexDocs(remoteClient, remoteNoSourceIndex, between(10, 20));
 
             List<Node> remoteNodes = getNodes(remoteClient.getLowLevelClient());
             assertThat(remoteNodes, hasSize(2));
@@ -159,6 +172,53 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
                         assertEquals("foo", fields.get("obj.innerObj").getValue());
                     }
                 }
+
+                // check errors when index with disabled _source is included
+                request = new Request("POST", "/_search");
+                request.addParameter(
+                    "index",
+                    localIndex + "," + CLUSTER_ALIAS + ":" + remoteIndex + "," + CLUSTER_ALIAS + ":" + remoteNoSourceIndex
+                );
+                request.addParameter("ccs_minimize_roundtrips", minimizeRoundTrips);
+                request.addParameter("enable_fields_emulation", "true");
+                request.setJsonEntity(
+                    "{\"_source\": false, \"fields\": [\"*\"] , \"size\": " + expectedHitCount + remoteNoSourceNumDocs + "}"
+                );
+                response = lowLevelClient.performRequest(request);
+                ObjectPath responseObject = ObjectPath.createFromResponse(response);
+                List<Map<String, Object>> failures = responseObject.evaluate("_shards.failures");
+                assertEquals(1, failures.size());
+                assertEquals(CLUSTER_ALIAS + ":" +remoteNoSourceIndex, responseObject.evaluate("_shards.failures.0.index"));
+                assertEquals("illegal_argument_exception", responseObject.evaluate("_shards.failures.0.reason.type"));
+                assertThat(
+                    responseObject.evaluate("_shards.failures.0.reason.reason"),
+                    containsString("_source is disabled in the mappings for index [remote_index_source_disabled]")
+                );
+                assertEquals(expectedHitCount, ((List<?>) responseObject.evaluate("hits.hits")).size());
+
+                // also check for only no-source remote index
+                request = new Request("POST", "/_search");
+                request.addParameter(
+                    "index",
+                    localIndex + "," + CLUSTER_ALIAS + ":" + remoteNoSourceIndex
+                );
+                request.addParameter("ccs_minimize_roundtrips", minimizeRoundTrips);
+                request.addParameter("enable_fields_emulation", "true");
+                request.setJsonEntity(
+                    "{\"_source\": false, \"fields\": [\"*\"] , \"size\": " + localNumDocs + remoteNoSourceNumDocs + "}"
+                );
+                response = lowLevelClient.performRequest(request);
+                responseObject = ObjectPath.createFromResponse(response);
+                failures = responseObject.evaluate("_shards.failures");
+                assertEquals(1, failures.size());
+                assertEquals(CLUSTER_ALIAS + ":" +remoteNoSourceIndex, responseObject.evaluate("_shards.failures.0.index"));
+                assertEquals("illegal_argument_exception", responseObject.evaluate("_shards.failures.0.reason.type"));
+                assertThat(
+                    responseObject.evaluate("_shards.failures.0.reason.reason"),
+                    containsString("_source is disabled in the mappings for index [remote_index_source_disabled]")
+                );
+                // all local hits should still be there
+                assertEquals(localNumDocs, ((List<?>) responseObject.evaluate("hits.hits")).size());
             }
 
             // also check validation of request
@@ -177,6 +237,7 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
 
             localClient.indices().delete(new DeleteIndexRequest(localIndex), RequestOptions.DEFAULT);
             remoteClient.indices().delete(new DeleteIndexRequest(remoteIndex), RequestOptions.DEFAULT);
+            remoteClient.indices().delete(new DeleteIndexRequest(remoteNoSourceIndex), RequestOptions.DEFAULT);
         }
     }
 }

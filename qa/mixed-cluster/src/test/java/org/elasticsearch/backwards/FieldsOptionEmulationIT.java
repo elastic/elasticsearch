@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
 /**
  * In mixed cluster scenarios on 7.x we try to emulate the "fields" option introduced in 7.10
  * by running a request with "source" enabled for the requested patterns on older nodes and convert
@@ -35,6 +37,7 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
 
     private static String index = "test_field_newversion";
     private static String index_old = "test_field_oldversion";
+    private static String index_old_no_source = "oldversion_no_source";
     private static Nodes nodes;
     private static List<Node> bwcNodes;
     private static List<Node> newNodes;
@@ -50,12 +53,13 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
         oldNodeName = bwcNodes.get(0).getNodeName();
         newNodeName = newNodes.get(0).getNodeName();
         bwcNodeVersion = bwcNodes.get(0).getVersion();
-        createIndexOnNode(index, newNodeName);
-        createIndexOnNode(index_old, oldNodeName);
+        createIndexOnNode(index, newNodeName, "");
+        createIndexOnNode(index_old, oldNodeName, "");
+        createIndexOnNode(index_old_no_source, oldNodeName, "\"_source\":{\"enabled\": false}");
         refreshAllIndices();
     }
 
-    private void createIndexOnNode(String indexName, String nodeName) throws IOException {
+    private void createIndexOnNode(String indexName, String nodeName, String mappings) throws IOException {
         if (indexExists(indexName) == false) {
             createIndex(
                 indexName,
@@ -63,7 +67,8 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", nodeName)
-                    .build()
+                    .build(),
+                mappings
             );
             for (int i = 0; i < 5; i++) {
                 Request request = new Request("PUT", indexName + "/_doc/" + i);
@@ -200,6 +205,24 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
                 Map<String, Object> fieldsMap = (Map<String, Object>) hit.get("fields");
                 assertNull(fieldsMap);
             }
+        }
+    }
+
+    public void testFieldOptionNoSourceOnOldIndex() throws Exception {
+        Request matchAllRequestFiltered = new Request("POST",
+            "test_field_*,oldversion_no_source/_search");
+        matchAllRequestFiltered.addParameter("enable_fields_emulation", "true");
+        matchAllRequestFiltered.setJsonEntity("{\"_source\":false,\"fields\":[\"*\"]}");
+        try (
+            RestClient client = buildClient(restClientSettings(), newNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))
+        ) {
+            Response response = client.performRequest(matchAllRequestFiltered);
+            ObjectPath responseObject = ObjectPath.createFromResponse(response);
+            List<Map<String, Object>> failures = responseObject.evaluate("_shards.failures");
+            assertEquals(1, failures.size());
+            assertEquals(index_old_no_source, responseObject.evaluate("_shards.failures.0.index"));
+            assertEquals("illegal_argument_exception", responseObject.evaluate("_shards.failures.0.reason.type"));
+            assertThat(responseObject.evaluate("_shards.failures.0.reason.reason"), containsString("_source is disabled"));
         }
     }
 }

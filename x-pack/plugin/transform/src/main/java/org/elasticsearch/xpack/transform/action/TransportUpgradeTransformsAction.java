@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -27,7 +26,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Request;
@@ -41,9 +39,9 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<Request, Response> {
@@ -130,10 +128,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             return;
         }
 
-        PageParams startPage = new PageParams(0, PageParams.DEFAULT_SIZE);
-        Map<UpdateResult.Status, Long> updatesByStatus = new HashMap<>();
-
-        recursiveExpandTransformIdsAndUpgrade(updatesByStatus, request.isDryRun(), startPage, ActionListener.wrap(r -> {
+        recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), ActionListener.wrap(updatesByStatus -> {
 
             // todo: consider skip over option
             final boolean success = true;
@@ -199,7 +194,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 config,
                 update,
                 configAndVersion.v2(),
-                false,
+                false, // defer validation
                 dryRun,
                 false, // check access,
                 listener
@@ -228,33 +223,25 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         }, listener::onFailure));
     }
 
-    private void recursiveExpandTransformIdsAndUpgrade(
-        Map<UpdateResult.Status, Long> updatesByStatus,
-        boolean dryRun,
-        PageParams page,
-        ActionListener<Map<UpdateResult.Status, Long>> listener
-    ) {
+    private void recursiveExpandTransformIdsAndUpgrade(boolean dryRun, ActionListener<Map<UpdateResult.Status, Long>> listener) {
+        transformConfigManager.getAllOutdatedTransformIds(ActionListener.wrap(totalAndIds -> {
 
-        // TODO: this can loose transforms as we move them while iterating over the ids
-        transformConfigManager.expandTransformIds(Metadata.ALL, page, true, ActionListener.wrap(hitsAndIds -> {
-
-            List<String> ids = hitsAndIds.v2().v1();
-            if (ids.isEmpty()) {
-                listener.onResponse(updatesByStatus);
+            // exit quickly if there is nothing to do
+            if (totalAndIds.v2().isEmpty()) {
+                listener.onResponse(Collections.singletonMap(UpdateResult.Status.NONE, totalAndIds.v1()));
                 return;
             }
 
-            Deque<String> transformsToUpgrade = new ArrayDeque<>(ids);
+            Map<UpdateResult.Status, Long> updatesByStatus = new HashMap<>();
+            updatesByStatus.put(UpdateResult.Status.NONE, totalAndIds.v1() - totalAndIds.v2().size());
 
-            recursiveUpdate(transformsToUpgrade, updatesByStatus, dryRun, ActionListener.wrap(r -> {
-                if (hitsAndIds.v1().intValue() >= (page.getSize())) {
-                    PageParams nextPage = new PageParams(page.getFrom() + page.getSize(), PageParams.DEFAULT_SIZE);
-                    recursiveExpandTransformIdsAndUpgrade(updatesByStatus, dryRun, nextPage, listener);
-                    return;
-                }
-                listener.onResponse(updatesByStatus);
-            }, listener::onFailure)
+            Deque<String> ids = new ArrayDeque<>(totalAndIds.v2());
 
+            recursiveUpdate(
+                ids,
+                updatesByStatus,
+                dryRun,
+                ActionListener.wrap(r -> listener.onResponse(updatesByStatus), listener::onFailure)
             );
         }, listener::onFailure));
     }

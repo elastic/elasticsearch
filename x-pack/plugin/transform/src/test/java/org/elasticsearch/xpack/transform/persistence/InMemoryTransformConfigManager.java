@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -369,6 +371,20 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     @Override
     public void refresh(ActionListener<Boolean> listener) {
         listener.onResponse(true);
+    }
+
+    @Override
+    public void getAllTransformIds(ActionListener<Set<String>> listener) {
+        Set<String> allIds = new HashSet<>(configs.keySet());
+        allIds.addAll(oldConfigs.keySet());
+        listener.onResponse(allIds);
+    }
+
+    @Override
+    public void getAllOutdatedTransformIds(ActionListener<Tuple<Long, Set<String>>> listener) {
+        Set<String> outdatedIds = new HashSet<>(oldConfigs.keySet());
+        outdatedIds.removeAll(configs.keySet());
+        listener.onResponse(new Tuple<>(Long.valueOf(configs.size() + outdatedIds.size()), outdatedIds));
     }
 
 }

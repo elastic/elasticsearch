@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface TransformConfigManager {
 
@@ -155,6 +156,20 @@ public interface TransformConfigManager {
         boolean allowNoMatch,
         ActionListener<Tuple<Long, Tuple<List<String>, List<TransformConfig>>>> foundConfigsListener
     );
+
+    /**
+     * Get all transform ids
+     *
+     * @param listener The listener to call with the collected ids
+     */
+    void getAllTransformIds(ActionListener<Set<String>> listener);
+
+    /**
+     * Get all transform ids that aren't using the latest index.
+     *
+     * @param listener The listener to call with total number of transforms and the list of transform ids.
+     */
+    void getAllOutdatedTransformIds(ActionListener<Tuple<Long, Set<String>>> listener);
 
     /**
      * This deletes the configuration and all other documents corresponding to the transform id (e.g. checkpoints).

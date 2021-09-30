@@ -100,6 +100,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class IndexBasedTransformConfigManager implements TransformConfigManager {
 
     private static final Logger logger = LogManager.getLogger(IndexBasedTransformConfigManager.class);
+    private static final int MAX_RESULTS_WINDOW = 10_000;
 
     private final Client client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -514,6 +515,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
         )
             .addSort(TransformField.ID.getPreferredName(), SortOrder.ASC)
+            .addSort("_index", SortOrder.DESC)
             .setFrom(pageParams.getFrom())
             .setTrackTotalHits(true)
             .setSize(pageParams.getSize())
@@ -568,6 +570,16 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             }, foundConfigsListener::onFailure),
             client::search
         );
+    }
+
+    @Override
+    public void getAllTransformIds(ActionListener<Set<String>> listener) {
+        expandAllTransformIds(false, ActionListener.wrap(r -> listener.onResponse(r.v2()), listener::onFailure));
+    }
+
+    @Override
+    public void getAllOutdatedTransformIds(ActionListener<Tuple<Long, Set<String>>> listener) {
+        expandAllTransformIds(true, listener);
     }
 
     @Override
@@ -821,6 +833,67 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             }
         }
         return QueryBuilders.constantScoreQuery(queryBuilder);
+    }
+
+    private void expandAllTransformIds(boolean filterForOutdated, ActionListener<Tuple<Long, Set<String>>> listener) {
+        PageParams startPage = new PageParams(0, MAX_RESULTS_WINDOW);
+
+        Set<String> collectedIds = new HashSet<>();
+        recursiveExpandAllTransformIds(collectedIds, 0, filterForOutdated, null, startPage, listener);
+    }
+
+    private void recursiveExpandAllTransformIds(
+        Set<String> collectedIds,
+        long total,
+        boolean filterForOutdated,
+        String lastId,
+        PageParams page,
+        ActionListener<Tuple<Long, Set<String>>> listener
+    ) {
+        SearchRequest request = client.prepareSearch(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        )
+            .addSort(TransformField.ID.getPreferredName(), SortOrder.ASC)
+            .addSort("_index", SortOrder.DESC)
+            .setFrom(page.getFrom())
+            .setSize(page.getSize())
+            .setFetchSource(false)
+            .addDocValueField(TransformField.ID.getPreferredName())
+            .request();
+
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            TRANSFORM_ORIGIN,
+            request,
+            ActionListener.<SearchResponse>wrap(searchResponse -> {
+                long totalHits = total;
+                String idOfLastHit = lastId;
+
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    if (hit.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)) {
+                        idOfLastHit = hit.field(TransformField.ID.getPreferredName()).getValue();
+                        ++totalHits;
+                    } else {
+                        String id = hit.field(TransformField.ID.getPreferredName()).getValue();
+                        if (id != null && id.equals(idOfLastHit) == false) {
+                            collectedIds.add(hit.field(TransformField.ID.getPreferredName()).getValue());
+                            ++totalHits;
+                        }
+                    }
+                }
+
+                if (searchResponse.getHits().getHits().length == page.getSize()) {
+                    PageParams nextPage = new PageParams(page.getFrom() + page.getSize(), MAX_RESULTS_WINDOW);
+
+                    recursiveExpandAllTransformIds(collectedIds, totalHits, filterForOutdated, idOfLastHit, nextPage, listener);
+                    return;
+                }
+
+                listener.onResponse(new Tuple<>(total, collectedIds));
+            }, listener::onFailure),
+            client::search
+        );
     }
 
     private static Tuple<RestStatus, Throwable> getStatusAndReason(final BulkByScrollResponse response) {

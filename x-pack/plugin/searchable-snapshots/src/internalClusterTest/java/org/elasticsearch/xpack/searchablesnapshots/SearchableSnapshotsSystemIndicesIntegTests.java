@@ -89,7 +89,7 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearch
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
+            return List.of(new SystemIndexDescriptor(INDEX_NAME + "*", "System index for [" + getTestClass().getName() + ']'));
         }
 
         @Override

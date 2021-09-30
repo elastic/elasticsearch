@@ -115,7 +115,7 @@ public class SystemIndexManager implements ClusterStateListener {
         return this.systemIndices.getSystemIndexDescriptors()
             .stream()
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
-            .filter(d -> metadata.hasConcreteIndex(d.getPrimaryIndex()))
+            .filter(d -> metadata.hasIndexAbstraction(d.getPrimaryIndex()))
             .collect(Collectors.toList());
     }
 

@@ -12,19 +12,50 @@ node reaches this watermark, {es} blocks writes to any index with a shard on the
 node to prevent a full disk. If the block affects related system indices, {kib}
 and other {stack} features may become unavailable.
 
-You can use the <<cat-allocation,cat allocation API>> to get the current
-available disk space (`disk.avail`) and disk usage percentage (`disk.percent`)
-for each node.
+{es} will automatically remove the write block when the affected node goes below
+the <<cluster-routing-watermark-high,high disk watermark>>. To free up disk
+space, {es} will move the affected node's shards to other nodes in the data
+tier. However, {es} will only allocate shards to nodes below the high disk usage
+watermark.
+
+To verify that some nodes in the tier are below the high disk watermark, use the
+<<cat-allocation,cat allocation API>> to get each node's disk usage percentage
+(`disk.percent`) and current available disk space (`disk.avail`).
 
 [source,console]
 ----
 GET _cat/allocation?v=true
 ----
 
-{es} will automatically remove the write block when the node goes below the
-<<cluster-routing-watermark-high,high disk disk watermark>>. To immediately
-restore write operations, you can temporarily increase the disk watermarks and
-remove the write block.
+To check that shards are moving from the affected node to other nodes, use the
+<<cat-shards,cat shards API>>. If {es} can't allocate a shard to another node,
+the shard has a `state` of `UNASSIGNED`. The `unassigned.reason` describes why
+the shard remains unassigned.
+
+[source,console]
+----
+GET _cat/shards?v=true&h=index,shard,prirep,state,node,unassigned.reason&s=state
+----
+
+To get a more in-depth explanation of an unassigned shard's allocation status,
+use the <<cluster-allocation-explain,cluster allocation explanation API>>.
+
+[source,console]
+----
+GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node_name,node_allocation_decisions.deciders.*
+{
+  "index": "my-index",
+  "shard": 0,
+  "primary": false,
+  "current_node": "my-node"
+}
+----
+// TEST[s/^/PUT my-index\n/]
+// TEST[s/"primary": false,/"primary": false/]
+// TEST[s/"current_node": "my-node"//]
+
+To immediately restore write operations, you can temporarily increase the disk
+watermarks and remove the write block.
 
 [source,console]
 ----
@@ -46,9 +77,14 @@ PUT */_settings?expand_wildcards=all
 
 As a long-term solution, we recommend you add nodes to the affected data tiers
 or upgrade existing nodes to increase disk space. To free up additional disk
-space, you can:
+space, you can delete unneeded indices using the <<indices-delete-index,delete
+index API>>.
 
-include::fix-common-cluster-issues.asciidoc[tag=free-up-disk-space]
+[source,console]
+----
+DELETE my-index
+----
+// TEST[s/^/PUT my-index\n/]
 
 When a long-term solution is in place, reset or reconfigure the disk watermarks.
 
@@ -521,8 +557,7 @@ If your nodes are running low on disk space, you have a few options:
 
 * Upgrade your nodes to increase disk space.
 
-// tag::free-up-disk-space[]
-* Delete unneeded indices. If you use {ilm-init}, you can
+* Delete unneeded indices to free up space. If you use {ilm-init}, you can
 update your lifecycle policy to use <<ilm-searchable-snapshot,searchable
 snapshots>> or add a delete phase. If you no longer need to search the data, you
 can use a <<snapshot-restore,snapshot>> to store it off-cluster.
@@ -545,7 +580,6 @@ POST my-index/_forcemerge
 POST my-index/_shrink/my-shrunken-index
 ----
 // TEST[s/^/PUT my-index\n{"settings":{"index.number_of_shards":2,"blocks.write":true}}\n/]
-// end::free-up-disk-space[]
 
 * If your node has a large disk capacity, you can increase the low disk
 watermark or set it to an explicit byte value.

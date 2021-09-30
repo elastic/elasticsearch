@@ -9,7 +9,6 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -138,7 +137,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster() throws Exception {
         // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
         // we don't trigger false negatives for the auto-configuration process
-        Platforms.onWindows(()-> sh.chown(installation.config, installation.getOwner()));
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         ServerUtils.addSettingToExistingConfiguration(installation, "discovery.seed_hosts", "[\"127.0.0.1:9300\"]");
         startElasticsearch();

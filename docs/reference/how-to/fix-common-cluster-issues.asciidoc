@@ -1,7 +1,68 @@
 [[fix-common-cluster-issues]]
 == Fix common cluster issues
 
-This guide describes how to fix common problems with {es} clusters.
+This guide describes how to fix common errors and problems with {es} clusters.
+
+[discrete]
+=== disk usage exceeded flood-stage watermark, index has read-only-allow-delete block
+
+This error indicates a data node is critically low on disk space and has reached
+the <<cluster-routing-flood-stage,flood-stage disk usage watermark>>. When a
+node reaches this watermark, {es} blocks writes to any index with a shard on the
+node to prevent a full disk. If the block affects related system indices, {kib}
+and other {stack} features may become unavailable.
+
+You can use the <<cat-allocation,cat allocation API>> to get the current
+available disk space (`disk.avail`) and disk usage percentage (`disk.percent`)
+for each node.
+
+[source,console]
+----
+GET _cat/allocation?v=true
+----
+
+{es} will automatically remove the write block when the node goes below the
+<<cluster-routing-watermark-high,high disk disk watermark>>. To immediately
+restore write operations, you can temporarily increase the disk watermarks and
+remove the write block.
+
+[source,console]
+----
+PUT _cluster/settings
+{ 
+  "transient": {
+    "cluster.routing.allocation.disk.watermark.low": "90%",
+    "cluster.routing.allocation.disk.watermark.high": "95%",
+    "cluster.routing.allocation.disk.watermark.flood_stage": "97%"
+  }
+}
+
+PUT */_settings?expand_wildcards=all
+{ 
+  "index.blocks.read_only_allow_delete": null
+}
+----
+// TEST[s/^/PUT my-index\n/]
+
+As a long-term solution, we recommend you add nodes to the affected data tiers
+or upgrade existing nodes to increase disk space. To free up additional disk
+space, you can:
+
+include::fix-common-cluster-issues.asciidoc[tag=free-up-disk-space]
+
+When a long-term solution is in place, reset or reconfigure the disk watermarks.
+
+[source,console]
+----
+PUT _cluster/settings
+{ 
+  "transient": {
+    "cluster.routing.allocation.disk.watermark.low": null,
+    "cluster.routing.allocation.disk.watermark.high": null,
+    "cluster.routing.allocation.disk.watermark.flood_stage": null
+  }
+}
+----
 
 [discrete]
 [[circuit-breaker-errors]]
@@ -460,7 +521,8 @@ If your nodes are running low on disk space, you have a few options:
 
 * Upgrade your nodes to increase disk space.
 
-* Delete unneeded indices to free up space. If you use {ilm-init}, you can
+// tag::free-up-disk-space[]
+* Delete unneeded indices. If you use {ilm-init}, you can
 update your lifecycle policy to use <<ilm-searchable-snapshot,searchable
 snapshots>> or add a delete phase. If you no longer need to search the data, you
 can use a <<snapshot-restore,snapshot>> to store it off-cluster.
@@ -483,6 +545,7 @@ POST my-index/_forcemerge
 POST my-index/_shrink/my-shrunken-index
 ----
 // TEST[s/^/PUT my-index\n{"settings":{"index.number_of_shards":2,"blocks.write":true}}\n/]
+// end::free-up-disk-space[]
 
 * If your node has a large disk capacity, you can increase the low disk
 watermark or set it to an explicit byte value.

@@ -298,7 +298,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (shouldMinimizeRoundtrips(rewritten)) {
                     final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).getTaskId();
                     ccsRemoteReduce(parentTaskId, rewritten, localIndices, remoteClusterIndices, timeProvider,
-                        searchService.aggReduceContextBuilder(((CancellableTask) task)::isCancelled, rewritten),
+                        searchService.aggReduceContextBuilder(task::isCancelled, rewritten),
                         remoteClusterService, threadPool, listener,
                         (r, l) -> executeLocalSearch(
                             task, timeProvider, r, localIndices, clusterState, l, searchContext, searchAsyncActionProvider));

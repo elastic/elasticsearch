@@ -63,7 +63,7 @@ PUT */_settings?expand_wildcards=all
 ----
 // TEST[s/^/PUT my-index\n/]
 
-As a long-term solution, we recommend you add nodes to the affected data tier
+As a long-term solution, we recommend you add nodes to the affected data tiers
 or upgrade existing nodes to increase disk space. To free up additional disk
 space, you can delete unneeded indices using the <<indices-delete-index,delete
 index API>>.
@@ -74,8 +74,7 @@ DELETE my-index
 ----
 // TEST[s/^/PUT my-index\n/]
 
-When a long-term solution is in place, you can reset or reconfigure the disk
-watermarks.
+When a long-term solution is in place, reset or reconfigure the disk watermarks.
 
 [source,console]
 ----

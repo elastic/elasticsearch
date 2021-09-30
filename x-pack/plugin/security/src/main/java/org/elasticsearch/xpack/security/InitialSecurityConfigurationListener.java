@@ -31,7 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH;
+import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_ELASTIC_PASSWORD_HASH;
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
@@ -87,7 +87,7 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
             }, this::outputOnError), 2);
 
             if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())
-                && false == AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH.exists(environment.settings())) {
+                && false == AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(environment.settings())) {
                 final SecureString elasticPassword = new SecureString(generatePassword(20));
                 nativeUsersStore.updateReservedUser(
                     ElasticUser.NAME,

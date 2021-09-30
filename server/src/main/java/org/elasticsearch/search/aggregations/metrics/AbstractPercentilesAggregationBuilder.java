@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -40,7 +41,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     private final ParseField valuesField;
     protected boolean keyed = true;
     protected double[] values;
-    protected List<String> metricNames;
+    protected Set<String> metricNames;
     private PercentilesConfig percentilesConfig;
 
     public static <T extends AbstractPercentilesAggregationBuilder<T>> ConstructingObjectParser<T, String> createParser(
@@ -128,7 +129,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         this.values = sortedValues;
         this.percentilesConfig = percentilesConfig;
         this.valuesField = valuesField;
-        this.metricNames = Arrays.stream(values).mapToObj(String::valueOf).collect(Collectors.toList());
+        this.metricNames = Arrays.stream(values).mapToObj(String::valueOf).collect(Collectors.toSet());
     }
 
     AbstractPercentilesAggregationBuilder(
@@ -369,7 +370,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     }
 
     @Override
-    public Iterable<String> metricNames() {
+    public Set<String> metricNames() {
         return metricNames;
     }
 }

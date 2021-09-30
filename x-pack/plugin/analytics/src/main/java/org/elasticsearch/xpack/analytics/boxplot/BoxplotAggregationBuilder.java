@@ -82,7 +82,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     }
 
     @Override
-    public Iterable<String> metricNames() {
+    public Set<String> metricNames() {
         return InternalBoxplot.METRIC_NAMES;
     }
 

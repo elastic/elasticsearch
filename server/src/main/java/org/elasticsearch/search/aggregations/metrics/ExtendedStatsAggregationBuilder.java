@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<
     ValuesSource.Numeric,
@@ -76,7 +77,7 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    public Iterable<String> metricNames() {
+    public Set<String> metricNames() {
         return InternalExtendedStats.METRIC_NAMES;
     }
 

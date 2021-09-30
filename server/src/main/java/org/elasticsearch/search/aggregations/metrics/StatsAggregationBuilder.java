@@ -71,7 +71,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Metr
     }
 
     @Override
-    public Iterable<String> metricNames() {
+    public Set<String> metricNames() {
         return InternalStats.METRIC_NAMES;
     }
 

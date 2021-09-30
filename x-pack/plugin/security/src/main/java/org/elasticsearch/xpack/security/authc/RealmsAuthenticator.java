@@ -66,7 +66,7 @@ class RealmsAuthenticator implements Authenticator {
     }
 
     @Override
-    public boolean canFollowedByNullTokenHandler() {
+    public boolean canBeFollowedByNullTokenHandler() {
         // TODO: once a token is extracted by realms, we should no longer handle null token if no realm can authenticate the token
         return false == authenticationTokenExtracted;
     }

@@ -78,7 +78,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         when(serviceAccountAuthenticator.canFollowedByNullTokenHandler()).thenReturn(true);
         when(oAuth2TokenAuthenticator.canFollowedByNullTokenHandler()).thenReturn(true);
         when(apiKeyAuthenticator.canFollowedByNullTokenHandler()).thenReturn(true);
-        when(realmsAuthenticator.canFollowedByNullTokenHandler()).thenCallRealMethod();
+        when(realmsAuthenticator.canBeFollowedByNullTokenHandler()).thenCallRealMethod();
         when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
         final User user = new User(randomAlphaOfLength(8));

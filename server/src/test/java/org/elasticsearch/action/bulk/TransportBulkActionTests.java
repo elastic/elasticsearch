@@ -250,7 +250,7 @@ public class TransportBulkActionTests extends ESTestCase {
             Map.of("plugin", new SystemIndices.Feature(
                 "plugin",
                 "test feature",
-                org.elasticsearch.core.List.of(new SystemIndexDescriptor(".test", "")))
+                org.elasticsearch.core.List.of(new SystemIndexDescriptor(".test*", "")))
             ));
         List<String> onlySystem = org.elasticsearch.core.List.of(".foo", ".bar");
         assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));

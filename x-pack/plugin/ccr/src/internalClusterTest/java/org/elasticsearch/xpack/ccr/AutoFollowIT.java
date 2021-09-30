@@ -82,7 +82,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "test"));
+            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test"));
         }
 
         @Override

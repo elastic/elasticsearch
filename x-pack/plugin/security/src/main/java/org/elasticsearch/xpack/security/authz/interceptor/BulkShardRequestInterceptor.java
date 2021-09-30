@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
@@ -58,12 +59,18 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
                         boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                         boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                         // the feature usage checker is a "last-ditch" verification, it doesn't have practical importance
-                        if ((fls || dls) && licenseChecker.get()) {
-                            found = true;
-                            logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
-                            bulkItemRequest.abort(bulkItemRequest.index(), new ElasticsearchSecurityException("Can't execute a bulk " +
-                                    "item request with update requests embedded if field or document level security is enabled",
-                                    RestStatus.BAD_REQUEST));
+                        if (fls || dls) {
+                            final ElasticsearchSecurityException exception;
+                            if (licenseChecker.get()) {
+                                found = true;
+                                logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
+                                exception = new ElasticsearchSecurityException(
+                                    "Can't execute a bulk " + "item request with update requests embedded if field or document level security is enabled",
+                                    RestStatus.BAD_REQUEST);
+                            } else {
+                                exception = LicenseUtils.newComplianceException("field and document level security");
+                            }
+                            bulkItemRequest.abort(bulkItemRequest.index(), exception);
                         }
                     }
                     if (found == false) {

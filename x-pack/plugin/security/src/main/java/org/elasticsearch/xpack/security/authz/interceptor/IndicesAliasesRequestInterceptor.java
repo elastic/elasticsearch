@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
@@ -64,10 +65,17 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                         if (indexAccessControl != null) {
                             final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                             final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                            if ((fls || dls) && licenseChecker.get()) {
-                                listener.onFailure(new ElasticsearchSecurityException("Alias requests are not allowed for " +
-                                    "users who have field or document level security enabled on one of the indices",
-                                    RestStatus.BAD_REQUEST));
+                            if (fls || dls) {
+                                final ElasticsearchSecurityException exception;
+                                if (licenseChecker.get()) {
+                                    exception = new ElasticsearchSecurityException("Alias requests are not allowed for "
+                                        + "users who have field or document level security enabled on one of the indices",
+                                        RestStatus.BAD_REQUEST);
+                                } else {
+                                    exception = LicenseUtils.newComplianceException("field and document level security");
+                                    exception.addMetadata("es.index_with_dls_or_fls", index);
+                                }
+                                listener.onFailure(exception);
                                 return;
                             }
                         }

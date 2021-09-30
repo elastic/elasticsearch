@@ -418,34 +418,32 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
             if (indexAccessControl != null) {
                 final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                if ( dls && licenseChecker.get()) {
-                    // Check to see if any of the roles defined for the current user rewrite to match_all
+                if (dls) {
+                    if (licenseChecker.get()) {
+                        // Check to see if any of the roles defined for the current user rewrite to match_all
 
-                    SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
-                    final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-                    final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
-                        shardId.id(),
-                        0,
-                        null,
-                        request::nodeStartedTimeMillis,
-                        null,
-                        Collections.emptyMap()
-                    );
+                        SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
+                        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+                        final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(shardId.id(),
+                            0,
+                            null,
+                            request::nodeStartedTimeMillis,
+                            null,
+                            Collections.emptyMap());
 
-                    // Current user has potentially many roles and therefore potentially many queries
-                    // defining sets of docs accessible
-                    Set<BytesReference> queries = indexAccessControl.getDocumentPermissions().getQueries();
-                    for (BytesReference querySource : queries) {
-                        QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
-                            querySource,
-                            scriptService,
-                            queryShardContext.getXContentRegistry(),
-                            securityContext.getUser()
-                        );
-                        QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
-                        if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
-                            // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
-                            return true;
+                        // Current user has potentially many roles and therefore potentially many queries
+                        // defining sets of docs accessible
+                        Set<BytesReference> queries = indexAccessControl.getDocumentPermissions().getQueries();
+                        for (BytesReference querySource : queries) {
+                            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(querySource,
+                                scriptService,
+                                queryShardContext.getXContentRegistry(),
+                                securityContext.getUser());
+                            QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
+                            if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
+                                // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
+                                return true;
+                            }
                         }
                     }
                     return false;

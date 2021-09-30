@@ -9,7 +9,6 @@
 package org.elasticsearch.plugins.cli.action;
 
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -39,7 +38,10 @@ public class RemovePluginAction {
     private final Environment env;
     private final boolean purge;
 
-    /** Categories the potential problems that {@link #checkRemovePlugins(List)} can find. Useful for generating an exit code. */
+    /**
+     * Categories the potential problems that {@link #checkRemovePlugins(List)} can find. Useful
+     * for generating an exit code.
+     */
     public enum RemovePluginProblem {
         NOT_FOUND,
         STILL_USED,
@@ -138,11 +140,8 @@ public class RemovePluginAction {
      *
      * @param plugins    the IDs of the plugins to remove
      * @throws IOException   if any I/O exception occurs while performing a file operation
-     * @throws UserException if plugins is null or empty
-     * @throws UserException if plugin directory does not exist
-     * @throws UserException if the plugin bin directory is not a directory
      */
-    public void removePlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
+    public void removePlugins(List<PluginDescriptor> plugins) throws IOException {
         if (plugins == null || plugins.isEmpty()) {
             throw new IllegalArgumentException("At least one plugin ID is required");
         }

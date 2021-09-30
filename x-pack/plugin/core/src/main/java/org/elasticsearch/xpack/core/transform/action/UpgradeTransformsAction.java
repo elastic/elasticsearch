@@ -8,16 +8,17 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.Response> {
@@ -29,9 +30,8 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
         super(NAME, UpgradeTransformsAction.Response::new);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends MasterNodeRequest<Request> {
 
-        // todo: expose for REST?
         private final boolean dryRun;
 
         public Request(StreamInput in) throws IOException {
@@ -58,16 +58,33 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
             super.writeTo(out);
             out.writeBoolean(dryRun);
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(dryRun);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            Request other = (Request) obj;
+            return this.dryRun == other.dryRun;
+        }
     }
 
-    public static class Response extends BaseTasksResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements Writeable, ToXContentObject {
+
         private final boolean success;
         private final Long updated;
         private final Long noAction;
         private final Long needsUpdate;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             success = in.readBoolean();
             updated = in.readOptionalVLong();
             noAction = in.readOptionalVLong();
@@ -75,7 +92,6 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
         }
 
         public Response(boolean success, Long updated, Long noAction, Long needsUpdate) {
-            super(Collections.emptyList(), Collections.emptyList());
             this.success = success;
             this.updated = updated;
             this.noAction = noAction;
@@ -88,7 +104,6 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeBoolean(success);
             out.writeOptionalVLong(updated);
             out.writeOptionalVLong(noAction);
@@ -98,7 +113,6 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            toXContentCommon(builder, params);
             builder.field("success", success);
             if (updated != null) {
                 builder.field("updated", updated);
@@ -122,16 +136,21 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            Response response = (Response) obj;
-            return success == response.success
-                && this.updated == response.updated
-                && this.noAction == response.noAction
-                && this.needsUpdate == response.needsUpdate;
+            Response other = (Response) obj;
+            return success == other.success
+                && Objects.equals(this.updated, other.updated)
+                && Objects.equals(this.noAction, other.noAction)
+                && Objects.equals(this.needsUpdate, other.needsUpdate);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(success, updated, noAction, needsUpdate);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
         }
     }
 }

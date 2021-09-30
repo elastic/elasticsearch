@@ -25,7 +25,7 @@ public class SearchableSnapshotDataTierIntegTests extends BaseFrozenSearchableSn
     private static final String snapshotName = "test-snapshot";
     private static final String mountedIndexName = "test-index-mounted";
     private static final Settings frozenSettings = Settings.builder()
-        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_FROZEN)
+        .put(DataTierAllocationDecider.TIER_PREFERENCE, DataTier.DATA_FROZEN)
         .build();
 
     public void testPartialLegalOnFrozen() throws Exception {
@@ -64,7 +64,7 @@ public class SearchableSnapshotDataTierIntegTests extends BaseFrozenSearchableSn
             Settings.EMPTY,
             Settings.builder()
                 .put(
-                    DataTierAllocationDecider.INDEX_ROUTING_PREFER,
+                    DataTierAllocationDecider.TIER_PREFERENCE,
                     randomValueOtherThan(DataTier.DATA_FROZEN, () -> randomFrom(DataTier.ALL_DATA_TIERS))
                 )
                 .build()
@@ -77,9 +77,7 @@ public class SearchableSnapshotDataTierIntegTests extends BaseFrozenSearchableSn
     private void updatePreference(String tier) {
         client().admin()
             .indices()
-            .updateSettings(
-                new UpdateSettingsRequest(mountedIndexName).settings(Map.of(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tier))
-            )
+            .updateSettings(new UpdateSettingsRequest(mountedIndexName).settings(Map.of(DataTierAllocationDecider.TIER_PREFERENCE, tier)))
             .actionGet();
     }
 }

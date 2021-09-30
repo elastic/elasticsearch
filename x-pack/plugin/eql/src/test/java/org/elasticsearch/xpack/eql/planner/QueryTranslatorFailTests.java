@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.planner;
 
+import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.analysis.VerificationException;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -208,9 +209,22 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
 
     public void testLikeWithNumericField() {
         VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where pid like \"*.exe\""));
+            () -> plan("process where pid like \"*.exe\"")
+        );
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-                "line 1:15: argument of [pid like \"*.exe\"] must be [string], found value [pid] type [long]", msg);
+            "line 1:15: argument of [pid like \"*.exe\"] must be [string], found value [pid] type [long]", msg);
     }
+
+    public void testSequenceWithTooLittleQueries() throws Exception {
+        String s = errorParsing("sequence [any where true]");
+        assertEquals("1:2: A sequence requires a minimum of 2 queries, found [1]", s);
+    }
+
+    public void testSequenceWithIncorrectOption() throws Exception {
+        EqlClientException e = expectThrows(EqlClientException.class, () -> plan("sequence [any where true] [repeat=123]"));
+        String msg = e.getMessage();
+        assertEquals("line 1:29: Unrecognized option [repeat], expecting [runs]", msg);
+    }
+
 }

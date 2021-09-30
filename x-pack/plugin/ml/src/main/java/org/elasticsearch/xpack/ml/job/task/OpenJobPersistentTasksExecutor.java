@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
+import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
@@ -72,6 +73,7 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksExecutor<OpenJobAction.JobParams> {
 
     private static final Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutor.class);
+    public static final Version MIN_SUPPORTED_SNAPSHOT_VERSION = Version.V_7_0_0;
 
     // Resuming a job with a running datafeed from its current snapshot was added in 7.11 and
     // can only be done if the master node is on or after that version.
@@ -208,7 +210,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         jobTask.setAutodetectProcessManager(autodetectProcessManager);
         JobTaskState jobTaskState = (JobTaskState) state;
         JobState jobState = jobTaskState == null ? null : jobTaskState.getState();
-        ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
+        ActionListener<Boolean> checkSnapshotVersionListener = ActionListener.wrap(
             mappingsUpdate -> jobResultsProvider.setRunningForecastsToFailed(params.getJobId(), ActionListener.wrap(
                 r -> runJob(jobTask, jobState, params),
                 e -> {
@@ -220,11 +222,22 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             )),
             e -> {
                 if (autodetectProcessManager.isNodeDying() == false) {
-                    logger.error(new ParameterizedMessage("[{}] Failed to update results mapping", params.getJobId()), e);
-                    failTask(jobTask, "failed to update results mapping");
+                    logger.error(new ParameterizedMessage("[{}] Failed verifying snapshot version", params.getJobId()), e);
+                    failTask(jobTask, "failed snapshot verification; cause: " + e.getMessage());
                 }
             }
         );
+
+        ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
+            mappingsUpdate -> verifyCurrentSnapshotVersion(params.getJobId(), checkSnapshotVersionListener),
+            e -> {
+                if (autodetectProcessManager.isNodeDying() == false) {
+                    logger.error(new ParameterizedMessage("[{}] Failed to update results mapping", params.getJobId()), e);
+                    failTask(jobTask, "failed to update results mapping; cause: " + e.getMessage());
+                }
+            }
+        );
+
         // We need to update the results index as we MAY update the current forecast results, setting the running forcasts to failed
         // This writes to the results index, which might need updating
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -324,6 +337,62 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         );
 
         datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singleton(jobId), datafeedListener);
+    }
+
+    private void verifyCurrentSnapshotVersion(String jobId, ActionListener<Boolean> listener) {
+        ActionListener<GetJobsAction.Response> jobListener = ActionListener.wrap(
+            jobResponse -> {
+                List<Job> jobPage = jobResponse.getResponse().results();
+                // We requested a single concrete job so if it didn't exist we would get an error
+                assert jobPage.size() == 1;
+                String jobSnapshotId = jobPage.get(0).getModelSnapshotId();
+                if (jobSnapshotId == null) {
+                    listener.onResponse(true);
+                    return;
+                }
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    GetModelSnapshotsAction.INSTANCE,
+                    new GetModelSnapshotsAction.Request(jobId, jobSnapshotId),
+                    ActionListener.wrap(
+                        snapshot -> {
+                            if (snapshot.getPage().count() == 0) {
+                                listener.onResponse(true);
+                                return;
+                            }
+                            assert snapshot.getPage().results().size() == 1;
+                            ModelSnapshot snapshotObj = snapshot.getPage().results().get(0);
+                            if (snapshotObj.getMinVersion().onOrAfter(MIN_SUPPORTED_SNAPSHOT_VERSION)) {
+                                listener.onResponse(true);
+                                return;
+                            }
+                            listener.onFailure(
+                                ExceptionsHelper.serverError(
+                                    "[{}] job snapshot [{}] has min version before [{}], " +
+                                        "please revert to a newer model snapshot or reset the job",
+                                    jobId,
+                                    jobSnapshotId,
+                                    MIN_SUPPORTED_SNAPSHOT_VERSION.toString()
+                                )
+                            );
+                        },
+                        snapshotFailure -> {
+                            if (ExceptionsHelper.unwrapCause(snapshotFailure) instanceof ResourceNotFoundException) {
+                                listener.onResponse(true);
+                                return;
+                            }
+                            listener.onFailure(
+                                ExceptionsHelper.serverError("[{}] failed finding snapshot [{}]", snapshotFailure, jobId, jobSnapshotId)
+                            );
+                        }
+                    )
+                );
+            },
+            error -> listener.onFailure(ExceptionsHelper.serverError("[{}] error getting job", error, jobId))
+        );
+        GetJobsAction.Request request = new GetJobsAction.Request(jobId).masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, request, jobListener);
     }
 
     private void revertToCurrentSnapshot(String jobId, ActionListener<Boolean> listener) {

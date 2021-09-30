@@ -513,7 +513,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     public ClusterState addPreference(IndexMetadata indexMetadata, ClusterState clusterState, String preference) {
         IndexMetadata indexMetadataWithPreference = IndexMetadata.builder(indexMetadata)
-            .settings(Settings.builder().put(indexMetadata.getSettings()).put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, preference))
+            .settings(Settings.builder().put(indexMetadata.getSettings()).put(DataTierAllocationDecider.TIER_PREFERENCE, preference))
             .build();
 
         return ClusterState.builder(clusterState)
@@ -552,7 +552,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         Metadata.Builder metaBuilder = Metadata.builder();
         Settings.Builder settings = settings(Version.CURRENT);
         if (randomBoolean()) {
-            settings.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, randomBoolean() ? DataTier.DATA_HOT : "data_hot,data_warm");
+            settings.put(DataTierAllocationDecider.TIER_PREFERENCE, randomBoolean() ? DataTier.DATA_HOT : "data_hot,data_warm");
         }
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings)

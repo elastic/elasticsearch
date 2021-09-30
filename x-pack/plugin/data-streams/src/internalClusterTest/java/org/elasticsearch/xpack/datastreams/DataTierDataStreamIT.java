@@ -60,7 +60,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             .get()
             .getSettings()
             .get(DataStream.getDefaultBackingIndexName(index, 1));
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
+        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         logger.info("--> waiting for {} to be yellow", index);
         ensureYellow(index);
@@ -74,7 +74,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             .get()
             .getSettings()
             .get(DataStream.getDefaultBackingIndexName(index, 2));
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
+        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { index }));
     }

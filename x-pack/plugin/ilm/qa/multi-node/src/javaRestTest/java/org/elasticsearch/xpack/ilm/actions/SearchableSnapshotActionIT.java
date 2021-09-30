@@ -497,7 +497,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         indexDocument(client(), dataStream, true);
         String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStream, 1L);
         Map<String, Object> indexSettings = getIndexSettingsAsMap(firstGenIndex);
-        assertThat(indexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), is("data_hot"));
+        assertThat(indexSettings.get(DataTierAllocationDecider.TIER_PREFERENCE), is("data_hot"));
 
         // rollover the data stream so searchable_snapshot can complete
         rolloverMaxOneDocCondition(client(), dataStream);
@@ -512,7 +512,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         Map<String, Object> hotIndexSettings = getIndexSettingsAsMap(restoredIndex);
         // searchable snapshots mounted in the hot phase should be pinned to hot nodes
-        assertThat(hotIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
+        assertThat(hotIndexSettings.get(DataTierAllocationDecider.TIER_PREFERENCE),
             is("data_hot"));
     }
 }

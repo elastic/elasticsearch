@@ -67,7 +67,7 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
             VocabularyConfigTests.createRandom(),
             BertTokenizationTests.createRandom(),
             List.of("one", "two"),
-            randomIntBetween(-1, 10),
+            randomFrom(-1, randomIntBetween(1, 10)),
             "foo-results"
         );
 

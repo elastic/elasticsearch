@@ -21,6 +21,10 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.INFERENCE_THREADS;
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.MODEL_THREADS;
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.TIMEOUT;
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.WAIT_FOR;
 
 public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
 
@@ -40,18 +44,26 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String modelId = restRequest.param(StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName());
-        StartTrainedModelDeploymentAction.Request request = new StartTrainedModelDeploymentAction.Request(modelId);
-        if (restRequest.hasParam(StartTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName())) {
-            TimeValue openTimeout = restRequest.paramAsTime(StartTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
-                StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT);
-            request.setTimeout(openTimeout);
+        StartTrainedModelDeploymentAction.Request request;
+        if (restRequest.hasContentOrSourceParam()) {
+            request = StartTrainedModelDeploymentAction.Request.parseRequest(modelId, restRequest.contentOrSourceParamParser());
+        } else {
+            request = new StartTrainedModelDeploymentAction.Request(modelId);
+            if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
+                TimeValue openTimeout = restRequest.paramAsTime(TIMEOUT.getPreferredName(),
+                    StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT);
+                request.setTimeout(openTimeout);
+            }
+            request.setWaitForState(AllocationStatus.State.fromString(
+                restRequest.param(WAIT_FOR.getPreferredName(), AllocationStatus.State.STARTED.toString())
+            ));
+            if (restRequest.hasParam(INFERENCE_THREADS.getPreferredName())) {
+                request.setInferenceThreads(Integer.valueOf(restRequest.param(INFERENCE_THREADS.getPreferredName())));
+            }
+            if (restRequest.hasParam(MODEL_THREADS.getPreferredName())) {
+                request.setModelThreads(Integer.valueOf(restRequest.param(MODEL_THREADS.getPreferredName())));
+            }
         }
-        request.setWaitForState(AllocationStatus.State.fromString(
-            restRequest.param(
-                StartTrainedModelDeploymentAction.Request.WAIT_FOR.getPreferredName(),
-                AllocationStatus.State.STARTED.toString()
-            )
-        ));
 
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

@@ -19,14 +19,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
@@ -56,10 +59,37 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         public static final ParseField MODEL_ID = new ParseField("model_id");
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField WAIT_FOR = new ParseField("wait_for");
+        public static final ParseField INFERENCE_THREADS = TaskParams.INFERENCE_THREADS;
+        public static final ParseField MODEL_THREADS = TaskParams.MODEL_THREADS;
+
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+
+        static {
+            PARSER.declareString(Request::setModelId, MODEL_ID);
+            PARSER.declareString((request, val) -> request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareString((request, waitFor) -> request.setWaitForState(AllocationStatus.State.fromString(waitFor)), WAIT_FOR);
+            PARSER.declareInt(Request::setInferenceThreads, INFERENCE_THREADS);
+            PARSER.declareInt(Request::setModelThreads, MODEL_THREADS);
+        }
+
+        public static Request parseRequest(String modelId, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
+            if (request.getModelId() == null) {
+                request.setModelId(modelId);
+            } else if (Strings.isNullOrEmpty(modelId) == false && modelId.equals(request.getModelId()) == false) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, MODEL_ID, request.getModelId(), modelId));
+            }
+            return request;
+        }
 
         private String modelId;
         private TimeValue timeout = DEFAULT_TIMEOUT;
         private AllocationStatus.State waitForState = AllocationStatus.State.STARTED;
+        private Integer modelThreads;
+        private Integer inferenceThreads;
+
+        private Request() {}
 
         public Request(String modelId) {
             setModelId(modelId);
@@ -70,6 +100,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             modelId = in.readString();
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
+            modelThreads = in.readOptionalVInt();
+            inferenceThreads = in.readOptionalVInt();
         }
 
         public final void setModelId(String modelId) {
@@ -97,40 +129,73 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return this;
         }
 
+        @Nullable
+        public Integer getModelThreads() {
+            return modelThreads;
+        }
+
+        public void setModelThreads(Integer modelThreads) {
+            this.modelThreads = modelThreads;
+        }
+
+        @Nullable
+        public Integer getInferenceThreads() {
+            return inferenceThreads;
+        }
+
+        public void setInferenceThreads(Integer inferenceThreads) {
+            this.inferenceThreads = inferenceThreads;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelId);
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
+            out.writeOptionalVInt(modelThreads);
+            out.writeOptionalVInt(inferenceThreads);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             builder.field(MODEL_ID.getPreferredName(), modelId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.field(WAIT_FOR.getPreferredName(), waitForState);
+            if (modelThreads != null) {
+                builder.field(MODEL_THREADS.getPreferredName(), modelThreads);
+            }
+            if (inferenceThreads != null) {
+                builder.field(INFERENCE_THREADS.getPreferredName(), inferenceThreads);
+            }
+            builder.endObject();
             return builder;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            if (waitForState.isAnyOf(VALID_WAIT_STATES)) {
-                return null;
-            }
             ActionRequestValidationException validationException = new ActionRequestValidationException();
-            validationException.addValidationError(
-                "invalid [wait_for] state ["
-                    + waitForState
-                    + "]; must be one of ["
-                    + Strings.arrayToCommaDelimitedString(VALID_WAIT_STATES)
-            );
-            return validationException;
+            if (waitForState.isAnyOf(VALID_WAIT_STATES) == false) {
+                validationException.addValidationError(
+                    "invalid [wait_for] state ["
+                        + waitForState
+                        + "]; must be one of ["
+                        + Strings.arrayToCommaDelimitedString(VALID_WAIT_STATES)
+                );
+            }
+            if (modelThreads != null && modelThreads < 1) {
+                validationException.addValidationError("[" + MODEL_THREADS + "] must be a positive integer");
+            }
+            if (inferenceThreads != null && inferenceThreads < 1) {
+                validationException.addValidationError("[" + INFERENCE_THREADS + "] must be a positive integer");
+            }
+            return validationException.validationErrors().isEmpty() ? null : validationException;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, timeout);
+            return Objects.hash(modelId, timeout, waitForState, modelThreads, inferenceThreads);
         }
 
         @Override
@@ -142,7 +207,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(modelId, other.modelId) && Objects.equals(timeout, other.timeout);
+            return Objects.equals(modelId, other.modelId)
+                && Objects.equals(timeout, other.timeout)
+                && Objects.equals(waitForState, other.waitForState)
+                && Objects.equals(modelThreads, other.modelThreads)
+                && Objects.equals(inferenceThreads, other.inferenceThreads);
         }
 
         @Override
@@ -162,14 +231,18 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         public static final Version VERSION_INTRODUCED = Version.V_8_0_0;
         private static final ParseField MODEL_BYTES = new ParseField("model_bytes");
+        public static final ParseField MODEL_THREADS = new ParseField("model_threads");
+        public static final ParseField INFERENCE_THREADS = new ParseField("inference_threads");
         private static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
             "trained_model_deployment_params",
             true,
-            a -> new TaskParams((String)a[0], (Long)a[1])
+            a -> new TaskParams((String)a[0], (Long)a[1], (Integer) a[2], (Integer) a[3])
         );
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), TrainedModelConfig.MODEL_ID);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODEL_BYTES);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), INFERENCE_THREADS);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MODEL_THREADS);
         }
 
         public static TaskParams fromXContent(XContentParser parser) {
@@ -185,18 +258,30 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         private final String modelId;
         private final long modelBytes;
+        private final Integer inferenceThreads;
+        private final Integer modelThreads;
 
-        public TaskParams(String modelId, long modelBytes) {
+        public TaskParams(String modelId, long modelBytes, @Nullable Integer inferenceThreads, @Nullable Integer modelThreads) {
             this.modelId = Objects.requireNonNull(modelId);
             this.modelBytes = modelBytes;
             if (modelBytes < 0) {
                 throw new IllegalArgumentException("modelBytes must be non-negative");
+            }
+            this.inferenceThreads = inferenceThreads;
+            if (inferenceThreads != null && inferenceThreads < 1) {
+                throw new IllegalArgumentException(INFERENCE_THREADS + " must be positive");
+            }
+            this.modelThreads = modelThreads;
+            if (modelThreads != null && modelThreads < 1) {
+                throw new IllegalArgumentException(MODEL_THREADS + " must be positive");
             }
         }
 
         public TaskParams(StreamInput in) throws IOException {
             this.modelId = in.readString();
             this.modelBytes = in.readVLong();
+            this.inferenceThreads = in.readOptionalVInt();
+            this.modelThreads = in.readOptionalVInt();
         }
 
         public String getModelId() {
@@ -216,6 +301,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(modelId);
             out.writeVLong(modelBytes);
+            out.writeOptionalVInt(inferenceThreads);
+            out.writeOptionalVInt(modelThreads);
         }
 
         @Override
@@ -223,13 +310,19 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             builder.startObject();
             builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
             builder.field(MODEL_BYTES.getPreferredName(), modelBytes);
+            if (inferenceThreads != null) {
+                builder.field(INFERENCE_THREADS.getPreferredName(), inferenceThreads);
+            }
+            if (modelThreads != null) {
+                builder.field(MODEL_THREADS.getPreferredName(), modelThreads);
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, modelBytes);
+            return Objects.hash(modelId, modelBytes, inferenceThreads, modelThreads);
         }
 
         @Override
@@ -239,12 +332,28 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
             TaskParams other = (TaskParams) o;
             return Objects.equals(modelId, other.modelId)
-                && modelBytes == other.modelBytes;
+                && modelBytes == other.modelBytes
+                && Objects.equals(inferenceThreads, other.inferenceThreads)
+                && Objects.equals(modelThreads, other.modelThreads);
         }
 
         @Override
         public String getMlId() {
             return modelId;
+        }
+
+        public long getModelBytes() {
+            return modelBytes;
+        }
+
+        @Nullable
+        public Integer getInferenceThreads() {
+            return inferenceThreads;
+        }
+
+        @Nullable
+        public Integer getModelThreads() {
+            return modelThreads;
         }
     }
 

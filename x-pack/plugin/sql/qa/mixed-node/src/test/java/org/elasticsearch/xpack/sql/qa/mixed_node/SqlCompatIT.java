@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -64,6 +65,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         });
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78424")
     public void testNullsOrderBeforeMissingOrderSupportQueryingNewNode() throws IOException {
         testNullsOrderBeforeMissingOrderSupport(newNodesClient);
     }

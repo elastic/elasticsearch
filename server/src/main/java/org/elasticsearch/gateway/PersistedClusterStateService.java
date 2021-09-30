@@ -351,6 +351,9 @@ public class PersistedClusterStateService {
                                         + "now unreadable"
                                 );
                             }
+                        }  catch (IndexNotFoundException e) {
+                            logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                            continue;
                         }
                     }
 

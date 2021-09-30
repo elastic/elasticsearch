@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.core.DataTier;
 
 public class FrozenUtils {
     public static boolean isFrozenIndex(Settings indexSettings) {
-        String tierPreference = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(indexSettings);
+        String tierPreference = DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(indexSettings);
         String[] preferredTiers = DataTierAllocationDecider.parseTierList(tierPreference);
         if (preferredTiers.length >= 1 && preferredTiers[0].equals(DataTier.DATA_FROZEN)) {
             assert preferredTiers.length == 1 : "frozen tier preference must be frozen only";

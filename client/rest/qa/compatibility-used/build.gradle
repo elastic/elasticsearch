@@ -12,6 +12,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 dependencies {
   testImplementation project(':client:rest')
   testImplementation testArtifact(project(':client:rest'))
+  testImplementation project(':test:framework')
 }
 
 // Set the API versioning flag for unit tests

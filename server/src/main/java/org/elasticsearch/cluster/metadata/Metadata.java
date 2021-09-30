@@ -642,7 +642,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return metadata != null && metadata.getIndexUUID().equals(index.getUUID());
     }
 
-    public boolean hasConcreteIndex(String index) {
+    public boolean hasIndexAbstraction(String index) {
         return getIndicesLookup().containsKey(index);
     }
 

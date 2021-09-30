@@ -15,17 +15,15 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.indices.IndexPatternMatcher;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -67,41 +65,49 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     protected void masterOperation(Task task, GetFeatureUpgradeStatusRequest request, ClusterState state,
                                    ActionListener<GetFeatureUpgradeStatusResponse> listener) throws Exception {
 
-        List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = new ArrayList<>();
-        boolean isUpgradeNeeded = false;
+        List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = systemIndices.getFeatures().entrySet().stream()
+            .map(entry -> getFeatureUpgradeStatus(state, entry))
+            .collect(Collectors.toList());
 
-        for (Map.Entry<String, SystemIndices.Feature> featureEntry : systemIndices.getFeatures().entrySet()) {
-            String featureName = featureEntry.getKey();
-            SystemIndices.Feature feature = featureEntry.getValue();
-
-            Version minimumVersion = Version.CURRENT;
-
-            List<GetFeatureUpgradeStatusResponse.IndexVersion> indexVersions = new ArrayList<>();
-            List<IndexPatternMatcher> descriptors = Stream.concat(feature.getIndexDescriptors().stream(),
-                feature.getAssociatedIndexDescriptors().stream()).collect(Collectors.toList());
-            for (IndexPatternMatcher descriptor : descriptors) {
-                List<String> concreteIndices = descriptor.getMatchingIndices(state.metadata());
-                for (String index : concreteIndices) {
-                    IndexMetadata metadata = state.metadata().index(index);
-                    indexVersions.add(new GetFeatureUpgradeStatusResponse.IndexVersion(index, metadata.getCreationVersion()));
-                    minimumVersion = Version.min(metadata.getCreationVersion(), minimumVersion);
-                }
-            }
-
-            if (minimumVersion.before(Version.V_7_0_0)) {
-                isUpgradeNeeded = true;
-            }
-
-            features.add(new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
-                featureName,
-                minimumVersion,
-                minimumVersion.before(Version.V_7_0_0) ? "UPGRADE_NEEDED" : "NO_UPGRADE_NEEDED",
-                indexVersions
-            ));
-        }
-
+        boolean isUpgradeNeeded = features.stream()
+                .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getMinimumIndexVersion)
+                .min(Version::compareTo)
+                .orElse(Version.CURRENT)
+                .before(Version.V_7_0_0);
 
         listener.onResponse(new GetFeatureUpgradeStatusResponse(features, isUpgradeNeeded ? "UPGRADE_NEEDED" : "NO_UPGRADE_NEEDED"));
+    }
+
+    private GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(
+        ClusterState state, Map.Entry<String, SystemIndices.Feature> entry) {
+
+        String featureName = entry.getKey();
+        SystemIndices.Feature feature = entry.getValue();
+
+        List<GetFeatureUpgradeStatusResponse.IndexVersion> indexVersions = getIndexVersions(state, feature);
+
+        Version minimumVersion = indexVersions.stream()
+            .map(GetFeatureUpgradeStatusResponse.IndexVersion::getVersion)
+            .min(Version::compareTo)
+            .orElse(Version.CURRENT);
+
+        return new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
+            featureName,
+            minimumVersion,
+            minimumVersion.before(Version.V_7_0_0) ? "UPGRADE_NEEDED" : "NO_UPGRADE_NEEDED",
+            indexVersions
+        );
+    }
+
+    private List<GetFeatureUpgradeStatusResponse.IndexVersion> getIndexVersions(ClusterState state, SystemIndices.Feature feature) {
+        return Stream.of(feature.getIndexDescriptors(), feature.getAssociatedIndexDescriptors())
+            .flatMap(Collection::stream)
+            .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata()).stream())
+            .map(index -> state.metadata().index(index))
+            .map(indexMetadata -> new GetFeatureUpgradeStatusResponse.IndexVersion(
+                indexMetadata.getIndex().getName(),
+                indexMetadata.getCreationVersion()))
+            .collect(Collectors.toList());
     }
 
     @Override

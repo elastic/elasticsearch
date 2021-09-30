@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -37,7 +36,6 @@ public class FeatureUpgradeApiIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
-    @Before
     public void testCreatingSystemIndex() throws Exception {
         Response response = client().performRequest(new Request("PUT", "/_net_new_sys_index/_create"));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
@@ -45,6 +43,7 @@ public class FeatureUpgradeApiIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetFeatureUpgradedStatuses() throws Exception {
+        client().performRequest(new Request("PUT", "/_net_new_sys_index/_create"));
         Response response = client().performRequest(new Request("GET", "/_migration/system_features"));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         XContentTestUtils.JsonMapView view = XContentTestUtils.createJsonMapView(response.getEntity().getContent());

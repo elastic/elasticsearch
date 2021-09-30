@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig.LABELS;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig.MULTI_LABEL;
 
@@ -39,46 +40,53 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         Map<String, Object> options = new HashMap<>(map);
         Boolean isMultiLabel = (Boolean)options.remove(MULTI_LABEL.getPreferredName());
         List<String> labels = (List<String>)options.remove(LABELS.getPreferredName());
+        String resultsField = (String)options.remove(RESULTS_FIELD.getPreferredName());
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", map.keySet());
         }
-        return new ZeroShotClassificationConfigUpdate(labels, isMultiLabel);
+        return new ZeroShotClassificationConfigUpdate(labels, isMultiLabel, resultsField);
     }
 
     @SuppressWarnings({ "unchecked"})
     private static final ConstructingObjectParser<ZeroShotClassificationConfigUpdate, Void> STRICT_PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new ZeroShotClassificationConfigUpdate((List<String>)a[0], (Boolean) a[1])
+        a -> new ZeroShotClassificationConfigUpdate((List<String>)a[0], (Boolean) a[1], (String) a[2])
     );
 
     static {
         STRICT_PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), LABELS);
         STRICT_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), MULTI_LABEL);
+        STRICT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
     }
 
     private final List<String> labels;
     private final Boolean isMultiLabel;
+    private final String resultsField;
 
     public ZeroShotClassificationConfigUpdate(
         @Nullable List<String> labels,
-        @Nullable Boolean isMultiLabel
+        @Nullable Boolean isMultiLabel,
+        @Nullable String resultsField
     ) {
         this.labels = labels;
         if (labels != null && labels.isEmpty()) {
             throw ExceptionsHelper.badRequestException("[{}] must not be empty", LABELS.getPreferredName());
         }
         this.isMultiLabel = isMultiLabel;
+        this.resultsField = resultsField;
     }
 
     public ZeroShotClassificationConfigUpdate(StreamInput in) throws IOException {
         labels = in.readOptionalStringList();
         isMultiLabel = in.readOptionalBoolean();
+        resultsField = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalStringCollection(labels);
         out.writeOptionalBoolean(isMultiLabel);
+        out.writeOptionalString(resultsField);
     }
 
     @Override
@@ -89,6 +97,9 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         }
         if (isMultiLabel != null) {
             builder.field(MULTI_LABEL.getPreferredName(), isMultiLabel);
+        }
+        if (resultsField != null) {
+            builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
         }
         builder.endObject();
         return builder;
@@ -125,13 +136,15 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
             zeroShotConfig.getTokenization(),
             zeroShotConfig.getHypothesisTemplate(),
             Optional.ofNullable(isMultiLabel).orElse(zeroShotConfig.isMultiLabel()),
-            Optional.ofNullable(labels).orElse(zeroShotConfig.getLabels())
+            Optional.ofNullable(labels).orElse(zeroShotConfig.getLabels()),
+            Optional.ofNullable(resultsField).orElse(zeroShotConfig.getResultsField())
         );
     }
 
     boolean isNoop(ZeroShotClassificationConfig originalConfig) {
         return (labels == null || labels.equals(originalConfig.getClassificationLabels()))
-            && (isMultiLabel == null || isMultiLabel.equals(originalConfig.isMultiLabel()));
+            && (isMultiLabel == null || isMultiLabel.equals(originalConfig.isMultiLabel()))
+            && (resultsField == null || resultsField.equals(originalConfig.getResultsField()));
     }
 
     @Override
@@ -141,7 +154,7 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
 
     @Override
     public String getResultsField() {
-        return null;
+        return resultsField;
     }
 
     @Override
@@ -160,12 +173,14 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         if (o == null || getClass() != o.getClass()) return false;
 
         ZeroShotClassificationConfigUpdate that = (ZeroShotClassificationConfigUpdate) o;
-        return Objects.equals(isMultiLabel, that.isMultiLabel) && Objects.equals(labels, that.labels);
+        return Objects.equals(isMultiLabel, that.isMultiLabel) &&
+            Objects.equals(labels, that.labels) &&
+            Objects.equals(resultsField, that.resultsField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(labels, isMultiLabel);
+        return Objects.hash(labels, isMultiLabel, resultsField);
     }
 
     public List<String> getLabels() {
@@ -178,10 +193,12 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         > {
         private List<String> labels;
         private Boolean isMultiLabel;
+        private String resultsField;
 
         @Override
         public ZeroShotClassificationConfigUpdate.Builder setResultsField(String resultsField) {
-            throw new IllegalArgumentException();
+            this.resultsField = resultsField;
+            return this;
         }
 
         public Builder setLabels(List<String> labels) {
@@ -195,7 +212,7 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         }
 
         public ZeroShotClassificationConfigUpdate build() {
-            return new ZeroShotClassificationConfigUpdate(labels, isMultiLabel);
+            return new ZeroShotClassificationConfigUpdate(labels, isMultiLabel, resultsField);
         }
     }
 }

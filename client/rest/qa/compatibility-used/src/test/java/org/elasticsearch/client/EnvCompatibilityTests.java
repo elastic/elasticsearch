@@ -88,7 +88,7 @@ public class EnvCompatibilityTests extends RestClientTestCase {
 
     private RestClient createClient(Boolean apiCompat) {
         InetSocketAddress address = httpServer.getAddress();
-        RestClientBuilder builder =  RestClient.builder(new HttpHost(address.getHostString(), address.getPort(), "http"));
+        RestClientBuilder builder = RestClient.builder(new HttpHost(address.getHostString(), address.getPort(), "http"));
         if (apiCompat != null) {
             builder.setAPICompatibilityMode(apiCompat);
         }
@@ -127,24 +127,30 @@ public class EnvCompatibilityTests extends RestClientTestCase {
         Response response = restClient.performRequest(request);
 
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
-        checkResponse("application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8" +
-                "#application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8",
-            response);
+        checkResponse(
+            "application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8"
+                + "#application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8",
+            response
+        );
 
         // Test with no entity, the default header should still be added
         request = new Request("GET", "/");
         response = restClient.performRequest(request);
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
-        checkResponse("application/vnd.elasticsearch+json; compatible-with=7" +
-                "#application/vnd.elasticsearch+json; compatible-with=7",
-            response);
+        checkResponse(
+            "application/vnd.elasticsearch+json; compatible-with=7" + "#application/vnd.elasticsearch+json; compatible-with=7",
+            response
+        );
 
         restClient.close();
     }
 
     public void testAPICompatOnThroughEnvVariable() throws Exception {
-        assertThat("expected ENV variable to be set but it was not, Gradle should set this environment variable automatically",
-            System.getenv("ELASTIC_CLIENT_APIVERSIONING"), equalTo("true"));
+        assertThat(
+            "expected ENV variable to be set but it was not, Gradle should set this environment variable automatically",
+            System.getenv("ELASTIC_CLIENT_APIVERSIONING"),
+            equalTo("true")
+        );
         RestClient restClient = createClient(null);
 
         // Send non-compressed request, expect non-compressed response
@@ -154,17 +160,20 @@ public class EnvCompatibilityTests extends RestClientTestCase {
         Response response = restClient.performRequest(request);
 
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
-        checkResponse("application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8" +
-                "#application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8",
-            response);
+        checkResponse(
+            "application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8"
+                + "#application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8",
+            response
+        );
 
         // Test with no entity, the default header should still be added
         request = new Request("GET", "/");
         response = restClient.performRequest(request);
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
-        checkResponse("application/vnd.elasticsearch+json; compatible-with=7" +
-                "#application/vnd.elasticsearch+json; compatible-with=7",
-            response);
+        checkResponse(
+            "application/vnd.elasticsearch+json; compatible-with=7" + "#application/vnd.elasticsearch+json; compatible-with=7",
+            response
+        );
 
         restClient.close();
     }

@@ -27,6 +27,7 @@ import static org.elasticsearch.packaging.util.Platforms.isRPM;
 public class Cleanup {
 
     protected static final Logger logger = LogManager.getLogger(Cleanup.class);
+
     private static final List<String> ELASTICSEARCH_FILES_LINUX = Arrays.asList(
         "/usr/share/elasticsearch",
         "/etc/elasticsearch/elasticsearch.keystore",
@@ -73,8 +74,6 @@ public class Cleanup {
             sh.runIgnoreExitCode("groupdel elasticsearch");
         });
         // when we run es as a role user on windows, add the equivalent here
-
-        // temporary
         logger.info("files in root temp dir: " + lsGlob(getRootTempDir(), "elasticsearch*"));
         // delete files that may still exist
         lsGlob(getRootTempDir(), "elasticsearch*").forEach(file -> {

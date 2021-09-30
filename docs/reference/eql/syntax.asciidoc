@@ -698,7 +698,8 @@ until [ process where event.type == "stop" ]
 [[eql-runs-keyword]]
 === `runs` keyword
 
-Use a `runs` statement to repeat an event within a sequence query. For example:
+Use a `runs` statement to run the same event criteria successively within a
+sequence query. For example:
 
 [source,eql]
 ----

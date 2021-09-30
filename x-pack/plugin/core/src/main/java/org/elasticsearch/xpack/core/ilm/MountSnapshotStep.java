@@ -107,7 +107,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         final Settings.Builder settingsBuilder = Settings.builder();
 
         overrideTierPreference(this.getKey().getPhase())
-            .ifPresent(override -> settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, override));
+            .ifPresent(override -> settingsBuilder.put(DataTierAllocationDecider.TIER_PREFERENCE, override));
 
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(mountedIndexName,
             snapshotRepository, snapshotName, indexName, settingsBuilder.build(),

@@ -9,7 +9,6 @@
 package org.elasticsearch.script.field;
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -17,6 +16,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -351,9 +351,9 @@ public abstract class ConvertersTestBase extends ESTestCase {
     }
 
     long[] rawLongMillisValues;
-    List<JodaCompatibleZonedDateTime> rawDateMillisValues;
-    protected FieldValues<JodaCompatibleZonedDateTime> dateMillisFieldValues;
-    protected Field<JodaCompatibleZonedDateTime> dateMillisField;
+    List<ZonedDateTime> rawDateMillisValues;
+    protected FieldValues<ZonedDateTime> dateMillisFieldValues;
+    protected Field<ZonedDateTime> dateMillisField;
 
     @Before
     public void setupDateMillisField() {
@@ -365,13 +365,13 @@ public abstract class ConvertersTestBase extends ESTestCase {
         };
 
         rawDateMillisValues = List.of(
-                new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(rawLongMillisValues[0]), ZoneOffset.ofHours(-7)),
-                new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(rawLongMillisValues[1]), ZoneOffset.ofHours(-6)),
-                new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(rawLongMillisValues[2]), ZoneOffset.ofHours(0)),
-                new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(rawLongMillisValues[3]), ZoneOffset.ofHours(-5))
+                ZonedDateTime.ofInstant(Instant.ofEpochMilli(rawLongMillisValues[0]), ZoneOffset.ofHours(-7)),
+                ZonedDateTime.ofInstant(Instant.ofEpochMilli(rawLongMillisValues[1]), ZoneOffset.ofHours(-6)),
+                ZonedDateTime.ofInstant(Instant.ofEpochMilli(rawLongMillisValues[2]), ZoneOffset.ofHours(0)),
+                ZonedDateTime.ofInstant(Instant.ofEpochMilli(rawLongMillisValues[3]), ZoneOffset.ofHours(-5))
         );
 
-        dateMillisFieldValues = new FieldValues<JodaCompatibleZonedDateTime>() {
+        dateMillisFieldValues = new FieldValues<ZonedDateTime>() {
             @Override
             public boolean isEmpty() {
                 return false;
@@ -383,12 +383,12 @@ public abstract class ConvertersTestBase extends ESTestCase {
             }
 
             @Override
-            public List<JodaCompatibleZonedDateTime> getValues() {
+            public List<ZonedDateTime> getValues() {
                 return Collections.unmodifiableList(rawDateMillisValues);
             }
 
             @Override
-            public JodaCompatibleZonedDateTime getNonPrimitiveValue() {
+            public ZonedDateTime getNonPrimitiveValue() {
                 return rawDateMillisValues.get(0);
             }
 
@@ -407,9 +407,9 @@ public abstract class ConvertersTestBase extends ESTestCase {
     }
 
     long[] rawLongNanosValues;
-    List<JodaCompatibleZonedDateTime> rawDateNanosValues;
-    protected FieldValues<JodaCompatibleZonedDateTime> dateNanosFieldValues;
-    protected Field<JodaCompatibleZonedDateTime> dateNanosField;
+    List<ZonedDateTime> rawDateNanosValues;
+    protected FieldValues<ZonedDateTime> dateNanosFieldValues;
+    protected Field<ZonedDateTime> dateNanosField;
 
     @Before
     public void setupDateNanosField() {
@@ -421,13 +421,13 @@ public abstract class ConvertersTestBase extends ESTestCase {
         };
 
         rawDateNanosValues = List.of(
-                new JodaCompatibleZonedDateTime(Instant.EPOCH.plusNanos(rawLongNanosValues[0]), ZoneOffset.ofHours(-7)),
-                new JodaCompatibleZonedDateTime(Instant.EPOCH.plusNanos(rawLongNanosValues[1]), ZoneOffset.ofHours(-6)),
-                new JodaCompatibleZonedDateTime(Instant.EPOCH.plusNanos(rawLongNanosValues[2]), ZoneOffset.ofHours(0)),
-                new JodaCompatibleZonedDateTime(Instant.EPOCH.plusNanos(rawLongNanosValues[3]), ZoneOffset.ofHours(-5))
+                ZonedDateTime.ofInstant(Instant.EPOCH.plusNanos(rawLongNanosValues[0]), ZoneOffset.ofHours(-7)),
+                ZonedDateTime.ofInstant(Instant.EPOCH.plusNanos(rawLongNanosValues[1]), ZoneOffset.ofHours(-6)),
+                ZonedDateTime.ofInstant(Instant.EPOCH.plusNanos(rawLongNanosValues[2]), ZoneOffset.ofHours(0)),
+                ZonedDateTime.ofInstant(Instant.EPOCH.plusNanos(rawLongNanosValues[3]), ZoneOffset.ofHours(-5))
         );
 
-        dateNanosFieldValues = new FieldValues<JodaCompatibleZonedDateTime>() {
+        dateNanosFieldValues = new FieldValues<ZonedDateTime>() {
             @Override
             public boolean isEmpty() {
                 return false;
@@ -439,12 +439,12 @@ public abstract class ConvertersTestBase extends ESTestCase {
             }
 
             @Override
-            public List<JodaCompatibleZonedDateTime> getValues() {
+            public List<ZonedDateTime> getValues() {
                 return Collections.unmodifiableList(rawDateNanosValues);
             }
 
             @Override
-            public JodaCompatibleZonedDateTime getNonPrimitiveValue() {
+            public ZonedDateTime getNonPrimitiveValue() {
                 return rawDateNanosValues.get(0);
             }
 

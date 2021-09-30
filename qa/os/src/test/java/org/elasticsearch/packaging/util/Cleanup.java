@@ -76,10 +76,11 @@ public class Cleanup {
         // when we run es as a role user on windows, add the equivalent here
         logger.info("files in root temp dir: " + lsGlob(getRootTempDir(), "elasticsearch*"));
         // delete files that may still exist
+
         lsGlob(getRootTempDir(), "elasticsearch*").forEach(file -> {
+            FileUtils.rm(file);
             if (Files.isDirectory(file)) {
                 logger.info(file + "contains : " + lsGlob(file, "*"));
-                FileUtils.rm(file);
             }
         });
         final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;

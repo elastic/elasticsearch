@@ -42,7 +42,6 @@ import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.cli.PluginSecurity;
 import org.elasticsearch.plugins.cli.ProgressInputStream;
 
 import java.io.BufferedReader;
@@ -189,6 +188,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         this.proxy = proxy;
     }
 
+    @Override
     public void execute(List<PluginDescriptor> plugins) throws InstallPluginException {
         if (plugins == null || plugins.isEmpty()) {
             throw new IllegalArgumentException("at least one plugin id is required");
@@ -464,7 +464,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         URLConnection urlConnection = this.proxy == null ? url.openConnection() : url.openConnection(this.proxy);
         urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
         try (
-            InputStream in = batch
+            InputStream in = batch || terminal.isHeadless()
                 ? urlConnection.getInputStream()
                 : new TerminalProgressInputStream(urlConnection.getInputStream(), urlConnection.getContentLength(), terminal)
         ) {

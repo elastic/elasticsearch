@@ -18,7 +18,5 @@ public interface RemovePluginProvider {
 
     void removePlugins(List<PluginDescriptor> plugins) throws Exception;
 
-    boolean isPurge();
-
     void setPurge(boolean purge);
 }

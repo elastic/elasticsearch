@@ -53,10 +53,7 @@ public class RemovePluginAction implements RemovePluginProvider {
         this.purge = purge;
     }
 
-    public boolean isPurge() {
-        return purge;
-    }
-
+    @Override
     public void setPurge(boolean purge) {
         this.purge = purge;
     }
@@ -68,6 +65,7 @@ public class RemovePluginAction implements RemovePluginProvider {
      * and a descriptive message.
      * @throws IOException if a problem occurs loading the plugins that are currently installed.
      */
+    @Override
     public Tuple<RemovePluginProblem, String> checkRemovePlugins(List<PluginDescriptor> plugins) throws IOException {
         if (plugins == null || plugins.isEmpty()) {
             throw new IllegalArgumentException("At least one plugin ID is required");
@@ -141,6 +139,7 @@ public class RemovePluginAction implements RemovePluginProvider {
      * @param plugins    the IDs of the plugins to remove
      * @throws IOException   if any I/O exception occurs while performing a file operation
      */
+    @Override
     public void removePlugins(List<PluginDescriptor> plugins) throws IOException {
         if (plugins == null || plugins.isEmpty()) {
             throw new IllegalArgumentException("At least one plugin ID is required");

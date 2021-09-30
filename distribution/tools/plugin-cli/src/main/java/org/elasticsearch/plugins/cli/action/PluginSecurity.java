@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.cli;
+package org.elasticsearch.plugins.cli.action;
 
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
@@ -32,41 +32,42 @@ public class PluginSecurity {
     /**
      * prints/confirms policy exceptions with the user
      */
-    public static void confirmPolicyExceptions(Terminal terminal, Set<String> permissions, boolean batch) throws UserException {
+    static void confirmPolicyExceptions(Terminal terminal, Set<String> permissions, boolean batch) throws UserException {
         List<String> requested = new ArrayList<>(permissions);
         if (requested.isEmpty()) {
             terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
-            return;
-        }
+        } else {
+            // sort permissions in a reasonable order
+            Collections.sort(requested);
 
-        // sort permissions in a reasonable order
-        Collections.sort(requested);
+            if (terminal.isHeadless()) {
+                terminal.errorPrintln(
+                    "WARNING: plugin requires additional permissions: ["
+                        + requested.stream().map(each -> '\'' + each + '\'').collect(Collectors.joining(", "))
+                        + "]"
+                );
+                terminal.errorPrintln(
+                    "See https://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html"
+                        + " for descriptions of what these permissions allow and the associated risks."
+                );
+            } else {
+                terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+                terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
+                terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+                // print all permissions:
+                for (String permission : requested) {
+                    terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
+                }
+                terminal.errorPrintln(
+                    Verbosity.NORMAL,
+                    "See https://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html"
+                );
+                terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
 
-        if (terminal.isHeadless()) {
-            terminal.errorPrintln(
-                "WARNING: plugin requires additional permissions: ["
-                    + requested.stream().map(each -> '\'' + each + '\'').collect(Collectors.joining(", "))
-                    + "]"
-            );
-            terminal.errorPrintln(
-                "See https://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html"
-                    + " for descriptions of what these permissions allow and the associated risks."
-            );
-            return;
-        }
-
-        terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-        terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
-        terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-        // print all permissions:
-        for (String permission : requested) {
-            terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
-        }
-        terminal.errorPrintln(Verbosity.NORMAL, "See https://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
-        terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
-
-        if (batch == false) {
-            prompt(terminal);
+                if (batch == false) {
+                    prompt(terminal);
+                }
+            }
         }
     }
 

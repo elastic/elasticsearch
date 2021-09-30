@@ -57,7 +57,7 @@ import java.util.stream.Collectors;
  * elasticsearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
  */
-public class InstallPluginCommand extends EnvironmentAwareCommand {
+class InstallPluginCommand extends EnvironmentAwareCommand {
 
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;

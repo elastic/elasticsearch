@@ -808,7 +808,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                                 new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61), null)),
                                 new ShardSearchFailure(new RepositoryException("repository_g", "Repo"),
                                 new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null)),
-                                new ShardSearchFailure(new SearchContextMissingException(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L)), null)
+                                new ShardSearchFailure(new SearchContextMissingException(new ShardSearchContextId(
+                                    UUIDs.randomBase64UUID(), 0L)), null)
                 };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
 

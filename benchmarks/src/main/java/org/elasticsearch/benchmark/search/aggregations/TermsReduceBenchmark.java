@@ -56,6 +56,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
@@ -191,12 +192,13 @@ public class TermsReduceBenchmark {
         request.source(new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.terms("test")));
         request.setBatchedReduceSize(bufferSize);
         ExecutorService executor = Executors.newFixedThreadPool(1);
+        AtomicBoolean isCanceled = new AtomicBoolean();
         QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
             request,
             executor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             controller,
-            () -> false,
+            isCanceled::get,
             SearchProgressListener.NOOP,
             shards.size(),
             exc -> {}

@@ -89,10 +89,10 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
                 .apply(originalConfig)
             ));
         assertThat(new TextClassificationConfig.Builder(originalConfig)
-                .setNumTopClasses(originalConfig.getNumTopClasses() +1)
+                .setNumTopClasses(originalConfig.getNumTopClasses() + 2)
                 .build(),
             equalTo(new TextClassificationConfigUpdate.Builder()
-                .setNumTopClasses(originalConfig.getNumTopClasses() +1)
+                .setNumTopClasses(originalConfig.getNumTopClasses() + 2)
                 .build()
                 .apply(originalConfig)
             ));
@@ -101,7 +101,7 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
     public void testApplyWithInvalidLabels() {
         TextClassificationConfig originalConfig = TextClassificationConfigTests.createRandom();
 
-        int numberNewLabels = originalConfig.getClassificationLabels().size() +1;
+        int numberNewLabels = originalConfig.getClassificationLabels().size() + 2;
         List<String> newLabels = randomList(numberNewLabels, numberNewLabels, () -> randomAlphaOfLength(6));
 
         var update = new TextClassificationConfigUpdate.Builder()

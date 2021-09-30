@@ -384,6 +384,25 @@ time = 2.8286166191101074
 type = "sequence"
 
 [[queries]]
+queryNo = 231
+count = 0
+expected_event_ids = []
+filter_counts = [6, 6, 6, 6]
+filters = [
+  'security where hostname != "newyork" and event_id == 4625',
+  'security where hostname != "newyork" and event_id == 4625',
+  'security where hostname != "newyork" and event_id == 4625',
+  'security where hostname != "newyork" and event_id == 4625'
+]
+query = '''
+sequence by source_address, hostname with maxspan=5s
+  [security where hostname != "newyork" and event_id == 4625] [runs=4]
+'''
+time = 2.8286166191101074
+type = "sequence"
+
+
+[[queries]]
 queryNo = 24
 count = 1
 expected_event_ids = [2860083, 2860090, 2860098]
@@ -398,6 +417,23 @@ sequence by source_address, hostname with maxspan=10s
   [security where hostname != "newyork" and event_id == 4625]
   [security where hostname != "newyork" and event_id == 4625]
   [security where hostname != "newyork" and event_id == 4625]
+'''
+time = 2.765869617462158
+type = "sequence"
+
+[[queries]]
+queryNo = 241
+count = 1
+expected_event_ids = [2860083, 2860090, 2860098]
+filter_counts = [6, 6, 6]
+filters = [
+  'security where hostname != "newyork" and event_id == 4625',
+  'security where hostname != "newyork" and event_id == 4625',
+  'security where hostname != "newyork" and event_id == 4625'
+]
+query = '''
+sequence by source_address, hostname with maxspan=10s
+  [security where hostname != "newyork" and event_id == 4625] [runs=3]
 '''
 time = 2.765869617462158
 type = "sequence"

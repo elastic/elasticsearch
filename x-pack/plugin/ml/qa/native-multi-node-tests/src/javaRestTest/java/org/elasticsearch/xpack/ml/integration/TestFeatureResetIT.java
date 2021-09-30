@@ -200,7 +200,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                     .setInferenceConfig(
                         new PassThroughConfig(
                             null,
-                            new BertTokenization(null, false, null)
+                            new BertTokenization(null, false, null),
+                            null
                         )
                     )
                     .setModelId(TRAINED_MODEL_ID)

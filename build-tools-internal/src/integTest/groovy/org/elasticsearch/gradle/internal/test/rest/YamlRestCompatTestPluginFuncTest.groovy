@@ -196,6 +196,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
                yamlRestTestImplementation "junit:junit:4.12"
             }
             tasks.named("yamlRestTestV${compatibleVersion}CompatTransform").configure({ task ->
+              task.skipTest("test/test/two", "This is a test to skip test two")
               task.replaceValueInMatch("_type", "_doc")
               task.replaceValueInMatch("_source.values", ["z", "x", "y"], "one")
               task.removeMatch("_source.blah")
@@ -333,6 +334,9 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         ---
         two:
+        - skip:
+            version: "all"
+            reason: "This is a test to skip test two"
         - do:
             get:
               index: "test2"

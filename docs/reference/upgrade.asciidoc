@@ -89,14 +89,14 @@ of the products in your Elastic Stack. For more information, see the
 
 ifeval::["{release-state}"!="released"]
 [[upgrade-pre-release]]
-NOTE: This documentation is for {es} {version}, which is not yet released. You
-may run a pre-release build of {es} for testing, and you may upgrade from an
-earlier released version to a pre-release build of {es} {version} if permitted
-by the compatibility table above, but upgrading from a pre-release build to
-another build (whether released or not) is unsupported. Upgrading a pre-release
-build may result in errors or may appear to succeed having silently lost some
-data. You should discard the contents of a cluster running a pre-release build
-when moving to a different build.
+NOTE: This documentation is for {es} version {version}, which is not yet
+released. You may run a pre-release build of {es} for testing, and you may
+upgrade from an earlier released version to a pre-release build of {es}
+{version} if permitted by the compatibility table above, but upgrading from a
+pre-release build to another build (whether released or not) is unsupported.
+Upgrading a pre-release build may result in errors or may appear to succeed
+having silently lost some data. You should discard the contents of a cluster
+running a pre-release build before using a different build.
 endif::[]
 
 --
@@ -106,3 +106,5 @@ include::upgrade/rolling_upgrade.asciidoc[]
 include::upgrade/cluster_restart.asciidoc[]
 
 include::upgrade/reindex_upgrade.asciidoc[]
+
+include::upgrade/archived-settings.asciidoc[]

@@ -597,7 +597,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, "900")
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
-            .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_CACHE_INDEX_PREFERENCE)
+            .put(DataTierAllocationDecider.TIER_PREFERENCE, DATA_TIERS_CACHE_INDEX_PREFERENCE)
             .build();
     }
 

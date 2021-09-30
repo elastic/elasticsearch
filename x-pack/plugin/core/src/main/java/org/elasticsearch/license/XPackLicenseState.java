@@ -64,10 +64,6 @@ public class XPackLicenseState {
 
         LOGSTASH(OperationMode.STANDARD, true),
 
-        JDBC(OperationMode.PLATINUM, true),
-
-        ODBC(OperationMode.PLATINUM, true),
-
         SPATIAL_GEO_CENTROID(OperationMode.GOLD, true),
 
         SPATIAL_GEO_GRID(OperationMode.GOLD, true),

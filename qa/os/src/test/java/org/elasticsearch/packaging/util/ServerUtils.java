@@ -271,7 +271,6 @@ public class ServerUtils {
         assertThat("cluster health response must contain desired status", body, containsString(status));
     }
 
-
     public static void runElasticsearchTests() throws Exception {
         makeRequest(
             Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")

@@ -13,9 +13,9 @@ node to prevent a full disk. If the block affects related system indices, {kib}
 and other {stack} features may become unavailable.
 
 {es} will automatically remove the write block when the affected node goes below
-the <<cluster-routing-watermark-high,high disk watermark>>. To free up disk
-space, {es} will move the affected node's shards to other nodes in the data
-tier. However, {es} will only allocate shards to nodes below the high disk usage
+the <<cluster-routing-watermark-high,high disk watermark>>. To achieve this,
+{es} automatically moves the affected node's shards to other nodes in the data
+tier. However, {es} can only allocate shards to nodes below the high disk usage
 watermark.
 
 To verify that some nodes in the tier are below the high disk watermark, use the

@@ -62,8 +62,7 @@ public class Cleanup {
                         + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
                         + "ForEach-Object { $_.Terminate() }"
                 );
-            }
-        );
+            });
 
         Platforms.onLinux(Cleanup::purgePackagesLinux);
 

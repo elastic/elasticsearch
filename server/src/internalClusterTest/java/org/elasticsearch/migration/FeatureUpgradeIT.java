@@ -27,7 +27,7 @@ public class FeatureUpgradeIT extends ESIntegTestCase {
 
         GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus status = new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
             "tasks",
-            Version.CURRENT.toString(),
+            Version.CURRENT,
             "NO_UPGRADE_NEEDED",
             List.of()
         );

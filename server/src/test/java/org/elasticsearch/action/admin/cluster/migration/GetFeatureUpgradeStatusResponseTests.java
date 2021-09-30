@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.migration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -55,7 +56,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     private static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus createFeatureStatus() {
         return new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
             randomAlphaOfLengthBetween(3, 20),
-            randomAlphaOfLengthBetween(5, 9),
+            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
             randomAlphaOfLengthBetween(4, 16),
             randomList(4, GetFeatureUpgradeStatusResponseTests::getIndexVersion)
         );
@@ -64,7 +65,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     private static GetFeatureUpgradeStatusResponse.IndexVersion getIndexVersion() {
         return new GetFeatureUpgradeStatusResponse.IndexVersion(
             randomAlphaOfLengthBetween(3, 20),
-            randomAlphaOfLengthBetween(5, 9)
+            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())
         );
     }
 }

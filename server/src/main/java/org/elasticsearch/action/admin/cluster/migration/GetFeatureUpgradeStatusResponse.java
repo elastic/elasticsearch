@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.migration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -102,7 +103,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
      */
     public static class FeatureUpgradeStatus implements Writeable, ToXContentObject {
         private final String featureName;
-        private final String minimumIndexVersion;
+        private final Version minimumIndexVersion;
         private final String upgradeStatus;
         private final List<IndexVersion> indexVersions;
 
@@ -112,7 +113,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          * @param upgradeStatus Whether the feature needs to be upgraded
          * @param indexVersions A list of this feature's concrete indices and the Elasticsearch version that created them
          */
-        public FeatureUpgradeStatus(String featureName, String minimumIndexVersion,
+        public FeatureUpgradeStatus(String featureName, Version minimumIndexVersion,
                                     String upgradeStatus, List<IndexVersion> indexVersions) {
             this.featureName = featureName;
             this.minimumIndexVersion = minimumIndexVersion;
@@ -126,7 +127,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          */
         public FeatureUpgradeStatus(StreamInput in) throws IOException {
             this.featureName = in.readString();
-            this.minimumIndexVersion = in.readString();
+            this.minimumIndexVersion = Version.readVersion(in);
             this.upgradeStatus = in.readString();
             this.indexVersions = in.readList(IndexVersion::new);
         }
@@ -135,7 +136,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             return this.featureName;
         }
 
-        public String getMinimumIndexVersion() {
+        public Version getMinimumIndexVersion() {
             return this.minimumIndexVersion;
         }
 
@@ -150,7 +151,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(this.featureName);
-            out.writeString(this.minimumIndexVersion);
+            Version.writeVersion(this.minimumIndexVersion, out);
             out.writeString(this.upgradeStatus);
             out.writeList(this.indexVersions);
         }
@@ -159,7 +160,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("feature_name", this.featureName);
-            builder.field("minimum_index_version", this.minimumIndexVersion);
+            builder.field("minimum_index_version", this.minimumIndexVersion.toString());
             builder.field("upgrade_status", this.upgradeStatus);
             builder.startArray("indices");
             for (IndexVersion version : this.indexVersions) {
@@ -202,13 +203,13 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
      */
     public static class IndexVersion implements Writeable, ToXContentObject {
         private final String indexName;
-        private final String version;
+        private final Version version;
 
         /**
          * @param indexName Name of the index
          * @param version Version of Elasticsearch that created the index
          */
-        public IndexVersion(String indexName, String version) {
+        public IndexVersion(String indexName, Version version) {
             this.indexName = indexName;
             this.version = version;
         }
@@ -219,28 +220,28 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          */
         public IndexVersion(StreamInput in) throws IOException {
             this.indexName = in.readString();
-            this.version = in.readString();
+            this.version = Version.readVersion(in);
         }
 
         public String getIndexName() {
             return this.indexName;
         }
 
-        public String getVersion() {
+        public Version getVersion() {
             return this.version;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(this.indexName);
-            out.writeString(this.version);
+            Version.writeVersion(this.version, out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("index", this.indexName);
-            builder.field("version", this.version);
+            builder.field("version", this.version.toString());
             builder.endObject();
             return builder;
         }

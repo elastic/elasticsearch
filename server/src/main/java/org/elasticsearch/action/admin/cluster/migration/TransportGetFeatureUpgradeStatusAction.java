@@ -83,7 +83,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
                 List<String> concreteIndices = descriptor.getMatchingIndices(state.metadata());
                 for (String index : concreteIndices) {
                     IndexMetadata metadata = state.metadata().index(index);
-                    indexVersions.add(new GetFeatureUpgradeStatusResponse.IndexVersion(index, metadata.getCreationVersion().toString()));
+                    indexVersions.add(new GetFeatureUpgradeStatusResponse.IndexVersion(index, metadata.getCreationVersion()));
                     minimumVersion = Version.min(metadata.getCreationVersion(), minimumVersion);
                 }
             }
@@ -94,7 +94,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
 
             features.add(new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
                 featureName,
-                minimumVersion.toString(),
+                minimumVersion,
                 minimumVersion.before(Version.V_7_0_0) ? "UPGRADE_NEEDED" : "NO_UPGRADE_NEEDED",
                 indexVersions
             ));

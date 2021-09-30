@@ -13,18 +13,21 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -56,6 +59,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final String INITIALIZING_SHARDS = "initializing_shards";
     private static final String UNASSIGNED_SHARDS = "unassigned_shards";
     private static final String INDICES = "indices";
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
 
     private static final ConstructingObjectParser<ClusterHealthResponse, Void> PARSER =
             new ConstructingObjectParser<>("cluster_health_response", true,
@@ -300,7 +304,11 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public RestStatus status() {
-        return RestApiVersion.current() == RestApiVersion.V_7 ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
+        if (RestApiVersion.current() == RestApiVersion.V_7 && isTimedOut()) {
+            deprecationLogger.critical(DeprecationCategory.API, "cluster_health_timeout",
+                "HTTP status code for an internal cluster health timeout will change from 408 to 200 in 8.0");
+        }
+        return RestStatus.OK;
     }
 
     @Override

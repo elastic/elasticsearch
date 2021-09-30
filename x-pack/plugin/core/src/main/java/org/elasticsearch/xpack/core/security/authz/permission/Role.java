@@ -184,13 +184,9 @@ public class Role {
     public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
                                           Map<String, IndexAbstraction> aliasAndIndexLookup,
                                           FieldPermissionsCache fieldPermissionsCache) {
-        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
+        final Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
             action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache
         );
-        // Quick path for role that has access to all indices
-        if (indexPermissions == null) {
-            return IndicesAccessControl.allowAll();
-        }
 
         // At least one role / indices permission set need to match with all the requested indices/aliases:
         boolean granted = true;
@@ -201,6 +197,10 @@ public class Role {
             }
         }
         return new IndicesAccessControl(granted, indexPermissions);
+    }
+
+    public boolean allowAllIndices() {
+        return indices.isTotal();
     }
 
     @Override

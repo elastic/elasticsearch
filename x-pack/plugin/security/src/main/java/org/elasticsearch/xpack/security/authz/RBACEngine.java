@@ -643,8 +643,13 @@ public class RBACEngine implements AuthorizationEngine {
                                                                Set<String> indices,
                                                                Map<String, IndexAbstraction> aliasAndIndexLookup) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
-        final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
-        return new IndexAuthorizationResult(true, accessControl);
+        // Fast path if the role can access all indices, e.g. superuser
+        if (role.allowAllIndices()) {
+            return new IndexAuthorizationResult(true, IndicesAccessControl.allowAll());
+        } else {
+            final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
+            return new IndexAuthorizationResult(true, accessControl);
+        }
     }
 
     private static RBACAuthorizationInfo ensureRBAC(AuthorizationInfo authorizationInfo) {

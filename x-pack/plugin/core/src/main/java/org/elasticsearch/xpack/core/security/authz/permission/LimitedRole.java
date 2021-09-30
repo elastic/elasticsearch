@@ -87,6 +87,11 @@ public final class LimitedRole extends Role {
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 
+    @Override
+    public boolean allowAllIndices() {
+        return super.allowAllIndices() && limitedBy.allowAllIndices();
+    }
+
     /**
      * @return A predicate that will match all the indices that this role and the limited by role has the privilege for executing the given
      * action on.

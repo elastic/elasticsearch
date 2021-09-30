@@ -344,11 +344,6 @@ public final class IndicesPermission {
         Map<String, IndexAbstraction> lookup,
         FieldPermissionsCache fieldPermissionsCache
     ) {
-        // Quick path if the permission grants access to all indices
-        if (isTotal()) {
-            return null;
-        }
-
         final List<IndexResource> resources = new ArrayList<>(requestedIndicesOrAliases.size());
         int totalResourceCount = 0;
 

@@ -205,7 +205,9 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
             )
         );
 
-        assertThat(e.getMessage(), equalTo("Failed to delete some files:\n\n\tdocs/changelog/1234.yml\n"));
+        // Use a `Path` so that the test works across platforms
+        final Path failedPath = Path.of("docs", "changelog", "1234.yml");
+        assertThat(e.getMessage(), equalTo("Failed to delete some files:\n\n\t" + failedPath + "\n"));
     }
 
     /**

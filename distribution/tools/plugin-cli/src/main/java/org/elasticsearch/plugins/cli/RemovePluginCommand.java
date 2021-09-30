@@ -15,8 +15,11 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.RemovePluginProblem;
+import org.elasticsearch.plugins.cli.action.RemovePluginAction;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,6 +31,11 @@ import java.util.stream.Collectors;
  * A command for the plugin CLI to remove plugins from Elasticsearch.
  */
 class RemovePluginCommand extends EnvironmentAwareCommand {
+
+    // exit codes for remove
+    /** A plugin cannot be removed because it is extended by another plugin. */
+    static final int PLUGIN_STILL_USED = 11;
+
     private final OptionSpec<Void> purgeOption;
     private final OptionSpec<String> arguments;
 
@@ -49,7 +57,36 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
         final List<PluginDescriptor> plugins = arguments.values(options).stream().map(PluginDescriptor::new).collect(Collectors.toList());
 
-        final RemovePluginAction action = new RemovePluginAction(new TerminalLogger(terminal), env, options.has(purgeOption));
-        action.execute(plugins);
+        if (plugins.isEmpty()) {
+            throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");
+        }
+
+        final RemovePluginAction action = new RemovePluginAction(terminal, env, options.has(purgeOption));
+
+        final Tuple<RemovePluginProblem, String> problem = action.checkRemovePlugins(plugins);
+        if (problem != null) {
+            int exitCode;
+            switch (problem.v1()) {
+                case NOT_FOUND:
+                    exitCode = ExitCodes.CONFIG;
+                    break;
+
+                case STILL_USED:
+                    exitCode = PLUGIN_STILL_USED;
+                    break;
+
+                case BIN_FILE_NOT_DIRECTORY:
+                    exitCode = ExitCodes.IO_ERROR;
+                    break;
+
+                default:
+                    exitCode = ExitCodes.USAGE;
+                    break;
+            }
+
+            throw new UserException(exitCode, problem.v2());
+        }
+
+        action.removePlugins(plugins);
     }
 }

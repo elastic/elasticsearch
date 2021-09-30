@@ -11,8 +11,9 @@ package org.elasticsearch.plugins.cli;
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.plugins.PluginLogger;
 
 import java.io.IOException;
 import java.net.URL;
@@ -31,32 +32,32 @@ public class PluginSecurity {
     /**
      * prints/confirms policy exceptions with the user
      */
-    static void confirmPolicyExceptions(PluginLogger logger, Set<String> permissions, boolean batch) throws UserException {
+    public static void confirmPolicyExceptions(Terminal terminal, Set<String> permissions, boolean batch) throws UserException {
         List<String> requested = new ArrayList<>(permissions);
         if (requested.isEmpty()) {
-            logger.debug("plugin has a policy file with no additional permissions");
+            terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
         } else {
 
             // sort permissions in a reasonable order
             Collections.sort(requested);
 
-            logger.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            logger.warn("@     WARNING: plugin requires additional permissions     @");
-            logger.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
+            terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
             // print all permissions:
             for (String permission : requested) {
-                logger.warn("* " + permission);
+                terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
             }
-            logger.warn("See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
-            logger.warn("for descriptions of what these permissions allow and the associated risks.");
-            prompt(logger, batch);
+            terminal.errorPrintln(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
+            terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
+            prompt(terminal, batch);
         }
     }
 
-    private static void prompt(final PluginLogger logger, final boolean batch) throws UserException {
+    private static void prompt(final Terminal terminal, final boolean batch) throws UserException {
         if (batch == false) {
-            logger.info("");
-            String text = logger.readText("Continue with installation? [y/N]");
+            terminal.println(Verbosity.NORMAL, "");
+            String text = terminal.readText("Continue with installation? [y/N]");
             if (text.equalsIgnoreCase("y") == false) {
                 throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
             }
@@ -102,7 +103,7 @@ public class PluginSecurity {
     /**
      * Extract a unique set of permissions from the plugin's policy file. Each permission is formatted for output to users.
      */
-    static Set<String> getPermissionDescriptions(PluginPolicyInfo pluginPolicyInfo, Path tmpDir) throws IOException {
+    public static Set<String> getPermissionDescriptions(PluginPolicyInfo pluginPolicyInfo, Path tmpDir) throws IOException {
         Set<Permission> allPermissions = new HashSet<>(PolicyUtil.getPolicyPermissions(null, pluginPolicyInfo.policy, tmpDir));
         for (URL jar : pluginPolicyInfo.jars) {
             Set<Permission> jarPermissions = PolicyUtil.getPolicyPermissions(jar, pluginPolicyInfo.policy, tmpDir);

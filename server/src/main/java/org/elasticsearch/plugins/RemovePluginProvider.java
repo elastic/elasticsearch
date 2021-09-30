@@ -8,11 +8,15 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.core.Tuple;
+
+import java.io.IOException;
 import java.util.List;
 
 public interface RemovePluginProvider {
+    Tuple<RemovePluginProblem, String> checkRemovePlugins(List<PluginDescriptor> plugins) throws IOException;
 
-    void execute(List<PluginDescriptor> plugins) throws Exception;
+    void removePlugins(List<PluginDescriptor> plugins) throws Exception;
 
     boolean isPurge();
 

@@ -69,7 +69,7 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
         } else {
             labels = this.labels;
         }
-        if (this.labels == null || this.labels.length == 0) {
+        if (labels == null || labels.length == 0) {
             throw ExceptionsHelper.badRequestException("zero_shot_classification requires non-empty [labels]");
         }
         return new RequestBuilder(tokenizer, labels, hypothesisTemplate);

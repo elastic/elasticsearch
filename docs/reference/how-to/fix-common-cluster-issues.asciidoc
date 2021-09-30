@@ -31,6 +31,8 @@ GET _cluster/allocation/explain
   "current_node": "my-node"
 }
 ----
+// TEST[s/^/PUT my-index\n/]
+// TEST[s/"primary": false,/"primary": false/]
 // TEST[s/"current_node": "my-node"//]
 
 To immediately restore write operations, you can temporarily increase the disk

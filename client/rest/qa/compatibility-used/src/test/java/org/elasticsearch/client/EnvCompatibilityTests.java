@@ -137,10 +137,7 @@ public class EnvCompatibilityTests extends RestClientTestCase {
         request = new Request("GET", "/");
         response = restClient.performRequest(request);
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
-        checkResponse(
-            "null#application/vnd.elasticsearch+json; compatible-with=7",
-            response
-        );
+        checkResponse("null#application/vnd.elasticsearch+json; compatible-with=7", response);
 
         restClient.close();
     }
@@ -170,10 +167,7 @@ public class EnvCompatibilityTests extends RestClientTestCase {
         request = new Request("GET", "/");
         response = restClient.performRequest(request);
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
-        checkResponse(
-            "null#application/vnd.elasticsearch+json; compatible-with=7",
-            response
-        );
+        checkResponse("null#application/vnd.elasticsearch+json; compatible-with=7", response);
 
         restClient.close();
     }

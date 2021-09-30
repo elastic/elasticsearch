@@ -13,6 +13,7 @@ dependencies {
   testImplementation project(':client:rest')
   testImplementation testArtifact(project(':client:rest'))
   testImplementation project(':test:framework')
+  testImplementation project(':client:test')
 }
 
 // Set the API versioning flag for unit tests

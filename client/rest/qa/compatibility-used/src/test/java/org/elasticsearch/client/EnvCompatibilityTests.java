@@ -129,7 +129,7 @@ public class EnvCompatibilityTests extends RestClientTestCase {
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
         checkResponse(
             "application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8"
-                + "#application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8",
+                + "#application/vnd.elasticsearch+json; compatible-with=7",
             response
         );
 
@@ -138,7 +138,7 @@ public class EnvCompatibilityTests extends RestClientTestCase {
         response = restClient.performRequest(request);
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
         checkResponse(
-            "application/vnd.elasticsearch+json; compatible-with=7" + "#application/vnd.elasticsearch+json; compatible-with=7",
+            "null#application/vnd.elasticsearch+json; compatible-with=7",
             response
         );
 
@@ -162,7 +162,7 @@ public class EnvCompatibilityTests extends RestClientTestCase {
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
         checkResponse(
             "application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8"
-                + "#application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8",
+                + "#application/vnd.elasticsearch+json; compatible-with=7",
             response
         );
 
@@ -171,7 +171,7 @@ public class EnvCompatibilityTests extends RestClientTestCase {
         response = restClient.performRequest(request);
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
         checkResponse(
-            "application/vnd.elasticsearch+json; compatible-with=7" + "#application/vnd.elasticsearch+json; compatible-with=7",
+            "null#application/vnd.elasticsearch+json; compatible-with=7",
             response
         );
 
@@ -183,6 +183,6 @@ public class EnvCompatibilityTests extends RestClientTestCase {
         Assert.assertNotNull(entity);
 
         String content = new String(readAll(entity.getContent()), StandardCharsets.UTF_8);
-        assertThat(expected, containsString(content));
+        assertThat(content, containsString(expected));
     }
 }

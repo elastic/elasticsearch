@@ -50,7 +50,6 @@ interface SearchPhaseContext extends Executor {
     /**
      * Returns the targeted {@link OriginalIndices} for the provided cluster alias or the local cluster
      * if {@code clusterAlias} is {@code null}.
-     * or the local cluster
      */
     OriginalIndices getOriginalIndices(@Nullable String clusterAlias);
 

@@ -113,7 +113,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         final List<SearchShardIterator> iterators = new ArrayList<>();
         Map<String, OriginalIndices> originalIndices = new HashMap<>();
         for (final SearchShardIterator iterator : shardsIts) {
-            originalIndices.putIfAbsent(iterator.getClusterAlias(), iterator.getOriginalIndices());
+            OriginalIndices ret = originalIndices.putIfAbsent(iterator.getClusterAlias(), iterator.getOriginalIndices());
+            assert iterator.getOriginalIndices().equals(ret);
             if (iterator.skip()) {
                 toSkipIterators.add(iterator);
             } else {

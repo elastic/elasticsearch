@@ -135,15 +135,14 @@ public class RestClientAPICompatTests extends RestClientTestCase {
 
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
         checkResponse("application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8" +
-                "#application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8",
+                "#application/vnd.elasticsearch+json; compatible-with=7",
             response);
 
         // Test with no entity, the default header should still be added
         request = new Request("GET", "/");
         response = restClient.performRequest(request);
         Assert.assertTrue(response.getEntity().getContentLength() > 0);
-        checkResponse("application/vnd.elasticsearch+json; compatible-with=7" +
-                "#application/vnd.elasticsearch+json; compatible-with=7",
+        checkResponse("null#application/vnd.elasticsearch+json; compatible-with=7",
             response);
 
         restClient.close();

@@ -758,38 +758,66 @@ public class RestClient implements Closeable {
         JSON() {
             @Override
             public String header() {
-                return "json";
+                return "application/json";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+json; compatible-with=7";
             }
         },
         NDJSON() {
             @Override
             public String header() {
-                return "x-ndjson";
+                return "application/x-ndjson";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+x-ndjson; compatible-with=7";
+            }
+        },
+        STAR() {
+            @Override
+            public String header() {
+                return "application/*";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+json; compatible-with=7";
             }
         },
         YAML() {
             @Override
             public String header() {
-                return "yaml";
+                return "application/yaml";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+yaml; compatible-with=7";
             }
         },
         SMILE() {
             @Override
             public String header() {
-                return "smile";
+                return "application/smile";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+smile; compatible-with=7";
             }
         },
         CBOR() {
             @Override
             public String header() {
-                return "cbor";
+                return "application/cbor";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+cbor; compatible-with=7";
             }
         };
 
-        public static final String APPLICATION_PREFIX = "application/";
-        public static final String APPLICATION_VND_PREFIX = "application/vnd.elasticsearch+";
-
         public abstract String header();
+        public abstract String compatibleHeader();
 
         @Override
         public String toString() {
@@ -836,7 +864,13 @@ public class RestClient implements Closeable {
             // Add compatibility request headers if compatibility mode has been enabled
             if (useCompatibility) {
                 addCompatibilityFor(req, entityHeader, "Content-Type");
-                addCompatibilityFor(req, entityHeader, "Accept");
+                if (req.containsHeader("Accept")) {
+                    addCompatibilityFor(req, entityHeader, "Accept");
+                } else {
+                    // There is no entity, and no existing accept header, but we still need one
+                    // with compatibility, so use the compatible JSON (default output) format
+                    req.addHeader("Accept", EntityType.JSON.compatibleHeader());
+                }
             }
             if (compressionEnabled) {
                 req.addHeader("Accept-Encoding", "gzip");
@@ -847,7 +881,7 @@ public class RestClient implements Closeable {
          * Go through all the request's existing headers, looking for {@code headerName} headers and if they exist,
          * changing them to use version compatibility. If no request headers are changed, modify the entity type header if appropriate
          */
-        private void addCompatibilityFor(HttpRequest req, Header entityHeader, String headerName) {
+        private boolean addCompatibilityFor(HttpRequest req, Header entityHeader, String headerName) {
             // Modify any existing "Content-Type" headers on the request to use the version compatibility, if available
             boolean contentTypeModified = false;
             for (Header header : req.getHeaders(headerName)) {
@@ -859,10 +893,7 @@ public class RestClient implements Closeable {
                 contentTypeModified = modifyHeader(req, entityHeader, headerName);
             }
 
-            // If there were no changed headers at all, add the default compatibility header
-            if (contentTypeModified == false) {
-                req.addHeader(headerName, EntityType.APPLICATION_VND_PREFIX + EntityType.JSON.header() + "; compatible-with=7");
-            }
+            return contentTypeModified;
         }
 
         /**
@@ -872,9 +903,8 @@ public class RestClient implements Closeable {
         private boolean modifyHeader(HttpRequest req, Header header, String headerName) {
             for (EntityType type : EntityType.values()) {
                 final String headerValue = header.getValue();
-                if (headerValue.contains(EntityType.APPLICATION_PREFIX + type.header())) {
-                    String newHeaderValue = headerValue.replace(EntityType.APPLICATION_PREFIX + type.header(),
-                        EntityType.APPLICATION_VND_PREFIX + type + "; compatible-with=7");
+                if (headerValue.startsWith(type.header())) {
+                    String newHeaderValue = headerValue.replace(type.header(), type.compatibleHeader());
                     req.removeHeader(header);
                     req.addHeader(headerName, newHeaderValue);
                     return true;

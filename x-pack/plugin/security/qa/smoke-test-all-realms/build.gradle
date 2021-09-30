@@ -11,6 +11,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(project(":client:rest-high-level"))
 }
 
 testClusters.matching { it.name == 'javaRestTest' }.configureEach {

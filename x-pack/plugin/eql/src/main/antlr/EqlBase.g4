@@ -32,7 +32,7 @@ sequenceParams
 
 sequence
     : SEQUENCE (by=joinKeys sequenceParams? | sequenceParams disallowed=joinKeys?)?
-      sequenceTerm sequenceTerm+
+      sequenceTerm+
       (UNTIL until=sequenceTerm)?
     ;
 
@@ -56,7 +56,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (by=joinKeys)?
+   : subquery (by=joinKeys)? (LB key=IDENTIFIER ASGN value=number RB)?
    ;
 
 subquery

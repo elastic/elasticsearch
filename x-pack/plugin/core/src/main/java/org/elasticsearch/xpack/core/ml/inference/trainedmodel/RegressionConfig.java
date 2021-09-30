@@ -73,6 +73,7 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
         return numTopFeatureImportanceValues;
     }
 
+    @Override
     public String getResultsField() {
         return resultsField;
     }

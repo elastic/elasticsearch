@@ -36,7 +36,7 @@ public class StringMatcher implements Predicate<String> {
 
     private static final StringMatcher MATCH_NOTHING = new StringMatcher("(empty)", s -> false);
 
-    public static final Predicate<String> ALWAYS_TRUE_PREDICATE = s -> true;
+    protected static final Predicate<String> ALWAYS_TRUE_PREDICATE = s -> true;
 
     private final String description;
     private final Predicate<String> predicate;
@@ -67,6 +67,10 @@ public class StringMatcher implements Predicate<String> {
     @Override
     public boolean test(String s) {
         return predicate.test(s);
+    }
+
+    public boolean isTotal() {
+        return predicate == ALWAYS_TRUE_PREDICATE;
     }
 
     // For testing

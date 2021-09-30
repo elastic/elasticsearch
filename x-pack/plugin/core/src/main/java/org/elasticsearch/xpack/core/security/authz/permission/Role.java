@@ -189,7 +189,7 @@ public class Role {
         );
         // Quick path for role that has access to all indices
         if (indexPermissions == null) {
-            return IndicesAccessControl.ALLOW_ALL;
+            return IndicesAccessControl.allowAll();
         }
 
         // At least one role / indices permission set need to match with all the requested indices/aliases:

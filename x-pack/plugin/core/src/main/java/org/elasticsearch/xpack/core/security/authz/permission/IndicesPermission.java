@@ -507,7 +507,7 @@ public final class IndicesPermission {
         private final IndexPrivilege privilege;
         private final Predicate<String> actionMatcher;
         private final String[] indices;
-        private final Predicate<String> indexNameMatcher;
+        private final StringMatcher indexNameMatcher;
         private final Supplier<Automaton> indexNameAutomaton;
         private final FieldPermissions fieldPermissions;
         private final Set<BytesReference> query;
@@ -578,7 +578,7 @@ public final class IndicesPermission {
 
         public boolean isTotal() {
             return allowRestrictedIndices
-                && indexNameMatcher == StringMatcher.ALWAYS_TRUE_PREDICATE
+                && indexNameMatcher.isTotal()
                 && privilege == IndexPrivilege.ALL
                 && query == null
                 && false == fieldPermissions.hasFieldLevelSecurity();

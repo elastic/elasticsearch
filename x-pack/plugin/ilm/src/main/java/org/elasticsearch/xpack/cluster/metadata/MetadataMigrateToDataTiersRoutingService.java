@@ -50,7 +50,7 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.TIER_PREFERENCE;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
@@ -418,7 +418,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         // look at the value, get the correct tiers config and update the settings and index metadata
         Settings.Builder newSettingsBuilder = Settings.builder().put(currentIndexSettings);
         String indexName = indexMetadata.getIndex().getName();
-        if (currentIndexSettings.keySet().contains(INDEX_ROUTING_PREFER)) {
+        if (currentIndexSettings.keySet().contains(TIER_PREFERENCE)) {
             newSettingsBuilder.remove(attributeBasedRoutingSettingName);
             logger.debug("index [{}]: removed setting [{}]", indexName, attributeBasedRoutingSettingName);
         } else {
@@ -426,11 +426,11 @@ public final class MetadataMigrateToDataTiersRoutingService {
             String attributeValue = currentIndexSettings.get(attributeBasedRoutingSettingName);
             String convertedTierPreference = convertAttributeValueToTierPreference(attributeValue);
             if (convertedTierPreference != null) {
-                newSettingsBuilder.put(INDEX_ROUTING_PREFER, convertedTierPreference);
+                newSettingsBuilder.put(TIER_PREFERENCE, convertedTierPreference);
                 newSettingsBuilder.remove(attributeBasedRoutingSettingName);
                 logger.debug("index [{}]: removed setting [{}]", indexName, attributeBasedRoutingSettingName);
                 logger.debug("index [{}]: configured setting [{}] to [{}]", indexName,
-                    INDEX_ROUTING_PREFER, convertedTierPreference);
+                        TIER_PREFERENCE, convertedTierPreference);
             } else {
                 // log warning and do *not* remove setting, return the settings unchanged
                 logger.warn("index [{}]: could not convert attribute based setting [{}] value of [{}] to a tier preference " +

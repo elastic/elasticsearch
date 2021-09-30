@@ -186,12 +186,12 @@ tasks.named("preProcessFixture").configure {
   doLast {
     // tests expect to have an empty repo
     project.delete(
-      "${buildDir}/repo",
+      "${testFixturesDir}/repo",
     )
     createAndSetWritable(
-      "${buildDir}/repo",
-      "${buildDir}/logs/default-1",
-      "${buildDir}/logs/default-2",
+      "${testFixturesDir}/repo",
+      "${testFixturesDir}/logs/default-1",
+      "${testFixturesDir}/logs/default-2",
     )
   }
 }

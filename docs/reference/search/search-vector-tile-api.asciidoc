@@ -265,8 +265,8 @@ aggregation types:
 * <<search-aggregations-metrics-min-aggregation,`min`>>
 * <<search-aggregations-metrics-sum-aggregation,`sum`>>
 +
-The name of the aggregations cannot start with the prefix `_mvt_`
-as it is reserved for internal aggregation names.
+The aggregation names can't start with `_mvt_`. The `_mvt_` prefix is reserved
+for internal aggregations.
 
 include::search-vector-tile-api.asciidoc[tag=exact-bounds]
 

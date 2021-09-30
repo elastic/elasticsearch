@@ -68,12 +68,6 @@ public class XPackLicenseState {
 
         ODBC(OperationMode.PLATINUM, true),
 
-        SPATIAL_GEO_CENTROID(OperationMode.GOLD, true),
-
-        SPATIAL_GEO_GRID(OperationMode.GOLD, true),
-
-        SPATIAL_GEO_LINE(OperationMode.GOLD, true),
-
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true),
 
         AUTOSCALING(OperationMode.ENTERPRISE, true);

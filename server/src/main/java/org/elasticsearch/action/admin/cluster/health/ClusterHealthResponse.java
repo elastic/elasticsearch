@@ -306,7 +306,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     public RestStatus status() {
         if (RestApiVersion.current() == RestApiVersion.V_7 && isTimedOut()) {
             deprecationLogger.critical(DeprecationCategory.API, "cluster_health_timeout",
-                "HTTP status code for an internal cluster health timeout will change from 408 to 200 in 8.0");
+                "HTTP status code for an internal cluster health timeout will change from 408 to 200 in a future major version");
         }
         return RestStatus.OK;
     }

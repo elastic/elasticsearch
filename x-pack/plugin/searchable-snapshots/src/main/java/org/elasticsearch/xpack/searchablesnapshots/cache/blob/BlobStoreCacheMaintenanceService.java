@@ -170,7 +170,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         }
         if (periodicTask == null || periodicTask.isCancelled()) {
             schedulePeriodic = true;
-            schedulePeriodicTask();
+            startPeriodicTask();
         }
     }
 
@@ -186,7 +186,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         this.periodicTaskBatchSize = batchSize;
     }
 
-    private synchronized void schedulePeriodicTask() {
+    private synchronized void startPeriodicTask() {
         if (schedulePeriodic) {
             try {
                 final TimeValue delay = periodicTaskInterval;
@@ -603,7 +603,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 assert previous == null : "periodic maintenance task already failed: " + previous;
                 maintenanceTask.close();
             } finally {
-                schedulePeriodicTask();
+                startPeriodicTask();
             }
         };
         boolean waitForRelease = false;

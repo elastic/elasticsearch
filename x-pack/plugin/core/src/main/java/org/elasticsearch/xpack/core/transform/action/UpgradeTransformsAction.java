@@ -121,7 +121,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
                 builder.field("no_action", noAction);
             }
             if (needsUpdate != null) {
-                builder.field("needs_pdate", needsUpdate);
+                builder.field("needs_update", needsUpdate);
             }
             builder.endObject();
             return builder;

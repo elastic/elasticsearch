@@ -21,9 +21,11 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -32,6 +34,12 @@ import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import java.time.Clock;
 import java.util.Map;
 
+/**
+ * With {@link TransformUpdater} transforms can be updated or upgraded to the latest version
+ *
+ * This implementation is shared between _update and _upgrade
+ *
+ */
 public class TransformUpdater {
 
     private static final Logger logger = LogManager.getLogger(TransformUpdater.class);
@@ -65,6 +73,27 @@ public class TransformUpdater {
         }
     }
 
+    /**
+     * Update a single transform given a config and update
+     *
+     * In addition to applying update to the config, old versions of {@link TransformConfig}, {@link TransformStoredDoc} and
+     * {@link TransformCheckpoint} are rewritten into the latest format and written back using {@link TransformConfigManager}
+     *
+     * @param securityContext the security context
+     * @param indexNameExpressionResolver index name expression resolver
+     * @param clusterState the current cluster state
+     * @param settings settings
+     * @param client a client
+     * @param transformConfigManager the transform configuration manager
+     * @param config the old configuration to update
+     * @param update the update to apply to the configuration
+     * @param seqNoPrimaryTermAndIndex sequence id and primary term of the configuration
+     * @param deferValidation whether to defer some validation checks
+     * @param dryRun whether to actually write the configuration back or whether to just check for updates
+     * @param checkAccess whether to run access checks
+     * @param listener the listener called containing the result of the update
+     */
+
     public static void updateTransform(
         SecurityContext securityContext,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -82,7 +111,7 @@ public class TransformUpdater {
     ) {
         // rewrite config into a new format if necessary
         TransformConfig rewrittenConfig = TransformConfig.rewriteForUpdate(config);
-        TransformConfig updatedConfig = update.apply(rewrittenConfig);
+        TransformConfig updatedConfig = update != null ? update.apply(rewrittenConfig) : rewrittenConfig;
 
         // <5> Update checkpoints
         ActionListener<Long> updateStateListener = ActionListener.wrap(lastCheckpoint -> {

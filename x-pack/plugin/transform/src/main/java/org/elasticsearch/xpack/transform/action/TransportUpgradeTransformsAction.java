@@ -130,14 +130,14 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
 
         recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), ActionListener.wrap(updatesByStatus -> {
 
-            // todo: consider skip over option
+            // todo: consider adding a skip over option
             final boolean success = true;
 
             final long updated = updatesByStatus.containsKey(UpdateResult.Status.UPDATED)
                 ? updatesByStatus.get(UpdateResult.Status.UPDATED)
                 : 0;
 
-            final long skipped = updatesByStatus.containsKey(UpdateResult.Status.NONE) ? updatesByStatus.get(UpdateResult.Status.NONE) : 0;
+            final long noAction = updatesByStatus.containsKey(UpdateResult.Status.NONE) ? updatesByStatus.get(UpdateResult.Status.NONE) : 0;
 
             final long needsUpdate = updatesByStatus.containsKey(UpdateResult.Status.NEEDS_UPDATE)
                 ? updatesByStatus.get(UpdateResult.Status.NEEDS_UPDATE)
@@ -146,13 +146,13 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             if (request.isDryRun() == false) {
                 transformConfigManager.deleteOldIndices(state, ActionListener.wrap(deletedIndices -> {
                     logger.debug("Deleted [{}] old transform internal indices", deletedIndices);
-                    logger.info("Successfully upgraded all transforms, (updated: [{}], skipped [{}])", updated, skipped);
+                    logger.info("Successfully upgraded all transforms, (updated: [{}], no action [{}])", updated, noAction);
 
-                    listener.onResponse(new UpgradeTransformsAction.Response(success, updated, skipped, needsUpdate));
+                    listener.onResponse(new UpgradeTransformsAction.Response(success, updated, noAction, needsUpdate));
                 }, listener::onFailure));
             } else {
                 // else: dry run
-                listener.onResponse(new UpgradeTransformsAction.Response(success, updated, skipped, needsUpdate));
+                listener.onResponse(new UpgradeTransformsAction.Response(success, updated, noAction, needsUpdate));
             }
         }, listener::onFailure));
 

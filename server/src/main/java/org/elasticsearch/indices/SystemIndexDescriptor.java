@@ -699,7 +699,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     private static String patternToRegex(String input) {
         String output = input;
-        output = output.replaceAll("\\.", "\\.");
+        output = output.replaceAll("\\.", "\\\\.");
         output = output.replaceAll("\\*", ".*");
         return output;
     }

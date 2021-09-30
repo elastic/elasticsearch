@@ -11,6 +11,7 @@ package org.elasticsearch.monitor.jvm;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
 import java.lang.management.ManagementFactory;
@@ -63,7 +64,8 @@ public class HotThreads {
 
         CPU("cpu"),
         WAIT("wait"),
-        BLOCK("block");
+        BLOCK("block"),
+        MEM("mem");
 
         private final String type;
 
@@ -117,7 +119,7 @@ public class HotThreads {
 
     public String detect() throws Exception {
         synchronized (mutex) {
-            return innerDetect(ManagementFactory.getThreadMXBean(), Thread.currentThread().getId());
+            return innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId());
         }
     }
 
@@ -145,7 +147,7 @@ public class HotThreads {
         return false;
     }
 
-    Map<Long, ThreadTimeAccumulator> getAllValidThreadInfos(ThreadMXBean threadBean, long currentThreadId) {
+    Map<Long, ThreadTimeAccumulator> getAllValidThreadInfos(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId) {
         long[] threadIds = threadBean.getAllThreadIds();
         ThreadInfo[] threadInfos = threadBean.getThreadInfo(threadIds);
         Map<Long, ThreadTimeAccumulator> result = new HashMap<>(threadIds.length);
@@ -158,7 +160,8 @@ public class HotThreads {
             if (cpuTime == INVALID_TIMING) {
                 continue;
             }
-            result.put(threadIds[i], new ThreadTimeAccumulator(threadInfos[i], cpuTime));
+            long allocatedBytes = type == ReportType.MEM ? sunThreadInfo.getThreadAllocatedBytes(threadIds[i]) : 0;
+            result.put(threadIds[i], new ThreadTimeAccumulator(threadInfos[i], cpuTime, allocatedBytes));
         }
 
         return result;
@@ -186,9 +189,13 @@ public class HotThreads {
         }
     }
 
-    String innerDetect(ThreadMXBean threadBean, long currentThreadId) throws Exception {
+    String innerDetect(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId) throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
+        }
+
+        if (type == ReportType.MEM && sunThreadInfo.isThreadAllocatedMemorySupported() == false) {
+            throw new ElasticsearchException("thread allocated memory is not supported on this JDK");
         }
 
         StringBuilder sb = new StringBuilder()
@@ -207,9 +214,9 @@ public class HotThreads {
 
         try {
             // Capture before and after thread state with timings
-            Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, currentThreadId);
+            Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
             Thread.sleep(interval.millis());
-            Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, currentThreadId);
+            Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
 
             latestThreadInfos.forEach((threadId, accumulator) -> accumulator.subtractPrevious(previousThreadInfos.get(threadId)));
 
@@ -225,7 +232,7 @@ public class HotThreads {
             ThreadInfo[][] allInfos = captureThreadStacks(threadBean, topThreadIds);
 
             for (int t = 0; t < topThreads.size(); t++) {
-                long time = getter.applyAsLong(topThreads.get(t));
+                long timeOrBytes = getter.applyAsLong(topThreads.get(t));
                 String threadName = null;
                 for (ThreadInfo[] info : allInfos) {
                     if (info != null && info[t] != null) {
@@ -240,9 +247,15 @@ public class HotThreads {
                 if (threadName == null) {
                     continue; // thread is not alive yet or died before the first snapshot - ignore it!
                 }
-                double percent = (((double) time) / interval.nanos()) * 100;
-                sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
-                    percent, TimeValue.timeValueNanos(time), interval, type.getTypeValue(), threadName));
+
+                if (type == ReportType.MEM) {
+                    sb.append(String.format(Locale.ROOT, "%n%s memory allocated by thread '%s'%n",
+                        new ByteSizeValue(timeOrBytes), threadName));
+                } else {
+                    double percent = (((double) timeOrBytes) / interval.nanos()) * 100;
+                    sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
+                        percent, TimeValue.timeValueNanos(timeOrBytes), interval, type.getTypeValue(), threadName));
+                }
                 // for each snapshot (2nd array index) find later snapshot for same thread with max number of
                 // identical StackTraceElements (starting from end of each)
                 boolean[] done = new boolean[threadElementsSnapshotCount];
@@ -311,11 +324,13 @@ public class HotThreads {
         private long cpuTime;
         private long blockedTime;
         private long waitedTime;
+        private long allocatedBytes;
 
-        ThreadTimeAccumulator(ThreadInfo info, long cpuTime) {
+        ThreadTimeAccumulator(ThreadInfo info, long cpuTime, long allocatedBytes) {
             this.blockedTime = info.getBlockedTime();
             this.waitedTime = info.getWaitedTime();
             this.cpuTime = cpuTime;
+            this.allocatedBytes = allocatedBytes;
             this.threadId = info.getThreadId();
         }
 
@@ -329,6 +344,7 @@ public class HotThreads {
                 this.blockedTime -= previous.blockedTime;
                 this.waitedTime -= previous.waitedTime;
                 this.cpuTime -= previous.cpuTime;
+                this.allocatedBytes -= previous.allocatedBytes;
             }
         }
 
@@ -346,6 +362,10 @@ public class HotThreads {
             return Math.max(waitedTime, 0);
         }
 
+        public long getAllocatedBytes() {
+            return Math.max(allocatedBytes, 0);
+        }
+
         public long getThreadId() {
             return threadId;
         }
@@ -358,8 +378,10 @@ public class HotThreads {
                     return ThreadTimeAccumulator::getWaitedTime;
                 case BLOCK:
                     return ThreadTimeAccumulator::getBlockedTime;
+                case MEM:
+                    return ThreadTimeAccumulator::getAllocatedBytes;
             }
-            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
+            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', 'mem', or 'block', but was " + type);
         }
     }
 }

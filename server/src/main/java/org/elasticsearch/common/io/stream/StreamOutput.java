@@ -31,7 +31,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
@@ -789,17 +788,6 @@ public abstract class StreamOutput extends OutputStream {
                         o.writeByte((byte) 23);
                         final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
                         o.writeString(zonedDateTime.getZone().getId());
-                        o.writeLong(zonedDateTime.toInstant().toEpochMilli());
-                    }),
-            entry(
-                    JodaCompatibleZonedDateTime.class,
-                    (o, v) -> {
-                        // write the joda compatibility datetime as joda datetime
-                        o.writeByte((byte) 13);
-                        final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
-                        String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();
-                        // joda does not understand "Z" for utc, so we must special case
-                        o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
                         o.writeLong(zonedDateTime.toInstant().toEpochMilli());
                     }),
             entry(

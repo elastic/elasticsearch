@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -218,7 +219,7 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
             }
         );
-        Shell.Result result = runElasticsearchStartCommand("", false, false);
+        Shell.Result result = runElasticsearchStartCommand("", true, false);
         assertElasticsearchFailure(result, "Provided keystore password was incorrect", null);
         verifySecurityNotAutoConfigured(installation);
 

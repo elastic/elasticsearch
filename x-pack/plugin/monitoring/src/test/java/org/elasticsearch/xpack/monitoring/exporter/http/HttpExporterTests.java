@@ -412,6 +412,7 @@ public class HttpExporterTests extends ESTestCase {
         verifyNoMoreInteractions(client, listener);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78494")
     public void testCreateResources() {
         final boolean useIngest = randomBoolean();
         final boolean clusterAlertManagement = randomBoolean();
@@ -490,6 +491,11 @@ public class HttpExporterTests extends ESTestCase {
 
         assertThat(uniqueOwners, hasSize(1));
         assertThat(uniqueOwners.get(0), equalTo("xpack.monitoring.exporters._http"));
+
+        if (useIngest == false) {
+            assertWarnings("[xpack.monitoring.exporters._http.use_ingest] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
+        }
     }
 
     public void testCreateDefaultParams() {
@@ -526,6 +532,11 @@ public class HttpExporterTests extends ESTestCase {
 
         // should have removed everything
         assertThat(parameters.size(), equalTo(0));
+
+        if (useIngest == false) {
+            assertWarnings("[xpack.monitoring.exporters._http.use_ingest] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
+        }
     }
 
     public void testHttpExporterMigrationInProgressBlock() throws Exception {

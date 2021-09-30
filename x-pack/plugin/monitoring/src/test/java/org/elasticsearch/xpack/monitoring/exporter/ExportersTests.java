@@ -265,6 +265,10 @@ public class ExportersTests extends ESTestCase {
         assertEquals(settings.get("xpack.monitoring.exporters._name0.use_ingest"), "true");
         assertEquals(settings.get("xpack.monitoring.exporters._name1.type"), "http");
         assertEquals(settings.get("xpack.monitoring.exporters._name1.use_ingest"), "false");
+        assertWarnings("[xpack.monitoring.exporters._name0.use_ingest] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._name1.use_ingest] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testExporterBlocksOnClusterState() {

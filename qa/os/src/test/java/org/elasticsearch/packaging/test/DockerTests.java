@@ -122,7 +122,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that security is enabled
      */
     public void test011SecurityEnabledStatus() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD, null);
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
         final int statusCode = ServerUtils.makeRequestAndGetStatus(
             Request.Get("https://localhost:9200"),
             USERNAME,
@@ -223,7 +223,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when the keystore is created on startup, it is created with the correct permissions.
      */
     public void test042KeystorePermissionsAreCorrect() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD, null);
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
 
         assertThat(installation.config("elasticsearch.keystore"), file(p660));
     }

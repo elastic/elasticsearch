@@ -316,7 +316,7 @@ public class ServerUtils {
         );
 
         String count = makeRequest(
-            Request.Get((caCert != null ? "https" : "http") + "://localhost:9200/_count?pretty"),
+            Request.Get((caCert != null ? "https" : "http") + "://localhost:9200/library/_count?pretty"),
             username,
             password,
             caCert

@@ -55,8 +55,7 @@ public class Cleanup {
             sh.runIgnoreExitCode("ps aux | grep -i 'org.elasticsearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
         });
 
-        Platforms.onWindows(
-            () -> {
+        Platforms.onWindows(() -> {
                 // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
                 sh.runIgnoreExitCode(
                     "Get-WmiObject Win32_Process | "
@@ -75,9 +74,6 @@ public class Cleanup {
         });
         // when we run es as a role user on windows, add the equivalent here
         // delete files that may still exist
-        // temporarily see existing files for troubleshooting
-        Platforms.onLinux(() -> sh.run("ls -lR " + getRootTempDir()));
-        Platforms.onWindows(() -> sh.run("ls " + getRootTempDir() + " -recurse"));
         lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
         final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
         // windows needs leniency due to asinine releasing of file locking async from a process exiting

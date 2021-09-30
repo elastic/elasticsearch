@@ -235,6 +235,8 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(
             () -> sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + "" + "'} | " + bin.keystoreTool + " passwd")
         );
+        // Chown the config dir back to jenkins now that we don't care any more so that it can get cleaned up
+        Platforms.onWindows(() -> sh.chown(installation.config));
     }
 
     public void test60StartAndStop() throws Exception {

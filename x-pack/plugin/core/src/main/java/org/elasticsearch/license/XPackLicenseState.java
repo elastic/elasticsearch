@@ -76,8 +76,6 @@ public class XPackLicenseState {
 
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true),
 
-        AUTOSCALING(OperationMode.ENTERPRISE, true);
-
         // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.
         // Embedding the feature instance here is a stopgap to allow smaller initial PR,
         // followed by PRs to convert the current consumers of the license state.

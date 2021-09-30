@@ -79,6 +79,7 @@ public class Cleanup {
         lsGlob(getRootTempDir(), "elasticsearch*").forEach(file -> {
             if (Files.isDirectory(file)) {
                 logger.info(file + "contains : " + lsGlob(file, "*"));
+                FileUtils.rm(file);
             }
         });
         final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;

@@ -56,13 +56,13 @@ public class Cleanup {
         });
 
         Platforms.onWindows(() -> {
-                // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
-                sh.runIgnoreExitCode(
-                    "Get-WmiObject Win32_Process | "
-                        + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
-                        + "ForEach-Object { $_.Terminate() }"
-                );
-            });
+            // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
+            sh.runIgnoreExitCode(
+                "Get-WmiObject Win32_Process | "
+                    + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
+                    + "ForEach-Object { $_.Terminate() }"
+            );
+        });
 
         Platforms.onLinux(Cleanup::purgePackagesLinux);
 
